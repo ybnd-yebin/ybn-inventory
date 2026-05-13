@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>와이비앤디 업무</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d1117;--s1:#161b22;--s2:#21262d;--s3:#30363d;--b1:#21262d;--b2:#30363d;--acc:#58a6ff;--acc2:#f0883e;--acc3:#3fb950;--acc4:#f85149;--acc5:#d2a8ff;--tx1:#e6edf3;--tx2:#8b949e;--tx3:#484f58;--wc:#79c0ff;--etp:#ffa657;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1);min-height:100vh;font-size:13px;overflow-x:hidden}
+/* HEADER */
+.hdr{position:sticky;top:0;z-index:300;background:rgba(13,17,23,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--b1)}
+.hdr-top{padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+.hdr-title{font-size:15px;font-weight:900;letter-spacing:-.5px}
+.hdr-title em{color:var(--acc);font-style:normal}
+.hdr-title small{font-size:10px;font-weight:400;color:var(--tx3);margin-left:6px}
+.hdr-meta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);text-align:right}
+/* NAV */
+.main-nav{display:flex;background:var(--s1);border-bottom:2px solid var(--b1);overflow-x:auto;scrollbar-width:none}
+.main-nav::-webkit-scrollbar{display:none}
+.main-nav-btn{flex-shrink:0;padding:11px 18px;background:none;border:none;border-bottom:3px solid transparent;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap;margin-bottom:-2px}
+.main-nav-btn.on{color:var(--acc);border-bottom-color:var(--acc);background:rgba(88,166,255,.06)}
+.sub-nav{display:flex;background:var(--bg);border-bottom:1px solid var(--b1);overflow-x:auto;scrollbar-width:none;position:sticky;top:93px;z-index:199}
+.sub-nav::-webkit-scrollbar{display:none}
+.sub-nav-btn{flex:1;min-width:52px;padding:7px 4px;background:none;border:none;border-bottom:2px solid transparent;color:var(--tx3);font-size:10px;font-weight:500;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap}
+.sub-nav-btn .ico{font-size:13px;display:block;margin-bottom:1px}
+.sub-nav-btn.on{color:var(--acc);border-bottom-color:var(--acc)}
+/* PAGES */
+.sec-pg{display:none;padding:14px 14px 80px}
+.sec-pg.on{display:block}
+/* CARDS */
+.card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px;margin-bottom:12px}
+.card-ttl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--tx2);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+/* GRID */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.stat{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:12px}
+.stat-l{font-size:10px;color:var(--tx2);margin-bottom:4px}
+.stat-v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700}
+.stat-s{font-size:10px;color:var(--tx3);margin-top:2px}
+/* BADGES */
+.badge{display:inline-block;padding:1px 7px;border-radius:12px;font-size:10px;font-weight:700}
+.b-wc{background:rgba(121,192,255,.15);color:var(--wc)}.b-etp{background:rgba(255,166,87,.15);color:var(--etp)}
+.b-white{background:rgba(230,237,243,.12);color:#e6edf3}.b-forest{background:rgba(63,185,80,.15);color:var(--acc3)}
+.b-sahara{background:rgba(210,160,80,.2);color:#d4a855}.b-hd{background:rgba(210,168,255,.12);color:var(--acc5)}
+.b-ob{background:rgba(88,166,255,.12);color:var(--acc)}.b-ch{background:rgba(72,79,88,.3);color:var(--tx2)}
+.b-high{background:rgba(248,81,73,.15);color:var(--acc4)}.b-mid{background:rgba(240,136,62,.15);color:var(--acc2)}
+.b-low{background:rgba(88,166,255,.12);color:var(--acc)}.b-rare{background:rgba(72,79,88,.4);color:var(--tx2)}
+.freq-avg{font-size:10px;color:var(--tx3);margin-left:4px}
+/* FORMS */
+.inp{width:100%;padding:11px 14px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:14px;font-family:'Noto Sans KR',sans-serif;outline:none;margin-bottom:10px}
+.inp:focus{border-color:var(--acc)}
+.inp::placeholder{color:var(--tx3)}
+.sel{width:100%;padding:11px 14px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:14px;font-family:'Noto Sans KR',sans-serif;outline:none;margin-bottom:10px;appearance:none}
+.lbl{font-size:11px;font-weight:600;color:var(--tx2);letter-spacing:.5px;margin-bottom:6px;display:block}
+.f-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.f-btn{padding:5px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:20px;font-size:11px;color:var(--tx2);cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap}
+.f-btn.on{background:var(--acc);border-color:var(--acc);color:#0d1117;font-weight:700}
+/* HOME */
+.urgent-banner{background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.4);border-radius:10px;padding:10px 14px;margin-top:14px}
+.urgent-label{font-size:10px;color:var(--acc4);font-weight:700;margin-bottom:3px}
+.urgent-title{font-size:13px;font-weight:700}
+.urgent-body{font-size:11px;color:var(--tx2);margin-top:3px}
+.sch-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--b1)}
+.sch-row:last-child{border-bottom:none}
+.sch-bar{width:3px;height:28px;border-radius:2px;flex-shrink:0}
+.sch-txt{font-size:12px;font-weight:600}
+.work-stats{display:flex;gap:16px;margin-bottom:10px}
+.ws{text-align:center}
+.ws-l{font-size:10px;color:var(--tx2);margin-bottom:2px}
+.ws-l.wc{color:var(--wc)}.ws-l.etp{color:var(--etp)}
+.ws-v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700}
+.ws-v.acc3{color:var(--acc3)}.ws-v.wc{color:var(--wc)}.ws-v.etp{color:var(--etp)}
+.wsum-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b1)}
+.wsum-row:last-child{border-bottom:none}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.wsum-name{flex:1;min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wsum-qty{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--acc3)}
+/* TODO */
+.todo-item{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;background:var(--s2);border:1px solid var(--b1);border-radius:10px;margin-bottom:7px}
+.todo-item.done{opacity:.45}
+.todo-item.done .todo-content{text-decoration:line-through;color:var(--tx3)}
+.todo-check{width:20px;height:20px;border-radius:50%;border:2px solid var(--b2);background:none;cursor:pointer;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:11px}
+.todo-check.done{background:var(--acc3);border-color:var(--acc3);color:#0d1117}
+.todo-left{flex:1;min-width:0}
+.todo-content{font-size:13px;font-weight:500;margin-bottom:4px;line-height:1.4}
+.todo-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.assignee-tag{font-size:10px;background:rgba(88,166,255,.1);color:var(--acc);padding:1px 7px;border-radius:10px;font-weight:600}
+.company-tag{font-size:10px;color:var(--tx3)}
+.status-tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600}
+.st-시작전{background:rgba(72,79,88,.3);color:var(--tx2)}.st-진행중{background:rgba(240,136,62,.15);color:var(--acc2)}.st-완료{background:rgba(63,185,80,.15);color:var(--acc3)}
+.pri-tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700}
+.pri-긴급{background:rgba(248,81,73,.2);color:var(--acc4)}.pri-보통{background:rgba(88,166,255,.12);color:var(--acc)}.pri-여유{background:rgba(72,79,88,.3);color:var(--tx2)}
+.dday{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700}
+.dday.over{color:var(--acc4)}.dday.ok{color:var(--acc3)}.dday.none{color:var(--tx3)}
+.due-txt{font-size:10px;color:var(--tx3)}
+.todo-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.icon-btn{background:none;border:none;font-size:14px;cursor:pointer;padding:2px}
+.icon-btn.del{color:var(--acc4)}
+/* NOTICES */
+.notice-item{background:var(--s2);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:3px solid var(--acc)}
+.notice-item.important{border-left-color:var(--acc2)}.notice-item.urgent{border-left-color:var(--acc4);background:rgba(248,81,73,.05)}
+.notice-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.notice-hdr-left{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.notice-pri{font-size:10px;font-weight:700;white-space:nowrap}
+.notice-title{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notice-btns{display:flex;gap:6px;flex-shrink:0}
+.notice-body{font-size:12px;color:var(--tx2);line-height:1.7;white-space:pre-wrap}
+.notice-date{font-size:10px;color:var(--tx3);margin-top:6px;font-family:'JetBrains Mono',monospace}
+/* SCHEDULE */
+.sch-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--b1)}
+.sch-item:last-child{border-bottom:none}
+.sch-date{min-width:54px;text-align:center;font-size:11px;color:var(--tx2);font-family:'JetBrains Mono',monospace}
+.sch-date.today{color:var(--acc3);font-weight:700}.sch-date.past{color:var(--tx3)}
+.today-label{font-size:9px;color:var(--acc3);font-weight:700}
+.sch-bar2{width:3px;height:34px;border-radius:2px;flex-shrink:0}
+.sch-info{flex:1;min-width:0}
+.sch-content{font-size:12px;font-weight:600;margin-bottom:2px}
+.sch-cat{font-size:10px;color:var(--tx3)}
+/* STOCK DASHBOARD */
+.alert-box{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.alert-inner{display:flex;justify-content:space-between;align-items:center}
+.alert-name{font-size:12px;font-weight:700;margin-bottom:3px}
+.alert-meta{font-size:10px;color:var(--tx2)}
+.alert-qty{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--acc4);text-align:right}
+.alert-unit{display:block;font-size:9px;color:var(--tx3)}
+.top10-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1);cursor:pointer}
+.top10-rank{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3);min-width:18px}
+.top10-info{flex:1;min-width:0}
+.top10-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px}
+.top10-meta{font-size:10px;color:var(--tx2)}
+.top10-right{text-align:right;flex-shrink:0}
+.top10-qty{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--acc2)}
+.top10-unit{font-size:10px;color:var(--tx3)}
+/* WORK LOG */
+.day-card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.day-hdr{padding:12px 14px;border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center}
+.day-date{font-weight:700;font-size:13px;margin-bottom:2px}
+.day-color-sum{font-size:10px;color:var(--tx2)}
+.day-color-sum .wc{color:var(--wc)}.day-color-sum .etp{color:var(--etp)}
+.day-total{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;color:var(--acc3)}
+.day-unit{font-size:10px;color:var(--tx3)}
+.day-item{display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--b1)}
+.day-item:last-child{border-bottom:none}
+.day-item-info{flex:1;min-width:0;margin-left:8px}
+.day-item-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px}
+.day-item-meta{font-size:10px;color:var(--tx2)}
+.day-item-qty{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--acc3);flex-shrink:0}
+/* INK */
+.ink-card{border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid}
+.ink-card.wc{background:rgba(121,192,255,.06);border-color:rgba(121,192,255,.25)}
+.ink-card.etp{background:rgba(255,166,87,.06);border-color:rgba(255,166,87,.25)}
+.ink-gauge{height:12px;background:var(--b2);border-radius:6px;overflow:hidden;margin:8px 0}
+.ink-bar{height:100%;border-radius:6px;transition:width .4s}
+.ink-bar.wc{background:linear-gradient(90deg,var(--wc),#a0d8ff)}
+.ink-bar.etp{background:linear-gradient(90deg,var(--etp),#ffd199)}
+.ink-bar.low{background:var(--acc4)}
+.ink-log-row{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--b1)}
+.ink-log-row:last-child{border-bottom:none}
+.ink-log-date{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3);min-width:54px}
+.ink-log-type{font-size:11px;font-weight:600;flex:1}
+.ink-log-qty{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;min-width:50px;text-align:right}
+/* STOCK LIST */
+.model-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.model-card.urgent{border-color:var(--acc4);background:rgba(248,81,73,.05)}
+.model-card.warn{border-color:var(--acc2);background:rgba(240,136,62,.04)}
+.ml{flex:1;min-width:0}
+.mc{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);margin-bottom:3px}
+.mn{font-size:12px;font-weight:600;margin-bottom:5px;word-break:keep-all;line-height:1.4}
+.mt{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px}
+.ms{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2)}
+.stock-row{display:flex;gap:6px;margin-top:6px}
+.stock-box{flex:1;background:var(--s3);border-radius:6px;padding:6px 8px;text-align:center;border:1px solid transparent}
+.stock-box.urgent-box{border-color:var(--acc4);background:rgba(248,81,73,.1)}
+.sl{font-size:9px;color:var(--tx2);margin-bottom:2px}
+.sv{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700}
+.sv.zero{color:var(--tx3)}.sv.low{color:var(--acc4)}.sv.ok{color:var(--acc3)}
+.mr{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.mr-qty{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc2)}
+.mr-unit{font-size:10px;color:var(--tx3)}
+.mr-sub{font-size:9px;color:var(--tx3)}
+.trend{display:flex;align-items:flex-end;gap:2px;height:26px}
+.trend-bar{flex:1;background:var(--acc);border-radius:2px 2px 0 0;opacity:.7;min-height:2px}
+.trend-bar.z{background:var(--b2)}
+/* TREND */
+.trend-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.trend-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.trend-name{font-size:12px;font-weight:600;margin-bottom:2px}
+.trend-meta{font-size:10px;color:var(--tx2)}
+.month-bars{display:flex;gap:6px;align-items:flex-end;height:50px;margin-bottom:4px}
+.m-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.m-bar{width:100%;background:var(--acc);border-radius:3px 3px 0 0;min-height:2px}
+.m-bar.zero{background:var(--b2)}
+.m-lbl{font-size:9px;color:var(--tx3);font-family:'JetBrains Mono',monospace}
+.m-val{font-size:9px;color:var(--tx2);font-family:'JetBrains Mono',monospace}
+.filter-hint{text-align:center;padding:12px;color:var(--tx3);font-size:12px}
+/* NONSPEC */
+.nonspec-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.nonspec-name{font-size:13px;font-weight:700;margin-bottom:2px}
+.nonspec-total{font-size:11px;color:var(--tx2);margin-bottom:8px}
+.size-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--b1)}
+.size-row:last-child{border-bottom:none}
+.size-dim{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600}
+.size-bar-wrap{flex:1;margin:0 10px;height:6px;background:var(--b2);border-radius:3px;overflow:hidden}
+.size-bar{height:100%;background:var(--acc2);border-radius:3px}
+.size-qty{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--acc2);font-weight:700;min-width:30px;text-align:right}
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:500;display:none;align-items:flex-end;backdrop-filter:blur(4px)}
+.modal-bg.on{display:flex}
+.modal-sheet{background:var(--s1);border:1px solid var(--b2);border-radius:16px 16px 0 0;padding:18px 18px 36px;width:100%;animation:slideUp .22s ease;max-height:92vh;overflow-y:auto}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-ttl{font-size:15px;font-weight:700;margin-bottom:12px}
+.modal-tabs{display:flex;margin-bottom:14px;border:1px solid var(--b2);border-radius:8px;overflow:hidden}
+.m-tab{flex:1;padding:10px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:500;color:var(--tx2);cursor:pointer}
+.m-tab.on{background:var(--acc);color:#0d1117;font-weight:700}
+.act-btn{width:100%;padding:14px;border:none;border-radius:10px;color:#0d1117;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px}
+.act-btn.green{background:var(--acc3)}.act-btn.blue{background:var(--acc)}.act-btn.orange{background:var(--acc2)}
+.act-btn:active{opacity:.85}
+.close-btn{float:right;background:none;border:none;color:var(--tx2);font-size:22px;cursor:pointer;line-height:1}
+.qty-ctrl{display:flex;align-items:center;margin-bottom:10px}
+.qty-btn{width:52px;height:52px;background:var(--s2);border:1px solid var(--b2);color:var(--tx1);font-size:24px;cursor:pointer}
+.qty-btn:first-child{border-radius:8px 0 0 8px}.qty-btn:last-child{border-radius:0 8px 8px 0}
+.qty-num{flex:1;height:52px;background:var(--s2);border:1px solid var(--b2);border-left:none;border-right:none;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc)}
+.quick-btns{display:flex;gap:6px;margin-bottom:14px}
+.q-btn{flex:1;padding:8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+.wresult-item{padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;margin-bottom:6px;cursor:pointer}
+.wresult-item.selected{border-color:var(--acc3);background:rgba(63,185,80,.07)}
+.wr-name{font-size:12px;font-weight:600;margin-bottom:3px}
+.wr-meta{font-size:10px;color:var(--tx2);margin-bottom:2px}
+.wr-stock{font-size:10px;color:var(--tx2)}
+.sel-box{background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:10px 14px;margin-bottom:14px}
+.sel-label{font-size:10px;color:var(--acc3);margin-bottom:3px}
+/* GS */
+.upd-badge{display:inline-flex;align-items:center;padding:3px 10px;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.2);border-radius:20px;font-size:10px;color:var(--acc3)}
+.info-note{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.2);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--tx2);line-height:1.7;margin-bottom:12px}
+/* MISC */
+.empty{text-align:center;padding:36px 20px;color:var(--tx3);font-size:12px}
+.empty-ico{font-size:28px;margin-bottom:8px}
+.empty-sm{font-size:12px;color:var(--tx3);padding:8px 0}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--s1);border:1px solid var(--acc3);color:var(--acc3);padding:9px 20px;border-radius:20px;font-size:12px;font-weight:600;opacity:0;transition:all .25s;z-index:999;white-space:nowrap;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.fab{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;border:none;color:#0d1117;font-size:26px;cursor:pointer;z-index:300;display:none;align-items:center;justify-content:center;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.fab:active{transform:scale(.93)}
+.divider{height:1px;background:var(--b1);margin:10px 0}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="hdr-title"><em>와이비앤디</em> 업무<small>YBN Work Hub</small></div>
+    <div class="hdr-meta"><span id="hdr-now"></span> <span id="hdr-gs"></span></div>
+  </div>
+  <nav class="main-nav">
+    <button class="main-nav-btn on" onclick="showMain('home')">🏠 홈</button>
+    <button class="main-nav-btn" onclick="showMain('todo')">✅ 할일</button>
+    <button class="main-nav-btn" onclick="showMain('board')">📌 공지/일정</button>
+    <button class="main-nav-btn" onclick="showMain('stock')">📋 재고관리</button>
+    <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
+  </nav>
+</div>
+
+<!-- HOME -->
+<div class="sec-pg on" id="pg-home">
+  <div id="home-urgent"></div>
+  <div class="card" style="margin-top:14px">
+    <div class="card-ttl"><span>📊 오늘 현황</span><span id="home-date" style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0"></span></div>
+    <div class="g3">
+      <div class="stat"><div class="stat-l">진행중 할일</div><div class="stat-v" id="home-inprog" style="color:var(--acc2)">0</div></div>
+      <div class="stat"><div class="stat-l">오늘 작업량</div><div class="stat-v" id="home-tw" style="color:var(--acc3)">0</div></div>
+      <div class="stat"><div class="stat-l">긴급재고부족</div><div class="stat-v" id="home-us" style="color:var(--acc4)">0</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-ttl"><span>📅 오늘 일정</span><button onclick="showMain('board')" style="font-size:10px;color:var(--acc);background:none;border:none;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0">전체보기</button></div>
+    <div id="home-sch"></div>
+  </div>
+  <div class="card">
+    <div class="card-ttl"><span>✅ 진행중 할일</span><button onclick="showMain('todo')" style="font-size:10px;color:var(--acc);background:none;border:none;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0">전체보기</button></div>
+    <div id="home-todos"></div>
+  </div>
+  <div class="card">
+    <div class="card-ttl"><span>✏️ 오늘 작업</span><button onclick="showMain('stock');setTimeout(()=>showSub('worklog'),50)" style="font-size:10px;color:var(--acc);background:none;border:none;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0">작업입력</button></div>
+    <div id="home-work"></div>
+  </div>
+</div>
+
+<!-- TODO -->
+<div class="sec-pg" id="pg-todo">
+  <input class="inp" id="todo-search" placeholder="🔍 할일 검색..." oninput="renderTodo()" style="margin-bottom:10px">
+  <div class="filter-row">
+    <button class="f-btn on" onclick="setTodoFilter('all',this)">전체</button>
+    <button class="f-btn" onclick="setTodoFilter('시작전',this)">시작전</button>
+    <button class="f-btn" onclick="setTodoFilter('진행중',this)">진행중</button>
+    <button class="f-btn" onclick="setTodoFilter('완료',this)">완료</button>
+    <button class="f-btn" onclick="setTodoFilter('긴급',this)">🔴 긴급</button>
+  </div>
+  <div id="todo-list"></div>
+</div>
+
+<!-- BOARD -->
+<div class="sec-pg" id="pg-board">
+  <div class="card">
+    <div class="card-ttl"><span>📌 공지사항</span>
+      <button onclick="openNoticeModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#0d1117;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 작성</button>
+    </div>
+    <div id="notice-list"></div>
+  </div>
+  <div class="card">
+    <div class="card-ttl"><span>📅 일정</span>
+      <button onclick="openSchModal()" style="padding:4px 12px;background:var(--acc2);border:none;border-radius:16px;color:#0d1117;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 추가</button>
+    </div>
+    <div id="sch-list"></div>
+  </div>
+</div>
+
+<!-- STOCK -->
+<div class="sec-pg" id="pg-stock">
+  <nav class="sub-nav">
+    <button class="sub-nav-btn on" onclick="showSub('dashboard')"><span class="ico">📊</span>현황</button>
+    <button class="sub-nav-btn" onclick="showSub('worklog')"><span class="ico">✏️</span>작업일지</button>
+    <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
+    <button class="sub-nav-btn" onclick="showSub('stocklist')"><span class="ico">📦</span>재고</button>
+    <button class="sub-nav-btn" onclick="showSub('trend')"><span class="ico">📈</span>추이</button>
+    <button class="sub-nav-btn" onclick="showSub('nonspec')"><span class="ico">🔲</span>비규격</button>
+  </nav>
+  <!-- 대시보드 -->
+  <div id="sp-dashboard" class="sub-pg" style="padding:14px 14px 80px">
+    <div class="card"><div class="card-ttl">⚡ 긴급 부족 모델</div><div id="d-urgent"></div></div>
+    <div class="g2">
+      <div class="stat"><div class="stat-l">오늘 작업량</div><div class="stat-v" id="d-tw" style="color:var(--acc3)">0</div><div class="stat-s">장</div></div>
+      <div class="stat"><div class="stat-l">인쇄실 원유리</div><div class="stat-v" id="d-raw" style="color:var(--acc)">0</div><div class="stat-s">장</div></div>
+      <div class="stat"><div class="stat-l">웜코튼 잉크</div><div class="stat-v" id="d-ink-wc" style="color:var(--wc)">-</div><div class="stat-s">통</div></div>
+      <div class="stat"><div class="stat-l">에토프 잉크</div><div class="stat-v" id="d-ink-etp" style="color:var(--etp)">-</div><div class="stat-s">통</div></div>
+    </div>
+    <div class="card"><div class="card-ttl">📋 오늘 작업</div><div id="d-work"></div></div>
+    <div class="card"><div class="card-ttl">🔥 고빈도 TOP 10</div><div id="d-top10"></div></div>
+  </div>
+  <!-- 작업일지 -->
+  <div id="sp-worklog" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="card">
+      <div class="card-ttl">📊 누적 작업</div>
+      <div class="g2" style="margin-bottom:8px">
+        <div class="stat"><div class="stat-l">총 작업일</div><div class="stat-v" id="wl-days" style="color:var(--acc)">0</div></div>
+        <div class="stat"><div class="stat-l">총 작업량</div><div class="stat-v" id="wl-total" style="color:var(--acc3)">0</div></div>
+      </div>
+      <div class="g3" style="margin-bottom:0">
+        <div class="stat"><div class="stat-l" style="color:var(--wc)">웜코튼</div><div class="stat-v" id="wl-wc" style="color:var(--wc)">0</div></div>
+        <div class="stat"><div class="stat-l" style="color:var(--etp)">에토프</div><div class="stat-v" id="wl-etp" style="color:var(--etp)">0</div></div>
+        <div class="stat"><div class="stat-l">기타</div><div class="stat-v" id="wl-etc">0</div></div>
+      </div>
+    </div>
+    <div id="wl-list"></div>
+  </div>
+  <!-- 잉크 -->
+  <div id="sp-ink" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="info-note">💡 작업일지 기반 잉크 소모 추정. 기본 1.5KG/일 (2일 1통).</div>
+    <div class="ink-card wc">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:14px;font-weight:700;color:var(--wc)">🪣 웜코튼 잉크</span>
+        <button onclick="openInkModal('WC')" style="padding:5px 12px;background:rgba(121,192,255,.15);border:1px solid rgba(121,192,255,.3);border-radius:16px;color:var(--wc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">+ 입고</button>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:4px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--wc)" id="ink-wc-stock">0</div>
+        <div style="font-size:13px;color:var(--tx2);margin-bottom:4px">통</div>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px" id="ink-wc-kg">≈ 0KG</div>
+      </div>
+      <div class="ink-gauge"><div class="ink-bar wc" id="ink-wc-bar" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx3);margin-bottom:12px"><span>예상 소진까지</span><span id="ink-wc-days">-</span></div>
+      <div class="divider"></div>
+      <div style="font-size:10px;color:var(--tx2);margin:8px 0 6px;font-weight:600">이력</div>
+      <div id="ink-wc-log"></div>
+    </div>
+    <div class="ink-card etp">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:14px;font-weight:700;color:var(--etp)">🪣 에토프 잉크</span>
+        <button onclick="openInkModal('ETP')" style="padding:5px 12px;background:rgba(255,166,87,.15);border:1px solid rgba(255,166,87,.3);border-radius:16px;color:var(--etp);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">+ 입고</button>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:4px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--etp)" id="ink-etp-stock">0</div>
+        <div style="font-size:13px;color:var(--tx2);margin-bottom:4px">통</div>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px" id="ink-etp-kg">≈ 0KG</div>
+      </div>
+      <div class="ink-gauge"><div class="ink-bar etp" id="ink-etp-bar" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx3);margin-bottom:12px"><span>예상 소진까지</span><span id="ink-etp-days">-</span></div>
+      <div class="divider"></div>
+      <div style="font-size:10px;color:var(--tx2);margin:8px 0 6px;font-weight:600">이력</div>
+      <div id="ink-etp-log"></div>
+    </div>
+    <div class="card">
+      <div class="card-ttl">⚙️ 소모 기준 설정</div>
+      <div class="f-row">
+        <div><span class="lbl" style="color:var(--wc)">웜코튼 KG/일</span><input type="number" id="ink-rate-wc" step="0.1" min="0.1" max="5" value="1.5" class="inp" style="margin-bottom:0" onchange="saveInkRates()"></div>
+        <div><span class="lbl" style="color:var(--etp)">에토프 KG/일</span><input type="number" id="ink-rate-etp" step="0.1" min="0.1" max="5" value="1.5" class="inp" style="margin-bottom:0" onchange="saveInkRates()"></div>
+      </div>
+    </div>
+  </div>
+  <!-- 재고 목록 -->
+  <div id="sp-stocklist" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <input class="inp" id="stock-search" placeholder="🔍 모델명 / 코드 / 사이즈..." oninput="renderStockList()">
+    <div class="filter-row">
+      <button class="f-btn on" onclick="setStockFilter('all',this)">전체</button>
+      <button class="f-btn" onclick="setStockFilter('urgent',this)">🔴 긴급</button>
+      <button class="f-btn" onclick="setStockFilter('warn',this)">🟡 주의</button>
+      <button class="f-btn" onclick="setStockFilter('WC',this)">웜코튼</button>
+      <button class="f-btn" onclick="setStockFilter('ETP',this)">에토프</button>
+      <button class="f-btn" onclick="setStockFilter('HD',this)">HD</button>
+      <button class="f-btn" onclick="setStockFilter('OB',this)">OB</button>
+      <button class="f-btn" onclick="setStockFilter('high',this)">고빈도</button>
+      <button class="f-btn" onclick="setStockFilter('rare',this)">희귀</button>
+    </div>
+    <div id="stock-list"></div>
+  </div>
+  <!-- 추이 -->
+  <div id="sp-trend" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <input class="inp" id="trend-search" placeholder="🔍 모델명 검색..." oninput="renderTrend()">
+    <div class="filter-row">
+      <button class="f-btn on" onclick="setTrendFilter('all',this)">전체</button>
+      <button class="f-btn" onclick="setTrendFilter('high',this)">고빈도</button>
+      <button class="f-btn" onclick="setTrendFilter('mid',this)">중빈도</button>
+      <button class="f-btn" onclick="setTrendFilter('WC',this)">웜코튼</button>
+      <button class="f-btn" onclick="setTrendFilter('ETP',this)">에토프</button>
+    </div>
+    <div id="trend-list"></div>
+  </div>
+  <!-- 비규격 -->
+  <div id="sp-nonspec" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="card"><div class="card-ttl">📐 비규격 사이즈 분석</div><div id="nonspec-list"></div></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="sec-pg" id="pg-settings" style="padding:14px 14px 80px">
+  <div class="card">
+    <div class="card-ttl">🔗 구글 시트 연동</div>
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;margin-bottom:12px">
+      <div id="gs-dot" style="width:10px;height:10px;border-radius:50%;background:var(--tx3);flex-shrink:0"></div>
+      <div><div style="font-size:12px;font-weight:600" id="gs-txt">연동 미설정</div><div style="font-size:10px;color:var(--tx3)" id="gs-sub">URL을 입력하세요</div></div>
+      <div style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3)" id="gs-sync-time">-</div>
+    </div>
+    <span class="lbl">Apps Script 웹 앱 URL</span>
+    <input id="gs-url-input" class="inp" placeholder="https://script.google.com/macros/s/..." style="font-size:12px;font-family:'JetBrains Mono',monospace">
+    <button onclick="saveGsUrl()" style="width:100%;padding:12px;background:var(--acc);border:none;border-radius:8px;color:#0d1117;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:6px">✓ URL 저장 & 연결 테스트</button>
+    <div style="display:flex;gap:6px">
+      <button onclick="syncToSheet()" style="flex:1;padding:11px;background:var(--acc3);border:none;border-radius:8px;color:#0d1117;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">⬆ 앱→시트</button>
+      <button onclick="syncFromSheet()" style="flex:1;padding:11px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">⬇ 시트→앱</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-ttl">📥 내보내기</div>
+    <button onclick="exportCSV()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">📊 재고 CSV</button>
+    <button onclick="exportWorkLog()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">📋 작업일지 CSV</button>
+    <button onclick="exportTodoCSV()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">✅ 할일 CSV</button>
+    <button onclick="exportBackup()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer">💾 전체 백업 JSON</button>
+  </div>
+  <div class="card">
+    <div class="card-ttl">📤 복원</div>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(event)">
+    <button onclick="document.getElementById('import-file').click()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📤 JSON 복원</button>
+  </div>
+  <div class="card">
+    <div class="card-ttl" style="color:var(--acc4)">⚠️ 초기화</div>
+    <button onclick="clearStock()" style="width:100%;padding:11px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:8px;color:var(--acc4);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">재고 초기화</button>
+    <button onclick="clearWorkLog()" style="width:100%;padding:11px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:8px;color:var(--acc4);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">작업일지 초기화</button>
+    <button onclick="clearInk()" style="width:100%;padding:11px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:8px;color:var(--acc4);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer">잉크 이력 초기화</button>
+  </div>
+</div>
+
+<button class="fab" id="fab-btn" style="background:var(--acc3)" onclick="onFab()">＋</button>
+
+<!-- TODO MODAL -->
+<div class="modal-bg" id="todo-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('todo-modal')">×</button>
+    <div class="modal-ttl" id="tm-title">✅ 할일 추가</div>
+    <span class="lbl">내용</span><textarea id="tm-content" class="inp" style="height:80px;resize:none" placeholder="할일 내용..."></textarea>
+    <div class="f-row">
+      <div><span class="lbl">담당자</span><input id="tm-assignee" class="inp" placeholder="이름"></div>
+      <div><span class="lbl">업체명</span><input id="tm-company" class="inp" placeholder="업체"></div>
+    </div>
+    <div class="f-row">
+      <div><span class="lbl">우선순위</span><select id="tm-priority" class="sel"><option>긴급</option><option selected>보통</option><option>여유</option></select></div>
+      <div><span class="lbl">마감일</span><input type="date" id="tm-due" class="inp"></div>
+    </div>
+    <button class="act-btn green" id="tm-confirm" onclick="confirmTodo()">✓ 추가</button>
+  </div>
+</div>
+
+<!-- NOTICE MODAL -->
+<div class="modal-bg" id="notice-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('notice-modal')">×</button>
+    <div class="modal-ttl" id="nm-title">📌 공지 작성</div>
+    <span class="lbl">제목</span><input id="nm-title-input" class="inp" placeholder="공지 제목...">
+    <span class="lbl">내용</span><textarea id="nm-content" class="inp" style="height:100px;resize:none" placeholder="공지 내용..."></textarea>
+    <span class="lbl">중요도</span>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="q-btn" id="npri-normal" onclick="setNoticePri('normal',this)" style="flex:1;padding:10px">일반</button>
+      <button class="q-btn" id="npri-important" onclick="setNoticePri('important',this)" style="flex:1;padding:10px">⚠️ 중요</button>
+      <button class="q-btn" id="npri-urgent" onclick="setNoticePri('urgent',this)" style="flex:1;padding:10px">🔴 긴급</button>
+    </div>
+    <button class="act-btn blue" onclick="confirmNotice()" id="nm-confirm">✓ 등록</button>
+  </div>
+</div>
+
+<!-- SCHEDULE MODAL -->
+<div class="modal-bg" id="sch-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('sch-modal')">×</button>
+    <div class="modal-ttl">📅 일정 추가</div>
+    <span class="lbl">날짜</span><input type="date" id="sm-date" class="inp">
+    <span class="lbl">내용</span><input id="sm-content" class="inp" placeholder="일정 내용...">
+    <span class="lbl">구분</span>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="q-btn" id="scat-work" onclick="setSchCat('work',this)" style="flex:1;padding:10px">작업</button>
+      <button class="q-btn" id="scat-delivery" onclick="setSchCat('delivery',this)" style="flex:1;padding:10px">납품</button>
+      <button class="q-btn" id="scat-order" onclick="setSchCat('order',this)" style="flex:1;padding:10px">발주</button>
+      <button class="q-btn" id="scat-etc" onclick="setSchCat('etc',this)" style="flex:1;padding:10px">기타</button>
+    </div>
+    <button class="act-btn orange" onclick="confirmSch()">✓ 저장</button>
+  </div>
+</div>
+
+<!-- WORK MODAL -->
+<div class="modal-bg" id="work-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('work-modal')">×</button>
+    <div class="modal-ttl">✏️ 작업 입력</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px" id="wm-date"></div>
+    <span class="lbl">모델 검색</span>
+    <input class="inp" id="wm-search" placeholder="제품코드 또는 모델명..." oninput="renderWorkSearch()" style="margin-bottom:6px">
+    <div id="wm-results"></div>
+    <div id="wm-selected" style="display:none">
+      <div class="sel-box"><div class="sel-label">✓ 선택됨</div><div style="font-size:13px;font-weight:700" id="wm-sel-name"></div><div style="font-size:10px;color:var(--tx2);margin-top:2px" id="wm-sel-meta"></div></div>
+    </div>
+    <div id="wm-qty-box" style="display:none">
+      <span class="lbl">작업 수량</span>
+      <div class="qty-ctrl"><button class="qty-btn" onclick="wQtyD(-1)">−</button><div class="qty-num" id="wm-qty">1</div><button class="qty-btn" onclick="wQtyD(1)">＋</button></div>
+      <div class="quick-btns">
+        <button class="q-btn" onclick="setWQ(1)">1</button>
+        <button class="q-btn" onclick="setWQ(5)">5</button>
+        <button class="q-btn" onclick="setWQ(10)">10</button>
+        <button class="q-btn" onclick="setWQ(20)">20</button>
+        <button class="q-btn" onclick="setWQ(30)">30</button>
+      </div>
+      <button class="act-btn green" onclick="confirmWork()">✓ 작업 기록 & 재고 반영</button>
+      <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px">원유리 차감 → 인쇄유리 증가 자동 반영</div>
+    </div>
+  </div>
+</div>
+
+<!-- STOCK MODAL -->
+<div class="modal-bg" id="stock-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('stock-modal')">×</button>
+    <div class="modal-ttl" id="sm-name"></div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px" id="sm-sub"></div>
+    <div class="modal-tabs">
+      <button class="m-tab on" id="stab-raw" onclick="setSTab('raw')">인쇄실 원유리</button>
+      <button class="m-tab" id="stab-printed" onclick="setSTab('printed')">조립실 인쇄유리</button>
+    </div>
+    <div class="qty-ctrl"><button class="qty-btn" onclick="sQtyD(-1)">−</button><div class="qty-num" id="sm-qty">0</div><button class="qty-btn" onclick="sQtyD(1)">＋</button></div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="setSQ(0)">0</button>
+      <button class="q-btn" onclick="setSQ(5)">5</button>
+      <button class="q-btn" onclick="setSQ(10)">10</button>
+      <button class="q-btn" onclick="setSQ(20)">20</button>
+      <button class="q-btn" onclick="setSQ(50)">50</button>
+    </div>
+    <button class="act-btn blue" onclick="confirmStock()">✓ 재고 저장</button>
+  </div>
+</div>
+
+<!-- INK MODAL -->
+<div class="modal-bg" id="ink-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('ink-modal')">×</button>
+    <div class="modal-ttl" id="im-title">🪣 잉크 입고</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px" id="im-sub"></div>
+    <div class="modal-tabs">
+      <button class="m-tab on" id="itab-in" onclick="setInkTab('in')">입고 (통)</button>
+      <button class="m-tab" id="itab-set" onclick="setInkTab('set')">재고 직접 설정</button>
+    </div>
+    <div class="qty-ctrl"><button class="qty-btn" onclick="inkQtyD(-1)">−</button><div class="qty-num" id="im-qty">1</div><button class="qty-btn" onclick="inkQtyD(1)">＋</button></div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="setIQ(1)">1</button>
+      <button class="q-btn" onclick="setIQ(2)">2</button>
+      <button class="q-btn" onclick="setIQ(3)">3</button>
+      <button class="q-btn" onclick="setIQ(5)">5</button>
+      <button class="q-btn" onclick="setIQ(10)">10</button>
+    </div>
+    <button class="act-btn orange" onclick="confirmInk()">✓ 저장</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+
+const MONTHS=["2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04"];
+const MONTH_LABELS={"2025-11": "25년 11월", "2025-12": "25년 12월", "2026-01": "26년 01월", "2026-02": "26년 02월", "2026-03": "26년 03월", "2026-04": "26년 04월"};
+const MODELS=[{"code": "ME1WU0039", "name": "Euro700 Grace W/Cotton OB M 4573(공용) M", "short": "OB M 4573(공용) M", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 729, "total_6m": 370, "avg_monthly": 61.7, "monthly": {"2025-11": 40, "2025-12": 90, "2026-01": 34, "2026-02": 134, "2026-03": 9, "2026-04": 63}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 31}, {"code": "ME1WU0063", "name": "Euro700 Grace ETP OB M 4573(공용) M", "short": "OB M 4573(공용) M", "color": "ETP", "door_type": "OB", "glass_w": 445, "glass_h": 729, "total_6m": 210, "avg_monthly": 35.0, "monthly": {"2025-11": 41, "2025-12": 34, "2026-01": 41, "2026-02": 44, "2026-03": 10, "2026-04": 40}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 18}, {"code": "ME1WU0042", "name": "Euro700 Grace W/Cotton OB M 5073(공용) M", "short": "OB M 5073(공용) M", "color": "WC", "door_type": "OB", "glass_w": 495, "glass_h": 729, "total_6m": 202, "avg_monthly": 33.7, "monthly": {"2025-11": 20, "2025-12": 58, "2026-01": 27, "2026-02": 62, "2026-03": 1, "2026-04": 34}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 17}, {"code": "ME1WU0036", "name": "Euro700 Grace W/Cotton OB M 4073(공용) M", "short": "OB M 4073(공용) M", "color": "WC", "door_type": "OB", "glass_w": 395, "glass_h": 729, "total_6m": 185, "avg_monthly": 30.8, "monthly": {"2025-11": 20, "2025-12": 26, "2026-01": 29, "2026-02": 86, "2026-03": 3, "2026-04": 21}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 15}, {"code": "ME1WU0047", "name": "Euro700 Grace W/Cotton OB M 6073(공용) M", "short": "OB M 6073(공용) M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 729, "total_6m": 159, "avg_monthly": 26.5, "monthly": {"2025-11": 13, "2025-12": 38, "2026-01": 21, "2026-02": 66, "2026-03": 0, "2026-04": 21}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 13}, {"code": "ME1WU0060", "name": "Euro700 Grace ETP OB M 4073(공용) M", "short": "OB M 4073(공용) M", "color": "ETP", "door_type": "OB", "glass_w": 395, "glass_h": 729, "total_6m": 138, "avg_monthly": 23.0, "monthly": {"2025-11": 31, "2025-12": 20, "2026-01": 21, "2026-02": 48, "2026-03": 6, "2026-04": 12}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 12}, {"code": "ME1WU0066", "name": "Euro700 Grace ETP OB M 5073(공용) M", "short": "OB M 5073(공용) M", "color": "ETP", "door_type": "OB", "glass_w": 495, "glass_h": 729, "total_6m": 131, "avg_monthly": 21.8, "monthly": {"2025-11": 16, "2025-12": 22, "2026-01": 18, "2026-02": 32, "2026-03": 13, "2026-04": 30}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 11}, {"code": "ME1WU0071", "name": "Euro700 Grace ETP OB M 6073(공용) M", "short": "OB M 6073(공용) M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 729, "total_6m": 109, "avg_monthly": 18.2, "monthly": {"2025-11": 10, "2025-12": 18, "2026-01": 18, "2026-02": 34, "2026-03": 2, "2026-04": 27}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 9}, {"code": "ME1WU0033", "name": "Euro700 Grace W/Cotton OB M 3573(공용) M", "short": "OB M 3573(공용) M", "color": "WC", "door_type": "OB", "glass_w": 345, "glass_h": 729, "total_6m": 100, "avg_monthly": 16.7, "monthly": {"2025-11": 6, "2025-12": 30, "2026-01": 27, "2026-02": 18, "2026-03": 1, "2026-04": 18}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 8}, {"code": "ME1BD0077", "name": "Euro700 Grace W/Cotton OB BD2R 9091 M", "short": "OB BD2R 9091 M", "color": "WC", "door_type": "OB", "glass_w": 895, "glass_h": 347, "total_6m": 75, "avg_monthly": 12.5, "monthly": {"2025-11": 10, "2025-12": 12, "2026-01": 6, "2026-02": 34, "2026-03": 0, "2026-04": 13}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 6}, {"code": "ME1WU0057", "name": "Euro700 Grace ETP OB M 3573(공용) M", "short": "OB M 3573(공용) M", "color": "ETP", "door_type": "OB", "glass_w": 345, "glass_h": 729, "total_6m": 61, "avg_monthly": 10.2, "monthly": {"2025-11": 19, "2025-12": 18, "2026-01": 9, "2026-02": 4, "2026-03": 0, "2026-04": 11}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 5}, {"code": "ME1BD0095", "name": "Euro700 Grace ETP OB BD2R 9091 M", "short": "OB BD2R 9091 M", "color": "ETP", "door_type": "OB", "glass_w": 895, "glass_h": 347, "total_6m": 56, "avg_monthly": 9.3, "monthly": {"2025-11": 6, "2025-12": 8, "2026-01": 8, "2026-02": 18, "2026-03": 1, "2026-04": 15}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 5}, {"code": "ME1BN0022", "name": "Euro700 Grace W/Cotton OB BNDC2N 3091 M", "short": "OB BNDC2N 3091 M", "color": "WC", "door_type": "OB", "glass_w": 295, "glass_h": 729, "total_6m": 51, "avg_monthly": 8.5, "monthly": {"2025-11": 6, "2025-12": 8, "2026-01": 4, "2026-02": 18, "2026-03": 1, "2026-04": 14}, "freq": "high", "stock_raw": 0, "stock_printed": 0, "min_stock": 4}, {"code": "ME1BU0248", "name": "Euro700 Grace ETP HD B 5091 R", "short": "HD B 5091 R", "color": "ETP", "door_type": "HD", "glass_w": 495, "glass_h": 761, "total_6m": 47, "avg_monthly": 7.8, "monthly": {"2025-11": 15, "2025-12": 14, "2026-01": 4, "2026-02": 4, "2026-03": 2, "2026-04": 8}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 4}, {"code": "ME1BU0247", "name": "Euro700 Grace ETP HD B 5091 L", "short": "HD B 5091 L", "color": "ETP", "door_type": "HD", "glass_w": 495, "glass_h": 761, "total_6m": 46, "avg_monthly": 7.7, "monthly": {"2025-11": 14, "2025-12": 14, "2026-01": 6, "2026-02": 4, "2026-03": 1, "2026-04": 7}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 4}, {"code": "ME1BD0076", "name": "Euro700 Grace W/Cotton OB BD2R 6091 M", "short": "OB BD2R 6091 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 347, "total_6m": 46, "avg_monthly": 7.7, "monthly": {"2025-11": 7, "2025-12": 8, "2026-01": 8, "2026-02": 12, "2026-03": 0, "2026-04": 11}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 4}, {"code": "ME1BD0107", "name": "Euro700 Grace ETP HD BD2R 9091 M", "short": "HD BD2R 9091 M", "color": "ETP", "door_type": "HD", "glass_w": 895, "glass_h": 377, "total_6m": 44, "avg_monthly": 7.3, "monthly": {"2025-11": 15, "2025-12": 8, "2026-01": 9, "2026-02": 4, "2026-03": 1, "2026-04": 7}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 4}, {"code": "ME1WU0044", "name": "Euro700 Grace W/Cotton OB M 5573(공용) M", "short": "OB M 5573(공용) M", "color": "WC", "door_type": "OB", "glass_w": 545, "glass_h": 729, "total_6m": 44, "avg_monthly": 7.3, "monthly": {"2025-11": 2, "2025-12": 20, "2026-01": 8, "2026-02": 6, "2026-03": 3, "2026-04": 5}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 4}, {"code": "ME1WU0030", "name": "Euro700 Grace W/Cotton OB M 3073(공용) M", "short": "OB M 3073(공용) M", "color": "WC", "door_type": "OB", "glass_w": 295, "glass_h": 729, "total_6m": 43, "avg_monthly": 7.2, "monthly": {"2025-11": 0, "2025-12": 18, "2026-01": 6, "2026-02": 10, "2026-03": 0, "2026-04": 9}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 4}, {"code": "ME1BD0088", "name": "Euro700 Grace W/Cotton HD BD2R 9091 M", "short": "HD BD2R 9091 M", "color": "WC", "door_type": "HD", "glass_w": 895, "glass_h": 377, "total_6m": 40, "avg_monthly": 6.7, "monthly": {"2025-11": 10, "2025-12": 6, "2026-01": 7, "2026-02": 10, "2026-03": 1, "2026-04": 6}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0025", "name": "Euro700 Grace W/Cotton OB WRMB 6135 M", "short": "OB WRMB 6135 M", "color": "WC", "door_type": "OB", "glass_w": 605, "glass_h": 349, "total_6m": 39, "avg_monthly": 6.5, "monthly": {"2025-11": 8, "2025-12": 10, "2026-01": 4, "2026-02": 8, "2026-03": 0, "2026-04": 9}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0251", "name": "Euro700 Grace ETP HD B 6091 L", "short": "HD B 6091 L", "color": "ETP", "door_type": "HD", "glass_w": 595, "glass_h": 761, "total_6m": 39, "avg_monthly": 6.5, "monthly": {"2025-11": 12, "2025-12": 10, "2026-01": 5, "2026-02": 10, "2026-03": 1, "2026-04": 1}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0106", "name": "Euro700 Grace ETP HD BD2R 6091 M", "short": "HD BD2R 6091 M", "color": "ETP", "door_type": "HD", "glass_w": 595, "glass_h": 377, "total_6m": 37, "avg_monthly": 6.2, "monthly": {"2025-11": 6, "2025-12": 26, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0226", "name": "Euro700 Grace W/Cotton HD B 4591 R", "short": "HD B 4591 R", "color": "WC", "door_type": "HD", "glass_w": 445, "glass_h": 761, "total_6m": 36, "avg_monthly": 6.0, "monthly": {"2025-11": 13, "2025-12": 10, "2026-01": 4, "2026-02": 2, "2026-03": 1, "2026-04": 6}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0225", "name": "Euro700 Grace W/Cotton HD B 4591 L", "short": "HD B 4591 L", "color": "WC", "door_type": "HD", "glass_w": 445, "glass_h": 761, "total_6m": 33, "avg_monthly": 5.5, "monthly": {"2025-11": 13, "2025-12": 10, "2026-01": 4, "2026-02": 2, "2026-03": 0, "2026-04": 4}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BN0026", "name": "Euro700 Grace ETP OB BNDC2N 3091 M", "short": "OB BNDC2N 3091 M", "color": "ETP", "door_type": "OB", "glass_w": 295, "glass_h": 729, "total_6m": 32, "avg_monthly": 5.3, "monthly": {"2025-11": 5, "2025-12": 4, "2026-01": 5, "2026-02": 8, "2026-03": 3, "2026-04": 7}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BN0028", "name": "Euro700 Grace ETP HD BNDC2N 3091 M", "short": "HD BNDC2N 3091 M", "color": "ETP", "door_type": "HD", "glass_w": 295, "glass_h": 761, "total_6m": 31, "avg_monthly": 5.2, "monthly": {"2025-11": 8, "2025-12": 10, "2026-01": 2, "2026-02": 6, "2026-03": 1, "2026-04": 4}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0227", "name": "Euro700 Grace W/Cotton HD B 5091 L", "short": "HD B 5091 L", "color": "WC", "door_type": "HD", "glass_w": 495, "glass_h": 761, "total_6m": 30, "avg_monthly": 5.0, "monthly": {"2025-11": 7, "2025-12": 4, "2026-01": 7, "2026-02": 4, "2026-03": 2, "2026-04": 6}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0252", "name": "Euro700 Grace ETP HD B 6091 R", "short": "HD B 6091 R", "color": "ETP", "door_type": "HD", "glass_w": 595, "glass_h": 761, "total_6m": 29, "avg_monthly": 4.8, "monthly": {"2025-11": 7, "2025-12": 10, "2026-01": 3, "2026-02": 8, "2026-03": 1, "2026-04": 0}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0094", "name": "Euro700 Grace ETP OB BD2R 6091 M", "short": "OB BD2R 6091 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 347, "total_6m": 28, "avg_monthly": 4.7, "monthly": {"2025-11": 6, "2025-12": 2, "2026-01": 5, "2026-02": 6, "2026-03": 5, "2026-04": 4}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0061", "name": "Euro700 Grace ETP OB M 4086 M", "short": "OB M 4086 M", "color": "ETP", "door_type": "OB", "glass_w": 395, "glass_h": 857, "total_6m": 28, "avg_monthly": 4.7, "monthly": {"2025-11": 5, "2025-12": 0, "2026-01": 12, "2026-02": 2, "2026-03": 1, "2026-04": 8}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0245", "name": "Euro700 Grace ETP HD B 4591 L", "short": "HD B 4591 L", "color": "ETP", "door_type": "HD", "glass_w": 445, "glass_h": 761, "total_6m": 26, "avg_monthly": 4.3, "monthly": {"2025-11": 7, "2025-12": 8, "2026-01": 6, "2026-02": 2, "2026-03": 2, "2026-04": 1}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0246", "name": "Euro700 Grace ETP HD B 4591 R", "short": "HD B 4591 R", "color": "ETP", "door_type": "HD", "glass_w": 445, "glass_h": 761, "total_6m": 26, "avg_monthly": 4.3, "monthly": {"2025-11": 10, "2025-12": 8, "2026-01": 3, "2026-02": 2, "2026-03": 1, "2026-04": 2}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0068", "name": "Euro700 Grace ETP OB M 5573(공용) M", "short": "OB M 5573(공용) M", "color": "ETP", "door_type": "OB", "glass_w": 545, "glass_h": 729, "total_6m": 26, "avg_monthly": 4.3, "monthly": {"2025-11": 5, "2025-12": 6, "2026-01": 5, "2026-02": 6, "2026-03": 0, "2026-04": 4}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0119", "name": "Euro700 Grace W/Cotton OB WLDL 6051 M", "short": "OB WLDL 6051 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 507, "total_6m": 26, "avg_monthly": 4.3, "monthly": {"2025-11": 2, "2025-12": 12, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 2}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BN0021", "name": "Euro700 Grace W/Cotton OB BNDB2N 2091 M", "short": "OB BNDB2N 2091 M", "color": "WC", "door_type": "OB", "glass_w": 195, "glass_h": 729, "total_6m": 24, "avg_monthly": 4.0, "monthly": {"2025-11": 3, "2025-12": 8, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 3}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0231", "name": "Euro700 Grace W/Cotton HD B 6091 L", "short": "HD B 6091 L", "color": "WC", "door_type": "HD", "glass_w": 595, "glass_h": 761, "total_6m": 24, "avg_monthly": 4.0, "monthly": {"2025-11": 2, "2025-12": 10, "2026-01": 1, "2026-02": 4, "2026-03": 3, "2026-04": 4}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0228", "name": "Euro700 Grace W/Cotton HD B 5091 R", "short": "HD B 5091 R", "color": "WC", "door_type": "HD", "glass_w": 495, "glass_h": 761, "total_6m": 22, "avg_monthly": 3.7, "monthly": {"2025-11": 7, "2025-12": 2, "2026-01": 3, "2026-02": 2, "2026-03": 2, "2026-04": 6}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "KITAS0075", "name": "MBD2R소마이다(멍)_555*80(Euro700 Grace W/Cott", "short": "MBD2R소마이다(멍)_555*80(Euro700 Grace W/Cott", "color": "기타", "door_type": "?", "glass_w": null, "glass_h": null, "total_6m": 22, "avg_monthly": 3.7, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 2, "2026-02": 8, "2026-03": 1, "2026-04": 6}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0233", "name": "Euro700 Grace ETP OB BUIF 3034", "short": "OB BUIF 3034", "color": "ETP", "door_type": "OB", "glass_w": 295, "glass_h": 345, "total_6m": 22, "avg_monthly": 3.7, "monthly": {"2025-11": 2, "2025-12": 6, "2026-01": 4, "2026-02": 2, "2026-03": 5, "2026-04": 3}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0102", "name": "Euro700 Grace ETP OB BLD1UA 6091 M", "short": "OB BLD1UA 6091 M", "color": "ETP", "door_type": "OB", "glass_w": 555, "glass_h": 57, "total_6m": 21, "avg_monthly": 3.5, "monthly": {"2025-11": 4, "2025-12": 4, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 3}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0213", "name": "Euro700 Grace W/Cotton OB BUIF 3034", "short": "OB BUIF 3034", "color": "WC", "door_type": "OB", "glass_w": 295, "glass_h": 345, "total_6m": 21, "avg_monthly": 3.5, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 5, "2026-02": 4, "2026-03": 3, "2026-04": 3}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0234", "name": "Euro700 Grace ETP HD BUIF 3034", "short": "HD BUIF 3034", "color": "ETP", "door_type": "HD", "glass_w": 295, "glass_h": 345, "total_6m": 21, "avg_monthly": 3.5, "monthly": {"2025-11": 4, "2025-12": 4, "2026-01": 4, "2026-02": 8, "2026-03": 0, "2026-04": 1}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0037", "name": "Euro700 Grace W/Cotton OB M 4086 M", "short": "OB M 4086 M", "color": "WC", "door_type": "OB", "glass_w": 395, "glass_h": 857, "total_6m": 21, "avg_monthly": 3.5, "monthly": {"2025-11": 0, "2025-12": 8, "2026-01": 1, "2026-02": 8, "2026-03": 0, "2026-04": 4}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0056", "name": "Euro700 Grace ETP OB M 3565 M", "short": "OB M 3565 M", "color": "ETP", "door_type": "OB", "glass_w": 345, "glass_h": 649, "total_6m": 21, "avg_monthly": 3.5, "monthly": {"2025-11": 0, "2025-12": 20, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0232", "name": "Euro700 Grace W/Cotton HD B 6091 R", "short": "HD B 6091 R", "color": "WC", "door_type": "HD", "glass_w": 595, "glass_h": 761, "total_6m": 19, "avg_monthly": 3.2, "monthly": {"2025-11": 4, "2025-12": 6, "2026-01": 0, "2026-02": 2, "2026-03": 3, "2026-04": 4}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0149", "name": "Euro700 Grace ETP OB WLDL 6051 M", "short": "OB WLDL 6051 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 507, "total_6m": 19, "avg_monthly": 3.2, "monthly": {"2025-11": 3, "2025-12": 4, "2026-01": 4, "2026-02": 0, "2026-03": 2, "2026-04": 6}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0155", "name": "Euro700 Grace ETP OB WMLDT 6073 M", "short": "OB WMLDT 6073 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 729, "total_6m": 18, "avg_monthly": 3.0, "monthly": {"2025-11": 7, "2025-12": 4, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 4}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0163", "name": "Euro700 Grace ETP OB WT 45134 M", "short": "OB WT 45134 M", "color": "ETP", "door_type": "OB", "glass_w": 445, "glass_h": 1342, "total_6m": 18, "avg_monthly": 3.0, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 10, "2026-02": 4, "2026-03": 0, "2026-04": 3}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0084", "name": "Euro700 Grace W/Cotton OB BLD1UA 6091 M", "short": "OB BLD1UA 6091 M", "color": "WC", "door_type": "OB", "glass_w": 555, "glass_h": 57, "total_6m": 18, "avg_monthly": 3.0, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 2, "2026-02": 4, "2026-03": 1, "2026-04": 5}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0031", "name": "Euro700 Grace W/Cotton OB WRMB 9335 M", "short": "OB WRMB 9335 M", "color": "WC", "door_type": "OB", "glass_w": 925, "glass_h": 349, "total_6m": 18, "avg_monthly": 3.0, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 4, "2026-02": 6, "2026-03": 0, "2026-04": 2}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TD0011", "name": "Euro700 Grace W/Cotton OB BTAO1U 6014 M", "short": "OB BTAO1U 6014 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 139, "total_6m": 18, "avg_monthly": 3.0, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 5, "2026-02": 6, "2026-03": 1, "2026-04": 2}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0243", "name": "Euro700 Grace ETP HD B 4091 L", "short": "HD B 4091 L", "color": "ETP", "door_type": "HD", "glass_w": 395, "glass_h": 761, "total_6m": 18, "avg_monthly": 3.0, "monthly": {"2025-11": 5, "2025-12": 4, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 3}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0045", "name": "Euro700 Grace ETP OB WRMB 6135 M", "short": "OB WRMB 6135 M", "color": "ETP", "door_type": "OB", "glass_w": 605, "glass_h": 349, "total_6m": 18, "avg_monthly": 3.0, "monthly": {"2025-11": 5, "2025-12": 4, "2026-01": 3, "2026-02": 6, "2026-03": 0, "2026-04": 0}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0054", "name": "Euro700 Grace ETP OB M 3073(공용) M", "short": "OB M 3073(공용) M", "color": "ETP", "door_type": "OB", "glass_w": 295, "glass_h": 729, "total_6m": 17, "avg_monthly": 2.8, "monthly": {"2025-11": 6, "2025-12": 0, "2026-01": 2, "2026-02": 2, "2026-03": 1, "2026-04": 6}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BA0023", "name": "Euro700 Grace ETP OB BRO1R 6091 M", "short": "OB BRO1R 6091 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 247, "total_6m": 17, "avg_monthly": 2.8, "monthly": {"2025-11": 2, "2025-12": 6, "2026-01": 2, "2026-02": 2, "2026-03": 1, "2026-04": 4}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0064", "name": "Euro700 Grace ETP OB M 4586 M", "short": "OB M 4586 M", "color": "ETP", "door_type": "OB", "glass_w": 445, "glass_h": 857, "total_6m": 17, "avg_monthly": 2.8, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 8, "2026-02": 6, "2026-03": 0, "2026-04": 2}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0040", "name": "Euro700 Grace W/Cotton OB M 4586 M", "short": "OB M 4586 M", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 857, "total_6m": 17, "avg_monthly": 2.8, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 7}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0035", "name": "Euro700 Grace W/Cotton OB M 4065 M", "short": "OB M 4065 M", "color": "WC", "door_type": "OB", "glass_w": 395, "glass_h": 649, "total_6m": 16, "avg_monthly": 2.7, "monthly": {"2025-11": 6, "2025-12": 10, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "mid", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0033", "name": "Euro700 Grace W/Cotton OB WRMB 9533 M", "short": "OB WRMB 9533 M", "color": "WC", "door_type": "OB", "glass_w": 945, "glass_h": 324, "total_6m": 15, "avg_monthly": 2.5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 0, "2026-02": 8, "2026-03": 2, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0062", "name": "Euro700 Grace ETP OB M 4565 M", "short": "OB M 4565 M", "color": "ETP", "door_type": "OB", "glass_w": 445, "glass_h": 649, "total_6m": 15, "avg_monthly": 2.5, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 7}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0085", "name": "Euro700 Grace W/Cotton OB BLD2R 6062 M", "short": "OB BLD2R 6062 M", "color": "WC", "door_type": "OB", "glass_w": 555, "glass_h": 77, "total_6m": 15, "avg_monthly": 2.5, "monthly": {"2025-11": 1, "2025-12": 6, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 5}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0165", "name": "Euro700 Grace ETP OB WT 60134 M", "short": "OB WT 60134 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 1342, "total_6m": 15, "avg_monthly": 2.5, "monthly": {"2025-11": 8, "2025-12": 2, "2026-01": 3, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0244", "name": "Euro700 Grace ETP HD B 4091 R", "short": "HD B 4091 R", "color": "ETP", "door_type": "HD", "glass_w": 395, "glass_h": 761, "total_6m": 14, "avg_monthly": 2.3, "monthly": {"2025-11": 6, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 4}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0167", "name": "Euro700 Grace ETP OB WTA 45134 L", "short": "OB WTA 45134 L", "color": "ETP", "door_type": "OB", "glass_w": 445, "glass_h": 1342, "total_6m": 14, "avg_monthly": 2.3, "monthly": {"2025-11": 3, "2025-12": 6, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0027", "name": "Euro700 Grace W/Cotton OB M 2573(공용) M", "short": "OB M 2573(공용) M", "color": "WC", "door_type": "OB", "glass_w": 245, "glass_h": 729, "total_6m": 14, "avg_monthly": 2.3, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 2, "2026-02": 0, "2026-03": 1, "2026-04": 7}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0158", "name": "Euro700 Grace ETP OB WMLDT 6096 M", "short": "OB WMLDT 6096 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 955, "total_6m": 14, "avg_monthly": 2.3, "monthly": {"2025-11": 0, "2025-12": 8, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0125", "name": "Euro700 Grace W/Cotton OB WMLDT 6073 M", "short": "OB WMLDT 6073 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 729, "total_6m": 13, "avg_monthly": 2.2, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 5}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0214", "name": "Euro700 Grace W/Cotton HD BUIF 3034", "short": "HD BUIF 3034", "color": "WC", "door_type": "HD", "glass_w": 295, "glass_h": 345, "total_6m": 13, "avg_monthly": 2.2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 2, "2026-02": 6, "2026-03": 1, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TN0011", "name": "Euro700 Grace W/Cotton OB TND2 30149 M", "short": "OB TND2 30149 M", "color": "WC", "door_type": "OB", "glass_w": 295, "glass_h": 606, "total_6m": 13, "avg_monthly": 2.2, "monthly": {"2025-11": 1, "2025-12": 8, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BN0024", "name": "Euro700 Grace W/Cotton HD BNDC2N 3091 M", "short": "HD BNDC2N 3091 M", "color": "WC", "door_type": "HD", "glass_w": 295, "glass_h": 761, "total_6m": 12, "avg_monthly": 2.0, "monthly": {"2025-11": 3, "2025-12": 2, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 5}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0168", "name": "Euro700 Grace ETP OB WTA 45134 R", "short": "OB WTA 45134 R", "color": "ETP", "door_type": "OB", "glass_w": 445, "glass_h": 1342, "total_6m": 12, "avg_monthly": 2.0, "monthly": {"2025-11": 3, "2025-12": 4, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0087", "name": "Euro700 Grace W/Cotton HD BD2R 6091 M", "short": "HD BD2R 6091 M", "color": "WC", "door_type": "HD", "glass_w": 595, "glass_h": 377, "total_6m": 12, "avg_monthly": 2.0, "monthly": {"2025-11": 4, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 4, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0034", "name": "Euro700 Grace W/Cotton OB WF 9037 M", "short": "OB WF 9037 M", "color": "WC", "door_type": "OB", "glass_w": 895, "glass_h": 369, "total_6m": 12, "avg_monthly": 2.0, "monthly": {"2025-11": 3, "2025-12": 4, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0135", "name": "Euro700 Grace W/Cotton OB WT 60134 M", "short": "OB WT 60134 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 1342, "total_6m": 12, "avg_monthly": 2.0, "monthly": {"2025-11": 2, "2025-12": 6, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTWU0015", "name": "Euro700 Grace Sahara CH M 4573(공용) M", "short": "Euro700 Grace Sahara CH M 4573(공용) M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 12, "avg_monthly": 2.0, "monthly": {"2025-11": 2, "2025-12": 8, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0051", "name": "Euro700 Grace ETP OB WRMB 9335 M", "short": "OB WRMB 9335 M", "color": "ETP", "door_type": "OB", "glass_w": 925, "glass_h": 349, "total_6m": 11, "avg_monthly": 1.8, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 3}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0031", "name": "Euro700 Grace W/Cotton OB M 3086 M", "short": "OB M 3086 M", "color": "WC", "door_type": "OB", "glass_w": 295, "glass_h": 857, "total_6m": 11, "avg_monthly": 1.8, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 5}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0223", "name": "Euro700 Grace W/Cotton HD B 4091 L", "short": "HD B 4091 L", "color": "WC", "door_type": "HD", "glass_w": 395, "glass_h": 761, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 3}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0229", "name": "Euro700 Grace W/Cotton HD B 5591 L", "short": "HD B 5591 L", "color": "WC", "door_type": "HD", "glass_w": 545, "glass_h": 761, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0133", "name": "Euro700 Grace W/Cotton OB WT 45134 M", "short": "OB WT 45134 M", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 1342, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0053", "name": "Euro700 Grace ETP OB WRMB 9533 M", "short": "OB WRMB 9533 M", "color": "ETP", "door_type": "OB", "glass_w": 945, "glass_h": 324, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 5, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 3}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BA0017", "name": "Euro700 Grace W/Cotton OB BRO1R 6091 M", "short": "OB BRO1R 6091 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 247, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 4}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0026", "name": "Euro700 Grace W/Cotton OB WRMB 6148 M", "short": "OB WRMB 6148 M", "color": "WC", "door_type": "OB", "glass_w": 605, "glass_h": 477, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BN0027", "name": "Euro700 Grace ETP HD BNDB2N 2091 M", "short": "HD BNDB2N 2091 M", "color": "ETP", "door_type": "HD", "glass_w": 195, "glass_h": 761, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0042", "name": "Euro700 Grace ETP OB WRMB 10045 M", "short": "OB WRMB 10045 M", "color": "ETP", "door_type": "OB", "glass_w": 995, "glass_h": 452, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0050", "name": "Euro700 Grace W/Cotton OB WFUP 9036 M", "short": "OB WFUP 9036 M", "color": "WC", "door_type": "OB", "glass_w": 895, "glass_h": 353, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0059", "name": "Euro700 Grace ETP OB M 4065 M", "short": "OB M 4065 M", "color": "ETP", "door_type": "OB", "glass_w": 395, "glass_h": 649, "total_6m": 10, "avg_monthly": 1.7, "monthly": {"2025-11": 4, "2025-12": 4, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BN0025", "name": "Euro700 Grace ETP OB BNDB2N 2091 M", "short": "OB BNDB2N 2091 M", "color": "ETP", "door_type": "OB", "glass_w": 195, "glass_h": 729, "total_6m": 9, "avg_monthly": 1.5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 2, "2026-02": 0, "2026-03": 1, "2026-04": 3}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0034", "name": "Euro700 Grace W/Cotton OB M 3586 M", "short": "OB M 3586 M", "color": "WC", "door_type": "OB", "glass_w": 345, "glass_h": 857, "total_6m": 9, "avg_monthly": 1.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 4, "2026-03": 4, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0097", "name": "Euro700 Grace ETP OB BD3U 6091 M", "short": "OB BD3U 6091 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 170, "total_6m": 9, "avg_monthly": 1.5, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 1, "2026-02": 2, "2026-03": 1, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TD0012", "name": "Euro700 Grace W/Cotton HD BTAO1U 6014 M", "short": "HD BTAO1U 6014 M", "color": "WC", "door_type": "HD", "glass_w": 595, "glass_h": 139, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 3, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0174", "name": "Euro700 Grace ETP OB WTA 60147 R", "short": "OB WTA 60147 R", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 1470, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0079", "name": "Euro700 Grace W/Cotton OB BD3U 6091 M", "short": "OB BD3U 6091 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 170, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 2, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 3}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0025", "name": "Euro700 Grace W/Cotton OB M 2073(공용) M", "short": "OB M 2073(공용) M", "color": "WC", "door_type": "OB", "glass_w": 195, "glass_h": 729, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 4, "2026-03": 1, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0126", "name": "Euro700 Grace W/Cotton OB WMLDT 6083 M", "short": "OB WMLDT 6083 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 827, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0083", "name": "Euro700 Grace W/Cotton OB BLD1UA 4591 M", "short": "OB BLD1UA 4591 M", "color": "WC", "door_type": "OB", "glass_w": 405, "glass_h": 57, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BA0016", "name": "Euro700 Grace W/Cotton OB BADMIL 6091", "short": "OB BADMIL 6091", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 729, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0157", "name": "Euro700 Grace ETP OB WMLDT 6086 M", "short": "OB WMLDT 6086 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 857, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 3}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TD0018", "name": "Euro700 Grace ETP HD BTAO1U 6014 M", "short": "HD BTAO1U 6014 M", "color": "ETP", "door_type": "HD", "glass_w": 595, "glass_h": 139, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 5, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0103", "name": "Euro700 Grace ETP OB BLD2R 6062 M", "short": "OB BLD2R 6062 M", "color": "ETP", "door_type": "OB", "glass_w": 555, "glass_h": 77, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0100", "name": "Euro700 Grace ETP OB BLD1R 6091 M", "short": "OB BLD1R 6091 M", "color": "ETP", "door_type": "OB", "glass_w": 555, "glass_h": 57, "total_6m": 8, "avg_monthly": 1.3, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 1, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0041", "name": "Euro700 Grace ETP OB WRMB 10033 M", "short": "OB WRMB 10033 M", "color": "ETP", "door_type": "OB", "glass_w": 995, "glass_h": 324, "total_6m": 7, "avg_monthly": 1.2, "monthly": {"2025-11": 3, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0101", "name": "Euro700 Grace ETP OB BLD1UA 4591 M", "short": "OB BLD1UA 4591 M", "color": "ETP", "door_type": "OB", "glass_w": 405, "glass_h": 57, "total_6m": 7, "avg_monthly": 1.2, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0028", "name": "Euro700 Grace W/Cotton OB WF 10037 M", "short": "OB WF 10037 M", "color": "WC", "door_type": "OB", "glass_w": 995, "glass_h": 369, "total_6m": 7, "avg_monthly": 1.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TN0013", "name": "Euro700 Grace ETP OB TND2 30149 M", "short": "OB TND2 30149 M", "color": "ETP", "door_type": "OB", "glass_w": 295, "glass_h": 606, "total_6m": 7, "avg_monthly": 1.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 2, "2026-03": 1, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0090", "name": "Euro700 Grace W/Cotton HD BD3U 6091 M", "short": "HD BD3U 6091 M", "color": "WC", "door_type": "HD", "glass_w": 595, "glass_h": 185, "total_6m": 7, "avg_monthly": 1.2, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0151", "name": "Euro700 Grace ETP OB WMLDT 3073 M", "short": "OB WMLDT 3073 M", "color": "ETP", "door_type": "OB", "glass_w": 295, "glass_h": 729, "total_6m": 7, "avg_monthly": 1.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 4, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WH0014", "name": "Euro700 Grace ETP OB WHMH 6065 M", "short": "OB WHMH 6065 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 649, "total_6m": 7, "avg_monthly": 1.2, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 1, "2026-02": 2, "2026-03": 1, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0031", "name": "Euro700 Grace W/Cotton OB WF 8037 M", "short": "OB WF 8037 M", "color": "WC", "door_type": "OB", "glass_w": 795, "glass_h": 369, "total_6m": 7, "avg_monthly": 1.2, "monthly": {"2025-11": 5, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTWU0012", "name": "Euro700 Grace Sahara CH M 4073(공용) M", "short": "Euro700 Grace Sahara CH M 4073(공용) M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 7, "avg_monthly": 1.2, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0230", "name": "Euro700 Grace W/Cotton HD B 5591 R", "short": "HD B 5591 R", "color": "WC", "door_type": "HD", "glass_w": 545, "glass_h": 761, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 2, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0046", "name": "Euro700 Grace ETP OB WRMB 6148 M", "short": "OB WRMB 6148 M", "color": "ETP", "door_type": "OB", "glass_w": 605, "glass_h": 477, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 6}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TN0014", "name": "Euro700 Grace ETP HD TND2 30149 M", "short": "HD TND2 30149 M", "color": "ETP", "door_type": "HD", "glass_w": 295, "glass_h": 606, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 4, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0221", "name": "Euro700 Grace W/Cotton HD B 3591 L", "short": "HD B 3591 L", "color": "WC", "door_type": "HD", "glass_w": 345, "glass_h": 761, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 3, "2026-02": 0, "2026-03": 1, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0046", "name": "Euro700 Grace W/Cotton OB WFUP 10036 M", "short": "OB WFUP 10036 M", "color": "WC", "door_type": "OB", "glass_w": 995, "glass_h": 353, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0166", "name": "Euro700 Grace ETP OB WT 60147 M", "short": "OB WT 60147 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 1470, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0105", "name": "Euro700 Grace ETP HD BD2R 12091 M", "short": "HD BD2R 12091 M", "color": "ETP", "door_type": "HD", "glass_w": 1195, "glass_h": 377, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTWU0018", "name": "Euro700 Grace Sahara CH M 5073(공용) M", "short": "Euro700 Grace Sahara CH M 5073(공용) M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0063", "name": "Euro700 Grace ETP OB WFED 7053 M", "short": "OB WFED 7053 M", "color": "ETP", "door_type": "OB", "glass_w": 695, "glass_h": 529, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0032", "name": "Euro700 Grace W/Cotton OB M 3565 M", "short": "OB M 3565 M", "color": "WC", "door_type": "OB", "glass_w": 345, "glass_h": 649, "total_6m": 6, "avg_monthly": 1.0, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0131", "name": "Euro700 Grace W/Cotton OB WT 40134 M", "short": "OB WT 40134 M", "color": "WC", "door_type": "OB", "glass_w": 395, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0111", "name": "Euro700 Grace ETP HD BLD2R 6062 M", "short": "HD BLD2R 6062 M", "color": "ETP", "door_type": "HD", "glass_w": null, "glass_h": null, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 2, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0171", "name": "Euro700 Grace ETP OB WTA 60134 L", "short": "OB WTA 60134 L", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0048", "name": "Euro700 Grace W/Cotton OB M 6086 M", "short": "OB M 6086 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 857, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0136", "name": "Euro700 Grace W/Cotton OB WT 60147 M", "short": "OB WT 60147 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 1470, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 4, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0129", "name": "Euro700 Grace W/Cotton OB WT 30134 M", "short": "OB WT 30134 M", "color": "WC", "door_type": "OB", "glass_w": 295, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0027", "name": "Euro700 Grace W/Cotton OB WRMB 7135 M", "short": "OB WRMB 7135 M", "color": "WC", "door_type": "OB", "glass_w": 710, "glass_h": 349, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0080", "name": "Euro700 Grace W/Cotton OB BDI1R 4591 M", "short": "OB BDI1R 4591 M", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 729, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 4, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0120", "name": "Euro700 Grace W/Cotton OB WLDL 9051 M", "short": "OB WLDL 9051 M", "color": "WC", "door_type": "OB", "glass_w": 895, "glass_h": 507, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0249", "name": "Euro700 Grace ETP HD B 5591 L", "short": "HD B 5591 L", "color": "ETP", "door_type": "HD", "glass_w": 545, "glass_h": 761, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0048", "name": "Euro700 Grace W/Cotton OB WFUP 8036 M", "short": "OB WFUP 8036 M", "color": "WC", "door_type": "OB", "glass_w": 795, "glass_h": 353, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0047", "name": "Euro700 Grace ETP OB WRMB 7135 M", "short": "OB WRMB 7135 M", "color": "ETP", "door_type": "OB", "glass_w": 710, "glass_h": 349, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0021", "name": "Euro700 Grace W/Cotton OB WRMB 10033 M", "short": "OB WRMB 10033 M", "color": "WC", "door_type": "OB", "glass_w": 995, "glass_h": 324, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0161", "name": "Euro700 Grace ETP OB WT 40134 M", "short": "OB WT 40134 M", "color": "ETP", "door_type": "OB", "glass_w": 395, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTWU0006", "name": "Euro700 Grace Sahara CH M 3073(공용) M", "short": "Euro700 Grace Sahara CH M 3073(공용) M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTWU0009", "name": "Euro700 Grace Sahara CH M 3573(공용) M", "short": "Euro700 Grace Sahara CH M 3573(공용) M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 5, "avg_monthly": 0.8, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0086", "name": "Euro700 Grace W/Cotton HD BD2R 12091 M", "short": "HD BD2R 12091 M", "color": "WC", "door_type": "HD", "glass_w": 1195, "glass_h": 377, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 4}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0081", "name": "Euro700 Grace W/Cotton OB BLD1R 4591 M", "short": "OB BLD1R 4591 M", "color": "WC", "door_type": "OB", "glass_w": 405, "glass_h": 57, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 3}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0224", "name": "Euro700 Grace W/Cotton HD B 4091 R", "short": "HD B 4091 R", "color": "WC", "door_type": "HD", "glass_w": 395, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TN0012", "name": "Euro700 Grace W/Cotton HD TND2 30149 M", "short": "HD TND2 30149 M", "color": "WC", "door_type": "HD", "glass_w": 295, "glass_h": 606, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0121", "name": "Euro700 Grace W/Cotton OB WMLDT 3073 M", "short": "OB WMLDT 3073 M", "color": "WC", "door_type": "OB", "glass_w": 295, "glass_h": 729, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TD0017", "name": "Euro700 Grace ETP OB BTAO1U 6014 M", "short": "OB BTAO1U 6014 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 139, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 2}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0240", "name": "Euro700 Grace ETP HD B 3091 R", "short": "HD B 3091 R", "color": "ETP", "door_type": "HD", "glass_w": 295, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BN0023", "name": "Euro700 Grace W/Cotton HD BNDB2N 2091 M", "short": "HD BNDB2N 2091 M", "color": "WC", "door_type": "HD", "glass_w": 195, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0242", "name": "Euro700 Grace ETP HD B 3591 R", "short": "HD B 3591 R", "color": "ETP", "door_type": "HD", "glass_w": 345, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WH0010", "name": "Euro700 Grace W/Cotton OB WHMH 6073 M", "short": "OB WHMH 6073 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 729, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0250", "name": "Euro700 Grace ETP HD B 5591 R", "short": "HD B 5591 R", "color": "ETP", "door_type": "HD", "glass_w": 545, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0222", "name": "Euro700 Grace W/Cotton HD B 3591 R", "short": "HD B 3591 R", "color": "WC", "door_type": "HD", "glass_w": 345, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0156", "name": "Euro700 Grace ETP OB WMLDT 6083 M", "short": "OB WMLDT 6083 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 827, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0075", "name": "Euro700 Grace ETP OB WFUP 9036 M", "short": "OB WFUP 9036 M", "color": "ETP", "door_type": "OB", "glass_w": 895, "glass_h": 353, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WH0015", "name": "Euro700 Grace ETP OB WHMH 6073 M", "short": "OB WHMH 6073 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 729, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0027", "name": "Euro700 Grace W/Cotton OB W2U 4542 M", "short": "OB W2U 4542 M", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 417, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0058", "name": "Euro700 Grace ETP OB M 3586 M", "short": "OB M 3586 M", "color": "ETP", "door_type": "OB", "glass_w": 345, "glass_h": 857, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTWF0017", "name": "Euro700 Grace Sahara CH WFUP 10036 M", "short": "Euro700 Grace Sahara CH WFUP 10036 M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 4, "avg_monthly": 0.7, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "low", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0068", "name": "Euro700 Grace ETP OB WFMD 9035 M", "short": "OB WFMD 9035 M", "color": "ETP", "door_type": "OB", "glass_w": 895, "glass_h": 349, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0067", "name": "Euro700 Grace ETP OB M 5086 M", "short": "OB M 5086 M", "color": "ETP", "door_type": "OB", "glass_w": 495, "glass_h": 857, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0110", "name": "Euro700 Grace ETP HD BDI1R 4591 M", "short": "HD BDI1R 4591 M", "color": "ETP", "door_type": "HD", "glass_w": 445, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0053", "name": "Euro700 Grace ETP OB M 3065 M", "short": "OB M 3065 M", "color": "ETP", "door_type": "OB", "glass_w": 295, "glass_h": 649, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0052", "name": "Euro700 Grace ETP OB WRMB 9348 M", "short": "OB WRMB 9348 M", "color": "ETP", "door_type": "OB", "glass_w": 925, "glass_h": 477, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0040", "name": "Euro700 Grace W/Cotton OB WFED 9053 M", "short": "OB WFED 9053 M", "color": "WC", "door_type": "OB", "glass_w": 895, "glass_h": 529, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0169", "name": "Euro700 Grace ETP OB WTA 45147 L", "short": "OB WTA 45147 L", "color": "ETP", "door_type": "OB", "glass_w": 445, "glass_h": 1470, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0170", "name": "Euro700 Grace ETP OB WTA 45147 R", "short": "OB WTA 45147 R", "color": "ETP", "door_type": "OB", "glass_w": 445, "glass_h": 1470, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0069", "name": "Euro700 Grace ETP OB WFMD 9048 M", "short": "OB WFMD 9048 M", "color": "ETP", "door_type": "OB", "glass_w": 895, "glass_h": 477, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0134", "name": "Euro700 Grace W/Cotton OB WT 45147 M", "short": "OB WT 45147 M", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 1470, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0241", "name": "Euro700 Grace ETP HD B 3591 L", "short": "HD B 3591 L", "color": "ETP", "door_type": "HD", "glass_w": 345, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0049", "name": "Euro700 Grace ETP OB M 2073(공용) M", "short": "OB M 2073(공용) M", "color": "ETP", "door_type": "OB", "glass_w": 195, "glass_h": 729, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRSWU0018", "name": "Euro700 Grace Forest CH M 5073(공용) M", "short": "CH M 5073(공용) M", "color": "Forest", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0093", "name": "Euro700 Grace ETP OB BD2R 12091 M", "short": "OB BD2R 12091 M", "color": "ETP", "door_type": "OB", "glass_w": 1195, "glass_h": 347, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 3}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BA0020", "name": "Euro700 Grace W/Cotton HD BADMIL 6091", "short": "HD BADMIL 6091", "color": "WC", "door_type": "HD", "glass_w": 595, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0216", "name": "Euro700 Grace W/Cotton HD B 2091 R", "short": "HD B 2091 R", "color": "WC", "door_type": "HD", "glass_w": 195, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0109", "name": "Euro700 Grace ETP HD BD3U 6091 M", "short": "HD BD3U 6091 M", "color": "ETP", "door_type": "HD", "glass_w": 595, "glass_h": 185, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TU0005", "name": "Euro700 Grace W/Cotton HD TH 45220 L", "short": "HD TH 45220 L", "color": "WC", "door_type": "HD", "glass_w": 445, "glass_h": 2200, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TU0006", "name": "Euro700 Grace W/Cotton HD TH 45220 R", "short": "HD TH 45220 R", "color": "WC", "door_type": "HD", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0092", "name": "Euro700 Grace W/Cotton HD BLD2R 6062 M", "short": "HD BLD2R 6062 M", "color": "WC", "door_type": "HD", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0038", "name": "Euro700 Grace W/Cotton OB M 4565 M", "short": "OB M 4565 M", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 649, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0141", "name": "Euro700 Grace W/Cotton OB WTA 60134 L", "short": "OB WTA 60134 L", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 1342, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTWF0019", "name": "Euro700 Grace Sahara CH WFUP 8036 M", "short": "Euro700 Grace Sahara CH WFUP 8036 M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0219", "name": "Euro700 Grace W/Cotton HD B 3091 L", "short": "HD B 3091 L", "color": "WC", "door_type": "HD", "glass_w": 295, "glass_h": 761, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0072", "name": "Euro700 Grace ETP OB M 6086 M", "short": "OB M 6086 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 857, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0139", "name": "Euro700 Grace W/Cotton OB WTA 45147 L", "short": "OB WTA 45147 L", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 1470, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0140", "name": "Euro700 Grace W/Cotton OB WTA 45147 R", "short": "OB WTA 45147 R", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 1470, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0037", "name": "Euro700 Grace W/Cotton OB WFED 6053 M", "short": "OB WFED 6053 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 529, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0038", "name": "Euro700 Grace W/Cotton OB WFED 7053 M", "short": "OB WFED 7053 M", "color": "WC", "door_type": "OB", "glass_w": 695, "glass_h": 529, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BA0026", "name": "Euro700 Grace ETP HD BADMIL 6091", "short": "HD BADMIL 6091", "color": "ETP", "door_type": "HD", "glass_w": 595, "glass_h": 761, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRRWU0020", "name": "Euro700 Grace White CH M 5573(공용) M", "short": "CH M 5573(공용) M", "color": "White", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BC0031", "name": "Euro700 Grace W/Cotton OB BC1A 4291 M", "short": "OB BC1A 4291 M", "color": "WC", "door_type": "OB", "glass_w": 422, "glass_h": 729, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BC0032", "name": "Euro700 Grace W/Cotton OB BC1B 4091 M", "short": "OB BC1B 4091 M", "color": "WC", "door_type": "OB", "glass_w": 402, "glass_h": 729, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0055", "name": "Euro700 Grace ETP OB M 3086 M", "short": "OB M 3086 M", "color": "ETP", "door_type": "OB", "glass_w": 295, "glass_h": 857, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0069", "name": "Euro700 Grace ETP OB M 5586 M", "short": "OB M 5586 M", "color": "ETP", "door_type": "OB", "glass_w": 545, "glass_h": 857, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0059", "name": "Euro700 Grace ETP OB WF 9037 M", "short": "OB WF 9037 M", "color": "ETP", "door_type": "OB", "glass_w": 895, "glass_h": 369, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0082", "name": "Euro700 Grace W/Cotton OB BLD1R 6091 M", "short": "OB BLD1R 6091 M", "color": "WC", "door_type": "OB", "glass_w": 555, "glass_h": 57, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0029", "name": "Euro700 Grace W/Cotton OB M 3065 M", "short": "OB M 3065 M", "color": "WC", "door_type": "OB", "glass_w": 295, "glass_h": 649, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WH0009", "name": "Euro700 Grace W/Cotton OB WHMH 6065 M", "short": "OB WHMH 6065 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 649, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTBD0002", "name": "Euro700 Grace Sahara CH BD2R 6091 M", "short": "Euro700 Grace Sahara CH BD2R 6091 M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTBN0002", "name": "Euro700 Grace Sahara CH BNDC2N 3091 M", "short": "Euro700 Grace Sahara CH BNDC2N 3091 M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0078", "name": "Euro700 Grace W/Cotton OB BD3U 4591 M", "short": "OB BD3U 4591 M", "color": "WC", "door_type": "OB", "glass_w": 445, "glass_h": 170, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0056", "name": "Euro700 Grace ETP OB WF 8037 M", "short": "OB WF 8037 M", "color": "ETP", "door_type": "OB", "glass_w": 795, "glass_h": 369, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0073", "name": "Euro700 Grace ETP OB WFUP 8036 M", "short": "OB WFUP 8036 M", "color": "ETP", "door_type": "OB", "glass_w": 795, "glass_h": 353, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0142", "name": "Euro700 Grace W/Cotton OB WTA 60134 R", "short": "OB WTA 60134 R", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 1342, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BD0099", "name": "Euro700 Grace ETP OB BLD1R 4591 M", "short": "OB BLD1R 4591 M", "color": "ETP", "door_type": "OB", "glass_w": 405, "glass_h": 57, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0043", "name": "Euro700 Grace W/Cotton OB WFMD 9035 M", "short": "OB WFMD 9035 M", "color": "WC", "door_type": "OB", "glass_w": 895, "glass_h": 349, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0053", "name": "Euro700 Grace ETP OB WF 10037 M", "short": "OB WF 10037 M", "color": "ETP", "door_type": "OB", "glass_w": 995, "glass_h": 369, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0059", "name": "Euro700 Grace ETP OB WRMBS 9035 M", "short": "OB WRMBS 9035 M", "color": "ETP", "door_type": "OB", "glass_w": 895, "glass_h": 349, "total_6m": 2, "avg_monthly": 0.3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0235", "name": "Euro700 Grace ETP HD B 2091 L", "short": "HD B 2091 L", "color": "ETP", "door_type": "HD", "glass_w": 195, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BA0022", "name": "Euro700 Grace ETP OB BADMIL 6091", "short": "OB BADMIL 6091", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 729, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0058", "name": "Euro700 Grace ETP OB WF 9033 M", "short": "OB WF 9033 M", "color": "ETP", "door_type": "OB", "glass_w": 895, "glass_h": 329, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0220", "name": "Euro700 Grace W/Cotton HD B 3091 R", "short": "HD B 3091 R", "color": "WC", "door_type": "HD", "glass_w": 295, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0023", "name": "Euro700 Grace W/Cotton OB WRMB 4735 M", "short": "OB WRMB 4735 M", "color": "WC", "door_type": "OB", "glass_w": 465, "glass_h": 349, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRRBD0012", "name": "Euro700 Grace White CH BLD1UA 6091 M", "short": "CH BLD1UA 6091 M", "color": "White", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WH0008", "name": "Euro700 Grace W/Cotton OB WHM 6061 M", "short": "OB WHM 6061 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 603, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WR0034", "name": "Euro700 Grace W/Cotton OB WRMB 9545 M", "short": "OB WRMB 9545 M", "color": "WC", "door_type": "OB", "glass_w": 945, "glass_h": 452, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WU0043", "name": "Euro700 Grace W/Cotton OB M 5086 M", "short": "OB M 5086 M", "color": "WC", "door_type": "OB", "glass_w": 495, "glass_h": 857, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRRWU0011", "name": "Euro700 Grace White CH M 4065 M", "short": "CH M 4065 M", "color": "White", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0060", "name": "Euro700 Grace ETP OB WF 9044 M", "short": "OB WF 9044 M", "color": "ETP", "door_type": "OB", "glass_w": 895, "glass_h": 433, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BA0025", "name": "Euro700 Grace ETP OB BTARG 6070 R", "short": "OB BTARG 6070 R", "color": "ETP", "door_type": "OB", "glass_w": 592, "glass_h": 693, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0178", "name": "Euro700 Grace ETP OB WTARG 60154 R", "short": "OB WTARG 60154 R", "color": "ETP", "door_type": "OB", "glass_w": 592, "glass_h": 1538, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0150", "name": "Euro700 Grace ETP OB WLDL 9051 M", "short": "OB WLDL 9051 M", "color": "ETP", "door_type": "OB", "glass_w": 895, "glass_h": 507, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TU0010", "name": "Euro700 Grace ETP HD TH 45220 L", "short": "HD TH 45220 L", "color": "ETP", "door_type": "HD", "glass_w": 445, "glass_h": 2200, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TU0011", "name": "Euro700 Grace ETP HD TH 45220 R", "short": "HD TH 45220 R", "color": "ETP", "door_type": "HD", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRRWU0012", "name": "Euro700 Grace White CH M 4073(공용) M", "short": "CH M 4073(공용) M", "color": "White", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0236", "name": "Euro700 Grace ETP HD B 2091 R", "short": "HD B 2091 R", "color": "ETP", "door_type": "HD", "glass_w": 195, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRSWU0012", "name": "Euro700 Grace Forest CH M 4073(공용) M", "short": "CH M 4073(공용) M", "color": "Forest", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0217", "name": "Euro700 Grace W/Cotton HD B 2591 L", "short": "HD B 2591 L", "color": "WC", "door_type": "HD", "glass_w": 245, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0173", "name": "Euro700 Grace ETP OB WTA 60147 L", "short": "OB WTA 60147 L", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 1470, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BC0038", "name": "Euro700 Grace ETP OB BC1B 4091 M", "short": "OB BC1B 4091 M", "color": "ETP", "door_type": "OB", "glass_w": 402, "glass_h": 729, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0164", "name": "Euro700 Grace ETP OB WT 45147 M", "short": "OB WT 45147 M", "color": "ETP", "door_type": "OB", "glass_w": 445, "glass_h": 1470, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRQWU0015", "name": "Euro700 Grace MID/N CH M 4573(공용) M", "short": "Euro700 Grace MID/N CH M 4573(공용) M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WH0006", "name": "Euro700 Grace W/Cotton OB WHFM 6027 M", "short": "OB WHFM 6027 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 269, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "MRTWU0020", "name": "Euro700 Grace Sahara CH M 5573(공용) M", "short": "Euro700 Grace Sahara CH M 5573(공용) M", "color": "기타", "door_type": "CH", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WF0066", "name": "Euro700 Grace ETP OB WFMD 6035 M", "short": "OB WFMD 6035 M", "color": "ETP", "door_type": "OB", "glass_w": 595, "glass_h": 349, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1BU0237", "name": "Euro700 Grace ETP HD B 2591 L", "short": "HD B 2591 L", "color": "ETP", "door_type": "HD", "glass_w": 245, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TC0011", "name": "Euro700 Grace ETP HD TCP1D 42222 L", "short": "HD TCP1D 42222 L", "color": "ETP", "door_type": "HD", "glass_w": 422, "glass_h": 2110, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1TC0012", "name": "Euro700 Grace ETP HD TCP1D 40222 R", "short": "HD TCP1D 40222 R", "color": "ETP", "door_type": "HD", "glass_w": 402, "glass_h": 2110, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0159", "name": "Euro700 Grace ETP OB WT 30134 M", "short": "OB WT 30134 M", "color": "ETP", "door_type": "OB", "glass_w": 295, "glass_h": 1342, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}, {"code": "ME1WT0127", "name": "Euro700 Grace W/Cotton OB WMLDT 6086 M", "short": "OB WMLDT 6086 M", "color": "WC", "door_type": "OB", "glass_w": 595, "glass_h": 857, "total_6m": 1, "avg_monthly": 0.2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}, "freq": "rare", "stock_raw": 0, "stock_printed": 0, "min_stock": 3}];
+const NONSPEC_GROUPS=[{"group": "OB M", "total": 747, "sizes": [{"w": 425, "h": 736, "qty": 51}, {"w": 375, "h": 736, "qty": 36}, {"w": 380, "h": 736, "qty": 18}, {"w": 480, "h": 736, "qty": 16}, {"w": 400, "h": 806, "qty": 15}, {"w": 437, "h": 736, "qty": 12}, {"w": 435, "h": 851, "qty": 12}, {"w": 333, "h": 876, "qty": 12}, {"w": 400, "h": 716, "qty": 12}, {"w": 525, "h": 736, "qty": 11}]}, {"group": "OB WRMB", "total": 245, "sizes": [{"w": 610, "h": 341, "qty": 9}, {"w": 612, "h": 356, "qty": 8}, {"w": 605, "h": 373, "qty": 8}, {"w": 625, "h": 359, "qty": 6}, {"w": 950, "h": 356, "qty": 6}, {"w": 620, "h": 386, "qty": 6}, {"w": 605, "h": 356, "qty": 5}, {"w": 610, "h": 479, "qty": 4}, {"w": 610, "h": 438, "qty": 4}, {"w": 930, "h": 351, "qty": 4}]}, {"group": "HD B", "total": 123, "sizes": [{"w": 500, "h": 1000, "qty": 30}, {"w": 525, "h": 910, "qty": 14}, {"w": 475, "h": 910, "qty": 8}, {"w": 420, "h": 910, "qty": 5}, {"w": 360, "h": 910, "qty": 4}, {"w": 410, "h": 1000, "qty": 4}, {"w": 387, "h": 910, "qty": 4}, {"w": 495, "h": 910, "qty": 4}, {"w": 425, "h": 910, "qty": 4}, {"w": 490, "h": 910, "qty": 4}]}, {"group": "OB WT", "total": 115, "sizes": [{"w": 500, "h": 1349, "qty": 23}, {"w": 480, "h": 1502, "qty": 10}, {"w": 550, "h": 1349, "qty": 8}, {"w": 450, "h": 1379, "qty": 8}, {"w": 350, "h": 1349, "qty": 5}, {"w": 470, "h": 1349, "qty": 5}, {"w": 400, "h": 1402, "qty": 4}, {"w": 500, "h": 1522, "qty": 4}, {"w": 580, "h": 1349, "qty": 3}, {"w": 467, "h": 1522, "qty": 3}]}, {"group": "OB BD2R", "total": 51, "sizes": [{"w": 500, "h": 910, "qty": 10}, {"w": 725, "h": 910, "qty": 6}, {"w": 700, "h": 910, "qty": 4}, {"w": 1000, "h": 910, "qty": 4}, {"w": 1190, "h": 910, "qty": 4}, {"w": 800, "h": 910, "qty": 3}, {"w": 400, "h": 910, "qty": 3}, {"w": 780, "h": 910, "qty": 3}, {"w": 850, "h": 910, "qty": 3}, {"w": 750, "h": 910, "qty": 2}]}, {"group": "OB BHBU", "total": 34, "sizes": [{"w": 500, "h": 826, "qty": 5}, {"w": 450, "h": 826, "qty": 4}, {"w": 500, "h": 825, "qty": 4}, {"w": 425, "h": 808, "qty": 4}, {"w": 387, "h": 780, "qty": 4}, {"w": 425, "h": 826, "qty": 2}, {"w": 450, "h": 798, "qty": 2}, {"w": 550, "h": 808, "qty": 2}, {"w": 350, "h": 815, "qty": 2}, {"w": 450, "h": 808, "qty": 1}]}, {"group": "OB WF", "total": 19, "sizes": [{"w": 850, "h": 376, "qty": 3}, {"w": 850, "h": 356, "qty": 2}, {"w": 950, "h": 416, "qty": 2}, {"w": 900, "h": 431, "qty": 2}, {"w": 880, "h": 431, "qty": 2}, {"w": 750, "h": 336, "qty": 1}, {"w": 700, "h": 336, "qty": 1}, {"w": 800, "h": 356, "qty": 1}, {"w": 900, "h": 316, "qty": 1}, {"w": 900, "h": 416, "qty": 1}]}, {"group": "HD BD2R", "total": 18, "sizes": [{"w": 725, "h": 910, "qty": 4}, {"w": 400, "h": 910, "qty": 3}, {"w": 1000, "h": 910, "qty": 2}, {"w": 660, "h": 910, "qty": 2}, {"w": 550, "h": 910, "qty": 2}, {"w": 830, "h": 910, "qty": 1}, {"w": 750, "h": 910, "qty": 1}, {"w": 800, "h": 910, "qty": 1}, {"w": 1150, "h": 910, "qty": 1}, {"w": 1100, "h": 910, "qty": 1}]}, {"group": "OB W2HBT", "total": 18, "sizes": [{"w": 770, "h": 780, "qty": 4}, {"w": 760, "h": 780, "qty": 4}, {"w": 800, "h": 742, "qty": 3}, {"w": 900, "h": 780, "qty": 2}, {"w": 835, "h": 926, "qty": 2}, {"w": 850, "h": 742, "qty": 1}, {"w": 850, "h": 770, "qty": 1}, {"w": 610, "h": 926, "qty": 1}]}, {"group": "HD BHBU", "total": 15, "sizes": [{"w": 470, "h": 808, "qty": 4}, {"w": 400, "h": 808, "qty": 4}, {"w": 450, "h": 855, "qty": 2}, {"w": 500, "h": 826, "qty": 2}, {"w": 600, "h": 808, "qty": 2}, {"w": 520, "h": 855, "qty": 1}]}, {"group": "OB WHBT", "total": 12, "sizes": [{"w": 395, "h": 780, "qty": 2}, {"w": 370, "h": 780, "qty": 2}, {"w": 350, "h": 780, "qty": 2}, {"w": 600, "h": 742, "qty": 1}, {"w": 380, "h": 742, "qty": 1}, {"w": 400, "h": 742, "qty": 1}, {"w": 410, "h": 770, "qty": 1}, {"w": 300, "h": 770, "qty": 1}, {"w": 400, "h": 770, "qty": 1}]}, {"group": "OB WTAP", "total": 11, "sizes": [{"w": 450, "h": 1347, "qty": 4}, {"w": 450, "h": 1522, "qty": 4}, {"w": 450, "h": 1397, "qty": 2}, {"w": 600, "h": 1407, "qty": 1}]}, {"group": "OB WMLDT", "total": 11, "sizes": [{"w": 600, "h": 784, "qty": 2}, {"w": 600, "h": 1007, "qty": 2}, {"w": 600, "h": 794, "qty": 2}, {"w": 600, "h": 717, "qty": 1}, {"w": 600, "h": 887, "qty": 1}, {"w": 600, "h": 799, "qty": 1}, {"w": 300, "h": 799, "qty": 1}, {"w": 600, "h": 776, "qty": 1}]}, {"group": "HD TH", "total": 6, "sizes": [{"w": 492, "h": 2350, "qty": 4}, {"w": 500, "h": 2207, "qty": 2}]}, {"group": "OB WFED", "total": 4, "sizes": [{"w": 770, "h": 536, "qty": 2}, {"w": 825, "h": 536, "qty": 2}]}, {"group": "OB BC1B", "total": 4, "sizes": [{"w": 450, "h": 910, "qty": 2}, {"w": 495, "h": 910, "qty": 1}, {"w": 472, "h": 910, "qty": 1}]}, {"group": "OB WFUP", "total": 4, "sizes": [{"w": 950, "h": 400, "qty": 2}, {"w": 900, "h": 400, "qty": 1}, {"w": 1100, "h": 390, "qty": 1}]}, {"group": "OB BC1A", "total": 3, "sizes": [{"w": 527, "h": 910, "qty": 2}, {"w": 492, "h": 910, "qty": 1}]}, {"group": "OB BD3U", "total": 3, "sizes": [{"w": 400, "h": 910, "qty": 2}, {"w": 500, "h": 910, "qty": 1}]}, {"group": "OB WFMD", "total": 2, "sizes": [{"w": 900, "h": 523, "qty": 1}, {"w": 600, "h": 391, "qty": 1}]}, {"group": "CH M", "total": 2, "sizes": [{"w": 600, "h": 688, "qty": 1}, {"w": 400, "h": 688, "qty": 1}]}, {"group": "OB WHMH", "total": 2, "sizes": [{"w": 600, "h": 666, "qty": 2}]}, {"group": "HD BD3U", "total": 1, "sizes": [{"w": 300, "h": 910, "qty": 1}]}];
+const DATA_GENERATED="2026-05-11T06:00:57.182057";
+const INITIAL_TODOS=[{"id": "t1", "content": "코아스 자재 기름얼룩 체크", "assignee": "", "company": "코아스", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t2", "content": "전체 재고 파악", "assignee": "", "company": "전체", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t3", "content": "한샘 클레임 유형 파악시트 만들기", "assignee": "", "company": "한샘", "priority": "보통", "status": "진행중", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t4", "content": "재고량 파악 (유리/프레임/원부자재 기준 설정)", "assignee": "", "company": "전체", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t5", "content": "사무실 인수인계 제작", "assignee": "원영", "company": "와이비앤디", "priority": "여유", "status": "진행중", "date": "2026-04-30", "dueDate": "2026-05-22", "createdAt": "2026-04-30T00:00:00"}, {"id": "t6", "content": "마감자료 정리 (자동화 공부중)", "assignee": "예빈", "company": "전체", "priority": "여유", "status": "진행중", "date": "2026-04-28", "dueDate": "", "createdAt": "2026-04-28T00:00:00"}];
+const INITIAL_NOTICES=[{"id": "n1", "title": "송영훈 휴가", "content": "5월 13일(수) 휴가", "pri": "normal", "createdAt": "2026-05-12T09:00:00"}, {"id": "n2", "title": "실장님 휴가", "content": "5월 19-20일 휴가", "pri": "normal", "createdAt": "2026-05-12T09:00:00"}, {"id": "n3", "title": "중국 출장", "content": "5월 27일(수) ~ 5월 28일(목)", "pri": "important", "createdAt": "2026-05-12T09:00:00"}];
+
+
+// ── STORAGE ──
+const LS={stock:'ybn-s5',meta:'ybn-m5',work:'ybn-w5',ink:'ybn-i5',inkRate:'ybn-ir2',notices:'ybn-n2',schedules:'ybn-sc2',todos:'ybn-t2',gsUrl:'ybn-gs2'};
+function J(s){try{return s?JSON.parse(s):null;}catch{return null;}}
+let stock=J(localStorage.getItem(LS.stock))||{};
+let meta=J(localStorage.getItem(LS.meta))||{};
+let workLog=J(localStorage.getItem(LS.work))||[];
+let inkLog=J(localStorage.getItem(LS.ink))||[];
+let inkRates=J(localStorage.getItem(LS.inkRate))||{WC:1.5,ETP:1.5};
+let notices=J(localStorage.getItem(LS.notices))||INITIAL_NOTICES;
+let schedules=J(localStorage.getItem(LS.schedules))||[];
+let todos=J(localStorage.getItem(LS.todos))||INITIAL_TODOS;
+let gsUrl=localStorage.getItem(LS.gsUrl)||'';
+function saveAll(){
+  localStorage.setItem(LS.stock,JSON.stringify(stock));
+  localStorage.setItem(LS.meta,JSON.stringify(meta));
+  localStorage.setItem(LS.work,JSON.stringify(workLog));
+  localStorage.setItem(LS.ink,JSON.stringify(inkLog));
+  localStorage.setItem(LS.inkRate,JSON.stringify(inkRates));
+  localStorage.setItem(LS.notices,JSON.stringify(notices));
+  localStorage.setItem(LS.schedules,JSON.stringify(schedules));
+  localStorage.setItem(LS.todos,JSON.stringify(todos));
+}
+
+// ── TIME ──
+function updateHdr(){
+  const now=new Date();
+  document.getElementById('hdr-now').textContent=now.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'})+' '+now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+  const el=document.getElementById('home-date');
+  if(el) el.textContent=now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+}
+setInterval(updateHdr,30000); updateHdr();
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function calcDday(due){
+  if(!due) return null;
+  const diff=Math.floor((new Date(due)-new Date(todayStr()))/86400000);
+  if(diff===0) return 'D-Day';
+  if(diff>0) return 'D-'+diff;
+  return 'D+'+Math.abs(diff);
+}
+
+// ── NAV ──
+const MAINS=['home','todo','board','stock','settings'];
+const SUBS=['dashboard','worklog','ink','stocklist','trend','nonspec'];
+let curMain='home', curSub='dashboard';
+
+function showMain(id){
+  curMain=id;
+  document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.main-nav-btn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  document.querySelectorAll('.main-nav-btn')[MAINS.indexOf(id)].classList.add('on');
+  const fab=document.getElementById('fab-btn');
+  fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
+  if(id==='home')renderHome();
+  if(id==='todo')renderTodo();
+  if(id==='board'){renderNotices();renderSchedules();}
+  if(id==='stock')renderSub(curSub);
+  if(id==='settings')initGsUI();
+}
+function showSub(id){
+  curSub=id;
+  document.querySelectorAll('.sub-pg').forEach(s=>s.style.display='none');
+  document.querySelectorAll('.sub-nav-btn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('sp-'+id).style.display='block';
+  document.querySelectorAll('.sub-nav-btn')[SUBS.indexOf(id)].classList.add('on');
+  document.getElementById('fab-btn').style.display=id==='worklog'?'flex':'none';
+  renderSub(id);
+}
+function renderSub(id){
+  if(id==='dashboard')renderDash();
+  if(id==='worklog')renderWorkLog();
+  if(id==='ink')renderInk();
+  if(id==='stocklist')renderStockList();
+  if(id==='trend')renderTrend();
+  if(id==='nonspec')renderNonspec();
+}
+function onFab(){
+  if(curMain==='todo')openTodoModal();
+  else if(curMain==='stock'&&curSub==='worklog')openWorkModal();
+}
+
+// ── HELPERS ──
+function getStock(c){const s=stock[c]||{};return{raw:s.raw||0,printed:s.printed||0};}
+function colorBadge(c){
+  const m={WC:'<span class="badge b-wc">웜코튼</span>',ETP:'<span class="badge b-etp">에토프</span>',White:'<span class="badge b-white">화이트</span>',Forest:'<span class="badge b-forest">포레스트</span>',Sahara:'<span class="badge b-sahara">사하라</span>'};
+  return m[c]||'';
+}
+function doorBadge(d){return d==='HD'?'<span class="badge b-hd">HD</span>':d==='OB'?'<span class="badge b-ob">OB</span>':'<span class="badge b-ch">CH</span>';}
+function freqBadge(f,a){const L={high:'고빈도',mid:'중빈도',low:'저빈도',rare:'희귀'},C={high:'b-high',mid:'b-mid',low:'b-low',rare:'b-rare'};return '<span class="badge '+C[f]+'">'+L[f]+'</span><span class="freq-avg">월평균 '+a+'장</span>';}
+function miniTrend(m){const v=MONTHS.map(mo=>m[mo]||0),mx=Math.max(...v,1);return v.map(x=>'<div class="trend-bar'+(x===0?' z':'')+'" style="height:'+Math.max(Math.round(x/mx*26),x>0?3:2)+'px"></div>').join('');}
+function isUrgent(m){return getStock(m.code).raw<Math.max(1,m.min_stock)&&m.freq!=='rare';}
+function isWarn(m){const s=getStock(m.code);return !isUrgent(m)&&s.raw<m.min_stock*2&&m.freq==='high';}
+function hlName(n,c){const hl={WC:'rgba(180,215,255,.35)',ETP:'rgba(210,175,120,.4)',White:'rgba(230,230,230,.25)',Forest:'rgba(100,200,120,.3)',Sahara:'rgba(210,160,80,.35)'};const bg=hl[c];return bg?'<span style="background:linear-gradient(transparent 40%,'+bg+' 40%);border-radius:2px;padding:0 1px">'+n+'</span>':n;}
+function closeM(id){document.getElementById(id).classList.remove('on');}
+document.querySelectorAll('.modal-bg').forEach(bg=>bg.addEventListener('click',function(e){if(e.target===this)this.classList.remove('on');}));
+function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),2200);}
+
+// ── HOME ──
+function renderHome(){
+  document.getElementById('home-urgent').innerHTML=notices.filter(n=>n.pri==='urgent').map(n=>'<div class="urgent-banner"><div class="urgent-label">🔴 긴급공지</div><div class="urgent-title">'+n.title+'</div><div class="urgent-body">'+n.content+'</div></div>').join('');
+  const td=todayStr(),tl=workLog.find(d=>d.date===td);
+  const tw=tl?tl.items.reduce((a,i)=>a+i.qty,0):0;
+  document.getElementById('home-inprog').textContent=todos.filter(t=>t.status==='진행중').length;
+  document.getElementById('home-tw').textContent=tw;
+  document.getElementById('home-us').textContent=MODELS.filter(m=>isUrgent(m)).length;
+  const cc={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
+  const ts=schedules.filter(s=>s.date===td);
+  document.getElementById('home-sch').innerHTML=!ts.length?'<div class="empty-sm">오늘 일정 없음</div>':ts.map(s=>'<div class="sch-row"><div class="sch-bar" style="background:'+cc[s.cat]+'"></div><div class="sch-txt">'+s.content+'</div></div>').join('');
+  const prev=todos.filter(t=>t.status!=='완료').slice(0,5);
+  document.getElementById('home-todos').innerHTML=!prev.length?'<div class="empty-sm">진행중 할일 없음 ✅</div>':prev.map(t=>todoItemHTML(t,true)).join('');
+  if(!tl||!tl.items.length){document.getElementById('home-work').innerHTML='<div class="empty-sm">오늘 작업 기록 없음</div>';return;}
+  const wcQ=tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
+  const etpQ=tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+  document.getElementById('home-work').innerHTML='<div class="work-stats"><div class="ws"><div class="ws-l">총계</div><div class="ws-v acc3">'+tw+'장</div></div><div class="ws"><div class="ws-l wc">웜코튼</div><div class="ws-v wc">'+wcQ+'</div></div><div class="ws"><div class="ws-l etp">에토프</div><div class="ws-v etp">'+etpQ+'</div></div></div>'+tl.items.slice(0,5).map(it=>{const m=MODELS.find(x=>x.code===it.code);const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';return '<div class="wsum-row"><div class="dot" style="background:'+dot+'"></div><div class="wsum-name">'+(m?hlName(m.short,m.color):it.code)+'</div><div class="wsum-qty">'+it.qty+'장</div></div>';}).join('');
+}
+
+// ── TODO ──
+let todoFilter='all', editTodoId=null;
+function setTodoFilter(f,btn){todoFilter=f;document.querySelectorAll('#pg-todo .f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderTodo();}
+function renderTodo(){
+  const q=(document.getElementById('todo-search')?.value||'').toLowerCase();
+  let list=[...todos];
+  if(q)list=list.filter(t=>t.content.toLowerCase().includes(q)||(t.assignee||'').toLowerCase().includes(q)||(t.company||'').toLowerCase().includes(q));
+  if(todoFilter==='시작전')list=list.filter(t=>t.status==='시작전');
+  else if(todoFilter==='진행중')list=list.filter(t=>t.status==='진행중');
+  else if(todoFilter==='완료')list=list.filter(t=>t.status==='완료');
+  else if(todoFilter==='긴급')list=list.filter(t=>t.priority==='긴급');
+  const po={긴급:0,보통:1,여유:2};
+  list.sort((a,b)=>{if(a.status==='완료'&&b.status!=='완료')return 1;if(b.status==='완료'&&a.status!=='완료')return -1;return(po[a.priority]||1)-(po[b.priority]||1);});
+  const el=document.getElementById('todo-list');
+  el.innerHTML=!list.length?'<div class="empty"><div class="empty-ico">✅</div>할일이 없습니다</div>':list.map(t=>todoItemHTML(t,false)).join('');
+}
+function todoItemHTML(t,compact){
+  const done=t.status==='완료';
+  const dd=calcDday(t.dueDate);
+  const ddc=!dd?'none':dd.startsWith('D+')&&dd!=='D-Day'?'over':'ok';
+  return '<div class="todo-item'+(done?' done':'')+'">'
+    +'<button class="todo-check'+(done?' done':'')+'" onclick="toggleTodo(\''+t.id+'\')">'+(done?'✓':'')+'</button>'
+    +'<div class="todo-left">'
+    +'<div class="todo-content">'+t.content+'</div>'
+    +'<div class="todo-meta">'
+    +(t.assignee?'<span class="assignee-tag">'+t.assignee+'</span>':'')
+    +(t.company?'<span class="company-tag">'+t.company+'</span>':'')
+    +'<span class="status-tag st-'+t.status+'">'+t.status+'</span>'
+    +'<span class="pri-tag pri-'+t.priority+'">'+t.priority+'</span>'
+    +(dd?'<span class="dday '+ddc+'">'+dd+'</span>':'')
+    +(t.dueDate?'<span class="due-txt">~'+t.dueDate.slice(5).replace('-','/')+'</span>':'')
+    +'</div></div>'
+    +(!compact?'<div class="todo-actions"><button onclick="editTodo(\''+t.id+'\')" class="icon-btn">✏️</button><button onclick="cycleTodo(\''+t.id+'\')" class="icon-btn">🔄</button><button onclick="deleteTodo(\''+t.id+'\')" class="icon-btn del">🗑</button></div>':'')
+    +'</div>';
+}
+function toggleTodo(id){const t=todos.find(x=>x.id===id);if(!t)return;t.status=t.status==='완료'?'시작전':'완료';saveAll();renderTodo();renderHome();autoSync();}
+function cycleTodo(id){const t=todos.find(x=>x.id===id);if(!t)return;const c=['시작전','진행중','완료'];t.status=c[(c.indexOf(t.status)+1)%c.length];saveAll();renderTodo();renderHome();autoSync();showToast('→ '+t.status);}
+function deleteTodo(id){if(!confirm('삭제합니까?'))return;todos=todos.filter(t=>t.id!==id);saveAll();renderTodo();renderHome();autoSync();}
+function editTodo(id){
+  const t=todos.find(x=>x.id===id);if(!t)return;
+  editTodoId=id;
+  document.getElementById('tm-title').textContent='✅ 할일 수정';
+  document.getElementById('tm-content').value=t.content;
+  document.getElementById('tm-assignee').value=t.assignee||'';
+  document.getElementById('tm-company').value=t.company||'';
+  document.getElementById('tm-priority').value=t.priority||'보통';
+  document.getElementById('tm-due').value=t.dueDate||'';
+  document.getElementById('tm-confirm').textContent='✓ 수정';
+  document.getElementById('todo-modal').classList.add('on');
+}
+function openTodoModal(){
+  editTodoId=null;
+  document.getElementById('tm-title').textContent='✅ 할일 추가';
+  document.getElementById('tm-content').value='';
+  document.getElementById('tm-assignee').value='';
+  document.getElementById('tm-company').value='';
+  document.getElementById('tm-priority').value='보통';
+  document.getElementById('tm-due').value='';
+  document.getElementById('tm-confirm').textContent='✓ 추가';
+  document.getElementById('todo-modal').classList.add('on');
+}
+function confirmTodo(){
+  const content=document.getElementById('tm-content').value.trim();
+  if(!content){showToast('내용을 입력하세요');return;}
+  const data={content,assignee:document.getElementById('tm-assignee').value.trim(),company:document.getElementById('tm-company').value.trim(),priority:document.getElementById('tm-priority').value,dueDate:document.getElementById('tm-due').value};
+  if(editTodoId){const t=todos.find(x=>x.id===editTodoId);if(t)Object.assign(t,data);}
+  else todos.push({id:Date.now().toString(),...data,status:'시작전',date:todayStr(),createdAt:new Date().toISOString()});
+  saveAll();closeM('todo-modal');renderTodo();renderHome();autoSync();
+  showToast(editTodoId?'✅ 수정됨':'✅ 추가됨');editTodoId=null;
+}
+
+// ── NOTICES ──
+let noticePri='normal',editNoticeId=null;
+function renderNotices(){
+  const el=document.getElementById('notice-list');
+  if(!notices.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>공지 없음</div>';return;}
+  const PL={normal:'일반',important:'⚠️ 중요',urgent:'🔴 긴급'};
+  const PC={normal:'var(--acc)',important:'var(--acc2)',urgent:'var(--acc4)'};
+  el.innerHTML=[...notices].reverse().map(n=>{
+    const ds=new Date(n.createdAt).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' '+new Date(n.createdAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+    return '<div class="notice-item '+n.pri+'">'
+      +'<div class="notice-hdr"><div class="notice-hdr-left"><span class="notice-pri" style="color:'+PC[n.pri]+'">'+PL[n.pri]+'</span><span class="notice-title">'+n.title+'</span></div>'
+      +'<div class="notice-btns"><button onclick="editNotice(\''+n.id+'\')" class="icon-btn">✏️</button><button onclick="deleteNotice(\''+n.id+'\')" class="icon-btn del">🗑</button></div></div>'
+      +'<div class="notice-body">'+n.content+'</div>'
+      +'<div class="notice-date">'+ds+(n.updatedAt?' (수정됨)':'')+'</div></div>';
+  }).join('');
+}
+function openNoticeModal(id=null){
+  editNoticeId=id;noticePri='normal';
+  const ex=id?notices.find(n=>n.id===id):null;
+  document.getElementById('nm-title').textContent=id?'📌 공지 수정':'📌 공지 작성';
+  document.getElementById('nm-title-input').value=ex?ex.title:'';
+  document.getElementById('nm-content').value=ex?ex.content:'';
+  document.getElementById('nm-confirm').textContent=id?'✓ 수정':'✓ 등록';
+  if(ex){noticePri=ex.pri;setNoticePri(ex.pri,document.getElementById('npri-'+ex.pri));}
+  else setNoticePri('normal',document.getElementById('npri-normal'));
+  document.getElementById('notice-modal').classList.add('on');
+}
+function editNotice(id){openNoticeModal(id);}
+function deleteNotice(id){if(!confirm('공지를 삭제합니까?'))return;notices=notices.filter(n=>n.id!==id);saveAll();renderNotices();renderHome();autoSync();showToast('삭제됨');}
+function setNoticePri(pri,btn){
+  noticePri=pri;
+  document.querySelectorAll('#notice-modal .q-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  const c={normal:'var(--acc)',important:'var(--acc2)',urgent:'var(--acc4)'};
+  if(btn){btn.style.background=c[pri];btn.style.color='#0d1117';btn.style.borderColor=c[pri];}
+}
+function confirmNotice(){
+  const title=document.getElementById('nm-title-input').value.trim();
+  const content=document.getElementById('nm-content').value.trim();
+  if(!title){showToast('제목을 입력하세요');return;}
+  if(editNoticeId){const n=notices.find(x=>x.id===editNoticeId);if(n){n.title=title;n.content=content;n.pri=noticePri;n.updatedAt=new Date().toISOString();}}
+  else notices.push({id:Date.now().toString(),title,content,pri:noticePri,createdAt:new Date().toISOString()});
+  saveAll();closeM('notice-modal');renderNotices();renderHome();autoSync();
+  showToast(editNoticeId?'수정됨':'✅ 공지 등록됨');editNoticeId=null;
+}
+
+// ── SCHEDULES ──
+let schCat='work';
+function renderSchedules(){
+  const el=document.getElementById('sch-list');
+  if(!schedules.length){el.innerHTML='<div class="empty"><div class="empty-ico">📅</div>일정 없음</div>';return;}
+  const CC={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
+  const CL={work:'작업',delivery:'납품',order:'발주',etc:'기타'};
+  const today=todayStr();
+  el.innerHTML=[...schedules].sort((a,b)=>a.date.localeCompare(b.date)).map(s=>{
+    const isPast=s.date<today,isToday=s.date===today;
+    const ds=new Date(s.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'});
+    return '<div class="sch-item" style="opacity:'+(isPast?.45:1)+'">'
+      +'<div class="sch-date'+(isToday?' today':isPast?' past':'')+'">'+ds+(isToday?'<br><span class="today-label">오늘</span>':'')+'</div>'
+      +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
+      +'<div class="sch-info"><div class="sch-content">'+s.content+'</div><div class="sch-cat">'+CL[s.cat]+'</div></div>'
+      +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button></div>';
+  }).join('');
+}
+function openSchModal(){
+  schCat='work';
+  document.getElementById('sm-date').value=todayStr();
+  document.getElementById('sm-content').value='';
+  setSchCat('work',document.getElementById('scat-work'));
+  document.getElementById('sch-modal').classList.add('on');
+}
+function setSchCat(cat,btn){
+  schCat=cat;
+  document.querySelectorAll('#sch-modal .q-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  const c={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
+  if(btn){btn.style.background=c[cat];btn.style.color='#0d1117';btn.style.borderColor=c[cat];}
+}
+function deleteSch(id){if(!confirm('일정을 삭제합니까?'))return;schedules=schedules.filter(s=>s.id!==id);saveAll();renderSchedules();renderHome();autoSync();showToast('삭제됨');}
+function confirmSch(){
+  const date=document.getElementById('sm-date').value;
+  const content=document.getElementById('sm-content').value.trim();
+  if(!date||!content){showToast('날짜와 내용을 입력하세요');return;}
+  schedules.push({id:Date.now().toString(),date,content,cat:schCat,createdAt:new Date().toISOString()});
+  saveAll();closeM('sch-modal');renderSchedules();renderHome();autoSync();showToast('✅ 일정 추가됨');
+}
+
+// ── STOCK DASHBOARD ──
+function calcInkStock(color){
+  let inTotal=0;
+  inkLog.filter(l=>l.color===color).forEach(l=>{if(l.type==='in')inTotal+=l.qty;if(l.type==='set')inTotal=l.qty;});
+  const rate=inkRates[color]||1.5;
+  let usedKg=0;
+  workLog.forEach(day=>{const q=day.items.filter(it=>{const m=MODELS.find(x=>x.code===it.code);return m&&m.color===color;}).reduce((a,i)=>a+i.qty,0);if(q>0)usedKg+=rate;});
+  const remaining=Math.max(0,Math.round((inTotal-usedKg/3)*10)/10);
+  return {remaining,kgLeft:remaining*3,inTotal};
+}
+function renderDash(){
+  let rawT=0;MODELS.forEach(m=>{rawT+=getStock(m.code).raw;});
+  const td=todayStr(),tl=workLog.find(d=>d.date===td);
+  const tw=tl?tl.items.reduce((a,i)=>a+i.qty,0):0;
+  document.getElementById('d-raw').textContent=rawT;
+  document.getElementById('d-tw').textContent=tw;
+  const wc=calcInkStock('WC'),etp=calcInkStock('ETP');
+  document.getElementById('d-ink-wc').textContent=wc.remaining;
+  document.getElementById('d-ink-etp').textContent=etp.remaining;
+  const urg=MODELS.filter(m=>isUrgent(m)).slice(0,6);
+  document.getElementById('d-urgent').innerHTML=!urg.length
+    ?'<div class="empty-sm" style="color:var(--acc3)">✅ 긴급 부족 없음</div>'
+    :urg.map(m=>{const s=getStock(m.code);const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';return '<div class="alert-box" onclick="openSModal(\''+m.code+'\')">'
+      +'<div class="alert-inner"><div><div class="alert-name">'+hlName(m.short,m.color)+'</div><div class="alert-meta">'+m.code+' | '+sz+' '+colorBadge(m.color)+'</div></div>'
+      +'<div class="alert-qty">'+s.raw+'<span class="alert-unit">원유리</span></div></div></div>';}).join('');
+  if(!tl||!tl.items.length){document.getElementById('d-work').innerHTML='<div class="empty-sm">오늘 작업 기록 없음</div>';}
+  else{
+    const wcQ=tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etpQ=tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    document.getElementById('d-work').innerHTML='<div class="work-stats"><div class="ws"><div class="ws-l">총계</div><div class="ws-v acc3">'+tw+'장</div></div><div class="ws"><div class="ws-l wc">웜코튼</div><div class="ws-v wc">'+wcQ+'</div></div><div class="ws"><div class="ws-l etp">에토프</div><div class="ws-v etp">'+etpQ+'</div></div></div>';
+  }
+  document.getElementById('d-top10').innerHTML=MODELS.slice(0,10).map((m,i)=>{const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';return '<div class="top10-row" onclick="openSModal(\''+m.code+'\')">'
+    +'<div class="top10-rank">'+(i+1)+'</div>'
+    +'<div class="top10-info"><div class="top10-name">'+hlName(m.short,m.color)+'</div><div class="top10-meta">'+sz+' '+colorBadge(m.color)+' '+doorBadge(m.door_type)+'</div></div>'
+    +'<div class="top10-right"><div class="top10-qty">'+m.total_6m+'<span class="top10-unit">장</span></div><div class="trend">'+miniTrend(m.monthly)+'</div></div></div>';}).join('');
+}
+
+// ── WORK LOG ──
+function renderWorkLog(){
+  let total=0,wcQ=0,etpQ=0,etcQ=0;
+  workLog.forEach(day=>day.items.forEach(it=>{total+=it.qty;const m=MODELS.find(x=>x.code===it.code);if(m&&m.color==='WC')wcQ+=it.qty;else if(m&&m.color==='ETP')etpQ+=it.qty;else etcQ+=it.qty;}));
+  document.getElementById('wl-days').textContent=workLog.length;
+  document.getElementById('wl-total').textContent=total;
+  document.getElementById('wl-wc').textContent=wcQ;
+  document.getElementById('wl-etp').textContent=etpQ;
+  document.getElementById('wl-etc').textContent=etcQ;
+  const el=document.getElementById('wl-list');
+  if(!workLog.length){el.innerHTML='<div class="empty"><div class="empty-ico">📝</div>기록 없음<br><span style="font-size:11px">+ 버튼으로 입력</span></div>';return;}
+  el.innerHTML=[...workLog].sort((a,b)=>b.date.localeCompare(a.date)).map(day=>{
+    const dt=day.items.reduce((a,i)=>a+i.qty,0);
+    const wc=day.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etp=day.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    const dl=new Date(day.date+'T00:00:00').toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+    return '<div class="day-card">'
+      +'<div class="day-hdr"><div><div class="day-date">'+dl+'</div><div class="day-color-sum"><span class="wc">웜코튼 '+wc+'장</span> <span class="etp">에토프 '+etp+'장</span></div></div>'
+      +'<div class="day-total">'+dt+'<span class="day-unit">장</span></div></div>'
+      +day.items.map(it=>{const m=MODELS.find(x=>x.code===it.code);const sz=m&&m.glass_w?m.glass_w+'×'+m.glass_h:'';const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';return '<div class="day-item"><div class="dot" style="background:'+dot+'"></div><div class="day-item-info"><div class="day-item-name">'+(m?hlName(m.short,m.color):it.code)+'</div><div class="day-item-meta">'+it.code+(sz?' | 📐 '+sz:'')+' '+(m?colorBadge(m.color)+' '+doorBadge(m.door_type):'')+'</div></div><div class="day-item-qty">'+it.qty+'<span class="day-unit">장</span></div></div>';}).join('')
+      +'</div>';
+  }).join('');
+}
+
+// ── INK ──
+function renderInk(){
+  ['WC','ETP'].forEach(color=>{
+    const id=color.toLowerCase();
+    const calc=calcInkStock(color);
+    const rate=inkRates[color]||1.5;
+    const daysLeft=rate>0?Math.round(calc.kgLeft/rate):99;
+    const pct=Math.min(100,calc.inTotal>0?Math.round(calc.remaining/calc.inTotal*100):0);
+    const isLow=calc.remaining<=5;
+    document.getElementById('ink-'+id+'-stock').textContent=calc.remaining;
+    document.getElementById('ink-'+id+'-kg').textContent='≈ '+calc.kgLeft.toFixed(1)+'KG';
+    document.getElementById('ink-'+id+'-bar').style.width=pct+'%';
+    document.getElementById('ink-'+id+'-bar').className='ink-bar '+(isLow?'low':id);
+    document.getElementById('ink-'+id+'-days').textContent=calc.remaining>0?(daysLeft>99?'충분':daysLeft+'일 예상'):'소진';
+    const logs=inkLog.filter(l=>l.color===color).slice(-6).reverse();
+    document.getElementById('ink-'+id+'-log').innerHTML=!logs.length?'<div class="empty-sm">입고 기록 없음</div>':logs.map(l=>'<div class="ink-log-row"><span class="ink-log-date">'+l.date.slice(5).replace('-','/')+'</span><span class="ink-log-type" style="color:'+(l.type==='in'?'var(--acc3)':'var(--acc)')+'">'+( l.type==='in'?'입고':'설정')+'</span><span class="ink-log-qty" style="color:'+(l.type==='in'?'var(--acc3)':'var(--acc)')+'">'+( l.type==='in'?'+':'=')+l.qty+'통</span></div>').join('');
+  });
+  document.getElementById('ink-rate-wc').value=inkRates.WC;
+  document.getElementById('ink-rate-etp').value=inkRates.ETP;
+}
+function saveInkRates(){inkRates.WC=parseFloat(document.getElementById('ink-rate-wc').value)||1.5;inkRates.ETP=parseFloat(document.getElementById('ink-rate-etp').value)||1.5;saveAll();renderInk();showToast('설정 저장됨');}
+let inkColor='WC',inkTab='in',inkQty=1;
+function openInkModal(color){
+  inkColor=color;inkTab='in';inkQty=1;
+  const label=color==='WC'?'웜코튼':'에토프';
+  document.getElementById('im-title').textContent='🪣 '+label+' 잉크';
+  document.getElementById('im-sub').textContent='현재 재고: '+calcInkStock(color).remaining+'통';
+  document.getElementById('im-qty').textContent=1;
+  document.getElementById('itab-in').classList.add('on');
+  document.getElementById('itab-set').classList.remove('on');
+  document.getElementById('ink-modal').classList.add('on');
+}
+function setInkTab(t){inkTab=t;inkQty=t==='in'?1:Math.round(calcInkStock(inkColor).remaining);document.getElementById('im-qty').textContent=inkQty;document.getElementById('itab-in').classList.toggle('on',t==='in');document.getElementById('itab-set').classList.toggle('on',t==='set');}
+function inkQtyD(d){inkQty=Math.max(0,inkQty+d);document.getElementById('im-qty').textContent=inkQty;}
+function setIQ(n){inkQty=n;document.getElementById('im-qty').textContent=n;}
+function confirmInk(){
+  inkLog.push({date:todayStr(),color:inkColor,type:inkTab,qty:inkQty});
+  meta.lastInk=new Date().toISOString();
+  saveAll();closeM('ink-modal');renderInk();renderDash();
+  showToast(inkTab==='in'?'✓ '+inkQty+'통 입고':'✓ '+inkQty+'통 설정');
+  autoSync();
+}
+
+// ── STOCK LIST ──
+let stockFilter='all';
+function setStockFilter(f,btn){stockFilter=f;document.querySelectorAll('#sp-stocklist .f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStockList();}
+function renderStockList(){
+  const q=(document.getElementById('stock-search')?.value||'').toLowerCase();
+  let ms=[...MODELS];
+  if(q)ms=ms.filter(m=>m.code.toLowerCase().includes(q)||m.short.toLowerCase().includes(q)||m.name.toLowerCase().includes(q)||(m.glass_w&&(m.glass_w+'x'+m.glass_h).includes(q)));
+  if(stockFilter==='urgent')ms=ms.filter(m=>isUrgent(m));
+  else if(stockFilter==='warn')ms=ms.filter(m=>isWarn(m));
+  else if(stockFilter==='WC')ms=ms.filter(m=>m.color==='WC');
+  else if(stockFilter==='ETP')ms=ms.filter(m=>m.color==='ETP');
+  else if(stockFilter==='HD')ms=ms.filter(m=>m.door_type==='HD');
+  else if(stockFilter==='OB')ms=ms.filter(m=>m.door_type==='OB');
+  else if(stockFilter==='high')ms=ms.filter(m=>m.freq==='high');
+  else if(stockFilter==='rare')ms=ms.filter(m=>m.freq==='rare');
+  ms.sort((a,b)=>{const au=isUrgent(a)?2:isWarn(a)?1:0,bu=isUrgent(b)?2:isWarn(b)?1:0;return bu-au||b.total_6m-a.total_6m;});
+  const el=document.getElementById('stock-list');if(!el)return;
+  if(!ms.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>검색 결과 없음</div>';return;}
+  el.innerHTML=ms.map(m=>{
+    const s=getStock(m.code),urg=isUrgent(m),wrn=isWarn(m);
+    const sz=m.glass_w?m.glass_w+'×'+m.glass_h+'mm':'미등록';
+    return '<div class="model-card'+(urg?' urgent':wrn?' warn':'')+'" onclick="openSModal(\''+m.code+'\')">'
+      +'<div class="ml"><div class="mc">'+m.code+'</div><div class="mn">'+hlName(m.short,m.color)+'</div>'
+      +'<div class="mt">'+colorBadge(m.color)+' '+doorBadge(m.door_type)+' '+freqBadge(m.freq,m.avg_monthly)+'</div>'
+      +'<div class="ms">📐 '+sz+'</div>'
+      +'<div class="stock-row"><div class="stock-box'+(s.raw<m.min_stock&&m.freq!=='rare'?' urgent-box':'')+'"><div class="sl">인쇄실 원유리</div><div class="sv '+(s.raw===0?'zero':s.raw<m.min_stock?'low':'ok')+'">'+s.raw+'</div></div>'
+      +'<div class="stock-box"><div class="sl">조립실 인쇄유리</div><div class="sv '+(s.printed===0?'zero':'ok')+'">'+s.printed+'</div></div></div></div>'
+      +'<div class="mr"><div class="mr-qty">'+m.total_6m+'<span class="mr-unit">장</span></div><div class="mr-sub">6개월</div><div class="trend">'+miniTrend(m.monthly)+'</div></div></div>';
+  }).join('');
+}
+
+// ── STOCK MODAL ──
+let sCode='',sTab='raw',sQty=0;
+function openSModal(code){
+  const m=MODELS.find(x=>x.code===code);if(!m)return;
+  sCode=code;sTab='raw';const s=getStock(code);sQty=s.raw;
+  document.getElementById('sm-name').textContent=m.short;
+  document.getElementById('sm-sub').textContent=code+(m.glass_w?' | '+m.glass_w+'×'+m.glass_h+'mm':'');
+  document.getElementById('sm-qty').textContent=sQty;
+  document.getElementById('stab-raw').classList.add('on');
+  document.getElementById('stab-printed').classList.remove('on');
+  document.getElementById('stock-modal').classList.add('on');
+}
+function setSTab(t){sTab=t;const s=getStock(sCode);sQty=t==='raw'?s.raw:s.printed;document.getElementById('sm-qty').textContent=sQty;document.getElementById('stab-raw').classList.toggle('on',t==='raw');document.getElementById('stab-printed').classList.toggle('on',t==='printed');}
+function sQtyD(d){sQty=Math.max(0,sQty+d);document.getElementById('sm-qty').textContent=sQty;}
+function setSQ(n){sQty=n;document.getElementById('sm-qty').textContent=n;}
+function confirmStock(){
+  const s=getStock(sCode);
+  if(sTab==='raw')s.raw=sQty;else s.printed=sQty;
+  stock[sCode]=s;meta.lastStock=new Date().toISOString();
+  saveAll();closeM('stock-modal');showToast('✓ 재고 저장');renderDash();
+  if(document.getElementById('sp-stocklist').style.display!=='none')renderStockList();
+  autoSync();
+}
+
+// ── WORK MODAL ──
+let wSelCode=null,wQty=1;
+function openWorkModal(){
+  wSelCode=null;wQty=1;
+  document.getElementById('wm-search').value='';
+  document.getElementById('wm-results').innerHTML='';
+  document.getElementById('wm-selected').style.display='none';
+  document.getElementById('wm-qty-box').style.display='none';
+  document.getElementById('wm-qty').textContent='1';
+  document.getElementById('wm-date').textContent=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+  document.getElementById('work-modal').classList.add('on');
+}
+function renderWorkSearch(){
+  const q=(document.getElementById('wm-search').value||'').toLowerCase();
+  const el=document.getElementById('wm-results');
+  if(!q){el.innerHTML='';return;}
+  const res=MODELS.filter(m=>m.code.toLowerCase().includes(q)||m.short.toLowerCase().includes(q)||m.name.toLowerCase().includes(q)).slice(0,8);
+  if(!res.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
+  el.innerHTML=res.map(m=>{const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'미등록';const s=getStock(m.code);
+    return '<div class="wresult-item'+(wSelCode===m.code?' selected':'')+'" onclick="selectWork(\''+m.code+'\')">'
+      +'<div class="wr-name">'+hlName(m.short,m.color)+'</div>'
+      +'<div class="wr-meta">'+m.code+' | 📐 '+sz+' '+colorBadge(m.color)+' '+doorBadge(m.door_type)+'</div>'
+      +'<div class="wr-stock">원유리: <b style="color:'+(s.raw>0?'var(--acc3)':'var(--acc4)')+'">'+s.raw+'장</b></div></div>';
+  }).join('');
+}
+function selectWork(code){
+  wSelCode=code;wQty=1;
+  const m=MODELS.find(x=>x.code===code);const s=getStock(code);
+  document.getElementById('wm-sel-name').textContent=m?m.short:code;
+  document.getElementById('wm-sel-meta').textContent=code+(m&&m.glass_w?' | '+m.glass_w+'×'+m.glass_h:'')+ ' | 원유리 '+s.raw+'장';
+  document.getElementById('wm-selected').style.display='block';
+  document.getElementById('wm-qty-box').style.display='block';
+  document.getElementById('wm-qty').textContent='1';
+  document.getElementById('wm-results').innerHTML='';
+  document.getElementById('wm-search').value='';
+}
+function wQtyD(d){wQty=Math.max(1,wQty+d);document.getElementById('wm-qty').textContent=wQty;}
+function setWQ(n){wQty=n;document.getElementById('wm-qty').textContent=n;}
+function confirmWork(){
+  if(!wSelCode){showToast('모델을 먼저 선택하세요');return;}
+  const s=getStock(wSelCode);
+  stock[wSelCode]={raw:Math.max(0,s.raw-wQty),printed:s.printed+wQty};
+  const td=todayStr();
+  let dl=workLog.find(d=>d.date===td);
+  if(!dl){dl={date:td,items:[]};workLog.push(dl);}
+  const ex=dl.items.find(i=>i.code===wSelCode);
+  if(ex)ex.qty+=wQty;else dl.items.push({code:wSelCode,qty:wQty});
+  meta.lastWork=meta.lastStock=new Date().toISOString();
+  saveAll();closeM('work-modal');showToast('✓ '+wQty+'장 기록');
+  renderWorkLog();renderDash();renderHome();autoSync();
+}
+
+// ── TREND ──
+let trendFilter='all';
+function setTrendFilter(f,btn){trendFilter=f;document.querySelectorAll('#sp-trend .f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderTrend();}
+function renderTrend(){
+  const q=(document.getElementById('trend-search')?.value||'').toLowerCase();
+  let ms=[...MODELS];
+  if(q)ms=ms.filter(m=>m.code.toLowerCase().includes(q)||m.short.toLowerCase().includes(q));
+  if(trendFilter==='high')ms=ms.filter(m=>m.freq==='high');
+  else if(trendFilter==='mid')ms=ms.filter(m=>m.freq==='mid');
+  else if(trendFilter==='WC')ms=ms.filter(m=>m.color==='WC');
+  else if(trendFilter==='ETP')ms=ms.filter(m=>m.color==='ETP');
+  const el=document.getElementById('trend-list');if(!el)return;
+  if(!ms.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>없음</div>';return;}
+  const max=Math.min(ms.length,80);
+  el.innerHTML=ms.slice(0,max).map(m=>{
+    const vals=MONTHS.map(mo=>m.monthly[mo]||0),mx=Math.max(...vals,1);
+    const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';
+    const bars=MONTHS.map((mo,i)=>{const v=vals[i],h=Math.max(Math.round(v/mx*48),v>0?4:2);return '<div class="m-bar-wrap"><div class="m-bar'+(v===0?' zero':'')+'" style="height:'+h+'px"></div><div class="m-lbl">'+MONTH_LABELS[mo].slice(0,4)+'</div><div class="m-val">'+(v||'')+'</div></div>';}).join('');
+    return '<div class="trend-card"><div class="trend-hdr"><div><div class="trend-name">'+hlName(m.short,m.color)+'</div><div class="trend-meta">'+m.code+' | '+sz+' '+colorBadge(m.color)+' '+doorBadge(m.door_type)+'</div></div><div>'+freqBadge(m.freq,m.avg_monthly)+'</div></div><div class="month-bars">'+bars+'</div></div>';
+  }).join('');
+  if(ms.length>max)el.innerHTML+='<div class="filter-hint">필터로 범위를 좁혀보세요 (총 '+ms.length+'종)</div>';
+}
+
+// ── NONSPEC ──
+function renderNonspec(){
+  document.getElementById('nonspec-list').innerHTML=NONSPEC_GROUPS.map(g=>{
+    const mx=Math.max(...g.sizes.map(s=>s.qty));
+    return '<div class="nonspec-card"><div class="nonspec-name">'+g.group+'</div><div class="nonspec-total">6개월 총 '+g.total+'장</div>'+g.sizes.map(s=>'<div class="size-row"><div class="size-dim">'+s.w+'×'+s.h+'</div><div class="size-bar-wrap"><div class="size-bar" style="width:'+Math.round(s.qty/mx*100)+'%"></div></div><div class="size-qty">'+s.qty+'장</div></div>').join('')+'</div>';
+  }).join('');
+}
+
+// ── GOOGLE SHEETS ──
+function initGsUI(){
+  if(gsUrl)document.getElementById('gs-url-input').value=gsUrl;
+  updateGsStatus(gsUrl?'ok':'idle');
+  updateGsSyncTime();
+}
+function updateGsStatus(state){
+  const dot=document.getElementById('gs-dot');
+  const txt=document.getElementById('gs-txt');
+  const sub=document.getElementById('gs-sub');
+  const S={idle:['var(--tx3)','연동 미설정','URL을 입력하세요'],testing:['var(--acc2)','테스트 중...',''],ok:['var(--acc3)','✅ 연동 완료','구글 시트와 연결됨'],error:['var(--acc4)','❌ 연결 실패','URL 확인 필요'],syncing:['var(--acc)','동기화 중...','']};
+  const [c,l,h]=S[state]||S.idle;
+  if(dot)dot.style.background=c;
+  if(txt)txt.textContent=l;
+  if(sub)sub.textContent=h;
+  const hel=document.getElementById('hdr-gs');
+  if(hel)hel.textContent=state==='ok'?'🟢':gsUrl?'🟡':'';
+}
+function updateGsSyncTime(){
+  const el=document.getElementById('gs-sync-time');
+  if(el&&meta.lastGsSync){const d=new Date(meta.lastGsSync);el.textContent=d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}
+}
+async function gsFetch(method,body,qs=''){
+  if(!gsUrl)throw new Error('URL 없음');
+  const opts=method==='GET'?{method:'GET'}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)};
+  const res=await fetch(gsUrl+qs,opts);
+  const json=await res.json();
+  if(!json.ok)throw new Error(json.error||'서버 오류');
+  return json.data;
+}
+function saveGsUrl(){
+  const val=document.getElementById('gs-url-input').value.trim();
+  if(!val||!val.startsWith('https://script.google.com')){showToast('올바른 URL을 입력하세요');return;}
+  gsUrl=val;localStorage.setItem(LS.gsUrl,gsUrl);
+  updateGsStatus('testing');
+  gsFetch('GET',null,'?action=ping').then(()=>{updateGsStatus('ok');showToast('✓ 연결 성공!');}).catch(()=>{updateGsStatus('error');showToast('❌ 연결 실패');});
+}
+async function autoSync(){
+  if(!gsUrl)return;
+  try{
+    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos}});
+    meta.lastGsSync=new Date().toISOString();saveAll();
+    updateGsStatus('ok');updateGsSyncTime();
+    showToast('✅ 저장 완료 (구글 시트 연동)');
+  }catch(e){updateGsStatus('error');showToast('⚠️ 기기엔 저장됨 / 시트 연동 실패');}
+}
+async function syncToSheet(){
+  if(!gsUrl){showToast('URL 설정 필요');return;}
+  updateGsStatus('syncing');
+  try{
+    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos}});
+    meta.lastGsSync=new Date().toISOString();saveAll();updateGsStatus('ok');updateGsSyncTime();showToast('✅ 시트 저장 완료');
+  }catch(e){updateGsStatus('error');showToast('❌ 저장 실패: '+e.message);}
+}
+async function syncFromSheet(){
+  if(!gsUrl){showToast('URL 설정 필요');return;}
+  updateGsStatus('syncing');
+  try{
+    const data=await gsFetch('GET',null,'?action=read');
+    if(data.stock)stock=data.stock;
+    if(data.worklog)workLog=data.worklog;
+    if(data.inklog)inkLog=data.inklog;
+    if(data.notices)notices=data.notices;
+    if(data.schedules)schedules=data.schedules;
+    if(data.todos)todos=data.todos;
+    if(data.meta)Object.assign(meta,data.meta);
+    meta.lastGsSync=new Date().toISOString();saveAll();
+    updateGsStatus('ok');updateGsSyncTime();renderHome();showToast('✅ 불러오기 완료');
+  }catch(e){updateGsStatus('error');showToast('❌ 실패: '+e.message);}
+}
+
+// ── EXPORT ──
+function dl(content,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();}
+function exportCSV(){
+  const h=['제품코드','모델명','색상','도어타입','유리가로','유리세로','6개월출고','월평균','인쇄실재고','조립실재고'];
+  const rows=MODELS.map(m=>{const s=getStock(m.code);return[m.code,m.short,m.color,m.door_type,m.glass_w||'',m.glass_h||'',m.total_6m,m.avg_monthly,s.raw,s.printed];});
+  dl('\uFEFF'+[h,...rows].map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),'재고현황_'+todayStr()+'.csv','text/csv;charset=utf-8');showToast('📊 CSV 저장됨');
+}
+function exportWorkLog(){
+  const h=['날짜','제품코드','모델명','색상','유리사이즈','작업수량'];
+  const rows=[];[...workLog].sort((a,b)=>a.date.localeCompare(b.date)).forEach(day=>day.items.forEach(it=>{const m=MODELS.find(x=>x.code===it.code);rows.push([day.date,it.code,m?m.short:it.code,m?m.color:'',m&&m.glass_w?m.glass_w+'×'+m.glass_h:'',it.qty]);}));
+  dl('\uFEFF'+[h,...rows].map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),'작업일지_'+todayStr()+'.csv','text/csv;charset=utf-8');showToast('📋 작업일지 저장됨');
+}
+function exportTodoCSV(){
+  const h=['할일','담당자','업체','우선순위','상태','날짜','마감일'];
+  dl('\uFEFF'+[h,...todos.map(t=>[t.content,t.assignee||'',t.company||'',t.priority,t.status,t.date,t.dueDate||''])].map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),'할일목록_'+todayStr()+'.csv','text/csv;charset=utf-8');showToast('✅ 할일 저장됨');
+}
+function exportBackup(){dl(JSON.stringify({stock,meta,workLog,inkLog,inkRates,notices,schedules,todos},null,2),'ybn_backup_'+todayStr()+'.json','application/json');showToast('💾 백업 저장됨');}
+function importBackup(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{try{const d=JSON.parse(ev.target.result);stock=d.stock||{};meta=d.meta||{};workLog=d.workLog||[];inkLog=d.inkLog||[];inkRates=d.inkRates||{WC:1.5,ETP:1.5};notices=d.notices||[];schedules=d.schedules||[];todos=d.todos||[];saveAll();renderHome();showToast('✓ 복원 완료');}catch{showToast('파일 오류');}};
+  r.readAsText(f);
+}
+function clearStock(){if(!confirm('재고 초기화?'))return;stock={};meta.lastStock=null;saveAll();renderDash();renderStockList();showToast('초기화');}
+function clearWorkLog(){if(!confirm('작업일지 전체 삭제?'))return;workLog=[];meta.lastWork=null;saveAll();renderWorkLog();renderHome();showToast('작업일지 초기화');}
+function clearInk(){if(!confirm('잉크 이력 삭제?'))return;inkLog=[];meta.lastInk=null;saveAll();renderInk();showToast('잉크 이력 초기화');}
+
+// ── INIT ──
+renderHome();
+initGsUI();
+
+</script>
+</body>
+</html>
