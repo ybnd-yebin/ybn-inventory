@@ -327,6 +327,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button onclick="openSchModal()" style="padding:4px 12px;background:var(--acc2);border:none;border-radius:16px;color:#0d1117;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 추가</button>
     </div>
     <div id="sch-list"></div>
+    <div id="sch-history"></div>
   </div>
 </div>
 
@@ -961,19 +962,50 @@ function confirmNotice(){
 let schCat='work';
 function renderSchedules(){
   const el=document.getElementById('sch-list');
-  if(!schedules.length){el.innerHTML='<div class="empty"><div class="empty-ico">📅</div>일정 없음</div>';return;}
+  const histEl=document.getElementById('sch-history');
+  if(!schedules.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">📅</div>일정 없음</div>';
+    if(histEl) histEl.innerHTML='';
+    return;
+  }
   const CC={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
   const CL={work:'작업',delivery:'납품',order:'발주',etc:'기타'};
   const today=todayStr();
-  el.innerHTML=[...schedules].sort((a,b)=>a.date.localeCompare(b.date)).map(s=>{
-    const isPast=s.date<today,isToday=s.date===today;
-    const ds=new Date(s.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'});
-    return '<div class="sch-item" style="opacity:'+(isPast?.45:1)+'">'
-      +'<div class="sch-date'+(isToday?' today':isPast?' past':'')+'">'+ds+(isToday?'<br><span class="today-label">오늘</span>':'')+'</div>'
-      +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
-      +'<div class="sch-info"><div class="sch-content">'+s.content+'</div><div class="sch-cat">'+CL[s.cat]+'</div></div>'
-      +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button></div>';
-  }).join('');
+  const sorted=[...schedules].sort((a,b)=>a.date.localeCompare(b.date));
+  const upcoming=sorted.filter(s=>s.date>=today);
+  const past=sorted.filter(s=>s.date<today).reverse(); // 최근 지난것 위로
+
+  // 현재/미래 일정
+  if(!upcoming.length){
+    el.innerHTML='<div class="empty-sm">예정된 일정 없음</div>';
+  } else {
+    el.innerHTML=upcoming.map(s=>{
+      const isToday=s.date===today;
+      const ds=new Date(s.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'});
+      return '<div class="sch-item">'
+        +'<div class="sch-date'+(isToday?' today':'')+'">'+ds+(isToday?'<br><span class="today-label">오늘</span>':'')+'</div>'
+        +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
+        +'<div class="sch-info"><div class="sch-content">'+s.content+'</div><div class="sch-cat">'+CL[s.cat]+'</div></div>'
+        +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button></div>';
+    }).join('');
+  }
+
+  // 히스토리 (지난 일정)
+  if(histEl){
+    if(!past.length){
+      histEl.innerHTML='';
+    } else {
+      histEl.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;margin-top:4px">지난 일정</div>'
+        +past.slice(0,10).map(s=>{
+          const ds=new Date(s.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'});
+          return '<div class="sch-item" style="opacity:.4">'
+            +'<div class="sch-date past">'+ds+'</div>'
+            +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
+            +'<div class="sch-info"><div class="sch-content" style="text-decoration:line-through">'+s.content+'</div><div class="sch-cat">'+CL[s.cat]+'</div></div>'
+            +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button></div>';
+        }).join('');
+    }
+  }
 }
 function openSchModal(){
   schCat='work';
