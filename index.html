@@ -448,29 +448,55 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- MAT -->
 <div class="sec-pg" id="pg-mat">
-  <!-- 요약 -->
-  <div class="g3" id="mat-summary" style="margin-top:0"></div>
 
-  <!-- 검색/필터 -->
-  <input class="inp" id="mat-search" placeholder="🔍 모델명 / 코드 / 사이즈..." oninput="renderMatList()">
-  <div class="filter-row">
-    <button class="f-btn on" onclick="setMatFilter('all',this)">전체</button>
-    <button class="f-btn" onclick="setMatFilter('breeze',this)">브리즈</button>
-    <button class="f-btn" onclick="setMatFilter('shade',this)">쉐이드</button>
-    <button class="f-btn" onclick="setMatFilter('sahara',this)">사하라</button>
-    <button class="f-btn" onclick="setMatFilter('low',this)">🔴 부족(3장↓)</button>
+  <!-- 서브탭 -->
+  <div style="display:flex;background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden;margin-bottom:12px">
+    <button class="mat-sub-btn on" id="matsub-stock" onclick="setMatSub('stock',this)" style="flex:1;padding:10px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:var(--tx2);cursor:pointer;border-bottom:2px solid transparent">📦 자재 재고</button>
+    <button class="mat-sub-btn" id="matsub-sheet" onclick="setMatSub('sheet',this)" style="flex:1;padding:10px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:var(--tx2);cursor:pointer;border-bottom:2px solid transparent">🗂️ 원장 관리</button>
   </div>
 
-  <!-- 일괄입고 버튼 -->
-  <button onclick="openBulkMatModal()" style="width:100%;padding:11px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">+ 자재 입고 등록</button>
+  <!-- 자재 재고 서브페이지 -->
+  <div id="mat-sub-stock">
+    <div class="g3" id="mat-summary" style="margin-top:0"></div>
+    <input class="inp" id="mat-search" placeholder="🔍 모델명 / 코드 / 사이즈..." oninput="renderMatList()">
+    <div class="filter-row">
+      <button class="f-btn on" onclick="setMatFilter('all',this)">전체</button>
+      <button class="f-btn" onclick="setMatFilter('breeze',this)">브리즈</button>
+      <button class="f-btn" onclick="setMatFilter('shade',this)">쉐이드</button>
+      <button class="f-btn" onclick="setMatFilter('sahara',this)">사하라</button>
+      <button class="f-btn" onclick="setMatFilter('low',this)">🔴 부족(3장↓)</button>
+    </div>
+    <button onclick="openBulkMatModal()" style="width:100%;padding:11px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">+ 자재 입고 등록</button>
+    <div id="mat-list"></div>
+    <div class="card" style="margin-top:12px">
+      <div class="card-ttl">📋 입출고 이력</div>
+      <div id="mat-log"></div>
+    </div>
+  </div>
 
-  <!-- 모델별 자재 목록 -->
-  <div id="mat-list"></div>
+  <!-- 원장 관리 서브페이지 -->
+  <div id="mat-sub-sheet" style="display:none">
+    <!-- 원장 재고 요약 -->
+    <div class="g3" id="sheet-summary" style="margin-top:0"></div>
 
-  <!-- 이력 -->
-  <div class="card" style="margin-top:12px">
-    <div class="card-ttl">📋 입출고 이력</div>
-    <div id="mat-log"></div>
+    <!-- 입고/출고 버튼 -->
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button onclick="openSheetModal('in','breeze')" style="flex:1;padding:12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">+ 입고</button>
+      <button onclick="openSheetModal('out','breeze')" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">- 출고</button>
+    </div>
+
+    <!-- 원판 소요량 계산 -->
+    <div class="card">
+      <div class="card-ttl">🧮 원판 소요량 계산</div>
+      <div style="font-size:11px;color:var(--tx2);margin-bottom:10px">원판 1장(1200×2400)에서 취득 가능한 수량</div>
+      <div id="sheet-yield-table"></div>
+    </div>
+
+    <!-- 입출고 이력 -->
+    <div class="card">
+      <div class="card-ttl">📋 원장 입출고 이력</div>
+      <div id="sheet-log-list"></div>
+    </div>
   </div>
 </div>
 
@@ -645,6 +671,46 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
 </div>
 
+<!-- SHEET MODAL -->
+<div class="modal-bg" id="sheet-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('sheet-modal')">×</button>
+    <div class="modal-ttl" id="shm-title">📦 원장 입고</div>
+    <span class="lbl">색상 선택</span>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button id="shm-mat-breeze" class="q-btn" onclick="setSheetMat('breeze',this)" style="flex:1;padding:10px">브리즈</button>
+      <button id="shm-mat-shade" class="q-btn" onclick="setSheetMat('shade',this)" style="flex:1;padding:10px">쉐이드</button>
+      <button id="shm-mat-sahara" class="q-btn" onclick="setSheetMat('sahara',this)" style="flex:1;padding:10px">사하라</button>
+    </div>
+    <span class="lbl">수량 (장)</span>
+    <div class="qty-ctrl">
+      <button class="qty-btn" onclick="shmQtyD(-1)">−</button>
+      <div class="qty-num" id="shm-qty">0</div>
+      <button class="qty-btn" onclick="shmQtyD(1)">＋</button>
+    </div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="setShmQ(1)">1</button>
+      <button class="q-btn" onclick="setShmQ(5)">5</button>
+      <button class="q-btn" onclick="setShmQ(10)">10</button>
+      <button class="q-btn" onclick="setShmQ(20)">20</button>
+      <button class="q-btn" onclick="setShmQ(50)">50</button>
+    </div>
+    <div class="f-row" style="margin-bottom:10px">
+      <div>
+        <span class="lbl">날짜</span>
+        <input type="date" id="shm-date" class="inp" style="margin-bottom:0">
+      </div>
+      <div>
+        <span class="lbl">시간</span>
+        <input type="time" id="shm-time" class="inp" style="margin-bottom:0">
+      </div>
+    </div>
+    <span class="lbl">메모 (선택)</span>
+    <input id="shm-note" class="inp" placeholder="거래처, 발주번호 등...">
+    <button class="act-btn green" onclick="confirmSheetModal()">✓ 저장</button>
+  </div>
+</div>
+
 <!-- ORDER UPLOAD MODAL -->
 <div class="modal-bg" id="order-upload-modal">
   <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
@@ -747,6 +813,7 @@ function saveAll(){
   // 자재 데이터 (전역 변수로 선언되어 있을 때만)
   if(typeof matStock!=='undefined') localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
   if(typeof matLog!=='undefined') localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
+  if(typeof sheetLog!=='undefined') localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
 }
 
 // ── TIME ──
@@ -1638,11 +1705,10 @@ function handleOrderFile(e){
   reader.onload=function(ev){
     try{
       const wb=XLSX.read(ev.target.result,{type:'array'});
-      // 첫 번째 시트 사용
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
 
-      // 헤더 찾기 (No. 또는 제품코드 컬럼)
+      // 헤더 찾기
       let headerRow=-1, colMap={};
       for(let i=0;i<Math.min(rows.length,5);i++){
         const r=rows[i];
@@ -1664,54 +1730,82 @@ function handleOrderFile(e){
       }
 
       if(headerRow<0||colMap.code===undefined){
-        document.getElementById('ou-result').innerHTML='<div style="color:var(--acc4);font-size:12px">❌ 발주서 형식을 인식할 수 없습니다.<br>제품코드, 제품명, 제품수량 컬럼이 있는지 확인하세요.</div>';
+        document.getElementById('ou-result').innerHTML='<div style="color:var(--acc4);font-size:12px">❌ 발주서 형식을 인식할 수 없습니다.</div>';
         return;
       }
 
-      // 데이터 파싱
+      // ── 중복 체크용 기존 처리 이력 로드 ──
+      // orderHistory: [{poNo, code, qty, delivDate}] 형태로 저장
+      const orderHistory=JSON.parse(localStorage.getItem('ybn-order-history')||'[]');
+      // 기존 처리된 키 셋 (구매오더번호_제품코드_납품일)
+      const processedKeys=new Set(orderHistory.map(h=>`${h.poNo}_${h.code}_${h.delivDate}`));
+
+      // 전체 데이터 파싱 (행 단위)
       const dataRows=rows.slice(headerRow+1).filter(r=>r[colMap.code]&&r[colMap.qty]);
       const graceRows=dataRows.filter(r=>String(r[colMap.name]||'').includes('Grace'));
       const nonGraceRows=dataRows.filter(r=>!String(r[colMap.name]||'').includes('Grace'));
 
-      // Grace 모델만 분석 (제품코드 기준 집계)
-      const codeMap={};
+      // 행 단위로 중복 체크 후 집계
+      const newRows=[], dupRows=[];
       graceRows.forEach(r=>{
         const code=String(r[colMap.code]).trim();
+        const poNo=colMap.poNo!==undefined?String(r[colMap.poNo]||'').trim():'';
+        const delivDate=colMap.delivDate!==undefined?String(r[colMap.delivDate]||'').trim().slice(0,10):'';
+        const key=`${poNo}_${code}_${delivDate}`;
+        if(processedKeys.has(key)) dupRows.push(r);
+        else newRows.push({r, code, poNo, delivDate});
+      });
+
+      // 새 행만 제품코드+납품일 기준으로 집계
+      const codeMap={};
+      newRows.forEach(({r,code,poNo,delivDate})=>{
         const qty=parseInt(r[colMap.qty])||0;
         const name=String(r[colMap.name]||'').trim();
-        const poDate=r[colMap.poDate]?String(r[colMap.poDate]).slice(0,10):'';
-        if(!codeMap[code]) codeMap[code]={code,name,qty:0,poDate};
-        codeMap[code].qty+=qty;
-        if(poDate) codeMap[code].poDate=poDate;
+        const mapKey=code+'_'+delivDate;
+        if(!codeMap[mapKey]) codeMap[mapKey]={code,name,qty:0,poNo,delivDate};
+        codeMap[mapKey].qty+=qty;
       });
 
       const parsed=Object.values(codeMap);
       const matched=parsed.filter(p=>MODELS.find(m=>m.code===p.code));
       const unmatched=parsed.filter(p=>!MODELS.find(m=>m.code===p.code));
+      const newTotal=newRows.reduce((a,{r})=>a+(parseInt(r[colMap.qty])||0),0);
 
-      window._orderParsed={matched, unmatched, nonGraceCount:nonGraceRows.length, totalRows:dataRows.length};
+      window._orderParsed={matched, unmatched, newRows,
+        nonGraceCount:nonGraceRows.length, totalRows:dataRows.length,
+        dupCount:dupRows.length, newCount:newRows.length};
 
       // 결과 미리보기
       let html=`<div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:10px 12px;margin-bottom:10px">
         <div style="font-size:12px;font-weight:700;color:var(--acc3);margin-bottom:4px">📊 분석 결과</div>
-        <div style="font-size:11px;color:var(--tx2);line-height:1.8">
+        <div style="font-size:11px;color:var(--tx2);line-height:1.9">
           전체 행: <b>${dataRows.length}행</b><br>
-          Grace 모델: <b>${parsed.length}종 / ${graceRows.length}장</b><br>
+          Grace 모델: <b>${graceRows.length}행</b>
+          ${dupRows.length>0?`&nbsp;/ <span style="color:var(--tx3)">이미 반영됨: ${dupRows.length}행 (스킵)</span>`:''}
+          <br>새로 반영될 행: <b style="color:var(--acc3)">${newRows.length}행 / ${newTotal}장</b><br>
           DB 매칭: <b style="color:var(--acc3)">${matched.length}종</b>
           ${unmatched.length>0?`&nbsp;/ 미매칭: <b style="color:var(--acc4)">${unmatched.length}종</b>`:''}
-          ${nonGraceRows.length>0?`<br>Grace 외 품목: <b>${nonGraceRows.length}행</b> (반영 제외)`:''}
+          ${nonGraceRows.length>0?`<br>Grace 외: <b>${nonGraceRows.length}행</b> (제외)`:''}
         </div>
       </div>`;
 
+      if(newRows.length===0){
+        html+='<div style="background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--acc)">✅ 모든 행이 이미 반영된 상태입니다. 새로 처리할 내용이 없습니다.</div>';
+        document.getElementById('ou-result').innerHTML=html;
+        document.getElementById('ou-confirm-btn').style.display='none';
+        return;
+      }
+
       if(matched.length>0){
-        html+=`<div style="font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px">반영될 항목 (조립실 출고 기록):</div>`;
+        html+=`<div style="font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px">반영될 항목:</div>`;
         html+=matched.slice(0,10).map(p=>{
           const m=MODELS.find(x=>x.code===p.code);
           const cur=getStock(p.code).printed;
+          const delivStr=p.delivDate?` | 납품일: ${p.delivDate.slice(5).replace('-','/')}` :'';
           return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b1)">
             <div style="flex:1;min-width:0">
               <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m?hlName(m.short,m.color):p.code}</div>
-              <div style="font-size:10px;color:var(--tx2)">${p.code} | 현재조립실재고: ${cur}장</div>
+              <div style="font-size:10px;color:var(--tx2)">${p.code}${delivStr} | 조립실재고: ${cur}장</div>
             </div>
             <div style="text-align:right;flex-shrink:0">
               <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--acc4)">-${p.qty}장</div>
@@ -1721,15 +1815,12 @@ function handleOrderFile(e){
         }).join('');
         if(matched.length>10) html+=`<div style="font-size:11px;color:var(--tx3);text-align:center;padding:8px">... 외 ${matched.length-10}종</div>`;
       }
-
       if(unmatched.length>0){
         html+=`<div style="margin-top:8px;font-size:11px;color:var(--acc4)">⚠️ DB 미매칭 (반영 불가): ${unmatched.map(p=>p.code).join(', ')}</div>`;
       }
 
       document.getElementById('ou-result').innerHTML=html;
-      if(matched.length>0){
-        document.getElementById('ou-confirm-btn').style.display='block';
-      }
+      document.getElementById('ou-confirm-btn').style.display=matched.length>0?'block':'none';
     }catch(err){
       document.getElementById('ou-result').innerHTML=`<div style="color:var(--acc4);font-size:12px">❌ 파일 읽기 오류: ${err.message}</div>`;
     }
@@ -1741,39 +1832,267 @@ function confirmOrderUpload(){
   const parsed=window._orderParsed;
   if(!parsed||!parsed.matched.length){showToast('반영할 데이터 없음');return;}
 
+  // 기존 이력 로드
+  const orderHistory=JSON.parse(localStorage.getItem('ybn-order-history')||'[]');
+
   let applied=0, totalQty=0;
   parsed.matched.forEach(p=>{
     const s=getStock(p.code);
-    // 조립실 인쇄유리에서 출고 차감
     const newPrinted=Math.max(0, s.printed-p.qty);
     stock[p.code]={...s, printed:newPrinted};
-    applied++;
-    totalQty+=p.qty;
+    applied++; totalQty+=p.qty;
 
-    // 출고 이력 기록 (workLog 방식과 별도로 orderLog에)
+    // 출고 이력 기록
     const td=todayStr();
     let dayLog=workLog.find(d=>d.date===td);
     if(!dayLog){dayLog={date:td,items:[]};workLog.push(dayLog);}
     const ex=dayLog.items.find(i=>i.code===p.code&&i.type==='order');
     if(ex) ex.qty+=p.qty;
-    else dayLog.items.push({code:p.code, qty:p.qty, type:'order'});
+    else dayLog.items.push({code:p.code,qty:p.qty,type:'order'});
   });
+
+  // ── 처리된 행을 이력에 저장 (중복방지용) ──
+  parsed.newRows.forEach(({code,poNo,delivDate})=>{
+    orderHistory.push({poNo,code,delivDate,processedAt:new Date().toISOString()});
+  });
+  localStorage.setItem('ybn-order-history',JSON.stringify(orderHistory));
 
   meta.lastStock=new Date().toISOString();
   saveAll(); closeM('order-upload-modal');
   renderHome(); renderDash();
   autoSync();
-  showToast(`✅ ${applied}종 / ${totalQty}장 조립실 출고 반영됨`);
+  showToast(`✅ ${applied}종 / ${totalQty}장 출고 반영 (중복 ${parsed.dupCount}건 스킵)`);
   window._orderParsed=null;
 }
+
+// ══════════════════════════════════════════════════
+//  원장 관리 (1200×2400 원판)
+//  sheetLog: [{id, date, mat, type:'in'|'out', qty, note, modelCode, orderId}]
+// ══════════════════════════════════════════════════
+
+const SHEET_W=1200, SHEET_H=2400;
+
+// 원판 1장에서 해당 사이즈 몇 개 나오는지
+function calcYield(gw, gh){
+  if(!gw||!gh) return 1;
+  const n1=Math.floor(SHEET_W/gw)*Math.floor(SHEET_H/gh);
+  const n2=Math.floor(SHEET_W/gh)*Math.floor(SHEET_H/gw);
+  return Math.max(n1,n2)||1;
+}
+
+// 원판 소요량 계산 (올림)
+function calcSheetsNeeded(gw, gh, qty){
+  const perSheet=calcYield(gw,gh);
+  return Math.ceil(qty/perSheet);
+}
+
+function getSheetStock(mat){
+  if(!window.sheetLog) return 0;
+  return sheetLog.filter(l=>l.mat===mat).reduce((a,l)=>{
+    if(l.type==='in') return a+l.qty;
+    if(l.type==='out') return a-l.qty;
+    if(l.type==='adjust') return l.qty; // 직접설정
+    return a;
+  },0);
+}
+
+// 원장 탭 렌더
+function renderSheetMgr(){
+  renderSheetSummary();
+  renderSheetLog();
+}
+
+function renderSheetSummary(){
+  const el=document.getElementById('sheet-summary');
+  if(!el) return;
+  el.innerHTML=Object.entries(MAT_TYPES).map(([key,info])=>{
+    const stock=Math.max(0,getSheetStock(key));
+    const isLow=stock<=3;
+    return `<div class="stat" style="border-left:3px solid ${info.color}">
+      <div class="stat-l" style="color:${info.color}">${info.label.split('(')[0]}</div>
+      <div class="stat-v" style="color:${isLow?'var(--acc4)':info.color}">${stock}</div>
+      <div class="stat-s">장 ${isLow?'⚠️ 부족':''}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderSheetLog(){
+  const el=document.getElementById('sheet-log-list');
+  if(!el) return;
+  if(!sheetLog||!sheetLog.length){
+    el.innerHTML='<div class="empty-sm">입출고 기록 없음</div>';return;
+  }
+  const sorted=[...sheetLog].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30);
+  const TL={'in':'입고','out':'출고','adjust':'조정'};
+  const TC={'in':'var(--acc3)','out':'var(--acc4)','adjust':'var(--acc2)'};
+  el.innerHTML=sorted.map(l=>{
+    const info=MAT_TYPES[l.mat];
+    const m=l.modelCode?MODELS.find(x=>x.code===l.modelCode):null;
+    return `<div class="mat-log-row" id="slog-${l.id}">
+      <div style="min-width:70px">
+        <div class="mat-log-date">${l.date.slice(0,10).slice(5).replace('-','/')}</div>
+        <div style="font-size:9px;color:var(--tx3)">${l.date.slice(11,16)||''}</div>
+      </div>
+      <div class="mat-log-info" style="flex:1">
+        <span class="badge" style="background:${info?.bg};color:${info?.color};border:1px solid ${info?.border}">${info?.label.split('(')[0]||l.mat}</span>
+        <span style="font-size:11px;color:var(--tx2);margin-left:4px">${TL[l.type]}</span>
+        ${m?`<div style="font-size:10px;color:var(--tx3);margin-top:2px">${m.short}</div>`:''}
+        ${l.note?`<div style="font-size:10px;color:var(--tx3)">${l.note}</div>`:''}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="mat-log-qty" style="color:${TC[l.type]}">${l.type==='in'?'+':l.type==='out'?'-':'='}${l.qty}장</div>
+        <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px">
+          <button onclick="editSheetLog('${l.id}')" class="icon-btn" style="font-size:12px">✏️</button>
+          <button onclick="deleteSheetLog('${l.id}')" class="icon-btn del" style="font-size:12px">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 원장 입출고 모달
+let sheetModalMat='breeze', sheetModalAction='in', sheetModalQty=0, sheetEditId=null;
+
+function openSheetModal(action='in', mat='breeze'){
+  sheetModalAction=action; sheetModalMat=mat; sheetModalQty=0; sheetEditId=null;
+  document.getElementById('shm-title').textContent=action==='in'?'📦 원장 입고':'📤 원장 출고';
+  document.getElementById('shm-qty').textContent='0';
+  document.getElementById('shm-date').value=todayStr();
+  document.getElementById('shm-time').value=new Date().toTimeString().slice(0,5);
+  document.getElementById('shm-note').value='';
+  // 색상 탭 초기화
+  ['breeze','shade','sahara'].forEach(m=>{
+    const btn=document.getElementById('shm-mat-'+m);
+    if(btn){btn.style.background='';btn.style.color='';btn.style.borderColor='';}
+  });
+  const selInfo=MAT_TYPES[mat];
+  const selBtn=document.getElementById('shm-mat-'+mat);
+  if(selBtn){selBtn.style.background=selInfo.color;selBtn.style.color='#fff';selBtn.style.borderColor=selInfo.color;}
+  document.getElementById('sheet-modal').classList.add('on');
+}
+
+function setSheetMat(mat, btn){
+  sheetModalMat=mat;
+  ['breeze','shade','sahara'].forEach(m=>{
+    const b=document.getElementById('shm-mat-'+m);
+    if(b){b.style.background='';b.style.color='';b.style.borderColor='';}
+  });
+  const info=MAT_TYPES[mat];
+  btn.style.background=info.color;btn.style.color='#fff';btn.style.borderColor=info.color;
+}
+function shmQtyD(d){sheetModalQty=Math.max(0,sheetModalQty+d);document.getElementById('shm-qty').textContent=sheetModalQty;}
+function setShmQ(n){sheetModalQty=n;document.getElementById('shm-qty').textContent=n;}
+
+function confirmSheetModal(){
+  const date=document.getElementById('shm-date').value;
+  const time=document.getElementById('shm-time').value;
+  const note=document.getElementById('shm-note').value.trim();
+  if(!date){showToast('날짜를 입력하세요');return;}
+  if(sheetModalQty<=0){showToast('수량을 입력하세요');return;}
+  const fullDate=date+(time?'T'+time+':00':'T00:00:00');
+  if(sheetEditId){
+    const log=sheetLog.find(l=>l.id===sheetEditId);
+    if(log){log.date=fullDate;log.mat=sheetModalMat;log.type=sheetModalAction;log.qty=sheetModalQty;log.note=note;}
+  } else {
+    sheetLog.push({id:Date.now().toString(),date:fullDate,mat:sheetModalMat,type:sheetModalAction,qty:sheetModalQty,note});
+  }
+  saveSheetData();closeM('sheet-modal');renderSheetMgr();
+  showToast(`✅ 원장 ${sheetModalAction==='in'?'입고':'출고'} ${sheetModalQty}장`);
+}
+
+function editSheetLog(id){
+  const l=sheetLog.find(x=>x.id===id);if(!l)return;
+  sheetEditId=id;sheetModalAction=l.type;sheetModalMat=l.mat;sheetModalQty=l.qty;
+  document.getElementById('shm-title').textContent='✏️ 기록 수정';
+  document.getElementById('shm-qty').textContent=l.qty;
+  document.getElementById('shm-date').value=l.date.slice(0,10);
+  document.getElementById('shm-time').value=l.date.slice(11,16)||'';
+  document.getElementById('shm-note').value=l.note||'';
+  ['breeze','shade','sahara'].forEach(m=>{
+    const b=document.getElementById('shm-mat-'+m);
+    if(b){b.style.background='';b.style.color='';b.style.borderColor='';}
+  });
+  const info=MAT_TYPES[l.mat];
+  const btn=document.getElementById('shm-mat-'+l.mat);
+  if(btn){btn.style.background=info.color;btn.style.color='#fff';btn.style.borderColor=info.color;}
+  document.getElementById('sheet-modal').classList.add('on');
+}
+
+function deleteSheetLog(id){
+  if(!confirm('이 기록을 삭제합니까?'))return;
+  sheetLog=sheetLog.filter(l=>l.id!==id);
+  saveSheetData();renderSheetMgr();showToast('삭제됨');
+}
+
+// 원판 소요량 계산기
+function calcSheetNeeds(){
+  const el=document.getElementById('sheet-calc-result');
+  if(!el)return;
+  // 최근 미반영 발주 기준으로 계산 (조립실 재고 기준)
+  const needs={breeze:{},shade:{},sahara:{}};
+  // 재고 있는 모델 중 조립실 재고 기준 소요 계산 예시
+  // 실제는 발주서 업로드 시 연동
+  el.innerHTML='<div style="font-size:11px;color:var(--tx2)">발주서 업로드 후 소요량이 자동 계산됩니다.</div>';
+}
+
+function saveSheetData(){
+  localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
+  saveAll();
+}
+
+// ── 자재탭 서브탭 전환 ──
+function setMatSub(sub, btn){
+  document.getElementById('mat-sub-stock').style.display=sub==='stock'?'block':'none';
+  document.getElementById('mat-sub-sheet').style.display=sub==='sheet'?'block':'none';
+  document.querySelectorAll('.mat-sub-btn').forEach(b=>{
+    b.style.color='var(--tx2)';b.style.borderBottomColor='transparent';b.style.background='none';
+  });
+  btn.style.color='var(--acc)';btn.style.borderBottomColor='var(--acc)';btn.style.background='rgba(37,99,235,.06)';
+  if(sub==='sheet'){renderSheetMgr();renderYieldTable();}
+}
+
+// 취득수 테이블 렌더
+function renderYieldTable(){
+  const el=document.getElementById('sheet-yield-table');
+  if(!el)return;
+  // 자주 나오는 사이즈 top 20
+  const sizeMap={};
+  MODELS.forEach(m=>{
+    if(!m.glass_w||!m.glass_h)return;
+    const key=m.glass_w+'x'+m.glass_h;
+    if(!sizeMap[key]) sizeMap[key]={w:m.glass_w,h:m.glass_h,total:0};
+    sizeMap[key].total+=m.total_6m;
+  });
+  const sizes=Object.values(sizeMap).sort((a,b)=>b.total-a.total).slice(0,15);
+  el.innerHTML=`<div style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:1px;background:var(--b1);border-radius:8px;overflow:hidden;font-size:11px">
+    <div style="background:var(--s2);padding:8px;font-weight:700;color:var(--tx2)">사이즈</div>
+    <div style="background:var(--s2);padding:8px;font-weight:700;text-align:center;color:var(--tx2)">취득수/장</div>
+    <div style="background:var(--s2);padding:8px;font-weight:700;text-align:center;color:var(--tx2)">로스율</div>
+    <div style="background:var(--s2);padding:8px;font-weight:700;text-align:center;color:var(--tx2)">6개월출고</div>
+    ${sizes.map(s=>{
+      const n=calcYield(s.w,s.h);
+      const loss=((1-(s.w*s.h*n)/(SHEET_W*SHEET_H))*100).toFixed(1);
+      const lossColor=parseFloat(loss)>30?'var(--acc4)':parseFloat(loss)>15?'var(--acc2)':'var(--acc3)';
+      return `<div style="background:var(--s1);padding:8px;font-family:'JetBrains Mono',monospace;font-weight:600">${s.w}×${s.h}</div>
+        <div style="background:var(--s1);padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--acc)">${n}개</div>
+        <div style="background:var(--s1);padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;color:${lossColor}">${loss}%</div>
+        <div style="background:var(--s1);padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${s.total}장</div>`;
+    }).join('')}
+  </div>`;
+}
+
+// sheetLog 초기화 (전역)
+if(typeof sheetLog==='undefined') var sheetLog=JSON.parse(localStorage.getItem('ybn-sheet-v1')||'[]');
 
 // ── 자재 데이터 초기화 ──
 var matStock=JSON.parse(localStorage.getItem('ybn-mat-v1')||'{}');
 var matLog=JSON.parse(localStorage.getItem('ybn-matlog-v1')||'[]');
+var sheetLog=JSON.parse(localStorage.getItem('ybn-sheet-v1')||'[]');
 // ── 자재 저장 함수 ──
 function saveMatData(){
   localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
   localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
+  localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
 }
 // ── 자재탭 포함 네비게이션 재정의 ──
 const MAINS_EXT=['home','todo','board','stock','mat','settings'];
