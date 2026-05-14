@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>와이비앤디 업무</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#f5f6fa;--s1:#ffffff;--s2:#f0f2f7;--s3:#e4e7f0;--b1:#e0e4ee;--b2:#cdd1df;--acc:#2563eb;--acc2:#ea6c00;--acc3:#16a34a;--acc4:#dc2626;--acc5:#7c3aed;--tx1:#1a1d2e;--tx2:#5a6282;--tx3:#9aa0b8;--wc:#1d6fb5;--etp:#b45309;}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -235,6 +236,18 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 /* GS */
 .upd-badge{display:inline-flex;align-items:center;padding:3px 10px;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.2);border-radius:20px;font-size:10px;color:var(--acc3)}
 .info-note{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.2);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--tx2);line-height:1.7;margin-bottom:12px}
+.mat-item{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.mat-item-info{margin-bottom:8px}
+.mat-stocks{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.mat-stock-box{background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:all .15s}
+.mat-stock-box:active{transform:scale(.97)}
+.mat-stock-lbl{font-size:9px;font-weight:600;margin-bottom:3px}
+.mat-stock-val{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700}
+.mat-log-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--b1)}
+.mat-log-row:last-child{border-bottom:none}
+.mat-log-date{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);min-width:40px}
+.mat-log-info{flex:1;min-width:0;font-size:11px}
+.mat-log-qty{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;min-width:44px;text-align:right}
 /* MISC */
 .empty{text-align:center;padding:36px 20px;color:var(--tx3);font-size:12px}
 .empty-ico{font-size:28px;margin-bottom:8px}
@@ -258,6 +271,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="main-nav-btn" onclick="showMain('todo')">✅ 할일</button>
     <button class="main-nav-btn" onclick="showMain('board')">📌 공지/일정</button>
     <button class="main-nav-btn" onclick="showMain('stock')">📋 재고관리</button>
+    <button class="main-nav-btn" onclick="showMain('mat')">🧱 자재관리</button>
     <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
   </nav>
 </div>
@@ -431,8 +445,43 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
 </div>
 
+<!-- MAT -->
+<div class="sec-pg" id="pg-mat">
+  <!-- 요약 -->
+  <div class="g3" id="mat-summary" style="margin-top:0"></div>
+
+  <!-- 검색/필터 -->
+  <input class="inp" id="mat-search" placeholder="🔍 모델명 / 코드 / 사이즈..." oninput="renderMatList()">
+  <div class="filter-row">
+    <button class="f-btn on" onclick="setMatFilter('all',this)">전체</button>
+    <button class="f-btn" onclick="setMatFilter('breeze',this)">브리즈</button>
+    <button class="f-btn" onclick="setMatFilter('shade',this)">쉐이드</button>
+    <button class="f-btn" onclick="setMatFilter('sahara',this)">사하라</button>
+    <button class="f-btn" onclick="setMatFilter('low',this)">🔴 부족(3장↓)</button>
+  </div>
+
+  <!-- 일괄입고 버튼 -->
+  <button onclick="openBulkMatModal()" style="width:100%;padding:11px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">+ 자재 입고 등록</button>
+
+  <!-- 모델별 자재 목록 -->
+  <div id="mat-list"></div>
+
+  <!-- 이력 -->
+  <div class="card" style="margin-top:12px">
+    <div class="card-ttl">📋 입출고 이력</div>
+    <div id="mat-log"></div>
+  </div>
+</div>
+
 <!-- SETTINGS -->
 <div class="sec-pg" id="pg-settings" style="padding:14px 14px 80px">
+  <div class="card">
+    <div class="card-ttl">📥 발주서 엑셀 업로드</div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.7;margin-bottom:10px">
+      발주서 엑셀 파일을 올리면 Grace 모델의 <b>조립실 출고</b>가 자동으로 반영됩니다.
+    </div>
+    <button onclick="openOrderUpload()" style="width:100%;padding:13px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📊 발주서 파일 업로드</button>
+  </div>
   <div class="card">
     <div class="card-ttl">🔗 구글 시트 연동</div>
     <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;margin-bottom:12px">
@@ -595,6 +644,71 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
 </div>
 
+<!-- ORDER UPLOAD MODAL -->
+<div class="modal-bg" id="order-upload-modal">
+  <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
+    <button class="close-btn" onclick="closeM('order-upload-modal')">×</button>
+    <div class="modal-ttl">📊 발주서 업로드</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px">Grace 모델 조립실 출고가 자동 반영됩니다</div>
+
+    <!-- 파일 선택 -->
+    <input type="file" id="order-file-input" accept=".xlsx,.xls" style="display:none" onchange="handleOrderFile(event)">
+    <div onclick="document.getElementById('order-file-input').click()" style="border:2px dashed var(--b2);border-radius:10px;padding:20px;text-align:center;cursor:pointer;margin-bottom:12px;transition:all .2s" onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--b2)'">
+      <div style="font-size:24px;margin-bottom:6px">📂</div>
+      <div style="font-size:13px;font-weight:600;color:var(--tx1)" id="ou-file-name">파일을 선택하세요</div>
+      <div style="font-size:11px;color:var(--tx3);margin-top:4px">.xlsx / .xls 파일 지원</div>
+    </div>
+
+    <!-- 분석 결과 -->
+    <div id="ou-result"></div>
+
+    <!-- 반영 버튼 -->
+    <button class="act-btn green" id="ou-confirm-btn" onclick="confirmOrderUpload()" style="display:none;margin-top:8px">✓ 조립실 출고 반영하기</button>
+  </div>
+</div>
+
+<!-- MAT MODAL -->
+<div class="modal-bg" id="mat-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('mat-modal')">×</button>
+    <div class="modal-ttl" id="mm-title">📦 자재 재고 입력</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px" id="mm-sub"></div>
+    <div class="modal-tabs">
+      <button class="m-tab on" id="mmtab-in" onclick="setMatAction('in',this)">입고</button>
+      <button class="m-tab" id="mmtab-out" onclick="setMatAction('out',this)">출고</button>
+      <button class="m-tab" id="mmtab-set" onclick="setMatAction('set',this)">직접설정</button>
+    </div>
+    <div class="qty-ctrl">
+      <button class="qty-btn" onclick="mmQtyD(-1)">−</button>
+      <div class="qty-num" id="mm-qty">0</div>
+      <button class="qty-btn" onclick="mmQtyD(1)">＋</button>
+    </div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="setMMQ(1)">1</button>
+      <button class="q-btn" onclick="setMMQ(5)">5</button>
+      <button class="q-btn" onclick="setMMQ(10)">10</button>
+      <button class="q-btn" onclick="setMMQ(20)">20</button>
+      <button class="q-btn" onclick="setMMQ(50)">50</button>
+    </div>
+    <span class="lbl">메모 (선택)</span>
+    <input id="mm-note" class="inp" placeholder="비고...">
+    <button class="act-btn green" onclick="confirmMat()">✓ 저장</button>
+  </div>
+</div>
+
+<!-- BULK MAT MODAL -->
+<div class="modal-bg" id="bulk-mat-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('bulk-mat-modal')">×</button>
+    <div class="modal-ttl">+ 자재 입고 등록</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px">모델 선택 후 자재별 입고 수량을 입력하세요</div>
+    <span class="lbl">모델 검색</span>
+    <input class="inp" id="bm-search" placeholder="제품코드 또는 모델명..." oninput="renderBulkSearch()" style="margin-bottom:6px">
+    <div id="bm-results"></div>
+    <div id="bm-selected-info"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -629,6 +743,9 @@ function saveAll(){
   localStorage.setItem(LS.notices,JSON.stringify(notices));
   localStorage.setItem(LS.schedules,JSON.stringify(schedules));
   localStorage.setItem(LS.todos,JSON.stringify(todos));
+  // 자재 데이터 (전역 변수로 선언되어 있을 때만)
+  if(typeof matStock!=='undefined') localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
+  if(typeof matLog!=='undefined') localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
 }
 
 // ── TIME ──
@@ -1224,6 +1341,428 @@ function clearInk(){if(!confirm('잉크 이력 삭제?'))return;inkLog=[];meta.l
 renderHome();
 initGsUI();
 
+// ══════════════════════════════════════════════════
+//  자재 관리 (HPM Veil - 브리즈/쉐이드/사하라)
+// ══════════════════════════════════════════════════
+
+// 자재 종류 정의
+const MAT_TYPES = {
+  breeze: {label:'브리즈(Breeze)', color:'#2563eb', bg:'rgba(37,99,235,.1)', border:'rgba(37,99,235,.3)'},
+  shade:  {label:'쉐이드(Shade)',  color:'#7c3aed', bg:'rgba(124,58,237,.1)', border:'rgba(124,58,237,.3)'},
+  sahara: {label:'사하라(Sahara)', color:'#b45309', bg:'rgba(180,83,9,.1)',   border:'rgba(180,83,9,.3)'},
+};
+
+// matStock: {modelCode: {breeze:0, shade:0, sahara:0}}
+// matLog: [{date, type:'in'|'out'|'adjust', mat, modelCode, qty, note}]
+if(!window._matInit){
+  window._matInit=true;
+  if(!matStock) matStock={};
+  if(!matLog) matLog=[];
+}
+
+function getMatStock(code, mat){ return (matStock[code]||{})[mat]||0; }
+function setMatStock(code, mat, qty){
+  if(!matStock[code]) matStock[code]={};
+  matStock[code][mat]=qty;
+}
+
+// 자재 탭 렌더링
+let matFilter='all', matSearch='';
+function renderMat(){
+  renderMatSummary();
+  renderMatList();
+  renderMatLog();
+}
+
+function renderMatSummary(){
+  // 자재별 총계
+  let totals={breeze:0, shade:0, sahara:0};
+  Object.values(matStock).forEach(s=>{
+    totals.breeze+=(s.breeze||0);
+    totals.shade+=(s.shade||0);
+    totals.sahara+=(s.sahara||0);
+  });
+  const el=document.getElementById('mat-summary');
+  if(!el)return;
+  el.innerHTML=Object.entries(MAT_TYPES).map(([key,info])=>`
+    <div class="stat" style="border-left:3px solid ${info.color}">
+      <div class="stat-l" style="color:${info.color}">${info.label}</div>
+      <div class="stat-v" style="color:${info.color}">${totals[key]}</div>
+      <div class="stat-s">장 재고</div>
+    </div>`).join('');
+}
+
+function renderMatList(){
+  const el=document.getElementById('mat-list');
+  if(!el)return;
+  const q=(document.getElementById('mat-search')?.value||'').toLowerCase();
+
+  let models=[...MODELS];
+  if(q) models=models.filter(m=>m.short.toLowerCase().includes(q)||m.code.toLowerCase().includes(q)||(m.glass_w&&(m.glass_w+'x'+m.glass_h).includes(q)));
+  if(matFilter==='breeze') models=models.filter(m=>getMatStock(m.code,'breeze')>0);
+  if(matFilter==='shade')  models=models.filter(m=>getMatStock(m.code,'shade')>0);
+  if(matFilter==='sahara') models=models.filter(m=>getMatStock(m.code,'sahara')>0);
+  if(matFilter==='low')    models=models.filter(m=>Object.keys(MAT_TYPES).some(t=>getMatStock(m.code,t)>0&&getMatStock(m.code,t)<3));
+
+  // 재고 있는 것 먼저
+  models.sort((a,b)=>{
+    const at=Object.keys(MAT_TYPES).reduce((s,t)=>s+getMatStock(a.code,t),0);
+    const bt=Object.keys(MAT_TYPES).reduce((s,t)=>s+getMatStock(b.code,t),0);
+    return bt-at||b.total_6m-a.total_6m;
+  });
+
+  if(!models.length){el.innerHTML='<div class="empty"><div class="empty-ico">📦</div>검색 결과 없음</div>';return;}
+
+  el.innerHTML=models.slice(0,80).map(m=>{
+    const sz=m.glass_w?`${m.glass_w}×${m.glass_h}mm`:'미등록';
+    const matCols=Object.entries(MAT_TYPES).map(([key,info])=>{
+      const qty=getMatStock(m.code,key);
+      const isLow=qty>0&&qty<3;
+      return `<div class="mat-stock-box" onclick="openMatModal('${m.code}','${key}')" style="border-color:${qty>0?info.border:'var(--b2)'}">
+        <div class="mat-stock-lbl" style="color:${info.color}">${info.label.split('(')[0]}</div>
+        <div class="mat-stock-val" style="color:${qty===0?'var(--tx3)':isLow?'var(--acc4)':info.color}">${qty}</div>
+      </div>`;
+    }).join('');
+    return `<div class="mat-item">
+      <div class="mat-item-info">
+        <div class="mc">${m.code}</div>
+        <div class="mn">${hlName(m.short,m.color)}</div>
+        <div class="mt">${colorBadge(m.color)} ${doorBadge(m.door_type)}</div>
+        <div class="ms">📐 ${sz}</div>
+      </div>
+      <div class="mat-stocks">${matCols}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderMatLog(){
+  const el=document.getElementById('mat-log');
+  if(!el)return;
+  const recent=[...matLog].reverse().slice(0,30);
+  if(!recent.length){el.innerHTML='<div class="empty-sm">입출고 기록 없음</div>';return;}
+  const typeLabel={'in':'입고','out':'출고','adjust':'조정'};
+  const typeColor={'in':'var(--acc3)','out':'var(--acc4)','adjust':'var(--acc2)'};
+  el.innerHTML=recent.map(l=>{
+    const m=MODELS.find(x=>x.code===l.modelCode);
+    const info=MAT_TYPES[l.mat];
+    return `<div class="mat-log-row">
+      <div class="mat-log-date">${l.date.slice(5).replace('-','/')}</div>
+      <div class="mat-log-info">
+        <span class="badge" style="background:${info?.bg};color:${info?.color};border:1px solid ${info?.border}">${info?.label.split('(')[0]||l.mat}</span>
+        <span style="font-size:11px;color:var(--tx2);margin-left:4px">${m?m.short:l.modelCode}</span>
+        ${l.note?`<span style="font-size:10px;color:var(--tx3);margin-left:4px">${l.note}</span>`:''}
+      </div>
+      <div class="mat-log-qty" style="color:${typeColor[l.type]}">${l.type==='in'?'+':l.type==='out'?'-':'±'}${l.qty}</div>
+    </div>`;
+  }).join('');
+}
+
+function setMatFilter(f,btn){
+  matFilter=f;
+  document.querySelectorAll('#pg-mat .f-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderMatList();
+}
+
+// 자재 입출고 모달
+let matModalCode='', matModalType='breeze', matModalAction='in', matModalQty=0;
+function openMatModal(code, matType){
+  matModalCode=code; matModalType=matType; matModalAction='in';
+  const m=MODELS.find(x=>x.code===code);
+  const info=MAT_TYPES[matType];
+  document.getElementById('mm-title').textContent=`📦 ${info.label} 재고 입력`;
+  document.getElementById('mm-sub').textContent=`${code} | ${m?m.short:''} | 현재: ${getMatStock(code,matType)}장`;
+  document.getElementById('mm-qty').textContent='0';
+  matModalQty=0;
+  // 탭 초기화
+  document.getElementById('mmtab-in').classList.add('on');
+  document.getElementById('mmtab-out').classList.remove('on');
+  document.getElementById('mmtab-set').classList.remove('on');
+  document.getElementById('mm-note').value='';
+  document.getElementById('mat-modal').classList.add('on');
+}
+function setMatAction(action, btn){
+  matModalAction=action;
+  document.querySelectorAll('#mat-modal .m-tab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+function mmQtyD(d){matModalQty=Math.max(0,matModalQty+d);document.getElementById('mm-qty').textContent=matModalQty;}
+function setMMQ(n){matModalQty=n;document.getElementById('mm-qty').textContent=n;}
+function confirmMat(){
+  const code=matModalCode, mat=matModalType, action=matModalAction;
+  const cur=getMatStock(code,mat);
+  let newQty=cur;
+  if(action==='in')     newQty=cur+matModalQty;
+  else if(action==='out') newQty=Math.max(0,cur-matModalQty);
+  else if(action==='set') newQty=matModalQty;
+
+  setMatStock(code,mat,newQty);
+  matLog.push({
+    date:todayStr(), type:action, mat, modelCode:code,
+    qty:matModalQty, note:document.getElementById('mm-note').value.trim()
+  });
+  saveAll(); closeM('mat-modal'); renderMat();
+  showToast(`✓ ${MAT_TYPES[mat].label.split('(')[0]} ${action==='in'?'입고':action==='out'?'출고':'조정'} ${matModalQty}장`);
+  autoSync();
+}
+
+// 일괄 입고 (원판 재단 기준)
+function openBulkMatModal(){
+  document.getElementById('bulk-mat-modal').classList.add('on');
+  document.getElementById('bm-search').value='';
+  document.getElementById('bm-results').innerHTML='';
+  document.getElementById('bm-selected-info').style.display='none';
+}
+let bulkSelCode='';
+function renderBulkSearch(){
+  const q=(document.getElementById('bm-search').value||'').toLowerCase();
+  const el=document.getElementById('bm-results');
+  if(!q){el.innerHTML='';return;}
+  const res=MODELS.filter(m=>m.code.toLowerCase().includes(q)||m.short.toLowerCase().includes(q)).slice(0,6);
+  if(!res.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
+  el.innerHTML=res.map(m=>{
+    const sz=m.glass_w?`${m.glass_w}×${m.glass_h}`:'미등록';
+    return `<div class="wresult-item" onclick="selectBulkModel('${m.code}')">
+      <div class="wr-name">${hlName(m.short,m.color)}</div>
+      <div class="wr-meta">${m.code} | 📐 ${sz} ${colorBadge(m.color)}</div>
+    </div>`;
+  }).join('');
+}
+function selectBulkModel(code){
+  bulkSelCode=code;
+  const m=MODELS.find(x=>x.code===code);
+  const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+  document.getElementById('bm-search').value='';
+  document.getElementById('bm-results').innerHTML='';
+  const infoEl=document.getElementById('bm-selected-info');
+  infoEl.style.display='block';
+  infoEl.innerHTML=`<div class="sel-box">
+    <div class="sel-label">✓ 선택됨</div>
+    <div style="font-size:13px;font-weight:700">${m?m.short:code}</div>
+    <div style="font-size:10px;color:var(--tx2);margin-top:2px">${code} | 📐 ${sz}</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      ${Object.entries(MAT_TYPES).map(([key,info])=>`
+        <div style="text-align:center">
+          <div style="font-size:10px;color:${info.color};margin-bottom:4px">${info.label.split('(')[0]}</div>
+          <div style="font-size:11px;color:var(--tx2)">현재: ${getMatStock(code,key)}장</div>
+        </div>`).join('')}
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+    ${Object.entries(MAT_TYPES).map(([key,info])=>`
+      <div>
+        <span class="lbl" style="color:${info.color}">${info.label.split('(')[0]}</span>
+        <input type="number" id="bm-${key}" min="0" value="0" class="inp" style="margin-bottom:0;text-align:center;font-size:16px;font-weight:700">
+      </div>`).join('')}
+  </div>
+  <button class="act-btn green" onclick="confirmBulkMat()" style="margin-top:12px">✓ 입고 등록</button>`;
+}
+function confirmBulkMat(){
+  if(!bulkSelCode){showToast('모델을 선택하세요');return;}
+  let any=false;
+  Object.keys(MAT_TYPES).forEach(key=>{
+    const qty=parseInt(document.getElementById('bm-'+key)?.value||0);
+    if(qty>0){
+      const cur=getMatStock(bulkSelCode,key);
+      setMatStock(bulkSelCode,key,cur+qty);
+      matLog.push({date:todayStr(),type:'in',mat:key,modelCode:bulkSelCode,qty,note:'일괄입고'});
+      any=true;
+    }
+  });
+  if(!any){showToast('수량을 입력하세요');return;}
+  saveAll();closeM('bulk-mat-modal');renderMat();
+  showToast('✅ 자재 입고 등록됨');autoSync();
+}
+
+// ══════════════════════════════════════════════════
+//  발주서 엑셀 업로드 & 자동 반영
+// ══════════════════════════════════════════════════
+
+// SheetJS 로드 확인용
+function checkSheetJS(){
+  return typeof XLSX !== 'undefined';
+}
+
+function openOrderUpload(){
+  document.getElementById('order-upload-modal').classList.add('on');
+  document.getElementById('ou-result').innerHTML='';
+  document.getElementById('ou-file-name').textContent='파일을 선택하세요';
+  document.getElementById('ou-confirm-btn').style.display='none';
+  window._orderParsed=null;
+}
+
+function handleOrderFile(e){
+  const file=e.target.files[0];
+  if(!file){return;}
+  document.getElementById('ou-file-name').textContent=file.name;
+  document.getElementById('ou-result').innerHTML='<div style="color:var(--tx2);font-size:12px;padding:8px 0">⏳ 파일 분석 중...</div>';
+
+  if(!checkSheetJS()){
+    document.getElementById('ou-result').innerHTML='<div style="color:var(--acc4);font-size:12px">❌ SheetJS 라이브러리 로드 필요. 잠시 후 다시 시도하세요.</div>';
+    return;
+  }
+
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      // 첫 번째 시트 사용
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+
+      // 헤더 찾기 (No. 또는 제품코드 컬럼)
+      let headerRow=-1, colMap={};
+      for(let i=0;i<Math.min(rows.length,5);i++){
+        const r=rows[i];
+        if(r.some(c=>String(c).includes('제품코드')||String(c).includes('No.'))){
+          headerRow=i;
+          r.forEach((c,j)=>{
+            const s=String(c).trim();
+            if(s.includes('구매오더발행일')||s.includes('발행일')) colMap.poDate=j;
+            if(s.includes('납품요청일')||s.includes('납품')) colMap.delivDate=j;
+            if(s.includes('제품코드')) colMap.code=j;
+            if(s.includes('제품명')) colMap.name=j;
+            if(s.includes('좌우')) colMap.lr=j;
+            if(s.includes('제품수량')||s.includes('수량')) colMap.qty=j;
+            if(s.includes('오더번호')&&!s.includes('구매')) colMap.orderNo=j;
+            if(s.includes('구매오더번호')) colMap.poNo=j;
+          });
+          break;
+        }
+      }
+
+      if(headerRow<0||colMap.code===undefined){
+        document.getElementById('ou-result').innerHTML='<div style="color:var(--acc4);font-size:12px">❌ 발주서 형식을 인식할 수 없습니다.<br>제품코드, 제품명, 제품수량 컬럼이 있는지 확인하세요.</div>';
+        return;
+      }
+
+      // 데이터 파싱
+      const dataRows=rows.slice(headerRow+1).filter(r=>r[colMap.code]&&r[colMap.qty]);
+      const graceRows=dataRows.filter(r=>String(r[colMap.name]||'').includes('Grace'));
+      const nonGraceRows=dataRows.filter(r=>!String(r[colMap.name]||'').includes('Grace'));
+
+      // Grace 모델만 분석 (제품코드 기준 집계)
+      const codeMap={};
+      graceRows.forEach(r=>{
+        const code=String(r[colMap.code]).trim();
+        const qty=parseInt(r[colMap.qty])||0;
+        const name=String(r[colMap.name]||'').trim();
+        const poDate=r[colMap.poDate]?String(r[colMap.poDate]).slice(0,10):'';
+        if(!codeMap[code]) codeMap[code]={code,name,qty:0,poDate};
+        codeMap[code].qty+=qty;
+        if(poDate) codeMap[code].poDate=poDate;
+      });
+
+      const parsed=Object.values(codeMap);
+      const matched=parsed.filter(p=>MODELS.find(m=>m.code===p.code));
+      const unmatched=parsed.filter(p=>!MODELS.find(m=>m.code===p.code));
+
+      window._orderParsed={matched, unmatched, nonGraceCount:nonGraceRows.length, totalRows:dataRows.length};
+
+      // 결과 미리보기
+      let html=`<div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--acc3);margin-bottom:4px">📊 분석 결과</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.8">
+          전체 행: <b>${dataRows.length}행</b><br>
+          Grace 모델: <b>${parsed.length}종 / ${graceRows.length}장</b><br>
+          DB 매칭: <b style="color:var(--acc3)">${matched.length}종</b>
+          ${unmatched.length>0?`&nbsp;/ 미매칭: <b style="color:var(--acc4)">${unmatched.length}종</b>`:''}
+          ${nonGraceRows.length>0?`<br>Grace 외 품목: <b>${nonGraceRows.length}행</b> (반영 제외)`:''}
+        </div>
+      </div>`;
+
+      if(matched.length>0){
+        html+=`<div style="font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px">반영될 항목 (조립실 출고 기록):</div>`;
+        html+=matched.slice(0,10).map(p=>{
+          const m=MODELS.find(x=>x.code===p.code);
+          const cur=getStock(p.code).printed;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b1)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m?hlName(m.short,m.color):p.code}</div>
+              <div style="font-size:10px;color:var(--tx2)">${p.code} | 현재조립실재고: ${cur}장</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--acc4)">-${p.qty}장</div>
+              <div style="font-size:9px;color:var(--tx3)">출고</div>
+            </div>
+          </div>`;
+        }).join('');
+        if(matched.length>10) html+=`<div style="font-size:11px;color:var(--tx3);text-align:center;padding:8px">... 외 ${matched.length-10}종</div>`;
+      }
+
+      if(unmatched.length>0){
+        html+=`<div style="margin-top:8px;font-size:11px;color:var(--acc4)">⚠️ DB 미매칭 (반영 불가): ${unmatched.map(p=>p.code).join(', ')}</div>`;
+      }
+
+      document.getElementById('ou-result').innerHTML=html;
+      if(matched.length>0){
+        document.getElementById('ou-confirm-btn').style.display='block';
+      }
+    }catch(err){
+      document.getElementById('ou-result').innerHTML=`<div style="color:var(--acc4);font-size:12px">❌ 파일 읽기 오류: ${err.message}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function confirmOrderUpload(){
+  const parsed=window._orderParsed;
+  if(!parsed||!parsed.matched.length){showToast('반영할 데이터 없음');return;}
+
+  let applied=0, totalQty=0;
+  parsed.matched.forEach(p=>{
+    const s=getStock(p.code);
+    // 조립실 인쇄유리에서 출고 차감
+    const newPrinted=Math.max(0, s.printed-p.qty);
+    stock[p.code]={...s, printed:newPrinted};
+    applied++;
+    totalQty+=p.qty;
+
+    // 출고 이력 기록 (workLog 방식과 별도로 orderLog에)
+    const td=todayStr();
+    let dayLog=workLog.find(d=>d.date===td);
+    if(!dayLog){dayLog={date:td,items:[]};workLog.push(dayLog);}
+    const ex=dayLog.items.find(i=>i.code===p.code&&i.type==='order');
+    if(ex) ex.qty+=p.qty;
+    else dayLog.items.push({code:p.code, qty:p.qty, type:'order'});
+  });
+
+  meta.lastStock=new Date().toISOString();
+  saveAll(); closeM('order-upload-modal');
+  renderHome(); renderDash();
+  autoSync();
+  showToast(`✅ ${applied}종 / ${totalQty}장 조립실 출고 반영됨`);
+  window._orderParsed=null;
+}
+
+// ── 자재 데이터 초기화 ──
+var matStock=JSON.parse(localStorage.getItem('ybn-mat-v1')||'{}');
+var matLog=JSON.parse(localStorage.getItem('ybn-matlog-v1')||'[]');
+// ── 자재 저장 함수 ──
+function saveMatData(){
+  localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
+  localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
+}
+// ── 자재탭 포함 네비게이션 재정의 ──
+const MAINS_EXT=['home','todo','board','stock','mat','settings'];
+document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
+  const pages=['home','todo','board','stock','mat','settings'];
+  btn.onclick=function(){
+    const id=pages[i];
+    document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
+    document.querySelectorAll('.main-nav-btn').forEach(b=>b.classList.remove('on'));
+    document.getElementById('pg-'+id).classList.add('on');
+    this.classList.add('on');
+    const fab=document.getElementById('fab-btn');
+    fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
+    if(id==='home')renderHome();
+    else if(id==='todo')renderTodo();
+    else if(id==='board'){renderNotices();renderSchedules();}
+    else if(id==='stock')renderSub(curSub);
+    else if(id==='mat')renderMat();
+    else if(id==='settings')initGsUI();
+  };
+});
 </script>
 </body>
 </html>
