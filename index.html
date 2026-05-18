@@ -1574,10 +1574,12 @@ async function gsFetch(method,body,qs=''){
       if(!json.ok)throw new Error(json.error||'서버 오류');
       return json.data;
     } else {
-      // POST - 데이터를 URL 파라미터로 전송 (CORS 우회)
-      const encoded=encodeURIComponent(JSON.stringify(body));
-      const url=gsUrl+'?payload='+encoded;
-      const res=await fetch(url,{method:'GET'});
+      // POST 방식 - 데이터 크기 제한 없음
+      const res=await fetch(gsUrl,{
+        method:'POST',
+        headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify(body)
+      });
       const json=await res.json();
       if(!json.ok)throw new Error(json.error||'서버 오류');
       return json.data;
