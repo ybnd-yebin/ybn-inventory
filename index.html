@@ -715,11 +715,14 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeM('ink-modal')">×</button>
     <div class="modal-ttl" id="im-title">🪣 잉크 입고</div>
-    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px" id="im-sub"></div>
+    <div id="im-sub" style="font-size:12px;font-weight:700;margin-bottom:12px;padding:8px 12px;border-radius:8px"></div>
     <div class="modal-tabs">
       <button class="m-tab on" id="itab-in" onclick="setInkTab('in')">입고 (통)</button>
       <button class="m-tab" id="itab-set" onclick="setInkTab('set')">재고 직접 설정</button>
     </div>
+    <span class="lbl">날짜</span>
+    <input type="date" id="im-date" class="inp" style="margin-bottom:12px">
+    <span class="lbl">수량 (통)</span>
     <div class="qty-ctrl"><button class="qty-btn" onclick="inkQtyD(-1)">−</button><input type="number" id="im-qty" class="qty-num" value="1" min="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="inkQty=parseInt(this.value)||0"><button class="qty-btn" onclick="inkQtyD(1)">＋</button></div>
     <div class="quick-btns">
       <button class="q-btn" onclick="addIQ(5)">+5</button>
@@ -1241,24 +1244,42 @@ function renderInk(){
 function saveInkRates(){inkRates.WC=parseFloat(document.getElementById('ink-rate-wc').value)||1.5;inkRates.ETP=parseFloat(document.getElementById('ink-rate-etp').value)||1.5;saveAll();renderInk();showToast('설정 저장됨');}
 let inkColor='WC',inkTab='in',inkQty=1;
 function openInkModal(color){
-  inkColor=color;inkTab='in';inkQty=1;
+  inkColor=color; inkTab='in'; inkQty=0;
   const label=color==='WC'?'웜코튼':'에토프';
-  document.getElementById('im-title').textContent='🪣 '+label+' 잉크';
-  document.getElementById('im-sub').textContent='현재 재고: '+calcInkStock(color).remaining+'통';
-  document.getElementById('im-qty').textContent=1;
+  const info=color==='WC'?{bg:'rgba(121,192,255,.15)',color:'var(--wc)'}:{bg:'rgba(255,166,87,.15)',color:'var(--etp)'};
+  document.getElementById('im-title').textContent='🪣 '+label+' 잉크 입고';
+  const subEl=document.getElementById('im-sub');
+  subEl.textContent='현재 재고: '+calcInkStock(color).remaining+'통';
+  subEl.style.background=info.bg;
+  subEl.style.color=info.color;
+  const qtyEl=document.getElementById('im-qty');
+  if(qtyEl) qtyEl.value=0;
+  inkQty=0;
+  document.getElementById('im-date').value=todayStr();
   document.getElementById('itab-in').classList.add('on');
   document.getElementById('itab-set').classList.remove('on');
   document.getElementById('ink-modal').classList.add('on');
 }
-function setInkTab(t){inkTab=t;inkQty=t==='in'?1:Math.round(calcInkStock(inkColor).remaining);document.getElementById('im-qty').textContent=inkQty;document.getElementById('itab-in').classList.toggle('on',t==='in');document.getElementById('itab-set').classList.toggle('on',t==='set');}
-function inkQtyD(d){inkQty=Math.max(0,inkQty+d);document.getElementById('im-qty').textContent=inkQty;}
-function setIQ(n){inkQty=n;document.getElementById('im-qty').textContent=n;}
+function setInkTab(t){
+  inkTab=t;
+  inkQty=t==='in'?0:Math.round(calcInkStock(inkColor).remaining);
+  const el=document.getElementById('im-qty');
+  if(el) el.value=inkQty;
+  document.getElementById('itab-in').classList.toggle('on',t==='in');
+  document.getElementById('itab-set').classList.toggle('on',t==='set');
+}
 function confirmInk(){
-  inkLog.push({date:todayStr(),color:inkColor,type:inkTab,qty:inkQty});
+  const dateVal=document.getElementById('im-date')?.value||todayStr();
+  inkQty=parseInt(document.getElementById('im-qty')?.value)||inkQty||0;
+  if(inkQty<=0){showToast('수량을 입력하세요');return;}
+  // 같은 날짜+색상 기록이 이미 있어도 별도 행으로 추가 (누적)
+  inkLog.push({date:dateVal, color:inkColor, type:inkTab, qty:inkQty});
   meta.lastInk=new Date().toISOString();
-  saveAll();closeM('ink-modal');renderInk();renderDash();
+  saveAll(); renderInk(); renderDash();
   showToast(inkTab==='in'?'✓ '+inkQty+'통 입고':'✓ '+inkQty+'통 설정');
   autoSync();
+  // 모달 닫기
+  closeM('ink-modal');
 }
 
 // ── STOCK LIST ──
@@ -1423,11 +1444,24 @@ function updateGsSyncTime(){
 }
 async function gsFetch(method,body,qs=''){
   if(!gsUrl)throw new Error('URL 없음');
-  const opts=method==='GET'?{method:'GET'}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)};
-  const res=await fetch(gsUrl+qs,opts);
-  const json=await res.json();
-  if(!json.ok)throw new Error(json.error||'서버 오류');
-  return json.data;
+  try{
+    if(method==='GET'){
+      const res=await fetch(gsUrl+qs,{method:'GET'});
+      const json=await res.json();
+      if(!json.ok)throw new Error(json.error||'서버 오류');
+      return json.data;
+    } else {
+      // POST - 데이터를 URL 파라미터로 전송 (CORS 우회)
+      const encoded=encodeURIComponent(JSON.stringify(body));
+      const url=gsUrl+'?payload='+encoded;
+      const res=await fetch(url,{method:'GET'});
+      const json=await res.json();
+      if(!json.ok)throw new Error(json.error||'서버 오류');
+      return json.data;
+    }
+  }catch(e){
+    throw new Error(e.message);
+  }
 }
 function saveGsUrl(){
   const val=document.getElementById('gs-url-input').value.trim();
