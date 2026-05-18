@@ -378,6 +378,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="sub-nav-btn" onclick="showSub('worklog')"><span class="ico">✏️</span>작업일지</button>
     <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
     <button class="sub-nav-btn" onclick="showSub('stocklist')"><span class="ico">📦</span>재고</button>
+    <button class="sub-nav-btn" onclick="showSub('stockedit')"><span class="ico">🛠️</span>재고편집</button>
     <button class="sub-nav-btn" onclick="showSub('trend')"><span class="ico">📈</span>추이</button>
     <button class="sub-nav-btn" onclick="showSub('nonspec')"><span class="ico">🔲</span>비규격</button>
   </nav>
@@ -480,6 +481,33 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <div id="trend-list"></div>
   </div>
+  <!-- 재고 편집 -->
+  <div id="sp-stockedit" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="info-note">
+      📝 인쇄실 원유리 / 조립실 인쇄유리 재고를 모델별로 직접 수정하고 기록을 관리합니다.
+    </div>
+
+    <!-- 전체 재고 요약 -->
+    <div class="g2" style="margin-bottom:12px">
+      <div class="stat"><div class="stat-l">인쇄실 원유리 총계</div><div class="stat-v" id="se-raw-total" style="color:var(--acc)">0</div><div class="stat-s">장</div></div>
+      <div class="stat"><div class="stat-l">조립실 인쇄유리 총계</div><div class="stat-v" id="se-printed-total" style="color:var(--acc3)">0</div><div class="stat-s">장</div></div>
+    </div>
+
+    <!-- 검색 -->
+    <input class="inp" id="se-search" placeholder="🔍 모델명 / 코드 검색..." oninput="renderStockEdit()">
+    <div class="filter-row">
+      <button class="f-btn on" onclick="setSeFilter('all',this)">전체</button>
+      <button class="f-btn" onclick="setSeFilter('has',this)">재고있음</button>
+      <button class="f-btn" onclick="setSeFilter('WC',this)">웜코튼</button>
+      <button class="f-btn" onclick="setSeFilter('ETP',this)">에토프</button>
+    </div>
+
+    <!-- 전체 초기화 버튼 -->
+    <button onclick="resetAllStock()" style="width:100%;padding:11px;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;color:var(--acc4);font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">⚠️ 전체 재고 초기화</button>
+
+    <div id="se-list"></div>
+  </div>
+
   <!-- 비규격 -->
   <div id="sp-nonspec" class="sub-pg" style="display:none;padding:14px 14px 80px">
     <div class="card"><div class="card-ttl">📐 비규격 사이즈 분석</div><div id="nonspec-list"></div></div>
@@ -489,54 +517,26 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- MAT -->
 <div class="sec-pg" id="pg-mat">
 
-  <!-- 서브탭 -->
-  <div style="display:flex;background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden;margin-bottom:12px">
-    <button class="mat-sub-btn on" id="matsub-stock" onclick="setMatSub('stock',this)" style="flex:1;padding:10px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:var(--tx2);cursor:pointer;border-bottom:2px solid transparent">📦 자재 재고</button>
-    <button class="mat-sub-btn" id="matsub-sheet" onclick="setMatSub('sheet',this)" style="flex:1;padding:10px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:var(--tx2);cursor:pointer;border-bottom:2px solid transparent">🗂️ 원장 관리</button>
+  <!-- 원장 재고 요약 -->
+  <div class="g3" id="sheet-summary" style="margin-top:0"></div>
+
+  <!-- 입고/출고 버튼 -->
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button onclick="openSheetModal('in','breeze')" style="flex:1;padding:12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">+ 입고</button>
+    <button onclick="openSheetModal('out','breeze')" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">- 출고</button>
   </div>
 
-  <!-- 자재 재고 서브페이지 -->
-  <div id="mat-sub-stock">
-    <div class="g3" id="mat-summary" style="margin-top:0"></div>
-    <input class="inp" id="mat-search" placeholder="🔍 모델명 / 코드 / 사이즈..." oninput="renderMatList()">
-    <div class="filter-row">
-      <button class="f-btn on" onclick="setMatFilter('all',this)">전체</button>
-      <button class="f-btn" onclick="setMatFilter('breeze',this)">브리즈</button>
-      <button class="f-btn" onclick="setMatFilter('shade',this)">쉐이드</button>
-      <button class="f-btn" onclick="setMatFilter('sahara',this)">사하라</button>
-      <button class="f-btn" onclick="setMatFilter('low',this)">🔴 부족(3장↓)</button>
-    </div>
-    <button onclick="openBulkMatModal()" style="width:100%;padding:11px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">+ 자재 입고 등록</button>
-    <div id="mat-list"></div>
-    <div class="card" style="margin-top:12px">
-      <div class="card-ttl">📋 입출고 이력</div>
-      <div id="mat-log"></div>
-    </div>
+  <!-- 원판 소요량 계산 -->
+  <div class="card">
+    <div class="card-ttl">🧮 원판 소요량 계산</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:10px">원판 1장(1200×2400)에서 취득 가능한 수량</div>
+    <div id="sheet-yield-table"></div>
   </div>
 
-  <!-- 원장 관리 서브페이지 -->
-  <div id="mat-sub-sheet" style="display:none">
-    <!-- 원장 재고 요약 -->
-    <div class="g3" id="sheet-summary" style="margin-top:0"></div>
-
-    <!-- 입고/출고 버튼 -->
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <button onclick="openSheetModal('in','breeze')" style="flex:1;padding:12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">+ 입고</button>
-      <button onclick="openSheetModal('out','breeze')" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">- 출고</button>
-    </div>
-
-    <!-- 원판 소요량 계산 -->
-    <div class="card">
-      <div class="card-ttl">🧮 원판 소요량 계산</div>
-      <div style="font-size:11px;color:var(--tx2);margin-bottom:10px">원판 1장(1200×2400)에서 취득 가능한 수량</div>
-      <div id="sheet-yield-table"></div>
-    </div>
-
-    <!-- 입출고 이력 -->
-    <div class="card">
-      <div class="card-ttl">📋 원장 입출고 이력</div>
-      <div id="sheet-log-list"></div>
-    </div>
+  <!-- 입출고 이력 -->
+  <div class="card">
+    <div class="card-ttl">📋 원장 입출고 이력</div>
+    <div id="sheet-log-list"></div>
   </div>
 </div>
 
@@ -920,7 +920,7 @@ function calcDday(due){
 
 // ── NAV ──
 const MAINS=['home','todo','board','stock','settings'];
-const SUBS=['dashboard','worklog','ink','stocklist','trend','nonspec'];
+const SUBS=['dashboard','worklog','ink','stocklist','stockedit','trend','nonspec'];
 let curMain='home', curSub='dashboard';
 
 function showMain(id){
@@ -935,6 +935,7 @@ function showMain(id){
   if(id==='todo')renderTodo();
   if(id==='board'){renderNotices();renderSchedules();}
   if(id==='stock')renderSub(curSub);
+  if(id==='mat')renderMat();
   if(id==='settings')initGsUI();
 }
 function showSub(id){
@@ -951,8 +952,14 @@ function renderSub(id){
   if(id==='worklog')renderWorkLog();
   if(id==='ink')renderInk();
   if(id==='stocklist')renderStockList();
+  if(id==='stockedit')renderStockEdit();
   if(id==='trend')renderTrend();
   if(id==='nonspec')renderNonspec();
+}
+function renderMat(){
+  renderSheetSummary();
+  renderSheetLog();
+  renderYieldTable();
 }
 function onFab(){
   if(curMain==='todo')openTodoModal();
@@ -1617,9 +1624,9 @@ function setMatStock(code, mat, qty){
 // 자재 탭 렌더링
 let matFilter='all', matSearch='';
 function renderMat(){
-  renderMatSummary();
-  renderMatList();
-  renderMatLog();
+  renderSheetSummary();
+  renderSheetLog();
+  renderYieldTable();
 }
 
 function renderMatSummary(){
@@ -2205,15 +2212,7 @@ function saveSheetData(){
 }
 
 // ── 자재탭 서브탭 전환 ──
-function setMatSub(sub, btn){
-  document.getElementById('mat-sub-stock').style.display=sub==='stock'?'block':'none';
-  document.getElementById('mat-sub-sheet').style.display=sub==='sheet'?'block':'none';
-  document.querySelectorAll('.mat-sub-btn').forEach(b=>{
-    b.style.color='var(--tx2)';b.style.borderBottomColor='transparent';b.style.background='none';
-  });
-  btn.style.color='var(--acc)';btn.style.borderBottomColor='var(--acc)';btn.style.background='rgba(37,99,235,.06)';
-  if(sub==='sheet'){renderSheetMgr();renderYieldTable();}
-}
+// setMatSub 제거됨 - 자재재고 탭 삭제로 불필요
 
 // 취득수 테이블 렌더
 function renderYieldTable(){
@@ -2482,6 +2481,129 @@ function renderAnalysis(){
   }).join('');
 
   if(list.length>100) el.innerHTML+=`<div style="text-align:center;padding:12px;color:var(--tx3);font-size:12px">필터로 범위를 좁혀보세요 (총 ${list.length}개)</div>`;
+}
+
+// ══════════════════════════════════════════════════
+//  재고 편집 탭
+// ══════════════════════════════════════════════════
+let seFilter='all';
+function setSeFilter(f,btn){
+  seFilter=f;
+  document.querySelectorAll('#sp-stockedit .f-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderStockEdit();
+}
+
+function renderStockEdit(){
+  // 전체 합계
+  let rawTotal=0, printedTotal=0;
+  MODELS.forEach(m=>{
+    const s=getStock(m.code);
+    rawTotal+=s.raw; printedTotal+=s.printed;
+  });
+  const seRaw=document.getElementById('se-raw-total');
+  const sePrinted=document.getElementById('se-printed-total');
+  if(seRaw) seRaw.textContent=rawTotal;
+  if(sePrinted) sePrinted.textContent=printedTotal;
+
+  const el=document.getElementById('se-list');
+  if(!el) return;
+
+  const q=(document.getElementById('se-search')?.value||'').toLowerCase();
+  let ms=[...MODELS];
+  if(q) ms=ms.filter(m=>m.code.toLowerCase().includes(q)||m.short.toLowerCase().includes(q));
+  if(seFilter==='has') ms=ms.filter(m=>{const s=getStock(m.code);return s.raw>0||s.printed>0;});
+  if(seFilter==='WC') ms=ms.filter(m=>m.color==='WC');
+  if(seFilter==='ETP') ms=ms.filter(m=>m.color==='ETP');
+
+  ms.sort((a,b)=>{
+    const as=getStock(a.code),bs=getStock(b.code);
+    const at=as.raw+as.printed, bt=bs.raw+bs.printed;
+    return bt-at||b.total_6m-a.total_6m;
+  });
+
+  if(!ms.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>검색 결과 없음</div>';return;}
+
+  el.innerHTML=ms.map(m=>{
+    const s=getStock(m.code);
+    const sz=m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+    return `<div class="model-card" style="flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div class="mc">${m.code}</div>
+          <div class="mn">${hlName(m.short,m.color)} ${colorBadge(m.color)}</div>
+          <div style="font-size:10px;color:var(--tx2)">${sz}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:10px;color:var(--tx2);margin-bottom:4px">인쇄실 원유리</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onclick="adjustStock('${m.code}','raw',-1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:16px;cursor:pointer;flex-shrink:0">−</button>
+            <div style="flex:1;text-align:center;font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:${s.raw>0?'var(--acc)':'var(--tx3)'}" id="se-raw-${m.code}">${s.raw}</div>
+            <button onclick="adjustStock('${m.code}','raw',1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:16px;cursor:pointer;flex-shrink:0">＋</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--tx2);margin-bottom:4px">조립실 인쇄유리</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onclick="adjustStock('${m.code}','printed',-1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:16px;cursor:pointer;flex-shrink:0">−</button>
+            <div style="flex:1;text-align:center;font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:${s.printed>0?'var(--acc3)':'var(--tx3)'}" id="se-printed-${m.code}">${s.printed}</div>
+            <button onclick="adjustStock('${m.code}','printed',1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:16px;cursor:pointer;flex-shrink:0">＋</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="setStockDirect('${m.code}')" style="flex:1;padding:7px;background:var(--acc);border:none;border-radius:6px;color:#fff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">직접 입력</button>
+        <button onclick="clearModelStock('${m.code}')" style="flex:1;padding:7px;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:6px;color:var(--acc4);font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">이 모델 0으로</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function adjustStock(code, type, delta){
+  const s=getStock(code);
+  if(type==='raw') s.raw=Math.max(0,s.raw+delta);
+  else s.printed=Math.max(0,s.printed+delta);
+  stock[code]=s;
+  // 화면 즉시 업데이트
+  const el=document.getElementById('se-'+type+'-'+code);
+  if(el){el.textContent=type==='raw'?s.raw:s.printed;el.style.color=(type==='raw'?s.raw:s.printed)>0?(type==='raw'?'var(--acc)':'var(--acc3)'):'var(--tx3)';}
+  // 합계 업데이트
+  let rawT=0,printT=0;
+  MODELS.forEach(m=>{const st=getStock(m.code);rawT+=st.raw;printT+=st.printed;});
+  const seRaw=document.getElementById('se-raw-total');
+  const sePrinted=document.getElementById('se-printed-total');
+  if(seRaw) seRaw.textContent=rawT;
+  if(sePrinted) sePrinted.textContent=printT;
+  saveAll();autoSync();
+}
+
+function setStockDirect(code){
+  const s=getStock(code);
+  const m=MODELS.find(x=>x.code===code);
+  const raw=prompt(`${m?m.short:code}\n인쇄실 원유리 수량 입력:`, s.raw);
+  if(raw===null) return;
+  const printed=prompt(`조립실 인쇄유리 수량 입력:`, s.printed);
+  if(printed===null) return;
+  stock[code]={raw:Math.max(0,parseInt(raw)||0), printed:Math.max(0,parseInt(printed)||0)};
+  saveAll(); renderStockEdit(); renderDash(); autoSync();
+  showToast('✅ 재고 수정됨');
+}
+
+function clearModelStock(code){
+  const m=MODELS.find(x=>x.code===code);
+  if(!confirm(`${m?m.short:code} 재고를 0으로 초기화합니까?`)) return;
+  stock[code]={raw:0, printed:0};
+  saveAll(); renderStockEdit(); renderDash(); autoSync();
+  showToast('초기화됨');
+}
+
+function resetAllStock(){
+  if(!confirm('⚠️ 전체 재고를 0으로 초기화합니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  stock={};
+  saveAll(); renderStockEdit(); renderDash(); autoSync();
+  showToast('전체 재고 초기화됨');
 }
 
 // ── 자재 데이터 초기화 ──
