@@ -281,6 +281,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
   <nav class="main-nav">
     <button class="main-nav-btn on" onclick="showMain('home')">🏠 홈</button>
+    <button class="main-nav-btn" onclick="showMain('worklog')">✏️ 작업일지</button>
     <button class="main-nav-btn" onclick="showMain('todo')">✅ 할일</button>
     <button class="main-nav-btn" onclick="showMain('board')">📌 공지/일정</button>
     <button class="main-nav-btn" onclick="showMain('stock')">📋 재고관리</button>
@@ -312,6 +313,51 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="card">
     <div class="card-ttl"><span>✏️ 오늘 작업</span><button onclick="showMain('stock');setTimeout(()=>showSub('worklog'),50)" style="font-size:10px;color:var(--acc);background:none;border:none;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0">작업입력</button></div>
     <div id="home-work"></div>
+  </div>
+</div>
+
+<!-- WORKLOG MAIN PAGE -->
+<div class="sec-pg" id="pg-worklog" style="padding:0 0 80px">
+
+  <!-- 오늘 작업 현황 헤더 -->
+  <div style="background:var(--acc3);padding:16px 18px;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font-size:11px;color:rgba(0,0,0,.5);font-weight:600;margin-bottom:2px">오늘 작업량</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:900;color:#fff" id="wl-today-total">0<span style="font-size:14px;margin-left:2px">장</span></div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;color:rgba(0,0,0,.4)" id="wl-today-date"></div>
+      <div style="font-size:11px;color:rgba(0,0,0,.5);margin-top:2px"><span id="wl-today-wc" style="color:rgba(0,0,50,.5)">웜코튼 0</span> / <span id="wl-today-etp">에토프 0</span></div>
+    </div>
+  </div>
+
+  <!-- 작업 입력 버튼 (크게) -->
+  <div style="padding:16px 14px 8px">
+    <button onclick="openWorkModal()" style="width:100%;padding:18px;background:var(--acc);border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:900;font-family:'Noto Sans KR',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(37,99,235,.3)">
+      <span style="font-size:22px">✏️</span> 작업 기록하기
+    </button>
+  </div>
+
+  <!-- 오늘 작업 목록 -->
+  <div style="padding:0 14px 8px">
+    <div class="card">
+      <div class="card-ttl">📋 오늘 작업 목록</div>
+      <div id="wl-today-list"></div>
+    </div>
+  </div>
+
+  <!-- 필터 -->
+  <div style="padding:0 14px;margin-bottom:8px">
+    <div class="filter-row" style="margin-bottom:0">
+      <button class="f-btn on" onclick="setWlMainFilter('all',this)">전체 이력</button>
+      <button class="f-btn" onclick="setWlMainFilter('today',this)">오늘</button>
+      <button class="f-btn" onclick="setWlMainFilter('week',this)">이번주</button>
+    </div>
+  </div>
+
+  <!-- 작업 이력 -->
+  <div style="padding:0 14px">
+    <div id="wl-main-list"></div>
   </div>
 </div>
 
@@ -963,6 +1009,7 @@ function renderMat(){
 }
 function onFab(){
   if(curMain==='todo')openTodoModal();
+  else if(curMain==='worklog')openWorkModal();
   else if(curMain==='stock'&&curSub==='worklog')openWorkModal();
 }
 
@@ -1435,6 +1482,10 @@ function wQtyD(d){wQty=Math.max(1,wQty+d);document.getElementById('wm-qty').text
 function setWQ(n){wQty=n;document.getElementById('wm-qty').textContent=n;}
 function confirmWork(){
   if(!wSelCode){showToast('모델을 먼저 선택하세요');return;}
+  // input 타입이므로 value에서 읽기
+  const qtyEl=document.getElementById('wm-qty');
+  wQty=qtyEl?Math.max(1,parseInt(qtyEl.value)||wQty):wQty;
+  if(wQty<=0){showToast('수량을 입력하세요');return;}
   const s=getStock(wSelCode);
   stock[wSelCode]={raw:Math.max(0,s.raw-wQty),printed:s.printed+wQty};
   const td=todayStr();
@@ -2606,6 +2657,106 @@ function resetAllStock(){
   showToast('전체 재고 초기화됨');
 }
 
+// ══════════════════════════════════════════════════
+//  작업일지 메인 페이지
+// ══════════════════════════════════════════════════
+let wlMainFilter='all';
+function setWlMainFilter(f,btn){
+  wlMainFilter=f;
+  document.querySelectorAll('#pg-worklog .f-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderWorklogMain();
+}
+
+function renderWorklogMain(){
+  const td=todayStr();
+  const tl=workLog.find(d=>d.date===td);
+  const tw=tl?tl.items.reduce((a,i)=>a+i.qty,0):0;
+  const wcQ=tl?tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0):0;
+  const etpQ=tl?tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0):0;
+
+  // 헤더 업데이트
+  const totalEl=document.getElementById('wl-today-total');
+  if(totalEl) totalEl.innerHTML=tw+'<span style="font-size:14px;margin-left:2px">장</span>';
+  const dateEl=document.getElementById('wl-today-date');
+  if(dateEl) dateEl.textContent=new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+  const wcEl=document.getElementById('wl-today-wc');
+  const etpEl=document.getElementById('wl-today-etp');
+  if(wcEl) wcEl.textContent='웜코튼 '+wcQ+'장';
+  if(etpEl) etpEl.textContent='에토프 '+etpQ+'장';
+
+  // 오늘 작업 목록
+  const todayListEl=document.getElementById('wl-today-list');
+  if(todayListEl){
+    if(!tl||!tl.items.length){
+      todayListEl.innerHTML='<div class="empty-sm" style="padding:16px 0;text-align:center">오늘 작업 기록이 없습니다<br><span style="font-size:11px;color:var(--tx3)">위 버튼으로 기록해주세요</span></div>';
+    } else {
+      todayListEl.innerHTML=tl.items.map(it=>{
+        const m=MODELS.find(x=>x.code===it.code);
+        const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
+        const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1)">
+          <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m?hlName(m.short,m.color):it.code}</div>
+            <div style="font-size:10px;color:var(--tx2)">${it.code}${sz?' | 📐 '+sz:''}</div>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:900;color:var(--acc3);flex-shrink:0">${it.qty}<span style="font-size:11px;color:var(--tx3)">장</span></div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // 이력 목록
+  const listEl=document.getElementById('wl-main-list');
+  if(!listEl) return;
+
+  const now=new Date();
+  const weekAgo=new Date(now-7*86400000).toISOString().slice(0,10);
+
+  let logs=[...workLog].sort((a,b)=>b.date.localeCompare(a.date));
+  if(wlMainFilter==='today') logs=logs.filter(d=>d.date===td);
+  else if(wlMainFilter==='week') logs=logs.filter(d=>d.date>=weekAgo);
+
+  if(!logs.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📝</div>기록 없음</div>';return;}
+
+  listEl.innerHTML=logs.map(day=>{
+    const dayTotal=day.items.reduce((a,i)=>a+i.qty,0);
+    const wc=day.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etp=day.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    const isToday=day.date===td;
+    const dl=new Date(day.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+    return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${day.items.length?'10px':'0'}">
+        <div>
+          <div style="font-size:13px;font-weight:700">${isToday?'🟢 오늘 — ':''} ${dl}</div>
+          <div style="font-size:10px;color:var(--tx2);margin-top:2px">
+            <span style="color:var(--wc)">웜코튼 ${wc}장</span> &nbsp;
+            <span style="color:var(--etp)">에토프 ${etp}장</span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:900;color:var(--acc3)">${dayTotal}</div>
+          <div style="font-size:10px;color:var(--tx3)">총 장수</div>
+        </div>
+      </div>
+      ${day.items.map(it=>{
+        const m=MODELS.find(x=>x.code===it.code);
+        const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
+        const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--b1)">
+          <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m?hlName(m.short,m.color):it.code}</div>
+            <div style="font-size:10px;color:var(--tx2)">${sz}</div>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc3)">${it.qty}장</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
 // ── 자재 데이터 초기화 ──
 var matStock=JSON.parse(localStorage.getItem('ybn-mat-v1')||'{}');
 var matLog=JSON.parse(localStorage.getItem('ybn-matlog-v1')||'[]');
@@ -2618,7 +2769,7 @@ function saveMatData(){
 // ── 자재탭 포함 네비게이션 재정의 ──
 const MAINS_EXT=['home','todo','board','stock','mat','settings'];
 document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
-  const pages=['home','todo','board','stock','mat','order-analysis','settings'];
+  const pages=['home','worklog','todo','board','stock','mat','order-analysis','settings'];
   btn.onclick=function(){
     const id=pages[i];
     document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
@@ -2626,8 +2777,9 @@ document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
     document.getElementById('pg-'+id).classList.add('on');
     this.classList.add('on');
     const fab=document.getElementById('fab-btn');
-    fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
+    fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog')||id==='worklog')?'flex':'none';
     if(id==='home')renderHome();
+    else if(id==='worklog')renderWorklogMain();
     else if(id==='todo')renderTodo();
     else if(id==='board'){renderNotices();renderSchedules();renderCal();}
     else if(id==='stock')renderSub(curSub);
