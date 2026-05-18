@@ -1821,14 +1821,22 @@ function handleOrderFile(e){
   reader.onload=function(ev){
     try{
       const wb=XLSX.read(ev.target.result,{type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
+
+      // 발주서 시트 자동 감지 (출고, 발주, 오더 포함된 시트 우선)
+      let targetSheet=wb.SheetNames[0];
+      for(const name of wb.SheetNames){
+        if(name.includes('출고') || name.includes('발주') || name.includes('오더')){
+          targetSheet=name; break;
+        }
+      }
+      const ws=wb.Sheets[targetSheet];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
 
-      // 헤더 찾기
+      // 헤더 찾기 (최대 5행 탐색)
       let headerRow=-1, colMap={};
       for(let i=0;i<Math.min(rows.length,5);i++){
         const r=rows[i];
-        if(r.some(c=>String(c).includes('제품코드')||String(c).includes('No.'))){
+        if(r.some(c=>String(c).includes('제품코드'))){
           headerRow=i;
           r.forEach((c,j)=>{
             const s=String(c).trim();
@@ -1846,24 +1854,28 @@ function handleOrderFile(e){
       }
 
       if(headerRow<0||colMap.code===undefined){
-        document.getElementById('ou-result').innerHTML='<div style="color:var(--acc4);font-size:12px">❌ 발주서 형식을 인식할 수 없습니다.</div>';
+        document.getElementById('ou-result').innerHTML=`<div style="color:var(--acc4);font-size:12px">❌ 발주서 형식을 인식할 수 없습니다.<br><span style="color:var(--tx3)">읽은 시트: ${targetSheet}</span><br>제품코드, 제품명, 제품수량 컬럼이 있는지 확인하세요.</div>`;
         return;
       }
 
       // ── 중복 체크용 기존 처리 이력 로드 ──
-      // orderHistory: [{poNo, code, qty, delivDate}] 형태로 저장
       const orderHistory=JSON.parse(localStorage.getItem('ybn-order-history')||'[]');
-      // 기존 처리된 키 셋 (구매오더번호_제품코드_납품일)
       const processedKeys=new Set(orderHistory.map(h=>`${h.poNo}_${h.code}_${h.delivDate}`));
 
-      // 전체 데이터 파싱 (행 단위)
+      // 전체 데이터 파싱 (Grace + Veil 모두 포함)
       const dataRows=rows.slice(headerRow+1).filter(r=>r[colMap.code]&&r[colMap.qty]);
-      const graceRows=dataRows.filter(r=>String(r[colMap.name]||'').includes('Grace'));
-      const nonGraceRows=dataRows.filter(r=>!String(r[colMap.name]||'').includes('Grace'));
+      const targetRows=dataRows.filter(r=>{
+        const name=String(r[colMap.name]||'');
+        return name.includes('Grace')||name.includes('Veil');
+      });
+      const nonTargetRows=dataRows.filter(r=>{
+        const name=String(r[colMap.name]||'');
+        return !name.includes('Grace')&&!name.includes('Veil');
+      });
 
       // 행 단위로 중복 체크 후 집계
       const newRows=[], dupRows=[];
-      graceRows.forEach(r=>{
+      targetRows.forEach(r=>{
         const code=String(r[colMap.code]).trim();
         const poNo=colMap.poNo!==undefined?String(r[colMap.poNo]||'').trim():'';
         const delivDate=colMap.delivDate!==undefined?String(r[colMap.delivDate]||'').trim().slice(0,10):'';
@@ -1888,20 +1900,21 @@ function handleOrderFile(e){
       const newTotal=newRows.reduce((a,{r})=>a+(parseInt(r[colMap.qty])||0),0);
 
       window._orderParsed={matched, unmatched, newRows,
-        nonGraceCount:nonGraceRows.length, totalRows:dataRows.length,
+        nonTargetCount:nonTargetRows.length, totalRows:dataRows.length,
         dupCount:dupRows.length, newCount:newRows.length};
 
       // 결과 미리보기
       let html=`<div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:10px 12px;margin-bottom:10px">
         <div style="font-size:12px;font-weight:700;color:var(--acc3);margin-bottom:4px">📊 분석 결과</div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.9">
+          읽은 시트: <b>${targetSheet}</b><br>
           전체 행: <b>${dataRows.length}행</b><br>
-          Grace 모델: <b>${graceRows.length}행</b>
+          Grace+Veil: <b>${targetRows.length}행</b>
           ${dupRows.length>0?`&nbsp;/ <span style="color:var(--tx3)">이미 반영됨: ${dupRows.length}행 (스킵)</span>`:''}
           <br>새로 반영될 행: <b style="color:var(--acc3)">${newRows.length}행 / ${newTotal}장</b><br>
           DB 매칭: <b style="color:var(--acc3)">${matched.length}종</b>
           ${unmatched.length>0?`&nbsp;/ 미매칭: <b style="color:var(--acc4)">${unmatched.length}종</b>`:''}
-          ${nonGraceRows.length>0?`<br>Grace 외: <b>${nonGraceRows.length}행</b> (제외)`:''}
+          ${nonTargetRows.length>0?`<br>기타 품목: <b>${nonTargetRows.length}행</b> (제외)`:''}
         </div>
       </div>`;
 
