@@ -889,6 +889,27 @@ function updateHdr(){
 }
 setInterval(updateHdr,30000); updateHdr();
 function todayStr(){return new Date().toISOString().slice(0,10);}
+
+// 날짜 문자열을 안전하게 YYYY-MM-DD로 변환
+function safeDate(str){
+  if(!str) return todayStr();
+  const s=String(str).trim();
+  // 이미 YYYY-MM-DD 형식
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // 다른 형식 시도
+  const d=new Date(s);
+  if(!isNaN(d.getTime())) return d.toISOString().slice(0,10);
+  return todayStr();
+}
+
+// 날짜 표시용 (Invalid Date 방지)
+function fmtDateSafe(str){
+  const s=safeDate(str);
+  const d=new Date(s+'T00:00:00');
+  if(isNaN(d.getTime())) return str||'-';
+  return d.toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'});
+}
+
 function calcDday(due){
   if(!due) return null;
   const diff=Math.floor((new Date(due)-new Date(todayStr()))/86400000);
@@ -1102,17 +1123,19 @@ function renderSchedules(){
   const CC={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
   const CL={work:'작업',delivery:'납품',order:'발주',etc:'기타'};
   const today=todayStr();
-  const sorted=[...schedules].sort((a,b)=>a.date.localeCompare(b.date));
-  const upcoming=sorted.filter(s=>s.date>=today);
-  const past=sorted.filter(s=>s.date<today).reverse(); // 최근 지난것 위로
 
-  // 현재/미래 일정
+  // 날짜 정규화
+  const normalized=schedules.map(s=>({...s, date:safeDate(s.date)}));
+  const sorted=[...normalized].sort((a,b)=>a.date.localeCompare(b.date));
+  const upcoming=sorted.filter(s=>s.date>=today);
+  const past=sorted.filter(s=>s.date<today).reverse();
+
   if(!upcoming.length){
     el.innerHTML='<div class="empty-sm">예정된 일정 없음</div>';
   } else {
     el.innerHTML=upcoming.map(s=>{
       const isToday=s.date===today;
-      const ds=new Date(s.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'});
+      const ds=fmtDateSafe(s.date);
       return '<div class="sch-item">'
         +'<div class="sch-date'+(isToday?' today':'')+'">'+ds+(isToday?'<br><span class="today-label">오늘</span>':'')+'</div>'
         +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
@@ -1121,14 +1144,12 @@ function renderSchedules(){
     }).join('');
   }
 
-  // 히스토리 (지난 일정)
   if(histEl){
-    if(!past.length){
-      histEl.innerHTML='';
-    } else {
-      histEl.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;margin-top:4px">지난 일정</div>'
+    if(!past.length){histEl.innerHTML='';}
+    else{
+      histEl.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:1px;margin-bottom:8px;margin-top:4px">지난 일정</div>'
         +past.slice(0,10).map(s=>{
-          const ds=new Date(s.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'});
+          const ds=fmtDateSafe(s.date);
           return '<div class="sch-item" style="opacity:.4">'
             +'<div class="sch-date past">'+ds+'</div>'
             +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
@@ -1982,13 +2003,15 @@ function calcSheetsNeeded(gw, gh, qty){
 }
 
 function getSheetStock(mat){
-  if(!window.sheetLog) return 0;
-  return sheetLog.filter(l=>l.mat===mat).reduce((a,l)=>{
-    if(l.type==='in') return a+l.qty;
-    if(l.type==='out') return a-l.qty;
-    if(l.type==='adjust') return l.qty; // 직접설정
-    return a;
-  },0);
+  if(!window.sheetLog && typeof sheetLog==='undefined') return 0;
+  const logs=typeof sheetLog!=='undefined'?sheetLog:[];
+  let total=0;
+  logs.filter(l=>l.mat===mat).forEach(l=>{
+    if(l.type==='in') total+=l.qty;
+    else if(l.type==='out') total-=l.qty;
+    else if(l.type==='adjust') total=l.qty;
+  });
+  return Math.max(0,total);
 }
 
 // 원장 탭 렌더
@@ -2177,7 +2200,7 @@ function renderYieldTable(){
 }
 
 // sheetLog 초기화 (전역)
-if(typeof sheetLog==='undefined') var sheetLog=JSON.parse(localStorage.getItem('ybn-sheet-v1')||'[]');
+// sheetLog는 app_template2.html에서 초기화됨
 
 // ══════════════════════════════════════════════════
 //  달력
@@ -2418,7 +2441,6 @@ function renderAnalysis(){
 var matStock=JSON.parse(localStorage.getItem('ybn-mat-v1')||'{}');
 var matLog=JSON.parse(localStorage.getItem('ybn-matlog-v1')||'[]');
 var sheetLog=JSON.parse(localStorage.getItem('ybn-sheet-v1')||'[]');
-// ── 자재 저장 함수 ──
 function saveMatData(){
   localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
   localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
