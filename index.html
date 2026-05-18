@@ -282,6 +282,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <nav class="main-nav">
     <button class="main-nav-btn on" onclick="showMain('home')">🏠 홈</button>
     <button class="main-nav-btn" onclick="showMain('worklog')">✏️ 작업일지</button>
+    <button class="main-nav-btn" onclick="showMain('delivery')">📦 납품서</button>
     <button class="main-nav-btn" onclick="showMain('todo')">✅ 할일</button>
     <button class="main-nav-btn" onclick="showMain('board')">📌 공지/일정</button>
     <button class="main-nav-btn" onclick="showMain('stock')">📋 재고관리</button>
@@ -359,6 +360,18 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div style="padding:0 14px">
     <div id="wl-main-list"></div>
   </div>
+</div>
+
+<!-- DELIVERY -->
+<div class="sec-pg" id="pg-delivery">
+  <div class="info-note" style="margin-bottom:12px">
+    📦 발주서 엑셀 업로드 시 납품일 기준으로 자동 정리됩니다.<br>
+    가장 최근 납품일이 맨 위에 펼쳐진 상태로 표시됩니다.
+  </div>
+  <button onclick="showMain('settings')" style="width:100%;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">
+    📊 발주서 업로드 (설정 탭)
+  </button>
+  <div id="deliv-list"></div>
 </div>
 
 <!-- TODO -->
@@ -900,7 +913,7 @@ const ANALYSIS=[{"code": "ME1WU0039", "short": "OB M 4573(공용) M", "color": "
 
 
 // ── STORAGE ──
-const LS={stock:'ybn-s5',meta:'ybn-m5',work:'ybn-w5',ink:'ybn-i5',inkRate:'ybn-ir2',notices:'ybn-n2',schedules:'ybn-sc2',todos:'ybn-t2',gsUrl:'ybn-gs2'};
+const LS={stock:'ybn-s5',meta:'ybn-m5',work:'ybn-w5',ink:'ybn-i5',inkRate:'ybn-ir2',notices:'ybn-n2',schedules:'ybn-sc2',todos:'ybn-t2',gsUrl:'ybn-gs2',delivLog:'ybn-deliv-v1'};
 function J(s){try{return s?JSON.parse(s):null;}catch{return null;}}
 let stock=J(localStorage.getItem(LS.stock))||{};
 let meta=J(localStorage.getItem(LS.meta))||{};
@@ -911,6 +924,7 @@ let notices=J(localStorage.getItem(LS.notices))||INITIAL_NOTICES;
 let schedules=J(localStorage.getItem(LS.schedules))||[];
 let todos=J(localStorage.getItem(LS.todos))||INITIAL_TODOS;
 let gsUrl=localStorage.getItem(LS.gsUrl)||'';
+let delivLog=J(localStorage.getItem(LS.delivLog))||[];
 function saveAll(){
   localStorage.setItem(LS.stock,JSON.stringify(stock));
   localStorage.setItem(LS.meta,JSON.stringify(meta));
@@ -920,7 +934,7 @@ function saveAll(){
   localStorage.setItem(LS.notices,JSON.stringify(notices));
   localStorage.setItem(LS.schedules,JSON.stringify(schedules));
   localStorage.setItem(LS.todos,JSON.stringify(todos));
-  // 자재 데이터 (전역 변수로 선언되어 있을 때만)
+  localStorage.setItem(LS.delivLog,JSON.stringify(delivLog));
   if(typeof matStock!=='undefined') localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
   if(typeof matLog!=='undefined') localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
   if(typeof sheetLog!=='undefined') localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
@@ -1582,7 +1596,7 @@ function saveGsUrl(){
 async function autoSync(){
   if(!gsUrl)return;
   try{
-    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog}});
+    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog}});
     meta.lastGsSync=new Date().toISOString();saveAll();
     updateGsStatus('ok');updateGsSyncTime();
     showToast('✅ 저장 완료 (구글 시트 연동)');
@@ -1592,7 +1606,7 @@ async function syncToSheet(){
   if(!gsUrl){showToast('URL 설정 필요');return;}
   updateGsStatus('syncing');
   try{
-    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog}});
+    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog}});
     meta.lastGsSync=new Date().toISOString();saveAll();updateGsStatus('ok');updateGsSyncTime();showToast('✅ 시트 저장 완료');
   }catch(e){updateGsStatus('error');showToast('❌ 저장 실패: '+e.message);}
 }
@@ -1610,6 +1624,7 @@ async function syncFromSheet(){
     if(data.matStock)matStock=data.matStock;
     if(data.matLog)matLog=data.matLog;
     if(data.sheetLog)sheetLog=data.sheetLog;
+    if(data.delivLog)delivLog=data.delivLog;
     if(data.meta)Object.assign(meta,data.meta);
     meta.lastGsSync=new Date().toISOString();saveAll();
     updateGsStatus('ok');updateGsSyncTime();renderHome();showToast('✅ 불러오기 완료');
@@ -2052,26 +2067,55 @@ function confirmOrderUpload(){
   const parsed=window._orderParsed;
   if(!parsed||!parsed.matched.length){showToast('반영할 데이터 없음');return;}
 
-  // 기존 이력 로드
   const orderHistory=JSON.parse(localStorage.getItem('ybn-order-history')||'[]');
 
   let applied=0, totalQty=0;
+  // 납품일별 집계 (delivLog용)
+  const delivByDate={};
+
   parsed.matched.forEach(p=>{
     const s=getStock(p.code);
     const newPrinted=Math.max(0, s.printed-p.qty);
     stock[p.code]={...s, printed:newPrinted};
     applied++; totalQty+=p.qty;
 
-    // 출고 이력 기록
+    // 작업로그 기록
     const td=todayStr();
     let dayLog=workLog.find(d=>d.date===td);
     if(!dayLog){dayLog={date:td,items:[]};workLog.push(dayLog);}
     const ex=dayLog.items.find(i=>i.code===p.code&&i.type==='order');
     if(ex) ex.qty+=p.qty;
     else dayLog.items.push({code:p.code,qty:p.qty,type:'order'});
+
+    // 납품일별 delivLog 집계
+    const ddate=p.delivDate||td;
+    if(!delivByDate[ddate]) delivByDate[ddate]={};
+    if(!delivByDate[ddate][p.code]) delivByDate[ddate][p.code]=0;
+    delivByDate[ddate][p.code]+=p.qty;
   });
 
-  // ── 처리된 행을 이력에 저장 (중복방지용) ──
+  // delivLog 업데이트 (날짜별로 병합)
+  Object.entries(delivByDate).forEach(([ddate, codeQtyMap])=>{
+    let existing=delivLog.find(d=>d.delivDate===ddate);
+    if(!existing){
+      existing={delivDate:ddate, items:[], uploadedAt:new Date().toISOString()};
+      delivLog.push(existing);
+    }
+    Object.entries(codeQtyMap).forEach(([code,qty])=>{
+      const m=MODELS.find(x=>x.code===code);
+      const sz=m&&m.glass_w?m.glass_w+'×'+m.glass_h+'mm':'';
+      const ex=existing.items.find(i=>i.code===code);
+      if(ex) ex.qty+=qty;
+      else existing.items.push({
+        code, qty,
+        short: m?m.short:code,
+        size: sz,
+        color: m?m.color:'',
+      });
+    });
+  });
+
+  // 중복 방지 이력 저장
   parsed.newRows.forEach(({code,poNo,delivDate})=>{
     orderHistory.push({poNo,code,delivDate,processedAt:new Date().toISOString()});
   });
@@ -2757,6 +2801,79 @@ function renderWorklogMain(){
   }).join('');
 }
 
+// ══════════════════════════════════════════════════
+//  납품서 탭
+// ══════════════════════════════════════════════════
+function renderDelivery(){
+  const el=document.getElementById('deliv-list');
+  if(!el) return;
+
+  if(!delivLog||!delivLog.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">📦</div>납품서 없음<br><span style="font-size:11px;color:var(--tx3)">설정 탭에서 발주서 엑셀을 업로드하면 자동 반영됩니다</span></div>';
+    return;
+  }
+
+  // 날짜 내림차순
+  const sorted=[...delivLog].sort((a,b)=>b.delivDate.localeCompare(a.delivDate));
+  const today=todayStr();
+
+  el.innerHTML=sorted.map((d,idx)=>{
+    const isRecent=idx===0;
+    const dateLabel=fmtDateSafe(d.delivDate);
+    const isToday=d.delivDate===today;
+    const isPast=d.delivDate<today;
+    const totalQty=d.items.reduce((a,i)=>a+i.qty,0);
+    const uploadLabel=d.uploadedAt?new Date(d.uploadedAt).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' 업로드':'';
+
+    // 색상별 소계
+    const wcQ=d.items.filter(i=>i.color==='WC').reduce((a,i)=>a+i.qty,0);
+    const etpQ=d.items.filter(i=>i.color==='ETP').reduce((a,i)=>a+i.qty,0);
+
+    return `<div class="card" style="margin-bottom:10px${isRecent?';border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)':''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;cursor:pointer" onclick="toggleDelivDetail('deliv-detail-${idx}',this)">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px">
+            ${isRecent?'<span style="font-size:10px;background:var(--acc);color:#fff;padding:1px 8px;border-radius:10px;font-weight:700">최신</span>':''}
+            ${isToday?'<span style="font-size:10px;background:var(--acc3);color:#fff;padding:1px 8px;border-radius:10px;font-weight:700">오늘</span>':''}
+            ${isPast&&!isToday?'<span style="font-size:10px;color:var(--tx3)">납품완료</span>':''}
+            <span style="font-size:14px;font-weight:700">📦 납품일: ${dateLabel}</span>
+          </div>
+          <div style="font-size:10px;color:var(--tx2);margin-top:3px">
+            총 ${totalQty}장 &nbsp;|&nbsp;
+            <span style="color:var(--wc)">웜코튼 ${wcQ}장</span> &nbsp;
+            <span style="color:var(--etp)">에토프 ${etpQ}장</span>
+            ${uploadLabel?'&nbsp;| '+uploadLabel:''}
+          </div>
+        </div>
+        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">▼</span>
+      </div>
+      <div id="deliv-detail-${idx}" style="${isRecent?'':'display:none'}">
+        <div style="height:1px;background:var(--b1);margin-bottom:8px"></div>
+        ${d.items.sort((a,b)=>b.qty-a.qty).map(it=>{
+          const dot=it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'var(--tx2)';
+          return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--b1)">
+            <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.short||it.code}</div>
+              <div style="font-size:10px;color:var(--tx2)">${it.code} ${it.size?'| 📐 '+it.size:''}</div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleDelivDetail(id, hdr){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  const arrow=hdr.querySelector('.deliv-arrow');
+  if(arrow) arrow.textContent=isOpen?'▼':'▲';
+}
+
 // ── 자재 데이터 초기화 ──
 var matStock=JSON.parse(localStorage.getItem('ybn-mat-v1')||'{}');
 var matLog=JSON.parse(localStorage.getItem('ybn-matlog-v1')||'[]');
@@ -2769,7 +2886,7 @@ function saveMatData(){
 // ── 자재탭 포함 네비게이션 재정의 ──
 const MAINS_EXT=['home','todo','board','stock','mat','settings'];
 document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
-  const pages=['home','worklog','todo','board','stock','mat','order-analysis','settings'];
+  const pages=['home','worklog','delivery','todo','board','stock','mat','order-analysis','settings'];
   btn.onclick=function(){
     const id=pages[i];
     document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
@@ -2780,6 +2897,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
     fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog')||id==='worklog')?'flex':'none';
     if(id==='home')renderHome();
     else if(id==='worklog')renderWorklogMain();
+    else if(id==='delivery')renderDelivery();
     else if(id==='todo')renderTodo();
     else if(id==='board'){renderNotices();renderSchedules();renderCal();}
     else if(id==='stock')renderSub(curSub);
