@@ -646,7 +646,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <div class="modal-bg" id="sch-modal">
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeM('sch-modal')">×</button>
-    <div class="modal-ttl">📅 일정 추가</div>
+    <div class="modal-ttl" id="sch-modal-title">📅 일정 추가</div>
     <span class="lbl">날짜</span><input type="date" id="sm-date" class="inp">
     <span class="lbl">내용</span><input id="sm-content" class="inp" placeholder="일정 내용...">
     <span class="lbl">구분</span>
@@ -656,7 +656,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="q-btn" id="scat-order" onclick="setSchCat('order',this)" style="flex:1;padding:10px">발주</button>
       <button class="q-btn" id="scat-etc" onclick="setSchCat('etc',this)" style="flex:1;padding:10px">기타</button>
     </div>
-    <button class="act-btn orange" onclick="confirmSch()">✓ 저장</button>
+    <button class="act-btn orange" id="sch-confirm-btn" onclick="confirmSch()">✓ 저장</button>
   </div>
 </div>
 
@@ -1140,7 +1140,10 @@ function renderSchedules(){
         +'<div class="sch-date'+(isToday?' today':'')+'">'+ds+(isToday?'<br><span class="today-label">오늘</span>':'')+'</div>'
         +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
         +'<div class="sch-info"><div class="sch-content">'+s.content+'</div><div class="sch-cat">'+CL[s.cat]+'</div></div>'
-        +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button></div>';
+        +'<div style="display:flex;gap:2px;flex-shrink:0">'
+        +'<button onclick="editSch(\''+s.id+'\')" class="icon-btn">✏️</button>'
+        +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button>'
+        +'</div></div>';
     }).join('');
   }
 
@@ -1150,20 +1153,39 @@ function renderSchedules(){
       histEl.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:1px;margin-bottom:8px;margin-top:4px">지난 일정</div>'
         +past.slice(0,10).map(s=>{
           const ds=fmtDateSafe(s.date);
-          return '<div class="sch-item" style="opacity:.4">'
+          return '<div class="sch-item" style="opacity:.5">'
             +'<div class="sch-date past">'+ds+'</div>'
             +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
-            +'<div class="sch-info"><div class="sch-content" style="text-decoration:line-through">'+s.content+'</div><div class="sch-cat">'+CL[s.cat]+'</div></div>'
-            +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button></div>';
+            +'<div class="sch-info"><div class="sch-content">'+s.content+'</div><div class="sch-cat">'+CL[s.cat]+'</div></div>'
+            +'<div style="display:flex;gap:2px;flex-shrink:0">'
+            +'<button onclick="editSch(\''+s.id+'\')" class="icon-btn">✏️</button>'
+            +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button>'
+            +'</div></div>';
         }).join('');
     }
   }
 }
+
+let editSchId=null;
 function openSchModal(){
+  editSchId=null;
   schCat='work';
   document.getElementById('sm-date').value=todayStr();
   document.getElementById('sm-content').value='';
+  document.getElementById('sch-modal-title').textContent='📅 일정 추가';
+  document.getElementById('sch-confirm-btn').textContent='✓ 저장';
   setSchCat('work',document.getElementById('scat-work'));
+  document.getElementById('sch-modal').classList.add('on');
+}
+function editSch(id){
+  const s=schedules.find(x=>x.id===id); if(!s) return;
+  editSchId=id;
+  schCat=s.cat||'work';
+  document.getElementById('sm-date').value=safeDate(s.date);
+  document.getElementById('sm-content').value=s.content;
+  document.getElementById('sch-modal-title').textContent='📅 일정 수정';
+  document.getElementById('sch-confirm-btn').textContent='✓ 수정';
+  setSchCat(s.cat||'work',document.getElementById('scat-'+( s.cat||'work')));
   document.getElementById('sch-modal').classList.add('on');
 }
 function setSchCat(cat,btn){
@@ -1177,8 +1199,16 @@ function confirmSch(){
   const date=document.getElementById('sm-date').value;
   const content=document.getElementById('sm-content').value.trim();
   if(!date||!content){showToast('날짜와 내용을 입력하세요');return;}
-  schedules.push({id:Date.now().toString(),date,content,cat:schCat,createdAt:new Date().toISOString()});
-  saveAll();closeM('sch-modal');renderSchedules();renderHome();renderCal();autoSync();showToast('✅ 일정 추가됨');
+  if(editSchId){
+    const s=schedules.find(x=>x.id===editSchId);
+    if(s){s.date=date;s.content=content;s.cat=schCat;s.updatedAt=new Date().toISOString();}
+    showToast('✅ 일정 수정됨');
+  } else {
+    schedules.push({id:Date.now().toString(),date,content,cat:schCat,createdAt:new Date().toISOString()});
+    showToast('✅ 일정 추가됨');
+  }
+  editSchId=null;
+  saveAll();closeM('sch-modal');renderSchedules();renderHome();renderCal();autoSync();
 }
 
 // ── STOCK DASHBOARD ──
@@ -1494,7 +1524,7 @@ function saveGsUrl(){
 async function autoSync(){
   if(!gsUrl)return;
   try{
-    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos}});
+    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog}});
     meta.lastGsSync=new Date().toISOString();saveAll();
     updateGsStatus('ok');updateGsSyncTime();
     showToast('✅ 저장 완료 (구글 시트 연동)');
@@ -1504,7 +1534,7 @@ async function syncToSheet(){
   if(!gsUrl){showToast('URL 설정 필요');return;}
   updateGsStatus('syncing');
   try{
-    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos}});
+    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog}});
     meta.lastGsSync=new Date().toISOString();saveAll();updateGsStatus('ok');updateGsSyncTime();showToast('✅ 시트 저장 완료');
   }catch(e){updateGsStatus('error');showToast('❌ 저장 실패: '+e.message);}
 }
@@ -1519,6 +1549,9 @@ async function syncFromSheet(){
     if(data.notices)notices=data.notices;
     if(data.schedules)schedules=data.schedules;
     if(data.todos)todos=data.todos;
+    if(data.matStock)matStock=data.matStock;
+    if(data.matLog)matLog=data.matLog;
+    if(data.sheetLog)sheetLog=data.sheetLog;
     if(data.meta)Object.assign(meta,data.meta);
     meta.lastGsSync=new Date().toISOString();saveAll();
     updateGsStatus('ok');updateGsSyncTime();renderHome();showToast('✅ 불러오기 완료');
@@ -2318,6 +2351,7 @@ function renderCalDayDetail(dateStr){
         <div style="font-size:10px;color:var(--tx3)">${CL[s.cat]}</div>
       </div>
       <button onclick="deleteSch('${s.id}')" class="icon-btn del" style="font-size:12px">🗑</button>
+      <button onclick="editSch('${s.id}')" class="icon-btn" style="font-size:12px">✏️</button>
     </div>`).join('')}
   </div>`;
 }
