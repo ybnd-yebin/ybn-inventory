@@ -1607,18 +1607,24 @@ function renderWorkSearch(){
   }).join('');
 }
 function selectWork(code){
-  wSelCode=code;wQty=1;
-  const m=MODELS.find(x=>x.code===code);const s=getStock(code);
+  wSelCode=code; wQty=1;
+  const m=MODELS.find(x=>x.code===code);
+  const s=getStock(code);
   document.getElementById('wm-sel-name').textContent=m?m.short:code;
-  document.getElementById('wm-sel-meta').textContent=code+(m&&m.glass_w?' | '+m.glass_w+'×'+m.glass_h:'')+ ' | 원유리 '+s.raw+'장';
+  document.getElementById('wm-sel-meta').textContent=code+(m&&m.glass_w?' | '+m.glass_w+'×'+m.glass_h:'')+' | 원유리 '+s.raw+'장';
   document.getElementById('wm-selected').style.display='block';
   document.getElementById('wm-qty-box').style.display='block';
-  document.getElementById('wm-qty').textContent='1';
+  const qEl=document.getElementById('wm-qty');
+  if(qEl) qEl.value=1;
   document.getElementById('wm-results').innerHTML='';
   document.getElementById('wm-search').value='';
 }
-function wQtyD(d){wQty=Math.max(1,wQty+d);document.getElementById('wm-qty').textContent=wQty;}
-function setWQ(n){wQty=n;document.getElementById('wm-qty').textContent=n;}
+function wQtyD(d){
+  const el=document.getElementById('wm-qty');
+  wQty=Math.max(1,(parseInt(el?.value)||wQty)+d);
+  if(el) el.value=wQty;
+}
+function setWQ(n){wQty=n;const el=document.getElementById('wm-qty');if(el)el.value=n;}
 function confirmWork(){
   if(!wSelCode){showToast('모델을 먼저 선택하세요');return;}
   const qtyEl=document.getElementById('wm-qty');
@@ -2636,12 +2642,6 @@ function addMMQ(n){ matModalQty=Math.max(0,(matModalQty||0)+n); _updEl('mm-qty',
 function mmQtyD(d){ matModalQty=Math.max(0,(matModalQty||0)+d); _updEl('mm-qty',matModalQty); }
 function setMMQ(n){ matModalQty=n; _updEl('mm-qty',n); }
 
-// confirmWork 수량 읽기 패치
-const _origConfirmWork=confirmWork;
-function confirmWork(){
-  wQty=parseInt(document.getElementById('wm-qty')?.value)||wQty||0;
-  _origConfirmWork();
-}
 
 // ══════════════════════════════════════════════════
 //  발주 분석
