@@ -3398,7 +3398,33 @@ function renderWlHistory(){
 
   if(!logs.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📝</div>기록 없음</div>';return;}
 
-  listEl.innerHTML = logs.map(day=>{
+  // 전체 기간 총 작업량 요약
+  const allNormal = workLog.flatMap(d=>d.items.filter(i=>i.type==='work'));
+  const allDefect = workLog.flatMap(d=>d.items.filter(i=>i.type==='defect'));
+  const totalAll = allNormal.reduce((a,i)=>a+i.qty,0);
+  const totalDefect = allDefect.reduce((a,i)=>a+i.qty,0);
+  const totalDays = workLog.filter(d=>d.items.some(i=>i.type==='work')).length;
+
+  listEl.innerHTML = `
+  <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,var(--s2),var(--s1))">
+    <div style="font-size:11px;font-weight:700;color:var(--tx2);margin-bottom:8px">📊 누적 작업 현황</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <div style="text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--acc3)">${totalAll}</div>
+        <div style="font-size:10px;color:var(--tx2)">총 작업량</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--acc)">${totalDays}</div>
+        <div style="font-size:10px;color:var(--tx2)">작업일수</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--acc4)">${totalDefect}</div>
+        <div style="font-size:10px;color:var(--tx2)">누적 불량</div>
+      </div>
+    </div>
+  </div>
+  ` + logs.map(day=>{
+    const dayIdx = workLog.findIndex(d=>d.date===day.date);
     const normalIt = day.items.filter(i=>i.type!=='defect');
     const defectIt = day.items.filter(i=>i.type==='defect');
     const dayTotal = normalIt.reduce((a,i)=>a+i.qty,0);
@@ -3406,28 +3432,31 @@ function renderWlHistory(){
     const wc = normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
     const etp = normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
     const isToday = day.date===td;
-    const dl = new Date(day.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+    const dl = fmtDateSafe(day.date);
     return `<div class="card" style="margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${day.items.length?'10px':'0'}">
-        <div>
-          <div style="font-size:13px;font-weight:700">${isToday?'🟢 오늘 — ':''} ${dl}</div>
-          <div style="font-size:10px;color:var(--tx2);margin-top:2px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700">${isToday?'🟢 ':''} ${dl}</span>
+            <button onclick="editWlDate('${day.date}')" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--acc);cursor:pointer;font-family:'Noto Sans KR',sans-serif">날짜수정</button>
+          </div>
+          <div style="font-size:10px;color:var(--tx2);margin-top:3px">
             <span style="color:var(--wc)">웜코튼 ${wc}장</span> &nbsp;
             <span style="color:var(--etp)">에토프 ${etp}장</span>
             ${dayDefect>0?`&nbsp; <span style="color:var(--acc4)">🚫 불량 ${dayDefect}장</span>`:''}
           </div>
         </div>
-        <div style="text-align:right">
+        <div style="text-align:right;flex-shrink:0">
           <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:900;color:var(--acc3)">${dayTotal}</div>
           <div style="font-size:10px;color:var(--tx3)">정상작업</div>
         </div>
       </div>
-      ${day.items.map(it=>{
+      ${day.items.map((it,itIdx)=>{
         const m = MODELS.find(x=>x.code===it.code);
         const isDefect = it.type==='defect';
         const dot = isDefect?'var(--acc4)':m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
         const sz = m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--b1)">
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--b1)">
           <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
             <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
@@ -3436,13 +3465,98 @@ function renderWlHistory(){
             </div>
             <div style="font-size:10px;color:var(--tx2)">${sz}</div>
           </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${isDefect?'var(--acc4)':'var(--acc3)'}">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:${isDefect?'var(--acc4)':'var(--acc3)'}">
             ${isDefect?'-':''}${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span>
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0">
+            <button onclick="editWlItem('${day.date}',${itIdx})" style="padding:4px 8px;background:none;border:1px solid var(--b2);border-radius:6px;color:var(--acc);font-size:11px;cursor:pointer">✏️</button>
+            <button onclick="deleteWlItem('${day.date}',${itIdx})" style="padding:4px 8px;background:none;border:1px solid rgba(248,81,73,.3);border-radius:6px;color:var(--acc4);font-size:11px;cursor:pointer">🗑</button>
           </div>
         </div>`;
       }).join('')}
     </div>`;
   }).join('');
+}
+
+// ── 작업일지 수정/삭제 ──
+function editWlDate(oldDate){
+  const newDate = prompt('날짜를 입력하세요 (YYYY-MM-DD):', oldDate);
+  if(!newDate || newDate === oldDate) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(newDate)){showToast('날짜 형식이 올바르지 않습니다');return;}
+
+  // 새 날짜로 이동
+  const dayLog = workLog.find(d=>d.date===oldDate);
+  if(!dayLog) return;
+
+  const existing = workLog.find(d=>d.date===newDate);
+  if(existing){
+    // 이미 있는 날짜면 합치기
+    dayLog.items.forEach(it=>{
+      const ex = existing.items.find(i=>i.code===it.code&&i.type===it.type);
+      if(ex) ex.qty+=it.qty;
+      else existing.items.push({...it});
+    });
+    workLog = workLog.filter(d=>d.date!==oldDate);
+  } else {
+    dayLog.date = newDate;
+  }
+  saveAll(); renderWorklogMain(); autoSync();
+  showToast('날짜 변경됨');
+}
+
+function editWlItem(date, idx){
+  const dayLog = workLog.find(d=>d.date===date);
+  if(!dayLog || !dayLog.items[idx]) return;
+  const it = dayLog.items[idx];
+  const m = MODELS.find(x=>x.code===it.code);
+  const name = m ? m.short : it.code;
+  const isDefect = it.type==='defect';
+
+  const newQty = prompt(`${name}\n${isDefect?'불량':'작업'} 수량 수정:`, it.qty);
+  if(newQty === null) return;
+  const q = parseInt(newQty);
+  if(isNaN(q)||q<0){showToast('올바른 수량을 입력하세요');return;}
+
+  const diff = q - it.qty;
+  // 재고 역반영 후 재반영
+  const s = getStock(it.code);
+  if(it.type==='work'){
+    stock[it.code] = {raw: Math.max(0, s.raw - diff), printed: Math.max(0, s.printed + diff)};
+  } else if(it.type==='defect'){
+    if(it.loc==='assembly') stock[it.code] = {raw: s.raw, printed: Math.max(0, s.printed - diff)};
+    else stock[it.code] = {raw: Math.max(0, s.raw - diff), printed: s.printed};
+  }
+
+  if(q===0){
+    dayLog.items.splice(idx,1);
+    if(!dayLog.items.length) workLog = workLog.filter(d=>d.date!==date);
+  } else {
+    it.qty = q;
+  }
+  saveAll(); renderWorklogMain(); renderDash(); autoSync();
+  showToast('수량 수정됨');
+}
+
+function deleteWlItem(date, idx){
+  const dayLog = workLog.find(d=>d.date===date);
+  if(!dayLog || !dayLog.items[idx]) return;
+  const it = dayLog.items[idx];
+  const m = MODELS.find(x=>x.code===it.code);
+  if(!confirm(`${m?m.short:it.code} ${it.qty}장 기록을 삭제합니까?\n재고도 복원됩니다.`)) return;
+
+  // 재고 복원
+  const s = getStock(it.code);
+  if(it.type==='work'){
+    stock[it.code] = {raw: s.raw + it.qty, printed: Math.max(0, s.printed - it.qty)};
+  } else if(it.type==='defect'){
+    if(it.loc==='assembly') stock[it.code] = {raw: s.raw, printed: s.printed + it.qty};
+    else stock[it.code] = {raw: s.raw + it.qty, printed: s.printed};
+  }
+
+  dayLog.items.splice(idx,1);
+  if(!dayLog.items.length) workLog = workLog.filter(d=>d.date!==date);
+  saveAll(); renderWorklogMain(); renderDash(); autoSync();
+  showToast('삭제됨 (재고 복원)');
 }
 
 // ── 자재 데이터 초기화 ──
