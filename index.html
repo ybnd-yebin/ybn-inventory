@@ -488,7 +488,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <div class="sec-pg" id="pg-stock">
   <nav class="sub-nav">
     <button class="sub-nav-btn on" onclick="showSub('dashboard')"><span class="ico">📊</span>현황</button>
-    <button class="sub-nav-btn" onclick="showSub('worklog')"><span class="ico">✏️</span>작업일지</button>
     <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
     <button class="sub-nav-btn" onclick="showSub('stocklist')"><span class="ico">📦</span>재고</button>
     <button class="sub-nav-btn" onclick="showSub('stockedit')"><span class="ico">🛠️</span>재고편집</button>
@@ -506,22 +505,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <div class="card"><div class="card-ttl">📋 오늘 작업</div><div id="d-work"></div></div>
     <div class="card"><div class="card-ttl">🔥 고빈도 TOP 10</div><div id="d-top10"></div></div>
-  </div>
-  <!-- 작업일지 -->
-  <div id="sp-worklog" class="sub-pg" style="display:none;padding:14px 14px 80px">
-    <div class="card">
-      <div class="card-ttl">📊 누적 작업</div>
-      <div class="g2" style="margin-bottom:8px">
-        <div class="stat"><div class="stat-l">총 작업일</div><div class="stat-v" id="wl-days" style="color:var(--acc)">0</div></div>
-        <div class="stat"><div class="stat-l">총 작업량</div><div class="stat-v" id="wl-total" style="color:var(--acc3)">0</div></div>
-      </div>
-      <div class="g3" style="margin-bottom:0">
-        <div class="stat"><div class="stat-l" style="color:var(--wc)">웜코튼</div><div class="stat-v" id="wl-wc" style="color:var(--wc)">0</div></div>
-        <div class="stat"><div class="stat-l" style="color:var(--etp)">에토프</div><div class="stat-v" id="wl-etp" style="color:var(--etp)">0</div></div>
-        <div class="stat"><div class="stat-l">기타</div><div class="stat-v" id="wl-etc">0</div></div>
-      </div>
-    </div>
-    <div id="wl-list"></div>
   </div>
   <!-- 잉크 -->
   <div id="sp-ink" class="sub-pg" style="display:none;padding:14px 14px 80px">
@@ -1062,7 +1045,7 @@ function calcDday(due){
 
 // ── NAV ──
 const MAINS=['home','todo','board','stock','settings'];
-const SUBS=['dashboard','worklog','ink','stocklist','stockedit','trend','nonspec'];
+const SUBS=['dashboard','ink','stocklist','stockedit','trend','nonspec'];
 let curMain='home', curSub='dashboard';
 
 function showMain(id){
@@ -1091,7 +1074,6 @@ function showSub(id){
 }
 function renderSub(id){
   if(id==='dashboard')renderDash();
-  if(id==='worklog')renderWorkLog();
   if(id==='ink')renderInk();
   if(id==='stocklist')renderStockList();
   if(id==='stockedit')renderStockEdit();
@@ -3483,7 +3465,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
     document.getElementById('pg-'+id).classList.add('on');
     this.classList.add('on');
     const fab=document.getElementById('fab-btn');
-    fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog')||id==='worklog')?'flex':'none';
+    fab.style.display=(id==='todo'||id==='worklog')?'flex':'none';
     if(id==='home')renderHome();
     else if(id==='worklog')renderWorklogMain();
     else if(id==='delivery')renderDelivery();
