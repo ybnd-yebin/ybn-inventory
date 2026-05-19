@@ -320,34 +320,90 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- WORKLOG MAIN PAGE -->
 <div class="sec-pg" id="pg-worklog" style="padding:0 0 80px">
 
-  <!-- 오늘 작업 현황 헤더 -->
-  <div style="background:var(--acc3);padding:16px 18px;display:flex;align-items:center;justify-content:space-between">
+  <!-- 오늘 현황 헤더 -->
+  <div style="background:var(--acc3);padding:14px 18px;display:flex;align-items:center;justify-content:space-between">
     <div>
       <div style="font-size:11px;color:rgba(0,0,0,.5);font-weight:600;margin-bottom:2px">오늘 작업량</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:900;color:#fff" id="wl-today-total">0<span style="font-size:14px;margin-left:2px">장</span></div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:900;color:#fff" id="wl-today-total">0<span style="font-size:13px;margin-left:2px">장</span></div>
     </div>
     <div style="text-align:right">
       <div style="font-size:10px;color:rgba(0,0,0,.4)" id="wl-today-date"></div>
-      <div style="font-size:11px;color:rgba(0,0,0,.5);margin-top:2px"><span id="wl-today-wc" style="color:rgba(0,0,50,.5)">웜코튼 0</span> / <span id="wl-today-etp">에토프 0</span></div>
+      <div style="font-size:11px;color:rgba(0,0,0,.5);margin-top:2px">
+        <span id="wl-today-wc">웜코튼 0</span> / <span id="wl-today-etp">에토프 0</span>
+      </div>
+      <div style="font-size:10px;color:rgba(220,38,38,.6);margin-top:2px" id="wl-today-defect"></div>
     </div>
   </div>
 
-  <!-- 작업 입력 버튼 (크게) -->
-  <div style="padding:16px 14px 8px">
-    <button onclick="openWorkModal()" style="width:100%;padding:18px;background:var(--acc);border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:900;font-family:'Noto Sans KR',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(37,99,235,.3)">
-      <span style="font-size:22px">✏️</span> 작업 기록하기
+  <!-- 인쇄실 / 조립실 탭 -->
+  <div style="display:flex;background:#fff;border-bottom:2px solid var(--b1)">
+    <button class="wl-room-btn on" id="wroom-print" onclick="setWlRoom('print',this)"
+      style="flex:1;padding:12px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;color:var(--tx3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px">
+      🖨️ 인쇄실
+    </button>
+    <button class="wl-room-btn" id="wroom-assembly" onclick="setWlRoom('assembly',this)"
+      style="flex:1;padding:12px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;color:var(--tx3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px">
+      🔧 조립실
     </button>
   </div>
 
-  <!-- 오늘 작업 목록 -->
-  <div style="padding:0 14px 8px">
+  <!-- 인쇄실 패널 -->
+  <div id="wl-panel-print" style="padding:12px 14px">
+
+    <!-- 납품서 추천 체크리스트 -->
+    <div class="card" id="wl-recommend-card">
+      <div class="card-ttl">
+        <span>📦 오늘 납품서 작업 목록</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="checkAllWork()" style="padding:3px 10px;background:var(--acc3);border:none;border-radius:12px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체선택</button>
+          <button onclick="uncheckAllWork()" style="padding:3px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:12px;color:var(--tx2);font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체해제</button>
+        </div>
+      </div>
+      <div id="wl-recommend-list"></div>
+      <!-- 선택 항목 작업 완료 버튼 -->
+      <div id="wl-checklist-actions" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--b1)">
+        <div style="font-size:11px;color:var(--tx2);margin-bottom:8px" id="wl-checked-summary"></div>
+        <div style="display:flex;gap:8px">
+          <button onclick="confirmCheckedWork()" style="flex:1;padding:12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">✅ 작업 완료</button>
+          <button onclick="postponeCheckedWork()" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📅 내일로 미루기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 미뤄진 작업 -->
+    <div class="card" id="wl-postponed-card" style="display:none">
+      <div class="card-ttl"><span>📅 미뤄진 작업</span></div>
+      <div id="wl-postponed-list"></div>
+    </div>
+
+    <!-- 직접 추가 버튼 -->
+    <button onclick="openWorkModal()" style="width:100%;padding:14px;background:var(--acc);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:18px">✏️</span> 직접 검색해서 추가
+    </button>
+
+    <!-- 오늘 작업 완료 목록 -->
     <div class="card">
-      <div class="card-ttl">📋 오늘 작업 목록</div>
+      <div class="card-ttl">✅ 오늘 완료된 작업</div>
       <div id="wl-today-list"></div>
+    </div>
+
+  </div>
+
+  <!-- 조립실 패널 -->
+  <div id="wl-panel-assembly" style="display:none;padding:12px 14px">
+    <div class="info-note" style="margin-bottom:12px">
+      🔧 조립실 불량 차감 및 작업 기록
+    </div>
+    <button onclick="openWorkModalAssembly()" style="width:100%;padding:14px;background:var(--acc4);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:18px">🚫</span> 조립실 불량 차감
+    </button>
+    <div class="card">
+      <div class="card-ttl">📋 오늘 조립실 기록</div>
+      <div id="wl-assembly-list"></div>
     </div>
   </div>
 
-  <!-- 필터 -->
+  <!-- 이력 필터 -->
   <div style="padding:0 14px;margin-bottom:8px">
     <div class="filter-row" style="margin-bottom:0">
       <button class="f-btn on" onclick="setWlMainFilter('all',this)">전체 이력</button>
@@ -355,8 +411,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="f-btn" onclick="setWlMainFilter('week',this)">이번주</button>
     </div>
   </div>
-
-  <!-- 작업 이력 -->
   <div style="padding:0 14px">
     <div id="wl-main-list"></div>
   </div>
@@ -723,16 +777,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <div class="modal-bg" id="work-modal">
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeM('work-modal')">×</button>
-    <div class="modal-ttl">✏️ 작업 입력</div>
-    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px" id="wm-date"></div>
+    <div class="modal-ttl" id="wm-title">✏️ 작업 입력</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:12px" id="wm-date"></div>
+
+    <!-- 정상/불량 탭 -->
+    <div class="modal-tabs" style="margin-bottom:14px">
+      <button class="m-tab on" id="wtab-normal" onclick="setWorkTab('normal')">✅ 정상 작업</button>
+      <button class="m-tab" id="wtab-defect" onclick="setWorkTab('defect')" style="color:var(--acc4)">🚫 불량 차감</button>
+    </div>
+
     <span class="lbl">모델 검색</span>
     <input class="inp" id="wm-search" placeholder="제품코드 또는 모델명..." oninput="renderWorkSearch()" style="margin-bottom:6px">
     <div id="wm-results"></div>
     <div id="wm-selected" style="display:none">
-      <div class="sel-box"><div class="sel-label">✓ 선택됨</div><div style="font-size:13px;font-weight:700" id="wm-sel-name"></div><div style="font-size:10px;color:var(--tx2);margin-top:2px" id="wm-sel-meta"></div></div>
+      <div class="sel-box"><div class="sel-label" id="wm-sel-label">✓ 선택됨</div><div style="font-size:13px;font-weight:700" id="wm-sel-name"></div><div style="font-size:10px;color:var(--tx2);margin-top:2px" id="wm-sel-meta"></div></div>
     </div>
     <div id="wm-qty-box" style="display:none">
-      <span class="lbl">작업 수량</span>
+      <span class="lbl" id="wm-qty-label">작업 수량</span>
       <div class="qty-ctrl"><button class="qty-btn" onclick="wQtyD(-1)">−</button><input type="number" id="wm-qty" class="qty-num" value="1" min="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="wQty=parseInt(this.value)||0"><button class="qty-btn" onclick="wQtyD(1)">＋</button></div>
       <div class="quick-btns">
         <button class="q-btn" onclick="addWQ(5)">+5</button>
@@ -741,8 +802,29 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
         <button class="q-btn" onclick="addWQ(-10)">-10</button>
         <button class="q-btn" style="color:var(--acc4)" onclick="wQty=0;document.getElementById('wm-qty').value=0">초기화</button>
       </div>
-      <button class="act-btn green" onclick="confirmWork()">✓ 작업 기록 & 재고 반영</button>
-      <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px">원유리 차감 → 인쇄유리 증가 자동 반영</div>
+
+      <!-- 불량 사유 (불량 탭일 때만 표시) -->
+      <div id="wm-defect-reason" style="display:none;margin-bottom:12px">
+        <span class="lbl">불량 위치</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+          <button class="q-btn defect-loc-btn on" id="dloc-print" onclick="setDefectLoc('print',this)" style="padding:10px;font-size:11px">
+            🖨️ 인쇄실<br><span style="font-size:9px;color:var(--tx3)">원유리 차감</span>
+          </button>
+          <button class="q-btn defect-loc-btn" id="dloc-assembly" onclick="setDefectLoc('assembly',this)" style="padding:10px;font-size:11px">
+            🔧 조립실<br><span style="font-size:9px;color:var(--tx3)">인쇄유리 차감</span>
+          </button>
+        </div>
+        <span class="lbl">불량 사유</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <button class="q-btn defect-btn on" id="dr-crack" onclick="setDefectReason('파손/크랙',this)" style="padding:10px">파손/크랙</button>
+          <button class="q-btn defect-btn" id="dr-scratch" onclick="setDefectReason('스크래치',this)" style="padding:10px">스크래치</button>
+          <button class="q-btn defect-btn" id="dr-print" onclick="setDefectReason('인쇄불량',this)" style="padding:10px">인쇄불량</button>
+          <button class="q-btn defect-btn" id="dr-etc" onclick="setDefectReason('기타',this)" style="padding:10px">기타</button>
+        </div>
+      </div>
+
+      <button class="act-btn green" id="wm-confirm-btn" onclick="confirmWork()">✓ 작업 기록 & 재고 반영</button>
+      <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px" id="wm-confirm-desc">원유리 차감 → 인쇄유리 증가 자동 반영</div>
     </div>
   </div>
 </div>
@@ -1457,15 +1539,76 @@ function confirmStock(){
 }
 
 // ── WORK MODAL ──
-let wSelCode=null,wQty=1;
+let wSelCode=null,wQty=1,wMode='normal',wDefectReason='파손/크랙',wDefectLoc='print';
+
+function setWorkTab(mode){
+  wMode=mode;
+  const isDefect=mode==='defect';
+  document.getElementById('wtab-normal').classList.toggle('on',!isDefect);
+  document.getElementById('wtab-defect').classList.toggle('on',isDefect);
+  if(isDefect){
+    document.getElementById('wtab-defect').style.background='var(--acc4)';
+    document.getElementById('wtab-defect').style.color='#fff';
+    document.getElementById('wtab-normal').style.background='';
+    document.getElementById('wtab-normal').style.color='';
+  } else {
+    document.getElementById('wtab-normal').style.background='var(--acc)';
+    document.getElementById('wtab-normal').style.color='#0d1117';
+    document.getElementById('wtab-defect').style.background='';
+    document.getElementById('wtab-defect').style.color='var(--acc4)';
+  }
+  const defectBox=document.getElementById('wm-defect-reason');
+  if(defectBox) defectBox.style.display=isDefect?'block':'none';
+  updateDefectUI();
+}
+
+function setDefectLoc(loc, btn){
+  wDefectLoc=loc;
+  document.querySelectorAll('.defect-loc-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  btn.style.background='var(--acc4)';btn.style.color='#fff';btn.style.borderColor='var(--acc4)';
+  updateDefectUI();
+}
+
+function updateDefectUI(){
+  if(wMode!=='defect') return;
+  const btn=document.getElementById('wm-confirm-btn');
+  const desc=document.getElementById('wm-confirm-desc');
+  const lbl=document.getElementById('wm-qty-label');
+  if(wDefectLoc==='print'){
+    if(btn){btn.style.background='var(--acc4)';btn.textContent='🚫 인쇄실 불량 차감';}
+    if(desc) desc.innerHTML='<span style="color:var(--acc4)">원유리</span>에서 차감 (인쇄 전/후 불량)';
+    if(lbl) lbl.textContent='불량 수량 (원유리)';
+  } else {
+    if(btn){btn.style.background='var(--acc4)';btn.textContent='🚫 조립실 불량 차감';}
+    if(desc) desc.innerHTML='<span style="color:var(--acc4)">인쇄유리</span>에서 차감 (조립 중 불량)';
+    if(lbl) lbl.textContent='불량 수량 (인쇄유리)';
+  }
+}
+
+function setDefectReason(reason, btn){
+  wDefectReason=reason;
+  document.querySelectorAll('.defect-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  btn.style.background='var(--acc4)';btn.style.color='#fff';btn.style.borderColor='var(--acc4)';
+}
+
 function openWorkModal(){
-  wSelCode=null;wQty=1;
+  wSelCode=null;wQty=1;wMode='normal';wDefectReason='파손/크랙';wDefectLoc='print';
   document.getElementById('wm-search').value='';
   document.getElementById('wm-results').innerHTML='';
   document.getElementById('wm-selected').style.display='none';
   document.getElementById('wm-qty-box').style.display='none';
-  document.getElementById('wm-qty').textContent='1';
+  document.getElementById('wm-qty').value=1;
   document.getElementById('wm-date').textContent=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+  // 탭 초기화
+  setWorkTab('normal');
+  // 불량 위치 초기화
+  document.querySelectorAll('.defect-loc-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  const printBtn=document.getElementById('dloc-print');
+  if(printBtn){printBtn.style.background='var(--acc4)';printBtn.style.color='#fff';printBtn.style.borderColor='var(--acc4)';}
+  // 불량 사유 초기화
+  document.querySelectorAll('.defect-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  const firstBtn=document.getElementById('dr-crack');
+  if(firstBtn){firstBtn.style.background='var(--acc4)';firstBtn.style.color='#fff';firstBtn.style.borderColor='var(--acc4)';}
   document.getElementById('work-modal').classList.add('on');
 }
 function renderWorkSearch(){
@@ -1496,20 +1639,43 @@ function wQtyD(d){wQty=Math.max(1,wQty+d);document.getElementById('wm-qty').text
 function setWQ(n){wQty=n;document.getElementById('wm-qty').textContent=n;}
 function confirmWork(){
   if(!wSelCode){showToast('모델을 먼저 선택하세요');return;}
-  // input 타입이므로 value에서 읽기
   const qtyEl=document.getElementById('wm-qty');
   wQty=qtyEl?Math.max(1,parseInt(qtyEl.value)||wQty):wQty;
   if(wQty<=0){showToast('수량을 입력하세요');return;}
+
   const s=getStock(wSelCode);
-  stock[wSelCode]={raw:Math.max(0,s.raw-wQty),printed:s.printed+wQty};
   const td=todayStr();
   let dl=workLog.find(d=>d.date===td);
   if(!dl){dl={date:td,items:[]};workLog.push(dl);}
-  const ex=dl.items.find(i=>i.code===wSelCode);
-  if(ex)ex.qty+=wQty;else dl.items.push({code:wSelCode,qty:wQty});
+
+  if(wMode==='defect'){
+    if(wDefectLoc==='print'){
+      // 인쇄실 불량: 원유리만 차감
+      stock[wSelCode]={raw:Math.max(0,s.raw-wQty), printed:s.printed};
+      const ex=dl.items.find(i=>i.code===wSelCode&&i.type==='defect'&&i.loc==='print'&&i.reason===wDefectReason);
+      if(ex) ex.qty+=wQty;
+      else dl.items.push({code:wSelCode,qty:wQty,type:'defect',loc:'print',reason:wDefectReason});
+      showToast('🚫 인쇄실 불량 '+wQty+'장 차감 ('+wDefectReason+')');
+    } else {
+      // 조립실 불량: 인쇄유리만 차감
+      stock[wSelCode]={raw:s.raw, printed:Math.max(0,s.printed-wQty)};
+      const ex=dl.items.find(i=>i.code===wSelCode&&i.type==='defect'&&i.loc==='assembly'&&i.reason===wDefectReason);
+      if(ex) ex.qty+=wQty;
+      else dl.items.push({code:wSelCode,qty:wQty,type:'defect',loc:'assembly',reason:wDefectReason});
+      showToast('🚫 조립실 불량 '+wQty+'장 차감 ('+wDefectReason+')');
+    }
+  } else {
+    // 정상 작업: 원유리 차감 + 인쇄유리 증가
+    stock[wSelCode]={raw:Math.max(0,s.raw-wQty), printed:s.printed+wQty};
+    const ex=dl.items.find(i=>i.code===wSelCode&&i.type==='work');
+    if(ex) ex.qty+=wQty;
+    else dl.items.push({code:wSelCode,qty:wQty,type:'work'});
+    showToast('✓ '+wQty+'장 기록');
+  }
+
   meta.lastWork=meta.lastStock=new Date().toISOString();
-  saveAll();closeM('work-modal');showToast('✓ '+wQty+'장 기록');
-  renderWorkLog();renderDash();renderHome();autoSync();
+  saveAll(); closeM('work-modal');
+  renderWorklogMain(); renderDash(); renderHome(); autoSync();
 }
 
 // ── TREND ──
@@ -2717,13 +2883,16 @@ function setWlMainFilter(f,btn){
 function renderWorklogMain(){
   const td=todayStr();
   const tl=workLog.find(d=>d.date===td);
-  const tw=tl?tl.items.reduce((a,i)=>a+i.qty,0):0;
-  const wcQ=tl?tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0):0;
-  const etpQ=tl?tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0):0;
+  // 정상 작업만 카운트 (불량 제외)
+  const normalItems=tl?tl.items.filter(i=>i.type!=='defect'):[];
+  const defectItems=tl?tl.items.filter(i=>i.type==='defect'):[];
+  const tw=normalItems.reduce((a,i)=>a+i.qty,0);
+  const defectTotal=defectItems.reduce((a,i)=>a+i.qty,0);
+  const wcQ=normalItems.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
+  const etpQ=normalItems.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
 
-  // 헤더 업데이트
   const totalEl=document.getElementById('wl-today-total');
-  if(totalEl) totalEl.innerHTML=tw+'<span style="font-size:14px;margin-left:2px">장</span>';
+  if(totalEl) totalEl.innerHTML=tw+'<span style="font-size:14px;margin-left:2px">장</span>'+(defectTotal>0?'<span style="font-size:11px;color:rgba(255,255,255,.7);margin-left:6px">불량 -'+defectTotal+'</span>':'');
   const dateEl=document.getElementById('wl-today-date');
   if(dateEl) dateEl.textContent=new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const wcEl=document.getElementById('wl-today-wc');
@@ -2739,15 +2908,19 @@ function renderWorklogMain(){
     } else {
       todayListEl.innerHTML=tl.items.map(it=>{
         const m=MODELS.find(x=>x.code===it.code);
-        const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
+        const isDefect=it.type==='defect';
+        const dot=isDefect?'var(--acc4)':m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
         const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1)">
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1);${isDefect?'opacity:.8':''}">
           <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m?hlName(m.short,m.color):it.code}</div>
+            <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              ${m?hlName(m.short,m.color):it.code}
+              ${isDefect?`<span style="font-size:10px;background:rgba(248,81,73,.15);color:var(--acc4);padding:1px 6px;border-radius:8px;margin-left:4px">🚫 ${it.loc==='assembly'?'조립실':'인쇄실'} ${it.reason||'불량'}</span>`:''}
+            </div>
             <div style="font-size:10px;color:var(--tx2)">${it.code}${sz?' | 📐 '+sz:''}</div>
           </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:900;color:var(--acc3);flex-shrink:0">${it.qty}<span style="font-size:11px;color:var(--tx3)">장</span></div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:900;color:${isDefect?'var(--acc4)':'var(--acc3)'};flex-shrink:0">${isDefect?'-':''}${it.qty}<span style="font-size:11px;color:var(--tx3)">장</span></div>
         </div>`;
       }).join('');
     }
@@ -2767,9 +2940,12 @@ function renderWorklogMain(){
   if(!logs.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📝</div>기록 없음</div>';return;}
 
   listEl.innerHTML=logs.map(day=>{
-    const dayTotal=day.items.reduce((a,i)=>a+i.qty,0);
-    const wc=day.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
-    const etp=day.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    const normalIt=day.items.filter(i=>i.type!=='defect');
+    const defectIt=day.items.filter(i=>i.type==='defect');
+    const dayTotal=normalIt.reduce((a,i)=>a+i.qty,0);
+    const dayDefect=defectIt.reduce((a,i)=>a+i.qty,0);
+    const wc=normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etp=normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
     const isToday=day.date===td;
     const dl=new Date(day.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
     return `<div class="card" style="margin-bottom:8px">
@@ -2779,24 +2955,31 @@ function renderWorklogMain(){
           <div style="font-size:10px;color:var(--tx2);margin-top:2px">
             <span style="color:var(--wc)">웜코튼 ${wc}장</span> &nbsp;
             <span style="color:var(--etp)">에토프 ${etp}장</span>
+            ${dayDefect>0?`&nbsp; <span style="color:var(--acc4)">🚫 불량 ${dayDefect}장</span>`:''}
           </div>
         </div>
         <div style="text-align:right">
           <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:900;color:var(--acc3)">${dayTotal}</div>
-          <div style="font-size:10px;color:var(--tx3)">총 장수</div>
+          <div style="font-size:10px;color:var(--tx3)">정상작업</div>
         </div>
       </div>
       ${day.items.map(it=>{
         const m=MODELS.find(x=>x.code===it.code);
-        const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
+        const isDefect=it.type==='defect';
+        const dot=isDefect?'var(--acc4)':m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
         const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--b1)">
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--b1)${isDefect?';background:rgba(248,81,73,.03)':''}">
           <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m?hlName(m.short,m.color):it.code}</div>
+            <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              ${m?hlName(m.short,m.color):it.code}
+              ${isDefect?`<span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:3px">🚫 ${it.loc==='assembly'?'조립실':'인쇄실'} ${it.reason||'불량'}</span>`:''}
+            </div>
             <div style="font-size:10px;color:var(--tx2)">${sz}</div>
           </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc3)">${it.qty}장</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${isDefect?'var(--acc4)':'var(--acc3)'}">
+            ${isDefect?'-':''}${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span>
+          </div>
         </div>`;
       }).join('')}
     </div>`;
@@ -2874,6 +3057,410 @@ function toggleDelivDetail(id, hdr){
   el.style.display=isOpen?'none':'block';
   const arrow=hdr.querySelector('.deliv-arrow');
   if(arrow) arrow.textContent=isOpen?'▼':'▲';
+}
+
+// ══════════════════════════════════════════════════
+//  작업일지 - 인쇄실/조립실 탭 + 납품서 체크리스트
+// ══════════════════════════════════════════════════
+
+let wlRoom = 'print'; // 'print' | 'assembly'
+// checklist: {code, qty, checked} 형태로 오늘 납품서 기반
+let wlChecklist = []; // 오늘 체크리스트 상태
+// postponed: [{code, short, size, qty, fromDate}]
+let wlPostponed = JSON.parse(localStorage.getItem('ybn-wl-postponed')||'[]');
+
+function savePostponed(){
+  localStorage.setItem('ybn-wl-postponed', JSON.stringify(wlPostponed));
+}
+
+function setWlRoom(room, btn){
+  wlRoom = room;
+  document.querySelectorAll('.wl-room-btn').forEach(b=>{
+    b.style.color='var(--tx3)';
+    b.style.borderBottomColor='transparent';
+    b.style.background='none';
+  });
+  btn.style.color = room==='print'?'var(--acc3)':'var(--acc4)';
+  btn.style.borderBottomColor = room==='print'?'var(--acc3)':'var(--acc4)';
+
+  document.getElementById('wl-panel-print').style.display = room==='print'?'block':'none';
+  document.getElementById('wl-panel-assembly').style.display = room==='assembly'?'block':'none';
+
+  if(room==='print') renderWlPrint();
+  else renderWlAssembly();
+}
+
+// ── 인쇄실 패널 렌더 ──
+function renderWlPrint(){
+  renderWlRecommend();
+  renderWlPostponed();
+  renderWlTodayList();
+}
+
+// 납품서 기반 추천 체크리스트
+function renderWlRecommend(){
+  const el = document.getElementById('wl-recommend-list');
+  if(!el) return;
+
+  const td = todayStr();
+
+  // 오늘 납품서 + 미뤄진 항목 합치기
+  // 납품서에서 오늘 또는 가장 최근 납품일 찾기
+  let targetDelivItems = [];
+  if(delivLog && delivLog.length){
+    const sorted = [...delivLog].sort((a,b)=>b.delivDate.localeCompare(a.delivDate));
+    // 오늘 납품일이 있으면 오늘 것, 없으면 가장 최근
+    const target = sorted.find(d=>d.delivDate===td) || sorted[0];
+    if(target){
+      targetDelivItems = target.items.filter(i=>{
+        // Grace 모델만 (DB에 있는 것)
+        return MODELS.find(m=>m.code===i.code);
+      });
+    }
+  }
+
+  // 체크리스트 초기화 (납품서 기준, 이미 있으면 유지)
+  if(wlChecklist.length === 0 && targetDelivItems.length > 0){
+    wlChecklist = targetDelivItems.map(i=>({
+      code: i.code,
+      short: i.short || (MODELS.find(m=>m.code===i.code)||{}).short || i.code,
+      size: i.size || '',
+      qty: i.qty,
+      checked: false,
+      done: false, // 이미 작업 완료된 것
+    }));
+  }
+
+  // 이미 오늘 작업된 항목 done 표시
+  const td2 = todayStr();
+  const todayLog = workLog.find(d=>d.date===td2);
+  if(todayLog){
+    wlChecklist.forEach(item=>{
+      const worked = todayLog.items.find(i=>i.code===item.code && i.type==='work');
+      if(worked && worked.qty >= item.qty) item.done = true;
+    });
+  }
+
+  if(!wlChecklist.length && !wlPostponed.filter(p=>p.targetDate===td).length){
+    el.innerHTML = `<div class="empty-sm" style="padding:12px 0;text-align:center">
+      오늘 납품서 데이터 없음<br>
+      <span style="font-size:11px;color:var(--tx3)">발주서 엑셀 업로드 후 자동 표시됩니다</span>
+    </div>`;
+    document.getElementById('wl-checklist-actions').style.display='none';
+    return;
+  }
+
+  // 체크된 수량 계산
+  const checkedItems = wlChecklist.filter(i=>i.checked && !i.done);
+  const checkedQty = checkedItems.reduce((a,i)=>a+i.qty, 0);
+
+  // 버튼 영역 표시
+  const actEl = document.getElementById('wl-checklist-actions');
+  const sumEl = document.getElementById('wl-checked-summary');
+  if(checkedItems.length > 0){
+    actEl.style.display='block';
+    if(sumEl) sumEl.textContent = `${checkedItems.length}개 모델 / ${checkedQty}장 선택됨`;
+  } else {
+    actEl.style.display='none';
+  }
+
+  el.innerHTML = wlChecklist.map((item, idx)=>{
+    const m = MODELS.find(x=>x.code===item.code);
+    const dot = m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
+    const doneStyle = item.done ? 'opacity:.4;text-decoration:line-through' : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1);${doneStyle}"
+      onclick="${item.done?'':` toggleWlCheck(${idx})`}">
+      <div style="width:22px;height:22px;border-radius:6px;border:2px solid ${item.checked||item.done?'var(--acc3)':'var(--b2)'};background:${item.checked||item.done?'var(--acc3)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff">
+        ${item.checked||item.done?'✓':''}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${m?hlName(item.short,m.color):item.short||item.code}
+          ${item.done?'<span style="font-size:10px;color:var(--acc3);margin-left:4px">완료</span>':''}
+        </div>
+        <div style="font-size:10px;color:var(--tx2)">${item.code} ${item.size?'| 📐 '+item.size:''}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc2);flex-shrink:0">${item.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleWlCheck(idx){
+  if(!wlChecklist[idx]) return;
+  wlChecklist[idx].checked = !wlChecklist[idx].checked;
+  renderWlRecommend();
+}
+
+function checkAllWork(){
+  wlChecklist.forEach(i=>{ if(!i.done) i.checked=true; });
+  renderWlRecommend();
+}
+
+function uncheckAllWork(){
+  wlChecklist.forEach(i=>{ i.checked=false; });
+  renderWlRecommend();
+}
+
+// 선택 항목 작업 완료 처리
+function confirmCheckedWork(){
+  const checked = wlChecklist.filter(i=>i.checked && !i.done);
+  if(!checked.length){showToast('선택된 항목이 없습니다');return;}
+
+  const td = todayStr();
+  let dl = workLog.find(d=>d.date===td);
+  if(!dl){dl={date:td,items:[]};workLog.push(dl);}
+
+  checked.forEach(item=>{
+    const s = getStock(item.code);
+    stock[item.code] = {raw:Math.max(0,s.raw-item.qty), printed:s.printed+item.qty};
+    const ex = dl.items.find(i=>i.code===item.code && i.type==='work');
+    if(ex) ex.qty+=item.qty;
+    else dl.items.push({code:item.code, qty:item.qty, type:'work'});
+    item.done = true;
+    item.checked = false;
+  });
+
+  meta.lastWork = meta.lastStock = new Date().toISOString();
+  saveAll(); renderWorklogMain(); renderDash(); renderHome(); autoSync();
+  showToast(`✅ ${checked.length}개 모델 / ${checked.reduce((a,i)=>a+i.qty,0)}장 작업 완료`);
+}
+
+// 선택 항목 내일로 미루기
+function postponeCheckedWork(){
+  const checked = wlChecklist.filter(i=>i.checked && !i.done);
+  if(!checked.length){showToast('선택된 항목이 없습니다');return;}
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate()+1);
+  const tomorrowStr = tomorrow.toISOString().slice(0,10);
+
+  checked.forEach(item=>{
+    wlPostponed.push({
+      code: item.code,
+      short: item.short,
+      size: item.size,
+      qty: item.qty,
+      fromDate: todayStr(),
+      targetDate: tomorrowStr,
+    });
+    item.checked = false;
+    // 체크리스트에서 제거
+    item.postponed = true;
+  });
+  wlChecklist = wlChecklist.filter(i=>!i.postponed);
+
+  savePostponed();
+  renderWlPrint();
+  showToast(`📅 ${checked.length}개 항목 내일로 미뤄짐`);
+}
+
+// 미뤄진 작업 렌더
+function renderWlPostponed(){
+  const el = document.getElementById('wl-postponed-list');
+  const card = document.getElementById('wl-postponed-card');
+  if(!el||!card) return;
+
+  const td = todayStr();
+  const todayPostponed = wlPostponed.filter(p=>p.targetDate===td);
+
+  if(!todayPostponed.length){
+    card.style.display='none';
+    return;
+  }
+  card.style.display='block';
+
+  el.innerHTML = todayPostponed.map((p,idx)=>{
+    const m = MODELS.find(x=>x.code===p.code);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--b1)">
+      <div style="font-size:14px">📅</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700">${m?hlName(p.short,m.color):p.short||p.code}</div>
+        <div style="font-size:10px;color:var(--tx3)">${p.fromDate.slice(5).replace('-','/')} 에서 미뤄짐 | ${p.size||''}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--acc2)">${p.qty}장</div>
+      <button onclick="addPostponedToChecklist(${idx})" style="padding:4px 8px;background:var(--acc);border:none;border-radius:6px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;flex-shrink:0">추가</button>
+      <button onclick="dismissPostponed(${idx})" style="padding:4px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function addPostponedToChecklist(idx){
+  const td = todayStr();
+  const todayPostponed = wlPostponed.filter(p=>p.targetDate===td);
+  const p = todayPostponed[idx];
+  if(!p) return;
+  wlChecklist.push({code:p.code, short:p.short, size:p.size, qty:p.qty, checked:false, done:false});
+  // 미뤄진 목록에서 제거
+  const globalIdx = wlPostponed.findIndex(x=>x===p);
+  if(globalIdx>=0) wlPostponed.splice(globalIdx,1);
+  savePostponed();
+  renderWlPrint();
+  showToast('체크리스트에 추가됨');
+}
+
+function dismissPostponed(idx){
+  const td = todayStr();
+  const todayPostponed = wlPostponed.filter(p=>p.targetDate===td);
+  const p = todayPostponed[idx];
+  if(!p) return;
+  const globalIdx = wlPostponed.findIndex(x=>x===p);
+  if(globalIdx>=0) wlPostponed.splice(globalIdx,1);
+  savePostponed();
+  renderWlPostponed();
+}
+
+// 오늘 완료 목록
+function renderWlTodayList(){
+  const el = document.getElementById('wl-today-list');
+  if(!el) return;
+  const td = todayStr();
+  const tl = workLog.find(d=>d.date===td);
+  const normalItems = tl ? tl.items.filter(i=>i.type==='work') : [];
+  if(!normalItems.length){
+    el.innerHTML='<div class="empty-sm" style="padding:8px 0;text-align:center;font-size:11px;color:var(--tx3)">아직 완료된 작업 없음</div>';
+    return;
+  }
+  el.innerHTML = normalItems.map(it=>{
+    const m = MODELS.find(x=>x.code===it.code);
+    const dot = m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
+    const sz = m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1)">
+      <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m?hlName(m.short,m.color):it.code}</div>
+        <div style="font-size:10px;color:var(--tx2)">${sz}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc3)">${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+    </div>`;
+  }).join('');
+}
+
+// 조립실 패널
+function renderWlAssembly(){
+  const el = document.getElementById('wl-assembly-list');
+  if(!el) return;
+  const td = todayStr();
+  const tl = workLog.find(d=>d.date===td);
+  const assemblyItems = tl ? tl.items.filter(i=>i.type==='defect'&&i.loc==='assembly') : [];
+  if(!assemblyItems.length){
+    el.innerHTML='<div class="empty-sm" style="padding:8px 0;text-align:center;font-size:11px;color:var(--tx3)">오늘 조립실 기록 없음</div>';
+    return;
+  }
+  el.innerHTML = assemblyItems.map(it=>{
+    const m = MODELS.find(x=>x.code===it.code);
+    const sz = m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1)">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--acc4);flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600">${m?hlName(m.short,m.color):it.code}
+          <span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:3px">🚫 ${it.reason||'불량'}</span>
+        </div>
+        <div style="font-size:10px;color:var(--tx2)">${sz}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc4)">-${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+    </div>`;
+  }).join('');
+}
+
+// 조립실 불량 모달 열기
+function openWorkModalAssembly(){
+  openWorkModal();
+  setTimeout(()=>setWorkTab('defect'), 50);
+  setTimeout(()=>{
+    const assemblyBtn = document.getElementById('dloc-assembly');
+    if(assemblyBtn) setDefectLoc('assembly', assemblyBtn);
+  }, 100);
+}
+
+// renderWorklogMain 오버라이드
+function renderWorklogMain(){
+  const td = todayStr();
+  const tl = workLog.find(d=>d.date===td);
+  const normalItems = tl ? tl.items.filter(i=>i.type==='work') : [];
+  const defectItems = tl ? tl.items.filter(i=>i.type==='defect') : [];
+  const tw = normalItems.reduce((a,i)=>a+i.qty, 0);
+  const defectTotal = defectItems.reduce((a,i)=>a+i.qty, 0);
+  const wcQ = normalItems.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
+  const etpQ = normalItems.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+
+  const totalEl = document.getElementById('wl-today-total');
+  if(totalEl) totalEl.innerHTML = tw+'<span style="font-size:13px;margin-left:2px">장</span>';
+  const dateEl = document.getElementById('wl-today-date');
+  if(dateEl) dateEl.textContent = new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+  const wcEl = document.getElementById('wl-today-wc');
+  const etpEl = document.getElementById('wl-today-etp');
+  if(wcEl) wcEl.textContent = '웜코튼 '+wcQ+'장';
+  if(etpEl) etpEl.textContent = '에토프 '+etpQ+'장';
+  const defEl = document.getElementById('wl-today-defect');
+  if(defEl) defEl.textContent = defectTotal>0 ? '🚫 불량 '+defectTotal+'장' : '';
+
+  // 현재 탭에 맞게 렌더
+  if(wlRoom==='print') renderWlPrint();
+  else renderWlAssembly();
+
+  // 이력 렌더
+  renderWlHistory();
+}
+
+function renderWlHistory(){
+  const listEl = document.getElementById('wl-main-list');
+  if(!listEl) return;
+
+  const td = todayStr();
+  const now = new Date();
+  const weekAgo = new Date(now-7*86400000).toISOString().slice(0,10);
+
+  let logs = [...workLog].sort((a,b)=>b.date.localeCompare(a.date));
+  if(wlMainFilter==='today') logs = logs.filter(d=>d.date===td);
+  else if(wlMainFilter==='week') logs = logs.filter(d=>d.date>=weekAgo);
+
+  if(!logs.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📝</div>기록 없음</div>';return;}
+
+  listEl.innerHTML = logs.map(day=>{
+    const normalIt = day.items.filter(i=>i.type!=='defect');
+    const defectIt = day.items.filter(i=>i.type==='defect');
+    const dayTotal = normalIt.reduce((a,i)=>a+i.qty,0);
+    const dayDefect = defectIt.reduce((a,i)=>a+i.qty,0);
+    const wc = normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etp = normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    const isToday = day.date===td;
+    const dl = new Date(day.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+    return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${day.items.length?'10px':'0'}">
+        <div>
+          <div style="font-size:13px;font-weight:700">${isToday?'🟢 오늘 — ':''} ${dl}</div>
+          <div style="font-size:10px;color:var(--tx2);margin-top:2px">
+            <span style="color:var(--wc)">웜코튼 ${wc}장</span> &nbsp;
+            <span style="color:var(--etp)">에토프 ${etp}장</span>
+            ${dayDefect>0?`&nbsp; <span style="color:var(--acc4)">🚫 불량 ${dayDefect}장</span>`:''}
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:900;color:var(--acc3)">${dayTotal}</div>
+          <div style="font-size:10px;color:var(--tx3)">정상작업</div>
+        </div>
+      </div>
+      ${day.items.map(it=>{
+        const m = MODELS.find(x=>x.code===it.code);
+        const isDefect = it.type==='defect';
+        const dot = isDefect?'var(--acc4)':m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
+        const sz = m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--b1)">
+          <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              ${m?hlName(m.short,m.color):it.code}
+              ${isDefect?`<span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:3px">🚫 ${it.loc==='assembly'?'조립실':'인쇄실'} ${it.reason||'불량'}</span>`:''}
+            </div>
+            <div style="font-size:10px;color:var(--tx2)">${sz}</div>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${isDefect?'var(--acc4)':'var(--acc3)'}">
+            ${isDefect?'-':''}${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
 }
 
 // ── 자재 데이터 초기화 ──
