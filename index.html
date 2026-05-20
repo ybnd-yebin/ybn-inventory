@@ -430,6 +430,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- TODO -->
 <div class="sec-pg" id="pg-todo">
+  <button onclick="openTodoModal()" style="width:100%;padding:14px;background:var(--acc);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">
+    <span style="font-size:18px">✅</span> 할일 추가하기
+  </button>
   <input class="inp" id="todo-search" placeholder="🔍 할일 검색..." oninput="renderTodo()" style="margin-bottom:10px">
   <div class="filter-row">
     <button class="f-btn on" onclick="setTodoFilter('all',this)">전체</button>
@@ -1605,9 +1608,14 @@ function renderWorkSearch(){
   if(!q){el.innerHTML='';return;}
 
   const results=(typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS:[]).filter(sg=>{
+    // 사이즈 숫자 검색
     if(String(sg.w).includes(q)||String(sg.h).includes(q)) return true;
     if(`${sg.w}x${sg.h}`.includes(q)||`${sg.w}×${sg.h}`.includes(q)) return true;
-    return sg.tags&&sg.tags.some(t=>t.includes(q));
+    // 모델명 직접 검색 (대소문자, 한글 모두)
+    if(sg.models&&sg.models.some(m=>m.toLowerCase().includes(q))) return true;
+    // tags 검색
+    if(sg.tags&&sg.tags.some(t=>t.toLowerCase().includes(q))) return true;
+    return false;
   }).slice(0,8);
 
   if(!results.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
@@ -3645,6 +3653,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
   const pages=['home','worklog','delivery','todo','board','stock','mat','order-analysis','settings'];
   btn.onclick=function(){
     const id=pages[i];
+    curMain=id;
     document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
     document.querySelectorAll('.main-nav-btn').forEach(b=>b.classList.remove('on'));
     document.getElementById('pg-'+id).classList.add('on');
