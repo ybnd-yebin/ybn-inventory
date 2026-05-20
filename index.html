@@ -772,8 +772,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="m-tab" id="wtab-defect" onclick="setWorkTab('defect')" style="color:var(--acc4)">🚫 불량 차감</button>
     </div>
 
-    <span class="lbl">모델 검색</span>
-    <input class="inp" id="wm-search" placeholder="제품코드 또는 모델명..." oninput="renderWorkSearch()" style="margin-bottom:6px">
+    <!-- 모드 안내 -->
+    <div id="wm-mode-hint" style="padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:11px;font-weight:600"></div>
+
+    <span class="lbl" id="wm-search-label">검색</span>
+    <input class="inp" id="wm-search" placeholder="사이즈 또는 모델명..." oninput="renderWorkSearch()" style="margin-bottom:6px">
     <div id="wm-results"></div>
     <div id="wm-selected" style="display:none">
       <div class="sel-box"><div class="sel-label" id="wm-sel-label">✓ 선택됨</div><div style="font-size:13px;font-weight:700" id="wm-sel-name"></div><div style="font-size:10px;color:var(--tx2);margin-top:2px" id="wm-sel-meta"></div></div>
@@ -1664,8 +1667,22 @@ function openWorkModal(){
   document.getElementById('wm-qty-box').style.display='none';
   document.getElementById('wm-qty').value=1;
   document.getElementById('wm-date').textContent=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+
+  // 인쇄실/조립실 모드에 따라 힌트 + 검색 플레이스홀더 변경
+  const hintEl=document.getElementById('wm-mode-hint');
+  const searchEl=document.getElementById('wm-search');
+  const lblEl=document.getElementById('wm-search-label');
+  if(wlRoom==='print'){
+    if(hintEl){hintEl.style.background='rgba(37,99,235,.08)';hintEl.style.color='var(--acc)';hintEl.textContent='🖨️ 인쇄실 — 사이즈 기준으로 입력 (모델명으로도 검색 가능)';}
+    if(searchEl) searchEl.placeholder='사이즈(예: 595 729) 또는 모델명(예: 6073)...';
+    if(lblEl) lblEl.textContent='사이즈 검색';
+  } else {
+    if(hintEl){hintEl.style.background='rgba(248,81,73,.06)';hintEl.style.color='var(--acc4)';hintEl.textContent='🔧 조립실 — 모델명 기준으로 입력';}
+    if(searchEl) searchEl.placeholder='모델명(예: OB M 6073, HD B 4591)...';
+    if(lblEl) lblEl.textContent='모델 검색';
+  }
+
   setWorkTab('normal');
-  // 색상 초기화 (웜코튼 기본 선택)
   const wcBtn=document.getElementById('wcolor-wc');
   const etpBtn=document.getElementById('wcolor-etp');
   if(wcBtn){wcBtn.style.background='rgba(121,192,255,.25)';wcBtn.style.borderColor='var(--wc)';wcBtn.style.color='var(--wc)';}
@@ -1683,44 +1700,117 @@ function renderWorkSearch(){
   const el=document.getElementById('wm-results');
   if(!q){el.innerHTML='';return;}
 
-  // MODELS에서 검색 (모델명, 사이즈, 코드)
-  const results=MODELS.filter(m=>{
-    if(!m.short) return false;
-    if(m.short.toLowerCase().includes(q)) return true;
-    if(String(m.glass_w).includes(q)||String(m.glass_h).includes(q)) return true;
-    if(`${m.glass_w}x${m.glass_h}`.includes(q)||`${m.glass_w}×${m.glass_h}`.includes(q)) return true;
-    return false;
-  }).slice(0,10);
-
-  if(!results.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
-
   const CC={'WC':'var(--wc)','ETP':'var(--etp)','':'var(--tx2)'};
   const CL={'WC':'웜코튼','ETP':'에토프','':'미지정'};
 
-  el.innerHTML=results.map(m=>{
-    const s=getSzStock(m.glass_w,m.glass_h,m.color);
-    const color=m.color||'';
-    const dotColor=CC[color]||'var(--tx2)';
-    const colorBg=color==='WC'?'rgba(121,192,255,.15)':color==='ETP'?'rgba(255,166,87,.15)':'var(--s2)';
-    const sz=m.glass_w?`${m.glass_w}×${m.glass_h} mm`:'';
-    const isSelected=wSelModel&&wSelModel.short===m.short&&wSelModel.color===m.color;
-    return `<div onclick="selectWorkModel('${m.short.replace(/'/g,"\\'")}','${color}',${m.glass_w},${m.glass_h})"
-      style="padding:12px 14px;border-bottom:1px solid var(--b1);cursor:pointer;background:${isSelected?'rgba(37,99,235,.06)':'transparent'};active:background:var(--s2)">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:14px;font-weight:800;margin-bottom:3px">${hlName(m.short, m.color)}</div>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:10px;color:var(--tx3)">${sz}</span>
-            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${colorBg};color:${dotColor}">${CL[color]}</span>
+  if(wlRoom==='print'){
+    // ── 인쇄실: 사이즈 그룹으로 검색 ──
+    const sizeResults=(typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS:[]).filter(sg=>{
+      if(String(sg.w).includes(q)||String(sg.h).includes(q)) return true;
+      if(`${sg.w}x${sg.h}`.includes(q)||`${sg.w}×${sg.h}`.includes(q)) return true;
+      if(sg.models&&sg.models.some(m=>m.toLowerCase().includes(q))) return true;
+      if(sg.tags&&sg.tags.some(t=>t.includes(q))) return true;
+      return false;
+    }).slice(0,6);
+
+    if(!sizeResults.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
+    el.innerHTML=sizeResults.map(sg=>{
+      const wcS=getSzStock(sg.w,sg.h,'WC');
+      const etpS=getSzStock(sg.w,sg.h,'ETP');
+      const modelTags=sg.models.slice(0,3).map(m=>`<span style="font-size:9px;background:var(--s2);border:1px solid var(--b1);border-radius:3px;padding:1px 5px">${m}</span>`).join(' ');
+      const more=sg.models.length>3?`<span style="font-size:9px;color:var(--tx3)"> +${sg.models.length-3}종</span>`:'';
+      return `<div style="border-bottom:1px solid var(--b1)">
+        <div style="padding:10px 12px 4px;font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:var(--acc)">
+          ${sg.w} × ${sg.h} <span style="font-size:10px;font-weight:400;color:var(--tx3)">mm</span>
+        </div>
+        <div style="padding:0 12px 4px;display:flex;flex-wrap:wrap;gap:3px">${modelTags}${more}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;padding:0 12px 10px;gap:6px">
+          <div onclick="selectPrintSize(${sg.w},${sg.h},'WC')"
+            style="padding:8px;background:rgba(121,192,255,.12);border:1.5px solid var(--wc);border-radius:8px;cursor:pointer;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--wc);margin-bottom:2px">🔵 웜코튼</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:${wcS.raw>0?'var(--acc)':'var(--tx3)'}">${wcS.raw}<span style="font-size:10px">장</span></div>
+          </div>
+          <div onclick="selectPrintSize(${sg.w},${sg.h},'ETP')"
+            style="padding:8px;background:rgba(253,186,116,.12);border:1.5px solid var(--etp);border-radius:8px;cursor:pointer;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--etp);margin-bottom:2px">🟠 에토프</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:${etpS.raw>0?'var(--acc)':'var(--tx3)'}">${etpS.raw}<span style="font-size:10px">장</span></div>
           </div>
         </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:10px;color:var(--tx3)">원유리</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:${s.raw>0?'var(--acc)':'var(--tx3)'}">${s.raw}<span style="font-size:10px">장</span></div>
+      </div>`;
+    }).join('');
+
+  } else {
+    // ── 조립실: 모델별 검색 ──
+    const results=MODELS.filter(m=>{
+      if(!m.short) return false;
+      if(m.short.toLowerCase().includes(q)) return true;
+      if(String(m.glass_w).includes(q)||String(m.glass_h).includes(q)) return true;
+      if(`${m.glass_w}x${m.glass_h}`.includes(q)||`${m.glass_w}×${m.glass_h}`.includes(q)) return true;
+      return false;
+    }).slice(0,10);
+
+    if(!results.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
+    el.innerHTML=results.map(m=>{
+      const s=getSzStock(m.glass_w,m.glass_h,m.color);
+      const color=m.color||'';
+      const dotColor=CC[color]||'var(--tx2)';
+      const colorBg=color==='WC'?'rgba(121,192,255,.15)':color==='ETP'?'rgba(255,166,87,.15)':'var(--s2)';
+      const sz=m.glass_w?`${m.glass_w}×${m.glass_h} mm`:'';
+      return `<div onclick="selectWorkModel('${m.short.replace(/'/g,"\\'")}','${color}',${m.glass_w},${m.glass_h})"
+        style="padding:12px 14px;border-bottom:1px solid var(--b1);cursor:pointer">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:800;margin-bottom:3px">${hlName(m.short, m.color)}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span style="font-size:10px;color:var(--tx3)">${sz}</span>
+              <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${colorBg};color:${dotColor}">${CL[color]}</span>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:10px;color:var(--tx3)">인쇄유리</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:${s.printed>0?'var(--acc3)':'var(--tx3)'}">${s.printed}<span style="font-size:10px">장</span></div>
+          </div>
         </div>
-      </div>
-    </div>`;
-  }).join('');
+      </div>`;
+    }).join('');
+  }
+}
+
+// 인쇄실 사이즈+색상 선택
+function selectPrintSize(w, h, color){
+  const sg=typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS.find(s=>s.w===w&&s.h===h):null;
+  wSelSize={w,h,label:`${w}×${h}`};
+  wSelModel=null; wSelCode=null;
+  wlColor=color; wQty=1;
+
+  const s=getSzStock(w,h,color);
+  const colorLabel=color==='WC'?'🔵 웜코튼':'🟠 에토프';
+  const colorDot=color==='WC'?'var(--wc)':'var(--etp)';
+
+  document.getElementById('wm-size-label').innerHTML=
+    `<span style="font-size:18px;font-weight:900">${w} × ${h}</span> <span style="font-size:11px;font-weight:400;color:var(--tx3)">mm</span>`;
+  const modelTagsHtml=sg?sg.models.map(m=>`<span style="display:inline-block;background:var(--s2);border:1px solid var(--b2);border-radius:4px;padding:2px 7px;font-size:10px;margin:2px 2px 0 0">${m}</span>`).join(''):'';
+  document.getElementById('wm-size-models').innerHTML=modelTagsHtml;
+  document.getElementById('wm-size-stock').innerHTML=
+    `<span style="font-weight:700;color:${colorDot}">${colorLabel}</span> — 원유리 <b>${s.raw}</b>장 | 인쇄유리 <b>${s.printed}</b>장`;
+
+  // 색상 버튼 업데이트
+  const wcBtn=document.getElementById('wcolor-wc');
+  const etpBtn=document.getElementById('wcolor-etp');
+  if(color==='WC'){
+    if(wcBtn){wcBtn.style.background='rgba(121,192,255,.25)';wcBtn.style.borderColor='var(--wc)';wcBtn.style.color='var(--wc)';}
+    if(etpBtn){etpBtn.style.background='';etpBtn.style.borderColor='';etpBtn.style.color='';}
+  } else {
+    if(etpBtn){etpBtn.style.background='rgba(255,166,87,.25)';etpBtn.style.borderColor='var(--etp)';etpBtn.style.color='var(--etp)';}
+    if(wcBtn){wcBtn.style.background='';wcBtn.style.borderColor='';wcBtn.style.color='';}
+  }
+
+  document.getElementById('wm-selected').style.display='none';
+  document.getElementById('wm-qty-box').style.display='block';
+  document.getElementById('wm-qty').value=1;
+  document.getElementById('wm-results').innerHTML='';
+  document.getElementById('wm-search').value='';
+  updateDefectUI();
 }
 
 function selectWorkModel(short, color, w, h){
@@ -3877,7 +3967,7 @@ async function autoSyncOnLoad(){
 }
 // 앱 로드 즉시 + 이후 30초마다 자동 동기화
 autoSyncOnLoad();
-setInterval(autoSyncOnLoad, 30000);
+setInterval(autoSyncOnLoad, 300000); // 5분마다 자동 동기화
 </script>
 </body>
 </html>
