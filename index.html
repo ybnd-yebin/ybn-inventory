@@ -764,7 +764,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeM('work-modal')">×</button>
     <div class="modal-ttl" id="wm-title">✏️ 작업 입력</div>
-    <div style="font-size:11px;color:var(--tx2);margin-bottom:12px" id="wm-date"></div>
+    <div style="margin-bottom:12px">
+      <span class="lbl">작업 날짜</span>
+      <input type="date" id="wm-date" class="inp" style="margin-bottom:0">
+    </div>
 
     <!-- 정상/불량 탭 -->
     <div class="modal-tabs" style="margin-bottom:14px">
@@ -923,6 +926,43 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <span class="lbl">메모 (선택)</span>
     <input id="shm-note" class="inp" placeholder="거래처, 발주번호 등...">
     <button class="act-btn green" onclick="confirmSheetModal()">✓ 저장</button>
+  </div>
+</div>
+
+<!-- WORKLOG EDIT MODAL -->
+<div class="modal-bg" id="wl-edit-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('wl-edit-modal')">×</button>
+    <div class="modal-ttl">✏️ 작업 기록 수정</div>
+    <div id="wl-edit-info" style="background:var(--s2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--tx2)"></div>
+
+    <span class="lbl">날짜</span>
+    <input type="date" id="wl-edit-date" class="inp">
+
+    <span class="lbl">색상</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <button class="q-btn wc-edit-btn" id="wl-edit-wc" onclick="setEditColor('WC',this)"
+        style="padding:10px;font-size:13px;font-weight:700">🔵 웜코튼</button>
+      <button class="q-btn etp-edit-btn" id="wl-edit-etp" onclick="setEditColor('ETP',this)"
+        style="padding:10px;font-size:13px;font-weight:700">🟠 에토프</button>
+    </div>
+
+    <span class="lbl">수량</span>
+    <div class="qty-ctrl">
+      <button class="qty-btn" onclick="editQtyD(-1)">−</button>
+      <input type="number" id="wl-edit-qty" class="qty-num" value="1" min="1"
+        style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)">
+      <button class="qty-btn" onclick="editQtyD(1)">＋</button>
+    </div>
+    <div class="quick-btns" style="margin-bottom:16px">
+      <button class="q-btn" onclick="editQtyAdd(5)">+5</button>
+      <button class="q-btn" onclick="editQtyAdd(10)">+10</button>
+      <button class="q-btn" onclick="editQtyAdd(-5)">-5</button>
+      <button class="q-btn" style="color:var(--acc4)" onclick="document.getElementById('wl-edit-qty').value=1">초기화</button>
+    </div>
+
+    <button class="act-btn green" onclick="confirmWlEdit()">✓ 수정 완료</button>
+    <button class="act-btn" style="background:rgba(248,81,73,.1);color:var(--acc4);border:1px solid rgba(248,81,73,.3);margin-top:8px" onclick="deleteWlItemCurrent()">🗑 이 기록 삭제</button>
   </div>
 </div>
 
@@ -1666,7 +1706,7 @@ function openWorkModal(){
   document.getElementById('wm-selected').style.display='none';
   document.getElementById('wm-qty-box').style.display='none';
   document.getElementById('wm-qty').value=1;
-  document.getElementById('wm-date').textContent=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+  document.getElementById('wm-date').value=todayStr();
 
   // 인쇄실/조립실 모드에 따라 힌트 + 검색 플레이스홀더 변경
   const hintEl=document.getElementById('wm-mode-hint');
@@ -1897,7 +1937,7 @@ function confirmWork(){
   wQty=qtyEl?Math.max(1,parseInt(qtyEl.value)||wQty):wQty;
   if(wQty<=0){showToast('수량을 입력하세요');return;}
 
-  const td=todayStr();
+  const td=document.getElementById('wm-date')?.value||todayStr();
   let dl=workLog.find(d=>d.date===td);
   if(!dl){dl={date:td,items:[]};workLog.push(dl);}
 
@@ -3910,6 +3950,124 @@ function migrateWorkLogCodes(){
 }
 // 앱 로드 시 자동 실행
 setTimeout(migrateWorkLogCodes, 500);
+
+// ── 작업일지 수정 모달 ──
+let wlEditTarget = null; // {date, idx}
+let wlEditColor = 'WC';
+
+function editWlItem(date, idx){
+  const dayLog = workLog.find(d=>d.date===date);
+  if(!dayLog||!dayLog.items[idx]) return;
+  const it = dayLog.items[idx];
+  wlEditTarget = {date, idx};
+  wlEditColor = it.color || 'WC';
+
+  // 정보 표시
+  const label = it.short || it.sizeLabel || it.code || '?';
+  const infoEl = document.getElementById('wl-edit-info');
+  if(infoEl) infoEl.textContent = label + (it.type==='defect'?' (불량)':'');
+
+  // 날짜
+  document.getElementById('wl-edit-date').value = safeDate(date);
+
+  // 색상 버튼 초기화
+  setEditColor(wlEditColor, document.getElementById(wlEditColor==='WC'?'wl-edit-wc':'wl-edit-etp'));
+
+  // 수량
+  document.getElementById('wl-edit-qty').value = it.qty;
+
+  // 색상없는 항목(불량 등)은 색상 버튼 숨기기
+  const noColor = !it.color;
+  document.getElementById('wl-edit-wc').closest('.q-btn') || true;
+  ['wl-edit-wc','wl-edit-etp'].forEach(id=>{
+    const btn = document.getElementById(id);
+    if(btn) btn.style.display = (it.type==='defect'||noColor) ? 'none' : '';
+  });
+  const colorLbl = document.querySelector('#wl-edit-modal .lbl:nth-of-type(2)');
+
+  document.getElementById('wl-edit-modal').classList.add('on');
+}
+
+function setEditColor(color, btn){
+  wlEditColor = color;
+  document.querySelectorAll('.wc-edit-btn,.etp-edit-btn').forEach(b=>{
+    b.style.background=''; b.style.borderColor=''; b.style.color='';
+  });
+  if(!btn) return;
+  if(color==='WC'){
+    btn.style.background='rgba(121,192,255,.25)';
+    btn.style.borderColor='var(--wc)'; btn.style.color='var(--wc)';
+  } else {
+    btn.style.background='rgba(255,166,87,.25)';
+    btn.style.borderColor='var(--etp)'; btn.style.color='var(--etp)';
+  }
+}
+
+function editQtyD(d){
+  const el=document.getElementById('wl-edit-qty');
+  el.value=Math.max(1,(parseInt(el.value)||1)+d);
+}
+function editQtyAdd(n){
+  const el=document.getElementById('wl-edit-qty');
+  el.value=Math.max(1,(parseInt(el.value)||1)+n);
+}
+
+function confirmWlEdit(){
+  if(!wlEditTarget) return;
+  const {date, idx} = wlEditTarget;
+  const dayLog = workLog.find(d=>d.date===date);
+  if(!dayLog||!dayLog.items[idx]) return;
+
+  const it = dayLog.items[idx];
+  const newDate = document.getElementById('wl-edit-date').value;
+  const newQty = Math.max(1, parseInt(document.getElementById('wl-edit-qty').value)||1);
+  const newColor = it.color ? wlEditColor : it.color; // 색상 없으면 유지
+
+  // 재고 역산 후 재반영
+  if(it.sizeKey){
+    const parts = it.sizeKey.replace('sz_','').split('x');
+    const w=parseInt(parts[0]), h=parseInt(parts[1]);
+    const oldColor = it.color||'WC';
+
+    if(it.type==='work'){
+      // 기존 기록 역산
+      const sOld=getSzStock(w,h,oldColor);
+      setSzStock(w,h,oldColor,sOld.raw+it.qty,sOld.printed-it.qty);
+      // 새로 반영 (색상 변경 가능)
+      const sNew=getSzStock(w,h,newColor);
+      setSzStock(w,h,newColor,sNew.raw-newQty,sNew.printed+newQty);
+    } else if(it.type==='defect'){
+      const sOld=getSzStock(w,h,oldColor);
+      if(it.loc==='print') setSzStock(w,h,oldColor,sOld.raw+it.qty,sOld.printed);
+      else setSzStock(w,h,oldColor,sOld.raw,sOld.printed+it.qty);
+      const sNew=getSzStock(w,h,newColor);
+      if(it.loc==='print') setSzStock(w,h,newColor,sNew.raw-newQty,sNew.printed);
+      else setSzStock(w,h,newColor,sNew.raw,sNew.printed-newQty);
+    }
+    it.color = newColor;
+  }
+  it.qty = newQty;
+
+  // 날짜 변경
+  if(newDate !== date){
+    let newDayLog = workLog.find(d=>d.date===newDate);
+    if(!newDayLog){newDayLog={date:newDate,items:[]};workLog.push(newDayLog);}
+    newDayLog.items.push({...it});
+    dayLog.items.splice(idx,1);
+    if(!dayLog.items.length) workLog=workLog.filter(d=>d.date!==date);
+  }
+
+  saveAll(); closeM('wl-edit-modal');
+  renderWorklogMain(); renderDash(); autoSync();
+  showToast('✅ 수정됨');
+}
+
+function deleteWlItemCurrent(){
+  if(!wlEditTarget) return;
+  const {date, idx} = wlEditTarget;
+  deleteWlItem(date, idx);
+  closeM('wl-edit-modal');
+}
 
 // ── 자재 데이터 초기화 ──
 var matStock=JSON.parse(localStorage.getItem('ybn-mat-v1')||'{}');
