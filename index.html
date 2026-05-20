@@ -999,6 +999,27 @@ let schedules=J(localStorage.getItem(LS.schedules))||[];
 let todos=J(localStorage.getItem(LS.todos))||INITIAL_TODOS;
 let gsUrl=localStorage.getItem(LS.gsUrl)||'';
 let delivLog=J(localStorage.getItem(LS.delivLog))||[];
+
+// ── 사이즈 기반 재고 함수 ──
+function szKey(w,h){return `sz_${w}x${h}`;}
+function getSzStock(w,h){
+  const k=szKey(w,h);
+  if(stock[k]) return stock[k];
+  // 기존 코드별 재고 합산 마이그레이션
+  const sg=typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS.find(s=>s.w===w&&s.h===h):null;
+  if(!sg) return {raw:0,printed:0};
+  const raw=sg.codes.reduce((a,c)=>a+(stock[c]?.raw||0),0);
+  const printed=sg.codes.reduce((a,c)=>a+(stock[c]?.printed||0),0);
+  if(raw>0||printed>0){
+    stock[k]={raw,printed};
+    sg.codes.forEach(c=>{if(stock[c])stock[c]={raw:0,printed:0};});
+  }
+  return stock[k]||{raw:0,printed:0};
+}
+function setSzStock(w,h,raw,printed){
+  stock[szKey(w,h)]={raw:Math.max(0,raw),printed:Math.max(0,printed)};
+}
+let wSelSize=null;
 function saveAll(){
   localStorage.setItem(LS.stock,JSON.stringify(stock));
   localStorage.setItem(LS.meta,JSON.stringify(meta));
