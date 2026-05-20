@@ -1945,7 +1945,7 @@ function confirmWork(){
   const mdl=wSelModel||null;
   const w=mdl?mdl.w:(wSelSize?wSelSize.w:0);
   const h=mdl?mdl.h:(wSelSize?wSelSize.h:0);
-  const color=mdl?mdl.color:wlColor;
+  const color=wlColor||(mdl?mdl.color:'WC');
   const shortName=mdl?mdl.short:`${w}×${h}`;
   const colorLabel=color==='WC'?'웜코튼':color==='ETP'?'에토프':'';
 
