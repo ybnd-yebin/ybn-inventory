@@ -1584,8 +1584,21 @@ function setWorkTab(mode){
     document.getElementById('wtab-defect').style.background='';
     document.getElementById('wtab-defect').style.color='var(--acc4)';
   }
+  // 색상박스: 정상작업에서만 표시
+  const colorBox=document.getElementById('wm-color-box');
+  if(colorBox) colorBox.style.display=isDefect?'none':'block';
+  // 불량사유: 불량탭에서만 표시
   const defectBox=document.getElementById('wm-defect-reason');
   if(defectBox) defectBox.style.display=isDefect?'block':'none';
+  // 버튼/라벨 복원
+  if(!isDefect){
+    const btn=document.getElementById('wm-confirm-btn');
+    const desc=document.getElementById('wm-confirm-desc');
+    const lbl=document.getElementById('wm-qty-label');
+    if(btn){btn.style.background='var(--acc3)';btn.textContent='✓ 작업 기록 & 재고 반영';}
+    if(desc) desc.textContent='원유리 차감 → 인쇄유리 증가 자동 반영';
+    if(lbl) lbl.textContent='작업 수량';
+  }
   updateDefectUI();
 }
 
@@ -3422,14 +3435,16 @@ function renderWlTodayList(){
     return;
   }
   el.innerHTML = normalItems.map(it=>{
-    const m = MODELS.find(x=>x.code===it.code);
-    const dot = m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
-    const sz = m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+    const di = wlItemDisplay(it);
+    const colorDot = it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'var(--acc)';
+    const colorTag = it.color ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${it.color==='WC'?'rgba(121,192,255,.2)':'rgba(255,166,87,.2)'};color:${colorDot}">${it.color==='WC'?'웜코튼':'에토프'}</span>` : '';
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1)">
-      <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:${colorDot};flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m?hlName(m.short,m.color):it.code}</div>
-        <div style="font-size:10px;color:var(--tx2)">${sz}</div>
+        <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${di.label} ${colorTag}
+        </div>
+        <div style="font-size:10px;color:var(--tx2)">${di.sz}</div>
       </div>
       <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc3)">${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
     </div>`;
@@ -3481,11 +3496,19 @@ function renderWorklogMain(){
   const defectItems = tl ? tl.items.filter(i=>i.type==='defect') : [];
   const tw = normalItems.reduce((a,i)=>a+i.qty, 0);
   const defectTotal = defectItems.reduce((a,i)=>a+i.qty, 0);
-  const wcQ = normalItems.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
-  const etpQ = normalItems.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+
+  // 색상 집계: sizeKey 방식(color 필드) + 기존 코드 방식 모두 처리
+  const wcQ = normalItems.filter(i=>{
+    if(i.color) return i.color==='WC';
+    const m=MODELS.find(x=>x.code===i.code); return m&&m.color==='WC';
+  }).reduce((a,i)=>a+i.qty,0);
+  const etpQ = normalItems.filter(i=>{
+    if(i.color) return i.color==='ETP';
+    const m=MODELS.find(x=>x.code===i.code); return m&&m.color==='ETP';
+  }).reduce((a,i)=>a+i.qty,0);
 
   const totalEl = document.getElementById('wl-today-total');
-  if(totalEl) totalEl.innerHTML = tw+'<span style="font-size:13px;margin-left:2px">장</span>';
+  if(totalEl) totalEl.innerHTML = tw+'<span style="font-size:13px;margin-left:2px">장</span>'+(defectTotal>0?'<span style="font-size:11px;color:rgba(255,255,255,.7);margin-left:6px">불량 -'+defectTotal+'</span>':'');
   const dateEl = document.getElementById('wl-today-date');
   if(dateEl) dateEl.textContent = new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
   const wcEl = document.getElementById('wl-today-wc');
@@ -3495,11 +3518,9 @@ function renderWorklogMain(){
   const defEl = document.getElementById('wl-today-defect');
   if(defEl) defEl.textContent = defectTotal>0 ? '🚫 불량 '+defectTotal+'장' : '';
 
-  // 현재 탭에 맞게 렌더
   if(wlRoom==='print') renderWlPrint();
   else renderWlAssembly();
 
-  // 이력 렌더
   renderWlHistory();
 }
 
