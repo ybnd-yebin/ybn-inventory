@@ -3207,114 +3207,7 @@ function setWlMainFilter(f,btn){
   renderWorklogMain();
 }
 
-function renderWorklogMain(){
-  const td=todayStr();
-  const tl=workLog.find(d=>d.date===td);
-  // 정상 작업만 카운트 (불량 제외)
-  const normalItems=tl?tl.items.filter(i=>i.type!=='defect'):[];
-  const defectItems=tl?tl.items.filter(i=>i.type==='defect'):[];
-  const tw=normalItems.reduce((a,i)=>a+i.qty,0);
-  const defectTotal=defectItems.reduce((a,i)=>a+i.qty,0);
-  const wcQ=normalItems.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
-  const etpQ=normalItems.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
-
-  const totalEl=document.getElementById('wl-today-total');
-  if(totalEl) totalEl.innerHTML=tw+'<span style="font-size:14px;margin-left:2px">장</span>'+(defectTotal>0?'<span style="font-size:11px;color:rgba(255,255,255,.7);margin-left:6px">불량 -'+defectTotal+'</span>':'');
-  const dateEl=document.getElementById('wl-today-date');
-  if(dateEl) dateEl.textContent=new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
-  const wcEl=document.getElementById('wl-today-wc');
-  const etpEl=document.getElementById('wl-today-etp');
-  if(wcEl) wcEl.textContent='웜코튼 '+wcQ+'장';
-  if(etpEl) etpEl.textContent='에토프 '+etpQ+'장';
-
-  // 오늘 작업 목록
-  const todayListEl=document.getElementById('wl-today-list');
-  if(todayListEl){
-    if(!tl||!tl.items.length){
-      todayListEl.innerHTML='<div class="empty-sm" style="padding:16px 0;text-align:center">오늘 작업 기록이 없습니다<br><span style="font-size:11px;color:var(--tx3)">위 버튼으로 기록해주세요</span></div>';
-    } else {
-      todayListEl.innerHTML=tl.items.map(it=>{
-        const m=MODELS.find(x=>x.code===it.code);
-        const ic=it.color||(m&&m.color)||'';
-        const isDefect=it.type==='defect';
-        const dot=isDefect?'var(--acc4)':ic==='WC'?'var(--wc)':ic==='ETP'?'var(--etp)':'var(--tx2)';
-        const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:(it.sizeKey?it.sizeKey.replace('sz_','').replace('x','×'):'');
-        const dispName=m?hlName(m.short,ic):(it.short||it.sizeKey||it.code||'');
-        const dispCode=it.code||it.sizeKey||'';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1);${isDefect?'opacity:.8':''}">
-          <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-              ${dispName}
-              ${isDefect?`<span style="font-size:10px;background:rgba(248,81,73,.15);color:var(--acc4);padding:1px 6px;border-radius:8px;margin-left:4px">🚫 ${it.loc==='assembly'?'조립실':'인쇄실'} ${it.reason||'불량'}</span>`:''}
-            </div>
-            <div style="font-size:10px;color:var(--tx2)">${dispCode}${sz?' | 📐 '+sz:''}</div>
-          </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:900;color:${isDefect?'var(--acc4)':'var(--acc3)'};flex-shrink:0">${isDefect?'-':''}${it.qty}<span style="font-size:11px;color:var(--tx3)">장</span></div>
-        </div>`;
-      }).join('');
-    }
-  }
-
-  // 이력 목록
-  const listEl=document.getElementById('wl-main-list');
-  if(!listEl) return;
-
-  const now=new Date();
-  const weekAgo=new Date(now-7*86400000).toISOString().slice(0,10);
-
-  let logs=[...workLog].sort((a,b)=>b.date.localeCompare(a.date));
-  if(wlMainFilter==='today') logs=logs.filter(d=>d.date===td);
-  else if(wlMainFilter==='week') logs=logs.filter(d=>d.date>=weekAgo);
-
-  if(!logs.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📝</div>기록 없음</div>';return;}
-
-  listEl.innerHTML=logs.map(day=>{
-    const normalIt=day.items.filter(i=>i.type!=='defect');
-    const defectIt=day.items.filter(i=>i.type==='defect');
-    const dayTotal=normalIt.reduce((a,i)=>a+i.qty,0);
-    const dayDefect=defectIt.reduce((a,i)=>a+i.qty,0);
-    const wc=normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
-    const etp=normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
-    const isToday=day.date===td;
-    const dl=new Date(day.date+'T00:00:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
-    return `<div class="card" style="margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${day.items.length?'10px':'0'}">
-        <div>
-          <div style="font-size:13px;font-weight:700">${isToday?'🟢 오늘 — ':''} ${dl}</div>
-          <div style="font-size:10px;color:var(--tx2);margin-top:2px">
-            <span style="color:var(--wc)">웜코튼 ${wc}장</span> &nbsp;
-            <span style="color:var(--etp)">에토프 ${etp}장</span>
-            ${dayDefect>0?`&nbsp; <span style="color:var(--acc4)">🚫 불량 ${dayDefect}장</span>`:''}
-          </div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:900;color:var(--acc3)">${dayTotal}</div>
-          <div style="font-size:10px;color:var(--tx3)">정상작업</div>
-        </div>
-      </div>
-      ${day.items.map(it=>{
-        const m=MODELS.find(x=>x.code===it.code);
-        const isDefect=it.type==='defect';
-        const dot=isDefect?'var(--acc4)':m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
-        const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--b1)${isDefect?';background:rgba(248,81,73,.03)':''}">
-          <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-              ${m?hlName(m.short,m.color):it.code}
-              ${isDefect?`<span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:3px">🚫 ${it.loc==='assembly'?'조립실':'인쇄실'} ${it.reason||'불량'}</span>`:''}
-            </div>
-            <div style="font-size:10px;color:var(--tx2)">${sz}</div>
-          </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${isDefect?'var(--acc4)':'var(--acc3)'}">
-            ${isDefect?'-':''}${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
-  }).join('');
-}
+// renderWorklogMain v1 removed
 
 // ══════════════════════════════════════════════════
 //  납품서 탭
@@ -3885,19 +3778,45 @@ function renderWlHistory(){
 
 // ── 작업일지 수정/삭제 ──
 function editWlDate(oldDate){
-  const newDate = prompt('날짜를 입력하세요 (YYYY-MM-DD):', oldDate);
-  if(!newDate || newDate === oldDate) return;
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(newDate)){showToast('날짜 형식이 올바르지 않습니다');return;}
+  // 날짜 전체 이동: 인라인 날짜 입력 UI 표시
+  const dayLog = workLog.find(d=>d.date===oldDate);
+  if(!dayLog) return;
 
-  // 새 날짜로 이동
+  // 해당 날짜 카드에 인라인 날짜 입력 표시
+  const cardId = 'datecard-' + oldDate.replace(/-/g,'');
+  const existing = document.getElementById(cardId);
+  if(existing){ existing.remove(); return; }
+
+  const wrap = document.createElement('div');
+  wrap.id = cardId;
+  wrap.style.cssText = 'padding:8px 14px 10px;background:var(--s2);border-top:1px solid var(--b1);display:flex;gap:8px;align-items:center';
+  wrap.innerHTML = `<input type="date" value="${oldDate}" style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:14px;font-family:'Noto Sans KR',sans-serif" id="dateinput-${cardId}">
+    <button onclick="applyWlDateChange('${oldDate}','dateinput-${cardId}')" style="padding:8px 14px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">확인</button>
+    <button onclick="document.getElementById('${cardId}').remove()" style="padding:8px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;cursor:pointer">✕</button>`;
+
+  // 해당 카드 안에 삽입
+  const allCards = document.querySelectorAll('#wl-main-list .card');
+  let targetCard = null;
+  allCards.forEach(card=>{
+    if(card.innerHTML.includes("editWlDate('" + oldDate + "')")) targetCard = card;
+  });
+  if(targetCard) targetCard.appendChild(wrap);
+  else document.getElementById('wl-main-list').prepend(wrap);
+}
+
+function applyWlDateChange(oldDate, inputId){
+  const inputEl = document.getElementById(inputId);
+  if(!inputEl) return;
+  const newDate = inputEl.value;
+  if(!newDate || newDate === oldDate){showToast('날짜가 동일합니다'); return;}
+
   const dayLog = workLog.find(d=>d.date===oldDate);
   if(!dayLog) return;
 
   const existing = workLog.find(d=>d.date===newDate);
   if(existing){
-    // 이미 있는 날짜면 합치기
     dayLog.items.forEach(it=>{
-      const ex = existing.items.find(i=>i.code===it.code&&i.type===it.type);
+      const ex = existing.items.find(i=>(i.code&&i.code===it.code||i.sizeKey&&i.sizeKey===it.sizeKey)&&i.color===it.color&&i.type===it.type);
       if(ex) ex.qty+=it.qty;
       else existing.items.push({...it});
     });
@@ -3906,7 +3825,7 @@ function editWlDate(oldDate){
     dayLog.date = newDate;
   }
   saveAll(); renderWorklogMain(); autoSync();
-  showToast('날짜 변경됨');
+  showToast('📅 날짜 변경됨: ' + newDate);
 }
 
 // editWlItem v1 removed - using v2 below
@@ -4050,7 +3969,7 @@ function confirmWlEdit(){
   const it = dayLog.items[idx];
   const newDate = document.getElementById('wl-edit-date').value;
   const newQty = Math.max(1, parseInt(document.getElementById('wl-edit-qty').value)||1);
-  const newColor = it.color ? wlEditColor : it.color; // 색상 없으면 유지
+  const newColor = it.color ? wlEditColor : (it.color||wlEditColor||'WC'); // 색상 유지 또는 새 색상
 
   // 재고 역산 후 재반영
   if(it.sizeKey){
