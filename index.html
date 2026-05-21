@@ -276,7 +276,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <div class="hdr">
   <div class="hdr-top">
-    <div class="hdr-title"><em>와이비앤디</em> 업무<small>YBN Work Hub</small></div>
+    <div class="hdr-title"><em>와이비앤디</em> 업무<small>YBND Work Hub</small></div>
     <div class="hdr-meta"><span id="hdr-now"></span> <span id="hdr-gs"></span></div>
   </div>
   <nav class="main-nav">
@@ -1189,7 +1189,7 @@ function colorBadge(c){
 }
 function doorBadge(d){return d==='HD'?'<span class="badge b-hd">HD</span>':d==='OB'?'<span class="badge b-ob">OB</span>':'<span class="badge b-ch">CH</span>';}
 function freqBadge(f,a){const L={high:'고빈도',mid:'중빈도',low:'저빈도',rare:'희귀'},C={high:'b-high',mid:'b-mid',low:'b-low',rare:'b-rare'};return '<span class="badge '+C[f]+'">'+L[f]+'</span><span class="freq-avg">월평균 '+a+'장</span>';}
-function miniTrend(m){const v=MONTHS.map(mo=>m[mo]||0),mx=Math.max(...v,1);return v.map(x=>'<div class="trend-bar'+(x===0?' z':'')+'" style="height:'+Math.max(Math.round(x/mx*26),x>0?3:2)+'px"></div>').join('');}
+function miniTrend(m){if(!m)return '';const v=MONTHS.map(mo=>m[mo]||0),mx=Math.max(...v,1);return v.map(x=>'<div class="trend-bar'+(x===0?' z':'')+'" style="height:'+Math.max(Math.round(x/mx*26),x>0?3:2)+'px"></div>').join('');}
 function isUrgent(m){return getStock(m.code).raw<Math.max(1,m.min_stock)&&m.freq!=='rare';}
 function isWarn(m){const s=getStock(m.code);return !isUrgent(m)&&s.raw<m.min_stock*2&&m.freq==='high';}
 function hlName(n,c){
@@ -1215,8 +1215,8 @@ function renderHome(){
   const prev=todos.filter(t=>t.status!=='완료').slice(0,5);
   document.getElementById('home-todos').innerHTML=!prev.length?'<div class="empty-sm">진행중 할일 없음 ✅</div>':prev.map(t=>todoItemHTML(t,true)).join('');
   if(!tl||!tl.items.length){document.getElementById('home-work').innerHTML='<div class="empty-sm">오늘 작업 기록 없음</div>';return;}
-  const wcQ=tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
-  const etpQ=tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+  const wcQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
+  const etpQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
   document.getElementById('home-work').innerHTML='<div class="work-stats"><div class="ws"><div class="ws-l">총계</div><div class="ws-v acc3">'+tw+'장</div></div><div class="ws"><div class="ws-l wc">웜코튼</div><div class="ws-v wc">'+wcQ+'</div></div><div class="ws"><div class="ws-l etp">에토프</div><div class="ws-v etp">'+etpQ+'</div></div></div>'+tl.items.slice(0,5).map(it=>{const m=MODELS.find(x=>x.code===it.code);const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';return '<div class="wsum-row"><div class="dot" style="background:'+dot+'"></div><div class="wsum-name">'+(m?hlName(m.short,m.color):it.code)+'</div><div class="wsum-qty">'+it.qty+'장</div></div>';}).join('');
 }
 
@@ -1464,20 +1464,20 @@ function renderDash(){
       +'<div class="alert-qty">'+s.raw+'<span class="alert-unit">원유리</span></div></div></div>';}).join('');
   if(!tl||!tl.items.length){document.getElementById('d-work').innerHTML='<div class="empty-sm">오늘 작업 기록 없음</div>';}
   else{
-    const wcQ=tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
-    const etpQ=tl.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    const wcQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etpQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
     document.getElementById('d-work').innerHTML='<div class="work-stats"><div class="ws"><div class="ws-l">총계</div><div class="ws-v acc3">'+tw+'장</div></div><div class="ws"><div class="ws-l wc">웜코튼</div><div class="ws-v wc">'+wcQ+'</div></div><div class="ws"><div class="ws-l etp">에토프</div><div class="ws-v etp">'+etpQ+'</div></div></div>';
   }
   document.getElementById('d-top10').innerHTML=MODELS.slice(0,10).map((m,i)=>{const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';return '<div class="top10-row" onclick="openSModal(\''+m.code+'\')">'
     +'<div class="top10-rank">'+(i+1)+'</div>'
     +'<div class="top10-info"><div class="top10-name">'+hlName(m.short,m.color)+'</div><div class="top10-meta">'+sz+' '+colorBadge(m.color)+' '+doorBadge(m.door_type)+'</div></div>'
-    +'<div class="top10-right"><div class="top10-qty">'+m.total_6m+'<span class="top10-unit">장</span></div><div class="trend">'+miniTrend(m.monthly)+'</div></div></div>';}).join('');
+    +'<div class="top10-right"><div class="top10-qty">'+m.total_6m+'<span class="top10-unit">장</span></div><div class="trend">'+miniTrend(m.monthly||{})+'</div></div></div>';}).join('');
 }
 
 // ── WORK LOG ──
 function renderWorkLog(){
   let total=0,wcQ=0,etpQ=0,etcQ=0;
-  workLog.forEach(day=>day.items.forEach(it=>{total+=it.qty;const m=MODELS.find(x=>x.code===it.code);if(m&&m.color==='WC')wcQ+=it.qty;else if(m&&m.color==='ETP')etpQ+=it.qty;else etcQ+=it.qty;}));
+  workLog.forEach(day=>day.items.forEach(it=>{total+=it.qty;const ic=it.color||(MODELS.find(x=>x.code===it.code)||{}).color;if(ic==='WC')wcQ+=it.qty;else if(ic==='ETP')etpQ+=it.qty;else etcQ+=it.qty;}));
   document.getElementById('wl-days').textContent=workLog.length;
   document.getElementById('wl-total').textContent=total;
   document.getElementById('wl-wc').textContent=wcQ;
@@ -1487,13 +1487,13 @@ function renderWorkLog(){
   if(!workLog.length){el.innerHTML='<div class="empty"><div class="empty-ico">📝</div>기록 없음<br><span style="font-size:11px">+ 버튼으로 입력</span></div>';return;}
   el.innerHTML=[...workLog].sort((a,b)=>b.date.localeCompare(a.date)).map(day=>{
     const dt=day.items.reduce((a,i)=>a+i.qty,0);
-    const wc=day.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
-    const etp=day.items.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    const wc=day.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etp=day.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
     const dl=new Date(day.date+'T00:00:00').toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
     return '<div class="day-card">'
       +'<div class="day-hdr"><div><div class="day-date">'+dl+'</div><div class="day-color-sum"><span class="wc">웜코튼 '+wc+'장</span> <span class="etp">에토프 '+etp+'장</span></div></div>'
       +'<div class="day-total">'+dt+'<span class="day-unit">장</span></div></div>'
-      +day.items.map(it=>{const m=MODELS.find(x=>x.code===it.code);const sz=m&&m.glass_w?m.glass_w+'×'+m.glass_h:'';const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';return '<div class="day-item"><div class="dot" style="background:'+dot+'"></div><div class="day-item-info"><div class="day-item-name">'+(m?hlName(m.short,m.color):it.code)+'</div><div class="day-item-meta">'+it.code+(sz?' | 📐 '+sz:'')+' '+(m?colorBadge(m.color)+' '+doorBadge(m.door_type):'')+'</div></div><div class="day-item-qty">'+it.qty+'<span class="day-unit">장</span></div></div>';}).join('')
+      +day.items.map(it=>{const m=MODELS.find(x=>x.code===it.code);const ic=it.color||(m&&m.color)||'';const sz=m&&m.glass_w?m.glass_w+'x'+m.glass_h:(it.sizeKey?it.sizeKey.replace('sz_','').replace('x','x'):'');const szDisp=m&&m.glass_w?m.glass_w+'×'+m.glass_h:(it.sizeKey?it.sizeKey.replace('sz_','').replace('x','×'):'');const dot=ic==='WC'?'var(--wc)':ic==='ETP'?'var(--etp)':'var(--tx2)';const nm=m?hlName(m.short,ic):(it.short||it.sizeKey||it.code||'');return '<div class="day-item"><div class="dot" style="background:'+dot+'"></div><div class="day-item-info"><div class="day-item-name">'+nm+'</div><div class="day-item-meta">'+(it.code||it.sizeKey||'')+(szDisp?' | 📐 '+szDisp:'')+' '+(ic?colorBadge(ic):'')+' '+(m?doorBadge(m.door_type):'')+'</div></div><div class="day-item-qty">'+it.qty+'<span class="day-unit">장</span></div></div>';}).join('')
       +'</div>';
   }).join('');
 }
@@ -1586,7 +1586,7 @@ function renderStockList(){
       +'<div class="ms">📐 '+sz+'</div>'
       +'<div class="stock-row"><div class="stock-box'+(s.raw<m.min_stock&&m.freq!=='rare'?' urgent-box':'')+'"><div class="sl">인쇄실 원유리</div><div class="sv '+(s.raw===0?'zero':s.raw<m.min_stock?'low':'ok')+'">'+s.raw+'</div></div>'
       +'<div class="stock-box"><div class="sl">조립실 인쇄유리</div><div class="sv '+(s.printed===0?'zero':'ok')+'">'+s.printed+'</div></div></div></div>'
-      +'<div class="mr"><div class="mr-qty">'+m.total_6m+'<span class="mr-unit">장</span></div><div class="mr-sub">6개월</div><div class="trend">'+miniTrend(m.monthly)+'</div></div></div>';
+      +'<div class="mr"><div class="mr-qty">'+m.total_6m+'<span class="mr-unit">장</span></div><div class="mr-sub">6개월</div><div class="trend">'+miniTrend(m.monthly||{})+'</div></div></div>';
   }).join('');
 }
 
@@ -2005,7 +2005,7 @@ function renderTrend(){
   if(!ms.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>없음</div>';return;}
   const max=Math.min(ms.length,80);
   el.innerHTML=ms.slice(0,max).map(m=>{
-    const vals=MONTHS.map(mo=>m.monthly[mo]||0),mx=Math.max(...vals,1);
+    const vals=MONTHS.map(mo=>(m.monthly||{})[mo]||0),mx=Math.max(...vals,1);
     const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';
     const bars=MONTHS.map((mo,i)=>{const v=vals[i],h=Math.max(Math.round(v/mx*48),v>0?4:2);return '<div class="m-bar-wrap"><div class="m-bar'+(v===0?' zero':'')+'" style="height:'+h+'px"></div><div class="m-lbl">'+MONTH_LABELS[mo].slice(0,4)+'</div><div class="m-val">'+(v||'')+'</div></div>';}).join('');
     return '<div class="trend-card"><div class="trend-hdr"><div><div class="trend-name">'+hlName(m.short,m.color)+'</div><div class="trend-meta">'+m.code+' | '+sz+' '+colorBadge(m.color)+' '+doorBadge(m.door_type)+'</div></div><div>'+freqBadge(m.freq,m.avg_monthly)+'</div></div><div class="month-bars">'+bars+'</div></div>';
