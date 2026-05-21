@@ -1083,6 +1083,11 @@ let wSelSize=null;
 let wSelModel=null; // {short, color, w, h}
 let wlColor='WC';
 function saveAll(){
+  // 로컬 변경 시각 기록 (시트→앱 받기 직전 경고용)
+  // _skipLocalChange가 true면 외부(시트→앱)에서 받은 후 호출이므로 갱신 안 함
+  if(!window._skipLocalChange && meta){
+    meta.lastLocalChange = new Date().toISOString();
+  }
   localStorage.setItem(LS.stock,JSON.stringify(stock));
   localStorage.setItem(LS.meta,JSON.stringify(meta));
   localStorage.setItem(LS.work,JSON.stringify(workLog));
@@ -2137,25 +2142,124 @@ function saveGsUrl(){
   updateGsStatus('testing');
   gsFetch('GET',null,'?action=ping').then(()=>{updateGsStatus('ok');showToast('✓ 연결 성공!');}).catch(()=>{updateGsStatus('error');showToast('❌ 연결 실패');});
 }
+
+// ── 안전 가드: 현재 로컬 데이터가 "거의 비어있는지" 판단 ──
+function _localDataSize(){
+  let n=0;
+  n+=Object.keys(stock||{}).length;
+  n+=(workLog||[]).reduce((a,d)=>a+(d.items?d.items.length:0),0);
+  n+=(inkLog||[]).length;
+  n+=(notices||[]).length;
+  n+=(schedules||[]).length;
+  n+=(todos||[]).length;
+  n+=Object.keys(matStock||{}).length;
+  n+=(matLog||[]).length;
+  n+=(sheetLog||[]).length;
+  n+=(delivLog||[]).length;
+  return n;
+}
+function _isLocalEmpty(){ return _localDataSize() === 0; }
+
+// 동기화 잠금 (중복 호출 방지)
+let _syncBusy = false;
+
+// 페이지가 막 로드되어 아직 시트→앱을 한 번도 못한 상태인지
+// (lastGsSync가 없으면 위험 - 시트가 비어있다 단정하고 덮어쓰면 안됨)
+function _neverSyncedYet(){ return !meta || !meta.lastGsSync; }
+
 async function autoSync(){
   if(!gsUrl)return;
+  if(_syncBusy)return; // 중복 방지
+
+  // ── 핵심 가드 1: 로컬이 완전히 비어있으면 자동 업로드 금지 ──
+  // (이게 빈 페이지가 시트를 덮어쓴 원인이었음)
+  if(_isLocalEmpty()){
+    console.warn('[autoSync] 로컬 데이터가 비어있어 자동 동기화를 건너뜁니다.');
+    updateGsStatus('error');
+    showToast('⚠️ 데이터 없음 - 자동 동기화 보류');
+    return;
+  }
+
+  _syncBusy = true;
   try{
-    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog}});
+    // 충돌 감지: 시트의 lastGsSync가 내 기록보다 최신이면 다른 기기가 더 최근에 올린 상태
+    const ts = new Date().toISOString();
+    const result = await gsFetch('POST',{
+      action:'saveAll',
+      clientLastSync: meta.lastGsSync || null,
+      clientTs: ts,
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog}
+    });
+    // 서버가 충돌을 알려주면 result.conflict === true (서버 가드 추가 시)
+    if(result && result.conflict){
+      updateGsStatus('error');
+      showToast('⚠️ 다른 기기가 더 최근 데이터 - 자동 업로드 보류. [시트→앱]으로 먼저 받아주세요');
+      return;
+    }
     meta.lastGsSync=new Date().toISOString();saveAll();
     updateGsStatus('ok');updateGsSyncTime();
     showToast('✅ 저장 완료 (구글 시트 연동)');
   }catch(e){updateGsStatus('error');showToast('⚠️ 기기엔 저장됨 / 시트 연동 실패');}
+  finally{ _syncBusy = false; }
 }
+
 async function syncToSheet(){
   if(!gsUrl){showToast('URL 설정 필요');return;}
+  if(_syncBusy){showToast('동기화 진행 중...');return;}
+
+  // ── 핵심 가드 2: 로컬이 비어있으면 수동 업로드도 확인 받음 ──
+  if(_isLocalEmpty()){
+    if(!confirm('⚠️ 현재 앱에 데이터가 비어있습니다.\n\n이 상태로 [앱→시트]를 진행하면 시트의 모든 데이터가 삭제될 수 있습니다.\n\n정말 빈 상태를 시트에 덮어쓸까요?\n\n(아니오를 누르고 [시트→앱]을 먼저 누르시는 걸 강력 권장합니다)')){
+      updateGsStatus(gsUrl?'ok':'idle');
+      showToast('취소됨');
+      return;
+    }
+  }
+
+  // ── 핵심 가드 3: 한 번도 동기화 안 한 상태에서 업로드는 위험 ──
+  if(_neverSyncedYet()){
+    if(!confirm('⚠️ 이 기기는 아직 [시트→앱]으로 시트 데이터를 받은 적이 없습니다.\n\n시트에 다른 기기에서 올린 데이터가 있다면 덮어써질 수 있습니다.\n\n그래도 업로드할까요?\n\n(아니오를 누르고 [시트→앱]을 먼저 누르시는 걸 권장합니다)')){
+      updateGsStatus(gsUrl?'ok':'idle');
+      showToast('취소됨');
+      return;
+    }
+  }
+
+  _syncBusy = true;
   updateGsStatus('syncing');
   try{
-    await gsFetch('POST',{action:'saveAll',data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog}});
+    const result = await gsFetch('POST',{
+      action:'saveAll',
+      clientLastSync: meta.lastGsSync || null,
+      clientTs: new Date().toISOString(),
+      force: true, // 사용자가 직접 누른 경우 force 플래그
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog}
+    });
+    if(result && result.conflict && !result.forced){
+      updateGsStatus('error');
+      showToast('⚠️ 충돌 감지됨 - 다시 시도해주세요');
+      return;
+    }
     meta.lastGsSync=new Date().toISOString();saveAll();updateGsStatus('ok');updateGsSyncTime();showToast('✅ 시트 저장 완료');
   }catch(e){updateGsStatus('error');showToast('❌ 저장 실패: '+e.message);}
+  finally{ _syncBusy = false; }
 }
+
 async function syncFromSheet(){
   if(!gsUrl){showToast('URL 설정 필요');return;}
+  if(_syncBusy){showToast('동기화 진행 중...');return;}
+
+  // 로컬에 변경사항이 있는데 아직 시트에 안 올린 상태인지 경고
+  // (lastGsSync 이후 saveAll 호출이 있었으면 위험)
+  if(!_isLocalEmpty() && meta.lastLocalChange && meta.lastGsSync &&
+     new Date(meta.lastLocalChange) > new Date(meta.lastGsSync)){
+    if(!confirm('⚠️ 이 기기에 아직 시트로 안 올린 변경사항이 있습니다.\n\n[시트→앱]을 누르면 현재 변경사항이 사라질 수 있습니다.\n\n계속할까요?\n\n(아니오 → 먼저 [앱→시트]로 올리세요)')){
+      showToast('취소됨');
+      return;
+    }
+  }
+
+  _syncBusy = true;
   updateGsStatus('syncing');
   try{
     const data=await gsFetch('GET',null,'?action=read');
@@ -2170,9 +2274,14 @@ async function syncFromSheet(){
     if(data.sheetLog)sheetLog=data.sheetLog;
     if(data.delivLog)delivLog=data.delivLog;
     if(data.meta)Object.assign(meta,data.meta);
-    meta.lastGsSync=new Date().toISOString();saveAll();
+    meta.lastGsSync=new Date().toISOString();
+    meta.lastLocalChange=meta.lastGsSync; // 방금 받았으니 로컬변경=시트와 동일
+    window._skipLocalChange = true;
+    saveAll();
+    window._skipLocalChange = false;
     updateGsStatus('ok');updateGsSyncTime();renderHome();showToast('✅ 불러오기 완료');
   }catch(e){updateGsStatus('error');showToast('❌ 실패: '+e.message);}
+  finally{ _syncBusy = false; }
 }
 
 // ── EXPORT ──
@@ -3741,7 +3850,15 @@ function renderWlHistory(){
     </div>
   </div>`;
 
-  // 일괄 액션 바 (선택 시 표시)
+  // 일괄 액션 바 (선택 시 표시) + 항상 보이는 전체선택 바
+  const allCheckBarHtml = `
+  <div style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:8px 12px;margin-bottom:10px">
+    <input type="checkbox" id="wl-check-all" onchange="wlToggleAll(this.checked)" style="width:18px;height:18px;accent-color:var(--acc);cursor:pointer">
+    <label for="wl-check-all" style="font-size:12px;font-weight:700;color:var(--tx1);cursor:pointer;flex:1">전체선택</label>
+    <button onclick="wlClearCheck()" style="padding:5px 10px;background:none;border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체해제</button>
+    <span style="font-size:11px;color:var(--tx2)" id="wl-check-status">표시된 ${logs.reduce((a,d)=>a+d.items.length,0)}개 항목</span>
+  </div>`;
+
   const actionBarHtml = `
   <div id="wl-bulk-bar" style="display:none;position:sticky;top:0;z-index:10;background:var(--s1);border:1px solid var(--b2);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span id="wl-bulk-count" style="font-size:12px;font-weight:700;color:var(--acc);flex:1;min-width:80px">0개 선택</span>
@@ -3763,7 +3880,11 @@ function renderWlHistory(){
 
     return `<div class="card" style="margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-        <div style="flex:1">
+        <div style="flex:1;display:flex;align-items:flex-start;gap:8px">
+          <input type="checkbox" class="wl-day-check" data-date="${day.date}" data-count="${day.items.length}"
+            onchange="wlToggleDayAll('${day.date}',${day.items.length},this.checked)"
+            style="width:18px;height:18px;accent-color:var(--acc);cursor:pointer;margin-top:2px;flex-shrink:0">
+          <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span style="font-size:13px;font-weight:700">${isToday?'🟢 ':''} ${dl}</span>
             <button onclick="editWlDate('${day.date}')" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--acc);cursor:pointer;font-family:'Noto Sans KR',sans-serif">날짜수정</button>
@@ -3772,6 +3893,7 @@ function renderWlHistory(){
             <span style="color:var(--wc)">웜코튼 ${wc}장</span> &nbsp;
             <span style="color:var(--etp)">에토프 ${etp}장</span>
             ${dayDefect>0?`&nbsp; <span style="color:var(--acc4)">🚫 불량 ${dayDefect}장</span>`:''}
+          </div>
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -3833,7 +3955,10 @@ function renderWlHistory(){
     </div>`;
   }).join('');
 
-  listEl.innerHTML = summaryHtml + actionBarHtml + cardsHtml;
+  listEl.innerHTML = summaryHtml + allCheckBarHtml + actionBarHtml + cardsHtml;
+
+  // 전체선택 체크박스 상태 갱신
+  _wlSyncMasterCheckbox();
 
   // 액션바 표시 업데이트
   wlUpdateBulkBar();
@@ -3845,6 +3970,88 @@ function wlToggleCheck(id, checked){
   if(checked) window.wlChecked.add(id);
   else window.wlChecked.delete(id);
   wlUpdateBulkBar();
+  _wlSyncMasterCheckbox();
+}
+
+// 표시된 모든 체크박스를 한 번에 토글
+function wlToggleAll(checked){
+  const boxes = document.querySelectorAll('#wl-main-list input[type="checkbox"][id^="wlck_"]');
+  if(!window.wlChecked) window.wlChecked = new Set();
+  boxes.forEach(b=>{
+    b.checked = checked;
+    const id = b.id;
+    if(checked) window.wlChecked.add(id);
+    else window.wlChecked.delete(id);
+    // 체크된 행 하이라이트 토글
+    const row = b.closest('div[style*="border-top"]');
+    if(row){
+      if(checked){
+        row.style.background = 'rgba(88,166,255,.06)';
+        row.style.borderRadius = '6px';
+        row.style.padding = '10px 6px';
+      } else {
+        row.style.background = '';
+        row.style.borderRadius = '';
+        row.style.padding = '10px 0';
+      }
+    }
+  });
+  // 날짜 단위 체크박스도 모두 토글
+  document.querySelectorAll('.wl-day-check').forEach(b=>{ b.checked = checked; b.indeterminate = false; });
+  wlUpdateBulkBar();
+  const statusEl = document.getElementById('wl-check-status');
+  if(statusEl) statusEl.textContent = checked ? `${boxes.length}개 모두 선택됨` : `표시된 ${boxes.length}개 항목`;
+}
+
+// 특정 날짜의 모든 항목 토글
+function wlToggleDayAll(date, count, checked){
+  if(!window.wlChecked) window.wlChecked = new Set();
+  for(let i=0;i<count;i++){
+    const id = `wlck_${date}_${i}`;
+    const box = document.getElementById(id);
+    if(box){
+      box.checked = checked;
+      const row = box.closest('div[style*="border-top"]');
+      if(row){
+        if(checked){
+          row.style.background = 'rgba(88,166,255,.06)';
+          row.style.borderRadius = '6px';
+          row.style.padding = '10px 6px';
+        } else {
+          row.style.background = '';
+          row.style.borderRadius = '';
+          row.style.padding = '10px 0';
+        }
+      }
+    }
+    if(checked) window.wlChecked.add(id);
+    else window.wlChecked.delete(id);
+  }
+  wlUpdateBulkBar();
+  _wlSyncMasterCheckbox();
+}
+
+// 마스터(전체선택) 체크박스와 날짜 단위 체크박스 상태 동기화
+function _wlSyncMasterCheckbox(){
+  const master = document.getElementById('wl-check-all');
+  const boxes = document.querySelectorAll('#wl-main-list input[type="checkbox"][id^="wlck_"]');
+  if(!boxes.length) return;
+  const checkedCnt = window.wlChecked ? window.wlChecked.size : 0;
+  if(master){
+    if(checkedCnt === 0){ master.checked = false; master.indeterminate = false; }
+    else if(checkedCnt === boxes.length){ master.checked = true; master.indeterminate = false; }
+    else { master.checked = false; master.indeterminate = true; }
+  }
+  // 날짜 단위 체크박스도 동기화
+  document.querySelectorAll('.wl-day-check').forEach(b=>{
+    const date = b.dataset.date;
+    const count = parseInt(b.dataset.count);
+    let cnt = 0;
+    for(let i=0;i<count;i++){ if(window.wlChecked.has(`wlck_${date}_${i}`)) cnt++; }
+    if(cnt === 0){ b.checked = false; b.indeterminate = false; }
+    else if(cnt === count){ b.checked = true; b.indeterminate = false; }
+    else { b.checked = false; b.indeterminate = true; }
+  });
 }
 
 function wlUpdateBulkBar(){
