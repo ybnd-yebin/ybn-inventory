@@ -276,7 +276,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <div class="hdr">
   <div class="hdr-top">
-    <div class="hdr-title"><em>와이비앤디</em> 업무<small>YBND Work Hub</small></div>
+    <div class="hdr-title"><em>와이비앤디</em> 업무<small>YBN Work Hub</small></div>
     <div class="hdr-meta"><span id="hdr-now"></span> <span id="hdr-gs"></span></div>
   </div>
   <nav class="main-nav">
@@ -1736,7 +1736,9 @@ function openWorkModal(){
   document.getElementById('work-modal').classList.add('on');
 }
 function renderWorkSearch(){
-  const q=(document.getElementById('wm-search').value||'').toLowerCase().trim();
+  // * × 공백 → x 로 정규화해서 595*377, 595×377, 595 377 모두 검색 가능
+  const raw=(document.getElementById('wm-search').value||'').trim();
+  const q=raw.toLowerCase().replace(/[*×\s]+/g,'x').replace(/xx+/g,'x');
   const el=document.getElementById('wm-results');
   if(!q){el.innerHTML='';return;}
 
@@ -1744,36 +1746,47 @@ function renderWorkSearch(){
   const CL={'WC':'웜코튼','ETP':'에토프','':'미지정'};
 
   if(wlRoom==='print'){
-    // ── 인쇄실: 사이즈 그룹으로 검색 ──
+    // ── 인쇄실: 사이즈 카드 기준, 모델명 태그 표시 ──
     const sizeResults=(typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS:[]).filter(sg=>{
+      const szKey=`${sg.w}x${sg.h}`;
+      if(szKey.includes(q)) return true;
       if(String(sg.w).includes(q)||String(sg.h).includes(q)) return true;
-      if(`${sg.w}x${sg.h}`.includes(q)||`${sg.w}×${sg.h}`.includes(q)) return true;
-      if(sg.models&&sg.models.some(m=>m.toLowerCase().includes(q))) return true;
-      if(sg.tags&&sg.tags.some(t=>t.includes(q))) return true;
+      if(sg.models&&sg.models.some(m=>m.toLowerCase().replace(/\s+/g,'').includes(q.replace(/x/g,''))||m.toLowerCase().includes(raw.toLowerCase()))) return true;
+      if(sg.tags&&sg.tags.some(t=>t.replace(/[*×\s]/g,'x').includes(q)||t.includes(raw.toLowerCase()))) return true;
       return false;
     }).slice(0,6);
 
     if(!sizeResults.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
+
+    // 사이즈 카드: 사이즈 크게 + 모델명 태그들 + 웜코튼/에토프 버튼
     el.innerHTML=sizeResults.map(sg=>{
       const wcS=getSzStock(sg.w,sg.h,'WC');
       const etpS=getSzStock(sg.w,sg.h,'ETP');
-      const modelTags=sg.models.slice(0,3).map(m=>`<span style="font-size:9px;background:var(--s2);border:1px solid var(--b1);border-radius:3px;padding:1px 5px">${m}</span>`).join(' ');
-      const more=sg.models.length>3?`<span style="font-size:9px;color:var(--tx3)"> +${sg.models.length-3}종</span>`:'';
-      return `<div style="border-bottom:1px solid var(--b1)">
-        <div style="padding:10px 12px 4px;font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:var(--acc)">
-          ${sg.w} × ${sg.h} <span style="font-size:10px;font-weight:400;color:var(--tx3)">mm</span>
+      const modelTags=sg.models.map(mn=>`<span style="display:inline-block;font-size:10px;background:var(--s2);border:1px solid var(--b2);border-radius:4px;padding:2px 7px;margin:2px 2px 0 0;color:var(--tx2)">${mn}</span>`).join('');
+      // 대표 모델명: 첫 번째 (재고에 저장될 short)
+      // 색상 버튼 클릭 시 해당 색상으로 selectWorkModel 호출 - short는 첫 모델명 사용
+      const firstModel=sg.models[0]||`${sg.w}×${sg.h}`;
+      const safeFirst=firstModel.replace(/'/g,"\\'");
+      return `<div style="padding:12px 14px;border-bottom:1px solid var(--b1)">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc)">${sg.w} × ${sg.h}</span>
+          <span style="font-size:10px;color:var(--tx3)">mm</span>
         </div>
-        <div style="padding:0 12px 4px;display:flex;flex-wrap:wrap;gap:3px">${modelTags}${more}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;padding:0 12px 10px;gap:6px">
-          <div onclick="selectPrintSize(${sg.w},${sg.h},'WC')"
-            style="padding:8px;background:rgba(121,192,255,.12);border:1.5px solid var(--wc);border-radius:8px;cursor:pointer;text-align:center">
-            <div style="font-size:10px;font-weight:700;color:var(--wc);margin-bottom:2px">🔵 웜코튼</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:${wcS.raw>0?'var(--acc)':'var(--tx3)'}">${wcS.raw}<span style="font-size:10px">장</span></div>
+        <div style="margin-bottom:8px;line-height:1.6">${modelTags}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${sg.h},'WC')"
+            style="padding:9px 12px;background:rgba(121,192,255,.12);border:1.5px solid var(--wc);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:var(--wc)">🔵 웜코튼</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${wcS.raw>0?'var(--acc)':'var(--tx3)'}">
+              ${wcS.raw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
+            </span>
           </div>
-          <div onclick="selectPrintSize(${sg.w},${sg.h},'ETP')"
-            style="padding:8px;background:rgba(253,186,116,.12);border:1.5px solid var(--etp);border-radius:8px;cursor:pointer;text-align:center">
-            <div style="font-size:10px;font-weight:700;color:var(--etp);margin-bottom:2px">🟠 에토프</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:${etpS.raw>0?'var(--acc)':'var(--tx3)'}">${etpS.raw}<span style="font-size:10px">장</span></div>
+          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${sg.h},'ETP')"
+            style="padding:9px 12px;background:rgba(255,166,87,.12);border:1.5px solid var(--etp);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:var(--etp)">🟠 에토프</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${etpS.raw>0?'var(--acc)':'var(--tx3)'}">
+              ${etpS.raw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
+            </span>
           </div>
         </div>
       </div>`;
@@ -1817,6 +1830,10 @@ function renderWorkSearch(){
 }
 
 // 인쇄실 사이즈+색상 선택
+function selectPrintSizeNamed(short, w, h, color){
+  // 사이즈 카드에서 색상 선택 시: 모델명(short) + 색상 + 사이즈 모두 저장
+  selectWorkModel(short, color, w, h);
+}
 function selectPrintSize(w, h, color){
   const sg=typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS.find(s=>s.w===w&&s.h===h):null;
   wSelSize={w,h,label:`${w}×${h}`};
@@ -1956,20 +1973,20 @@ function confirmWork(){
     if(wMode==='defect'){
       if(wDefectLoc==='print'){
         setSzStock(w,h,color,s.raw-wQty,s.printed);
-        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='print'&&i.reason===wDefectReason);
+        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='print'&&i.reason===wDefectReason&&i.short===shortName);
         if(ex) ex.qty+=wQty;
         else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'defect',loc:'print',reason:wDefectReason});
         showToast(`🚫 인쇄실 불량 ${wQty}장 (${shortName} ${colorLabel})`);
       } else {
         setSzStock(w,h,color,s.raw,s.printed-wQty);
-        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='assembly'&&i.reason===wDefectReason);
+        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='assembly'&&i.reason===wDefectReason&&i.short===shortName);
         if(ex) ex.qty+=wQty;
         else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'defect',loc:'assembly',reason:wDefectReason});
         showToast(`🚫 조립실 불량 ${wQty}장 (${shortName} ${colorLabel})`);
       }
     } else {
       setSzStock(w,h,color,s.raw-wQty,s.printed+wQty);
-      const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='work');
+      const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='work'&&i.short===shortName);
       if(ex) ex.qty+=wQty;
       else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'work'});
       showToast(`✓ ${shortName} ${colorLabel} ${wQty}장`);
@@ -1982,7 +1999,11 @@ function confirmWork(){
       dl.items.push({code:wSelCode,qty:wQty,type:'defect',loc:wDefectLoc,reason:wDefectReason});
     } else {
       stock[wSelCode]={raw:Math.max(0,s.raw-wQty),printed:s.printed+wQty};
-      dl.items.push({code:wSelCode,qty:wQty,type:'work'});
+      const wScMdl=MODELS.find(x=>x.code===wSelCode)||CODE_MODEL_MAP[wSelCode]||{};
+      const wScColor=wlColor||wScMdl.color||'WC';
+      const exCode=dl.items.find(i=>i.code===wSelCode&&i.color===wScColor&&i.type==='work');
+      if(exCode) exCode.qty+=wQty;
+      else dl.items.push({code:wSelCode,color:wScColor,qty:wQty,type:'work'});
     }
     showToast('✓ '+wQty+'장 기록');
   }
@@ -3194,8 +3215,8 @@ function renderWorklogMain(){
   const defectItems=tl?tl.items.filter(i=>i.type==='defect'):[];
   const tw=normalItems.reduce((a,i)=>a+i.qty,0);
   const defectTotal=defectItems.reduce((a,i)=>a+i.qty,0);
-  const wcQ=normalItems.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
-  const etpQ=normalItems.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+  const wcQ=normalItems.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
+  const etpQ=normalItems.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
 
   const totalEl=document.getElementById('wl-today-total');
   if(totalEl) totalEl.innerHTML=tw+'<span style="font-size:14px;margin-left:2px">장</span>'+(defectTotal>0?'<span style="font-size:11px;color:rgba(255,255,255,.7);margin-left:6px">불량 -'+defectTotal+'</span>':'');
@@ -3214,17 +3235,20 @@ function renderWorklogMain(){
     } else {
       todayListEl.innerHTML=tl.items.map(it=>{
         const m=MODELS.find(x=>x.code===it.code);
+        const ic=it.color||(m&&m.color)||'';
         const isDefect=it.type==='defect';
-        const dot=isDefect?'var(--acc4)':m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
-        const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+        const dot=isDefect?'var(--acc4)':ic==='WC'?'var(--wc)':ic==='ETP'?'var(--etp)':'var(--tx2)';
+        const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:(it.sizeKey?it.sizeKey.replace('sz_','').replace('x','×'):'');
+        const dispName=m?hlName(m.short,ic):(it.short||it.sizeKey||it.code||'');
+        const dispCode=it.code||it.sizeKey||'';
         return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1);${isDefect?'opacity:.8':''}">
           <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-              ${m?hlName(m.short,m.color):it.code}
+              ${dispName}
               ${isDefect?`<span style="font-size:10px;background:rgba(248,81,73,.15);color:var(--acc4);padding:1px 6px;border-radius:8px;margin-left:4px">🚫 ${it.loc==='assembly'?'조립실':'인쇄실'} ${it.reason||'불량'}</span>`:''}
             </div>
-            <div style="font-size:10px;color:var(--tx2)">${it.code}${sz?' | 📐 '+sz:''}</div>
+            <div style="font-size:10px;color:var(--tx2)">${dispCode}${sz?' | 📐 '+sz:''}</div>
           </div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:900;color:${isDefect?'var(--acc4)':'var(--acc3)'};flex-shrink:0">${isDefect?'-':''}${it.qty}<span style="font-size:11px;color:var(--tx3)">장</span></div>
         </div>`;
@@ -3784,8 +3808,8 @@ function renderWlHistory(){
     const defectIt = day.items.filter(i=>i.type==='defect');
     const dayTotal = normalIt.reduce((a,i)=>a+i.qty,0);
     const dayDefect = defectIt.reduce((a,i)=>a+i.qty,0);
-    const wc = normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='WC';}).reduce((a,i)=>a+i.qty,0);
-    const etp = normalIt.filter(i=>{const m=MODELS.find(x=>x.code===i.code);return m&&m.color==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    const wc = normalIt.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etp = normalIt.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
     const isToday = day.date===td;
     const dl = fmtDateSafe(day.date);
     return `<div class="card" style="margin-bottom:8px">
@@ -3808,24 +3832,50 @@ function renderWlHistory(){
       </div>
       ${day.items.map((it,itIdx)=>{
         const m = MODELS.find(x=>x.code===it.code);
+        const ic = it.color||(m&&m.color)||'';
         const isDefect = it.type==='defect';
-        const dot = isDefect?'var(--acc4)':m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
-        const sz = m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
-        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--b1)">
-          <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+        const dot = isDefect?'var(--acc4)':ic==='WC'?'var(--wc)':ic==='ETP'?'var(--etp)':'var(--tx2)';
+        const sz = m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:(it.sizeKey?it.sizeKey.replace('sz_','').replace('x','×'):'');
+        // 모델명 결정: it.short(저장된 모델명) 우선, 사이즈형식이면 SIZE_GROUPS에서 찾기
+        const isSzOnly = it.short && /^\d+[x×]\d+$/.test(it.short.trim());
+        let modelName = '';
+        if(it.short && !isSzOnly) modelName = it.short;
+        else if(m) modelName = m.short;
+        else if(it.sizeKey){
+          const sgKey = it.sizeKey.replace('sz_','');
+          const sg2 = (typeof SIZE_GROUPS!=='undefined') ? SIZE_GROUPS.find(s=>s.key===sgKey||s.key===sgKey.replace('x','x')) : null;
+          if(sg2 && sg2.models && sg2.models.length===1) modelName = sg2.models[0];
+        }
+        const nm = modelName ? hlName(modelName,ic) : (sz?`<span style="font-family:'JetBrains Mono',monospace">${sz}</span>`:(it.code||'?'));
+        const dispCode = it.code||it.sizeKey||'';
+        const colorBg = ic==='WC'?'rgba(121,192,255,.15)':ic==='ETP'?'rgba(255,166,87,.15)':'transparent';
+        const colorTx = ic==='WC'?'var(--wc)':ic==='ETP'?'var(--etp)':'var(--tx3)';
+        const colorLbl = ic==='WC'?'웜코튼':ic==='ETP'?'에토프':'';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--b1)">
+          <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0;margin-top:2px"></div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-              ${m?hlName(m.short,m.color):it.code}
-              ${isDefect?`<span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:3px">🚫 ${it.loc==='assembly'?'조립실':'인쇄실'} ${it.reason||'불량'}</span>`:''}
+            <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px">
+              ${nm}${isDefect?` <span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:3px">🚫 ${it.loc==='assembly'?'조립실':'인쇄실'}</span>`:''}
             </div>
-            <div style="font-size:10px;color:var(--tx2)">${sz}</div>
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:2px">
+              ${sz?`<span style="font-size:10px;color:var(--tx3);font-family:'JetBrains Mono',monospace">📐 ${sz}</span>`:''}
+              ${colorLbl&&!isDefect?`<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${colorBg};color:${colorTx};font-weight:600">${colorLbl}</span>`:''}
+              ${(()=>{
+                if(!modelName&&it.sizeKey){
+                  const sgKey2=it.sizeKey.replace('sz_','');
+                  const sg3=(typeof SIZE_GROUPS!=='undefined')?SIZE_GROUPS.find(s=>s.key===sgKey2):null;
+                  if(sg3&&sg3.models&&sg3.models.length>0) return sg3.models.map(mn=>`<span style="font-size:10px;color:var(--tx2);background:var(--s2);border:1px solid var(--b2);border-radius:4px;padding:1px 5px">${mn}</span>`).join('');
+                }
+                return '';
+              })()}
+            </div>
           </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:${isDefect?'var(--acc4)':'var(--acc3)'}">
-            ${isDefect?'-':''}${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:900;color:${isDefect?'var(--acc4)':'var(--acc3)'};flex-shrink:0">
+            ${isDefect?'-':''}${it.qty}<span style="font-size:10px;color:var(--tx3);font-weight:400">장</span>
           </div>
-          <div style="display:flex;gap:4px;flex-shrink:0">
-            <button onclick="editWlItem('${day.date}',${itIdx})" style="padding:4px 8px;background:none;border:1px solid var(--b2);border-radius:6px;color:var(--acc);font-size:11px;cursor:pointer">✏️</button>
-            <button onclick="deleteWlItem('${day.date}',${itIdx})" style="padding:4px 8px;background:none;border:1px solid rgba(248,81,73,.3);border-radius:6px;color:var(--acc4);font-size:11px;cursor:pointer">🗑</button>
+          <div style="display:flex;flex-direction:row;gap:4px;flex-shrink:0">
+            <button onclick="editWlItem('${day.date}',${itIdx})" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--acc);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center">✏️</button>
+            <button onclick="deleteWlItem('${day.date}',${itIdx})" style="width:32px;height:32px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:6px;color:var(--acc4);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center">🗑</button>
           </div>
         </div>`;
       }).join('')}
@@ -3859,59 +3909,38 @@ function editWlDate(oldDate){
   showToast('날짜 변경됨');
 }
 
-function editWlItem(date, idx){
-  const dayLog = workLog.find(d=>d.date===date);
-  if(!dayLog || !dayLog.items[idx]) return;
-  const it = dayLog.items[idx];
-  const m = MODELS.find(x=>x.code===it.code);
-  const name = m ? m.short : it.code;
-  const isDefect = it.type==='defect';
-
-  const newQty = prompt(`${name}\n${isDefect?'불량':'작업'} 수량 수정:`, it.qty);
-  if(newQty === null) return;
-  const q = parseInt(newQty);
-  if(isNaN(q)||q<0){showToast('올바른 수량을 입력하세요');return;}
-
-  const diff = q - it.qty;
-  // 재고 역반영 후 재반영
-  const s = getStock(it.code);
-  if(it.type==='work'){
-    stock[it.code] = {raw: Math.max(0, s.raw - diff), printed: Math.max(0, s.printed + diff)};
-  } else if(it.type==='defect'){
-    if(it.loc==='assembly') stock[it.code] = {raw: s.raw, printed: Math.max(0, s.printed - diff)};
-    else stock[it.code] = {raw: Math.max(0, s.raw - diff), printed: s.printed};
-  }
-
-  if(q===0){
-    dayLog.items.splice(idx,1);
-    if(!dayLog.items.length) workLog = workLog.filter(d=>d.date!==date);
-  } else {
-    it.qty = q;
-  }
-  saveAll(); renderWorklogMain(); renderDash(); autoSync();
-  showToast('수량 수정됨');
-}
+// editWlItem v1 removed - using v2 below
 
 function deleteWlItem(date, idx){
   const dayLog = workLog.find(d=>d.date===date);
   if(!dayLog || !dayLog.items[idx]) return;
   const it = dayLog.items[idx];
-  const m = MODELS.find(x=>x.code===it.code);
-  if(!confirm(`${m?m.short:it.code} ${it.qty}장 기록을 삭제합니까?\n재고도 복원됩니다.`)) return;
 
-  // 재고 복원
-  const s = getStock(it.code);
-  if(it.type==='work'){
-    stock[it.code] = {raw: s.raw + it.qty, printed: Math.max(0, s.printed - it.qty)};
-  } else if(it.type==='defect'){
-    if(it.loc==='assembly') stock[it.code] = {raw: s.raw, printed: s.printed + it.qty};
-    else stock[it.code] = {raw: s.raw + it.qty, printed: s.printed};
+  // sizeKey 방식 재고 복원
+  if(it.sizeKey){
+    const parts = it.sizeKey.replace('sz_','').split('x');
+    const w=parseInt(parts[0]), h=parseInt(parts[1]);
+    const col = it.color||'WC';
+    const s = getSzStock(w,h,col);
+    if(it.type==='work') setSzStock(w,h,col,s.raw+it.qty,Math.max(0,s.printed-it.qty));
+    else if(it.type==='defect'){
+      if(it.loc==='assembly') setSzStock(w,h,col,s.raw,s.printed+it.qty);
+      else setSzStock(w,h,col,s.raw+it.qty,s.printed);
+    }
+  } else if(it.code){
+    const s = getStock(it.code);
+    if(it.type==='work'){
+      stock[it.code] = {raw: s.raw + it.qty, printed: Math.max(0, s.printed - it.qty)};
+    } else if(it.type==='defect'){
+      if(it.loc==='assembly') stock[it.code] = {raw: s.raw, printed: s.printed + it.qty};
+      else stock[it.code] = {raw: s.raw + it.qty, printed: s.printed};
+    }
   }
 
   dayLog.items.splice(idx,1);
   if(!dayLog.items.length) workLog = workLog.filter(d=>d.date!==date);
   saveAll(); renderWorklogMain(); renderDash(); autoSync();
-  showToast('삭제됨 (재고 복원)');
+  showToast('🗑 삭제됨');
 }
 
 // ── 작업일지 제품코드 → 모델명 자동 복구 ──
@@ -4065,8 +4094,8 @@ function confirmWlEdit(){
 function deleteWlItemCurrent(){
   if(!wlEditTarget) return;
   const {date, idx} = wlEditTarget;
-  deleteWlItem(date, idx);
   closeM('wl-edit-modal');
+  deleteWlItem(date, idx);
 }
 
 // ── 자재 데이터 초기화 ──
