@@ -1736,9 +1736,11 @@ function openWorkModal(){
   document.getElementById('work-modal').classList.add('on');
 }
 function renderWorkSearch(){
-  // * × 공백 → x 로 정규화해서 595*377, 595×377, 595 377 모두 검색 가능
   const raw=(document.getElementById('wm-search').value||'').trim();
+  // 정규화: *, ×, 공백 → x
   const q=raw.toLowerCase().replace(/[*×\s]+/g,'x').replace(/xx+/g,'x');
+  // 숫자만 추출 (445729 → "445729")
+  const qDigits=raw.replace(/\D/g,'');
   const el=document.getElementById('wm-results');
   if(!q){el.innerHTML='';return;}
 
@@ -1749,7 +1751,10 @@ function renderWorkSearch(){
     // ── 인쇄실: 사이즈 카드 기준, 모델명 태그 표시 ──
     const sizeResults=(typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS:[]).filter(sg=>{
       const szKey=`${sg.w}x${sg.h}`;
+      const szDigits=`${sg.w}${sg.h}`;   // 숫자 연결 "445729"
       if(szKey.includes(q)) return true;
+      // 구분자 없이 숫자만 입력한 경우 (445729, 595377 등)
+      if(qDigits.length>=4 && szDigits.startsWith(qDigits)) return true;
       if(String(sg.w).includes(q)||String(sg.h).includes(q)) return true;
       if(sg.models&&sg.models.some(m=>m.toLowerCase().replace(/\s+/g,'').includes(q.replace(/x/g,''))||m.toLowerCase().includes(raw.toLowerCase()))) return true;
       if(sg.tags&&sg.tags.some(t=>t.replace(/[*×\s]/g,'x').includes(q)||t.includes(raw.toLowerCase()))) return true;
