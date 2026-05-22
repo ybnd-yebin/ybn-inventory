@@ -490,11 +490,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- STOCK -->
 <div class="sec-pg" id="pg-stock">
   <nav class="sub-nav">
-    <button class="sub-nav-btn on" onclick="showSub('dashboard')"><span class="ico">📊</span>현황</button>
-    <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
-    <button class="sub-nav-btn" onclick="showSub('stocklist')"><span class="ico">📦</span>재고</button>
-    <button class="sub-nav-btn" onclick="showSub('stockedit')"><span class="ico">🛠️</span>재고편집</button>
+    <button class="sub-nav-btn on" onclick="showSub('stocklist')"><span class="ico">📦</span>재고</button>
+    <button class="sub-nav-btn" onclick="showSub('dashboard')"><span class="ico">📊</span>현황</button>
     <button class="sub-nav-btn" onclick="showSub('trend')"><span class="ico">📈</span>추이</button>
+    <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
     <button class="sub-nav-btn" onclick="showSub('nonspec')"><span class="ico">🔲</span>비규격</button>
   </nav>
   <!-- 대시보드 -->
@@ -552,21 +551,22 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       </div>
     </div>
   </div>
-  <!-- 재고 목록 -->
+  <!-- 재고 목록 (사이즈 기준) -->
   <div id="sp-stocklist" class="sub-pg" style="display:none;padding:14px 14px 80px">
-    <input class="inp" id="stock-search" placeholder="🔍 모델명 / 코드 / 사이즈..." oninput="renderStockList()">
+    <input class="inp" id="stock-search" placeholder="🔍 모델명 / 사이즈 (예: 6073, 595729, 595*729)..." oninput="renderStockList()">
     <div class="filter-row">
       <button class="f-btn on" onclick="setStockFilter('all',this)">전체</button>
-      <button class="f-btn" onclick="setStockFilter('urgent',this)">🔴 긴급</button>
-      <button class="f-btn" onclick="setStockFilter('warn',this)">🟡 주의</button>
+      <button class="f-btn" onclick="setStockFilter('has',this)">📦 재고있음</button>
+      <button class="f-btn" onclick="setStockFilter('urgent',this)">🔴 부족</button>
       <button class="f-btn" onclick="setStockFilter('WC',this)">웜코튼</button>
       <button class="f-btn" onclick="setStockFilter('ETP',this)">에토프</button>
       <button class="f-btn" onclick="setStockFilter('HD',this)">HD</button>
       <button class="f-btn" onclick="setStockFilter('OB',this)">OB</button>
       <button class="f-btn" onclick="setStockFilter('high',this)">고빈도</button>
-      <button class="f-btn" onclick="setStockFilter('rare',this)">희귀</button>
     </div>
     <div id="stock-list"></div>
+    <!-- 비규격 섹션 (사이즈 매핑 안 된 모델들) -->
+    <div id="stock-misc-section" style="margin-top:20px"></div>
   </div>
   <!-- 추이 -->
   <div id="sp-trend" class="sub-pg" style="display:none;padding:14px 14px 80px">
@@ -581,32 +581,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="trend-list"></div>
   </div>
   <!-- 재고 편집 -->
-  <div id="sp-stockedit" class="sub-pg" style="display:none;padding:14px 14px 80px">
-    <div class="info-note">
-      📝 인쇄실 원유리 / 조립실 인쇄유리 재고를 모델별로 직접 수정하고 기록을 관리합니다.
-    </div>
-
-    <!-- 전체 재고 요약 -->
-    <div class="g2" style="margin-bottom:12px">
-      <div class="stat"><div class="stat-l">인쇄실 원유리 총계</div><div class="stat-v" id="se-raw-total" style="color:var(--acc)">0</div><div class="stat-s">장</div></div>
-      <div class="stat"><div class="stat-l">조립실 인쇄유리 총계</div><div class="stat-v" id="se-printed-total" style="color:var(--acc3)">0</div><div class="stat-s">장</div></div>
-    </div>
-
-    <!-- 검색 -->
-    <input class="inp" id="se-search" placeholder="🔍 모델명 / 코드 검색..." oninput="renderStockEdit()">
-    <div class="filter-row">
-      <button class="f-btn on" onclick="setSeFilter('all',this)">전체</button>
-      <button class="f-btn" onclick="setSeFilter('has',this)">재고있음</button>
-      <button class="f-btn" onclick="setSeFilter('WC',this)">웜코튼</button>
-      <button class="f-btn" onclick="setSeFilter('ETP',this)">에토프</button>
-    </div>
-
-    <!-- 전체 초기화 버튼 -->
-    <button onclick="resetAllStock()" style="width:100%;padding:11px;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;color:var(--acc4);font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">⚠️ 전체 재고 초기화</button>
-
-    <div id="se-list"></div>
-  </div>
-
   <!-- 비규격 -->
   <div id="sp-nonspec" class="sub-pg" style="display:none;padding:14px 14px 80px">
     <div class="card"><div class="card-ttl">📐 비규격 사이즈 분석</div><div id="nonspec-list"></div></div>
@@ -848,11 +822,34 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeM('stock-modal')">×</button>
     <div class="modal-ttl" id="sm-name"></div>
-    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px" id="sm-sub"></div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:10px" id="sm-sub"></div>
+
+    <!-- 현재 재고 요약 -->
+    <div style="background:var(--s2);border-radius:8px;padding:8px 12px;margin-bottom:12px;display:flex;justify-content:space-around;font-size:11px">
+      <div style="text-align:center"><div style="color:var(--tx3);font-size:10px">인쇄실 원유리</div><div id="sm-cur-raw" style="font-weight:700;color:var(--acc);font-family:'JetBrains Mono',monospace;font-size:14px">0</div></div>
+      <div style="width:1px;background:var(--b2)"></div>
+      <div style="text-align:center"><div style="color:var(--tx3);font-size:10px">조립실 인쇄유리</div><div id="sm-cur-printed" style="font-weight:700;color:var(--acc3);font-family:'JetBrains Mono',monospace;font-size:14px">0</div></div>
+    </div>
+
+    <!-- 위치 탭 -->
     <div class="modal-tabs">
       <button class="m-tab on" id="stab-raw" onclick="setSTab('raw')">인쇄실 원유리</button>
       <button class="m-tab" id="stab-printed" onclick="setSTab('printed')">조립실 인쇄유리</button>
     </div>
+
+    <!-- 동작 모드 선택 -->
+    <span class="lbl" style="font-size:10px">동작 모드</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
+      <button class="q-btn smode-btn on" id="smode-set" onclick="setSMode('set')" style="padding:10px;font-size:11px;line-height:1.3">
+        ✏️ 직접 수정<br><span style="font-size:9px;color:var(--tx3)">현재 값을 지정</span>
+      </button>
+      <button class="q-btn smode-btn" id="smode-move" onclick="setSMode('move')" style="padding:10px;font-size:11px;line-height:1.3">
+        🔄 인쇄→조립<br><span style="font-size:9px;color:var(--tx3)">원유리↓ 인쇄유리↑</span>
+      </button>
+    </div>
+
+    <!-- 수량 입력 -->
+    <span class="lbl" id="sm-qty-label">현재 재고</span>
     <div class="qty-ctrl"><button class="qty-btn" onclick="sQtyD(-1)">−</button><input type="number" id="sm-qty" class="qty-num" value="0" min="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="sQty=parseInt(this.value)||0"><button class="qty-btn" onclick="sQtyD(1)">＋</button></div>
     <div class="quick-btns">
       <button class="q-btn" onclick="addSQ(5)">+5</button>
@@ -861,7 +858,62 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="q-btn" onclick="addSQ(-10)">-10</button>
       <button class="q-btn" style="color:var(--acc4)" onclick="sQty=0;document.getElementById('sm-qty').value=0">초기화</button>
     </div>
-    <button class="act-btn blue" onclick="confirmStock()">✓ 재고 저장</button>
+    <button class="act-btn blue" onclick="confirmStock()" id="sm-confirm-btn">✓ 재고 저장</button>
+    <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:6px" id="sm-confirm-desc"></div>
+  </div>
+</div>
+
+<!-- SIZE STOCK MODAL (원유리/인쇄/출고) -->
+<div class="modal-bg" id="size-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('size-modal')">×</button>
+    <div class="modal-ttl" id="szm-title">📐</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:6px" id="szm-sub"></div>
+    <div id="szm-models" style="margin-bottom:10px"></div>
+    <div id="szm-warning" style="margin-bottom:10px"></div>
+
+    <!-- 현재 재고 한눈에 -->
+    <div id="szm-summary" style="background:var(--s2);border-radius:8px;padding:10px 14px;margin-bottom:12px"></div>
+
+    <!-- 액션 모드 -->
+    <span class="lbl" style="font-size:10px">동작 선택</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px">
+      <button class="q-btn szm-mode-btn on" id="szm-mode-rawin" onclick="setSzmMode('rawin')" style="padding:11px 4px;font-size:11px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        📦 원유리<br><span style="font-size:9px;color:var(--tx3)">입고/수정</span>
+      </button>
+      <button class="q-btn szm-mode-btn" id="szm-mode-print" onclick="setSzmMode('print')" style="padding:11px 4px;font-size:11px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        🖨 인쇄<br><span style="font-size:9px;color:var(--tx3)">원→인쇄유리</span>
+      </button>
+      <button class="q-btn szm-mode-btn" id="szm-mode-out" onclick="setSzmMode('out')" style="padding:11px 4px;font-size:11px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        📤 출고<br><span style="font-size:9px;color:var(--tx3)">인쇄유리 차감</span>
+      </button>
+    </div>
+
+    <!-- 색상 선택 (인쇄/출고 시에만 표시) -->
+    <div id="szm-color-row" style="display:none">
+      <span class="lbl" style="font-size:10px">색상</span>
+      <div class="modal-tabs" style="margin-bottom:10px">
+        <button class="m-tab on" id="szm-tab-WC" onclick="setSzmColor('WC')">🔵 웜코튼</button>
+        <button class="m-tab" id="szm-tab-ETP" onclick="setSzmColor('ETP')">🟠 에토프</button>
+      </div>
+    </div>
+
+    <!-- 수량 입력 -->
+    <span class="lbl" id="szm-qty-label">수량</span>
+    <div class="qty-ctrl">
+      <button class="qty-btn" onclick="szmQtyD(-1)">−</button>
+      <input type="number" id="szm-qty" class="qty-num" value="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="szQty=parseInt(this.value)||0">
+      <button class="qty-btn" onclick="szmQtyD(1)">＋</button>
+    </div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="szmAddQ(1)">+1</button>
+      <button class="q-btn" onclick="szmAddQ(5)">+5</button>
+      <button class="q-btn" onclick="szmAddQ(10)">+10</button>
+      <button class="q-btn" onclick="szmAddQ(-1)">-1</button>
+      <button class="q-btn" style="color:var(--acc4)" onclick="szQty=0;document.getElementById('szm-qty').value=0">초기화</button>
+    </div>
+    <button class="act-btn blue" onclick="confirmSizeStock()" id="szm-confirm-btn">✓ 저장</button>
+    <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:6px" id="szm-confirm-desc"></div>
   </div>
 </div>
 
@@ -1047,6 +1099,46 @@ const INITIAL_NOTICES=[{"id": "n1", "title": "송영훈 휴가", "content": "5�
 const ANALYSIS=[{"code": "ME1WU0039", "short": "OB M 4573(공용) M", "color": "WC", "glass_w": 445, "glass_h": 729, "total_6m": 370, "avg_monthly": 61.7, "min_monthly": 9, "max_monthly": 134, "active_months": 6, "monthly": {"2025-11": 40, "2025-12": 90, "2026-01": 34, "2026-02": 134, "2026-03": 9, "2026-04": 63}}, {"code": "ME1WU0063", "short": "OB M 4573(공용) M", "color": "ETP", "glass_w": 445, "glass_h": 729, "total_6m": 210, "avg_monthly": 35.0, "min_monthly": 10, "max_monthly": 44, "active_months": 6, "monthly": {"2025-11": 41, "2025-12": 34, "2026-01": 41, "2026-02": 44, "2026-03": 10, "2026-04": 40}}, {"code": "ME1WU0042", "short": "OB M 5073(공용) M", "color": "WC", "glass_w": 495, "glass_h": 729, "total_6m": 202, "avg_monthly": 33.7, "min_monthly": 1, "max_monthly": 62, "active_months": 6, "monthly": {"2025-11": 20, "2025-12": 58, "2026-01": 27, "2026-02": 62, "2026-03": 1, "2026-04": 34}}, {"code": "ME1WU0036", "short": "OB M 4073(공용) M", "color": "WC", "glass_w": 395, "glass_h": 729, "total_6m": 185, "avg_monthly": 30.8, "min_monthly": 3, "max_monthly": 86, "active_months": 6, "monthly": {"2025-11": 20, "2025-12": 26, "2026-01": 29, "2026-02": 86, "2026-03": 3, "2026-04": 21}}, {"code": "ME1WU0047", "short": "OB M 6073(공용) M", "color": "WC", "glass_w": 595, "glass_h": 729, "total_6m": 159, "avg_monthly": 26.5, "min_monthly": 0, "max_monthly": 66, "active_months": 5, "monthly": {"2025-11": 13, "2025-12": 38, "2026-01": 21, "2026-02": 66, "2026-03": 0, "2026-04": 21}}, {"code": "ME1WU0060", "short": "OB M 4073(공용) M", "color": "ETP", "glass_w": 395, "glass_h": 729, "total_6m": 138, "avg_monthly": 23.0, "min_monthly": 6, "max_monthly": 48, "active_months": 6, "monthly": {"2025-11": 31, "2025-12": 20, "2026-01": 21, "2026-02": 48, "2026-03": 6, "2026-04": 12}}, {"code": "ME1WU0066", "short": "OB M 5073(공용) M", "color": "ETP", "glass_w": 495, "glass_h": 729, "total_6m": 131, "avg_monthly": 21.8, "min_monthly": 13, "max_monthly": 32, "active_months": 6, "monthly": {"2025-11": 16, "2025-12": 22, "2026-01": 18, "2026-02": 32, "2026-03": 13, "2026-04": 30}}, {"code": "ME1WU0071", "short": "OB M 6073(공용) M", "color": "ETP", "glass_w": 595, "glass_h": 729, "total_6m": 109, "avg_monthly": 18.2, "min_monthly": 2, "max_monthly": 34, "active_months": 6, "monthly": {"2025-11": 10, "2025-12": 18, "2026-01": 18, "2026-02": 34, "2026-03": 2, "2026-04": 27}}, {"code": "ME1WU0033", "short": "OB M 3573(공용) M", "color": "WC", "glass_w": 345, "glass_h": 729, "total_6m": 100, "avg_monthly": 16.7, "min_monthly": 1, "max_monthly": 30, "active_months": 6, "monthly": {"2025-11": 6, "2025-12": 30, "2026-01": 27, "2026-02": 18, "2026-03": 1, "2026-04": 18}}, {"code": "ME1BD0077", "short": "OB BD2R 9091 M", "color": "WC", "glass_w": 895, "glass_h": 347, "total_6m": 75, "avg_monthly": 12.5, "min_monthly": 0, "max_monthly": 34, "active_months": 5, "monthly": {"2025-11": 10, "2025-12": 12, "2026-01": 6, "2026-02": 34, "2026-03": 0, "2026-04": 13}}, {"code": "ME1WU0057", "short": "OB M 3573(공용) M", "color": "ETP", "glass_w": 345, "glass_h": 729, "total_6m": 61, "avg_monthly": 10.2, "min_monthly": 0, "max_monthly": 19, "active_months": 5, "monthly": {"2025-11": 19, "2025-12": 18, "2026-01": 9, "2026-02": 4, "2026-03": 0, "2026-04": 11}}, {"code": "ME1BD0095", "short": "OB BD2R 9091 M", "color": "ETP", "glass_w": 895, "glass_h": 347, "total_6m": 56, "avg_monthly": 9.3, "min_monthly": 1, "max_monthly": 18, "active_months": 6, "monthly": {"2025-11": 6, "2025-12": 8, "2026-01": 8, "2026-02": 18, "2026-03": 1, "2026-04": 15}}, {"code": "ME1BN0022", "short": "OB BNDC2N 3091 M", "color": "WC", "glass_w": 295, "glass_h": 729, "total_6m": 51, "avg_monthly": 8.5, "min_monthly": 1, "max_monthly": 18, "active_months": 6, "monthly": {"2025-11": 6, "2025-12": 8, "2026-01": 4, "2026-02": 18, "2026-03": 1, "2026-04": 14}}, {"code": "ME1BU0248", "short": "HD B 5091 R", "color": "ETP", "glass_w": 495, "glass_h": 761, "total_6m": 47, "avg_monthly": 7.8, "min_monthly": 2, "max_monthly": 15, "active_months": 6, "monthly": {"2025-11": 15, "2025-12": 14, "2026-01": 4, "2026-02": 4, "2026-03": 2, "2026-04": 8}}, {"code": "ME1BU0247", "short": "HD B 5091 L", "color": "ETP", "glass_w": 495, "glass_h": 761, "total_6m": 46, "avg_monthly": 7.7, "min_monthly": 1, "max_monthly": 14, "active_months": 6, "monthly": {"2025-11": 14, "2025-12": 14, "2026-01": 6, "2026-02": 4, "2026-03": 1, "2026-04": 7}}, {"code": "ME1BD0076", "short": "OB BD2R 6091 M", "color": "WC", "glass_w": 595, "glass_h": 347, "total_6m": 46, "avg_monthly": 7.7, "min_monthly": 0, "max_monthly": 12, "active_months": 5, "monthly": {"2025-11": 7, "2025-12": 8, "2026-01": 8, "2026-02": 12, "2026-03": 0, "2026-04": 11}}, {"code": "ME1BD0107", "short": "HD BD2R 9091 M", "color": "ETP", "glass_w": 895, "glass_h": 377, "total_6m": 44, "avg_monthly": 7.3, "min_monthly": 1, "max_monthly": 15, "active_months": 6, "monthly": {"2025-11": 15, "2025-12": 8, "2026-01": 9, "2026-02": 4, "2026-03": 1, "2026-04": 7}}, {"code": "ME1WU0044", "short": "OB M 5573(공용) M", "color": "WC", "glass_w": 545, "glass_h": 729, "total_6m": 44, "avg_monthly": 7.3, "min_monthly": 2, "max_monthly": 20, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 20, "2026-01": 8, "2026-02": 6, "2026-03": 3, "2026-04": 5}}, {"code": "ME1WU0030", "short": "OB M 3073(공용) M", "color": "WC", "glass_w": 295, "glass_h": 729, "total_6m": 43, "avg_monthly": 7.2, "min_monthly": 0, "max_monthly": 18, "active_months": 4, "monthly": {"2025-11": 0, "2025-12": 18, "2026-01": 6, "2026-02": 10, "2026-03": 0, "2026-04": 9}}, {"code": "ME1BD0088", "short": "HD BD2R 9091 M", "color": "WC", "glass_w": 895, "glass_h": 377, "total_6m": 40, "avg_monthly": 6.7, "min_monthly": 1, "max_monthly": 10, "active_months": 6, "monthly": {"2025-11": 10, "2025-12": 6, "2026-01": 7, "2026-02": 10, "2026-03": 1, "2026-04": 6}}, {"code": "ME1WR0025", "short": "OB WRMB 6135 M", "color": "WC", "glass_w": 605, "glass_h": 349, "total_6m": 39, "avg_monthly": 6.5, "min_monthly": 0, "max_monthly": 10, "active_months": 5, "monthly": {"2025-11": 8, "2025-12": 10, "2026-01": 4, "2026-02": 8, "2026-03": 0, "2026-04": 9}}, {"code": "ME1BU0251", "short": "HD B 6091 L", "color": "ETP", "glass_w": 595, "glass_h": 761, "total_6m": 39, "avg_monthly": 6.5, "min_monthly": 1, "max_monthly": 12, "active_months": 6, "monthly": {"2025-11": 12, "2025-12": 10, "2026-01": 5, "2026-02": 10, "2026-03": 1, "2026-04": 1}}, {"code": "ME1BD0106", "short": "HD BD2R 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 377, "total_6m": 37, "avg_monthly": 6.2, "min_monthly": 0, "max_monthly": 26, "active_months": 5, "monthly": {"2025-11": 6, "2025-12": 26, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0226", "short": "HD B 4591 R", "color": "WC", "glass_w": 445, "glass_h": 761, "total_6m": 36, "avg_monthly": 6.0, "min_monthly": 1, "max_monthly": 13, "active_months": 6, "monthly": {"2025-11": 13, "2025-12": 10, "2026-01": 4, "2026-02": 2, "2026-03": 1, "2026-04": 6}}, {"code": "ME1BU0225", "short": "HD B 4591 L", "color": "WC", "glass_w": 445, "glass_h": 761, "total_6m": 33, "avg_monthly": 5.5, "min_monthly": 0, "max_monthly": 13, "active_months": 5, "monthly": {"2025-11": 13, "2025-12": 10, "2026-01": 4, "2026-02": 2, "2026-03": 0, "2026-04": 4}}, {"code": "ME1BN0026", "short": "OB BNDC2N 3091 M", "color": "ETP", "glass_w": 295, "glass_h": 729, "total_6m": 32, "avg_monthly": 5.3, "min_monthly": 3, "max_monthly": 8, "active_months": 6, "monthly": {"2025-11": 5, "2025-12": 4, "2026-01": 5, "2026-02": 8, "2026-03": 3, "2026-04": 7}}, {"code": "ME1BN0028", "short": "HD BNDC2N 3091 M", "color": "ETP", "glass_w": 295, "glass_h": 761, "total_6m": 31, "avg_monthly": 5.2, "min_monthly": 1, "max_monthly": 10, "active_months": 6, "monthly": {"2025-11": 8, "2025-12": 10, "2026-01": 2, "2026-02": 6, "2026-03": 1, "2026-04": 4}}, {"code": "ME1BU0227", "short": "HD B 5091 L", "color": "WC", "glass_w": 495, "glass_h": 761, "total_6m": 30, "avg_monthly": 5.0, "min_monthly": 2, "max_monthly": 7, "active_months": 6, "monthly": {"2025-11": 7, "2025-12": 4, "2026-01": 7, "2026-02": 4, "2026-03": 2, "2026-04": 6}}, {"code": "ME1BU0252", "short": "HD B 6091 R", "color": "ETP", "glass_w": 595, "glass_h": 761, "total_6m": 29, "avg_monthly": 4.8, "min_monthly": 0, "max_monthly": 10, "active_months": 5, "monthly": {"2025-11": 7, "2025-12": 10, "2026-01": 3, "2026-02": 8, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BD0094", "short": "OB BD2R 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 347, "total_6m": 28, "avg_monthly": 4.7, "min_monthly": 2, "max_monthly": 6, "active_months": 6, "monthly": {"2025-11": 6, "2025-12": 2, "2026-01": 5, "2026-02": 6, "2026-03": 5, "2026-04": 4}}, {"code": "ME1WU0061", "short": "OB M 4086 M", "color": "ETP", "glass_w": 395, "glass_h": 857, "total_6m": 28, "avg_monthly": 4.7, "min_monthly": 0, "max_monthly": 12, "active_months": 5, "monthly": {"2025-11": 5, "2025-12": 0, "2026-01": 12, "2026-02": 2, "2026-03": 1, "2026-04": 8}}, {"code": "ME1BU0245", "short": "HD B 4591 L", "color": "ETP", "glass_w": 445, "glass_h": 761, "total_6m": 26, "avg_monthly": 4.3, "min_monthly": 1, "max_monthly": 8, "active_months": 6, "monthly": {"2025-11": 7, "2025-12": 8, "2026-01": 6, "2026-02": 2, "2026-03": 2, "2026-04": 1}}, {"code": "ME1BU0246", "short": "HD B 4591 R", "color": "ETP", "glass_w": 445, "glass_h": 761, "total_6m": 26, "avg_monthly": 4.3, "min_monthly": 1, "max_monthly": 10, "active_months": 6, "monthly": {"2025-11": 10, "2025-12": 8, "2026-01": 3, "2026-02": 2, "2026-03": 1, "2026-04": 2}}, {"code": "ME1WU0068", "short": "OB M 5573(공용) M", "color": "ETP", "glass_w": 545, "glass_h": 729, "total_6m": 26, "avg_monthly": 4.3, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 5, "2025-12": 6, "2026-01": 5, "2026-02": 6, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WT0119", "short": "OB WLDL 6051 M", "color": "WC", "glass_w": 595, "glass_h": 507, "total_6m": 26, "avg_monthly": 4.3, "min_monthly": 0, "max_monthly": 12, "active_months": 5, "monthly": {"2025-11": 2, "2025-12": 12, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BN0021", "short": "OB BNDB2N 2091 M", "color": "WC", "glass_w": 195, "glass_h": 729, "total_6m": 24, "avg_monthly": 4.0, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 3, "2025-12": 8, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BU0231", "short": "HD B 6091 L", "color": "WC", "glass_w": 595, "glass_h": 761, "total_6m": 24, "avg_monthly": 4.0, "min_monthly": 1, "max_monthly": 10, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 10, "2026-01": 1, "2026-02": 4, "2026-03": 3, "2026-04": 4}}, {"code": "ME1BU0228", "short": "HD B 5091 R", "color": "WC", "glass_w": 495, "glass_h": 761, "total_6m": 22, "avg_monthly": 3.7, "min_monthly": 2, "max_monthly": 7, "active_months": 6, "monthly": {"2025-11": 7, "2025-12": 2, "2026-01": 3, "2026-02": 2, "2026-03": 2, "2026-04": 6}}, {"code": "ME1BU0233", "short": "OB BUIF 3034", "color": "ETP", "glass_w": 295, "glass_h": 345, "total_6m": 22, "avg_monthly": 3.7, "min_monthly": 2, "max_monthly": 6, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 6, "2026-01": 4, "2026-02": 2, "2026-03": 5, "2026-04": 3}}, {"code": "KITAS0075", "short": "MBD2R소마이다(멍)_555*80(Euro700 Grace W/Cott", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 2, "2026-02": 8, "2026-03": 1, "2026-04": 6}}, {"code": "ME1BD0102", "short": "OB BLD1UA 6091 M", "color": "ETP", "glass_w": 555, "glass_h": 57, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 4, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BU0213", "short": "OB BUIF 3034", "color": "WC", "glass_w": 295, "glass_h": 345, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 2, "max_monthly": 5, "active_months": 6, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 5, "2026-02": 4, "2026-03": 3, "2026-04": 3}}, {"code": "ME1BU0234", "short": "HD BUIF 3034", "color": "ETP", "glass_w": 295, "glass_h": 345, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 4, "2026-01": 4, "2026-02": 8, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0037", "short": "OB M 4086 M", "color": "WC", "glass_w": 395, "glass_h": 857, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 8, "active_months": 4, "monthly": {"2025-11": 0, "2025-12": 8, "2026-01": 1, "2026-02": 8, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WU0056", "short": "OB M 3565 M", "color": "ETP", "glass_w": 345, "glass_h": 649, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 20, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 20, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0232", "short": "HD B 6091 R", "color": "WC", "glass_w": 595, "glass_h": 761, "total_6m": 19, "avg_monthly": 3.2, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 6, "2026-01": 0, "2026-02": 2, "2026-03": 3, "2026-04": 4}}, {"code": "ME1WT0149", "short": "OB WLDL 6051 M", "color": "ETP", "glass_w": 595, "glass_h": 507, "total_6m": 19, "avg_monthly": 3.2, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 3, "2025-12": 4, "2026-01": 4, "2026-02": 0, "2026-03": 2, "2026-04": 6}}, {"code": "ME1WT0155", "short": "OB WMLDT 6073 M", "color": "ETP", "glass_w": 595, "glass_h": 729, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 7, "active_months": 5, "monthly": {"2025-11": 7, "2025-12": 4, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WT0163", "short": "OB WT 45134 M", "color": "ETP", "glass_w": 445, "glass_h": 1342, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 10, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 10, "2026-02": 4, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BD0084", "short": "OB BLD1UA 6091 M", "color": "WC", "glass_w": 555, "glass_h": 57, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 1, "max_monthly": 5, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 2, "2026-02": 4, "2026-03": 1, "2026-04": 5}}, {"code": "ME1WR0031", "short": "OB WRMB 9335 M", "color": "WC", "glass_w": 925, "glass_h": 349, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 4, "2026-02": 6, "2026-03": 0, "2026-04": 2}}, {"code": "ME1TD0011", "short": "OB BTAO1U 6014 M", "color": "WC", "glass_w": 595, "glass_h": 139, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 5, "2026-02": 6, "2026-03": 1, "2026-04": 2}}, {"code": "ME1BU0243", "short": "HD B 4091 L", "color": "ETP", "glass_w": 395, "glass_h": 761, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 5, "active_months": 5, "monthly": {"2025-11": 5, "2025-12": 4, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 3}}, {"code": "ME1WR0045", "short": "OB WRMB 6135 M", "color": "ETP", "glass_w": 605, "glass_h": 349, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 6, "active_months": 4, "monthly": {"2025-11": 5, "2025-12": 4, "2026-01": 3, "2026-02": 6, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0054", "short": "OB M 3073(공용) M", "color": "ETP", "glass_w": 295, "glass_h": 729, "total_6m": 17, "avg_monthly": 2.8, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 6, "2025-12": 0, "2026-01": 2, "2026-02": 2, "2026-03": 1, "2026-04": 6}}, {"code": "ME1BA0023", "short": "OB BRO1R 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 247, "total_6m": 17, "avg_monthly": 2.8, "min_monthly": 1, "max_monthly": 6, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 6, "2026-01": 2, "2026-02": 2, "2026-03": 1, "2026-04": 4}}, {"code": "ME1WU0064", "short": "OB M 4586 M", "color": "ETP", "glass_w": 445, "glass_h": 857, "total_6m": 17, "avg_monthly": 2.8, "min_monthly": 0, "max_monthly": 8, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 8, "2026-02": 6, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WU0040", "short": "OB M 4586 M", "color": "WC", "glass_w": 445, "glass_h": 857, "total_6m": 17, "avg_monthly": 2.8, "min_monthly": 0, "max_monthly": 8, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 7}}, {"code": "ME1WU0035", "short": "OB M 4065 M", "color": "WC", "glass_w": 395, "glass_h": 649, "total_6m": 16, "avg_monthly": 2.7, "min_monthly": 0, "max_monthly": 10, "active_months": 2, "monthly": {"2025-11": 6, "2025-12": 10, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0033", "short": "OB WRMB 9533 M", "color": "WC", "glass_w": 945, "glass_h": 324, "total_6m": 15, "avg_monthly": 2.5, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 0, "2026-02": 8, "2026-03": 2, "2026-04": 2}}, {"code": "ME1WU0062", "short": "OB M 4565 M", "color": "ETP", "glass_w": 445, "glass_h": 649, "total_6m": 15, "avg_monthly": 2.5, "min_monthly": 0, "max_monthly": 7, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 7}}, {"code": "ME1BD0085", "short": "OB BLD2R 6062 M", "color": "WC", "glass_w": 555, "glass_h": 77, "total_6m": 15, "avg_monthly": 2.5, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 6, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 5}}, {"code": "ME1WT0165", "short": "OB WT 60134 M", "color": "ETP", "glass_w": 595, "glass_h": 1342, "total_6m": 15, "avg_monthly": 2.5, "min_monthly": 0, "max_monthly": 8, "active_months": 4, "monthly": {"2025-11": 8, "2025-12": 2, "2026-01": 3, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0244", "short": "HD B 4091 R", "color": "ETP", "glass_w": 395, "glass_h": 761, "total_6m": 14, "avg_monthly": 2.3, "min_monthly": 0, "max_monthly": 6, "active_months": 3, "monthly": {"2025-11": 6, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WT0167", "short": "OB WTA 45134 L", "color": "ETP", "glass_w": 445, "glass_h": 1342, "total_6m": 14, "avg_monthly": 2.3, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 3, "2025-12": 6, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0027", "short": "OB M 2573(공용) M", "color": "WC", "glass_w": 245, "glass_h": 729, "total_6m": 14, "avg_monthly": 2.3, "min_monthly": 0, "max_monthly": 7, "active_months": 4, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 2, "2026-02": 0, "2026-03": 1, "2026-04": 7}}, {"code": "ME1WT0158", "short": "OB WMLDT 6096 M", "color": "ETP", "glass_w": 595, "glass_h": 955, "total_6m": 14, "avg_monthly": 2.3, "min_monthly": 0, "max_monthly": 8, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 8, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0125", "short": "OB WMLDT 6073 M", "color": "WC", "glass_w": 595, "glass_h": 729, "total_6m": 13, "avg_monthly": 2.2, "min_monthly": 0, "max_monthly": 5, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 5}}, {"code": "ME1BU0214", "short": "HD BUIF 3034", "color": "WC", "glass_w": 295, "glass_h": 345, "total_6m": 13, "avg_monthly": 2.2, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 2, "2026-02": 6, "2026-03": 1, "2026-04": 2}}, {"code": "ME1TN0011", "short": "OB TND2 30149 M", "color": "WC", "glass_w": 295, "glass_h": 606, "total_6m": 13, "avg_monthly": 2.2, "min_monthly": 0, "max_monthly": 8, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 8, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BN0024", "short": "HD BNDC2N 3091 M", "color": "WC", "glass_w": 295, "glass_h": 761, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 5, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 2, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 5}}, {"code": "ME1WT0168", "short": "OB WTA 45134 R", "color": "ETP", "glass_w": 445, "glass_h": 1342, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 3, "2025-12": 4, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0087", "short": "HD BD2R 6091 M", "color": "WC", "glass_w": 595, "glass_h": 377, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 4, "2026-04": 1}}, {"code": "ME1WF0034", "short": "OB WF 9037 M", "color": "WC", "glass_w": 895, "glass_h": 369, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 4, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0135", "short": "OB WT 60134 M", "color": "WC", "glass_w": 595, "glass_h": 1342, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 6, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 6, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 2}}, {"code": "MRTWU0015", "short": "Euro700 Grace Sahara CH M 4573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 8, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 8, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0051", "short": "OB WRMB 9335 M", "color": "ETP", "glass_w": 925, "glass_h": 349, "total_6m": 11, "avg_monthly": 1.8, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 3}}, {"code": "ME1WU0031", "short": "OB M 3086 M", "color": "WC", "glass_w": 295, "glass_h": 857, "total_6m": 11, "avg_monthly": 1.8, "min_monthly": 0, "max_monthly": 5, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 5}}, {"code": "ME1BU0223", "short": "HD B 4091 L", "color": "WC", "glass_w": 395, "glass_h": 761, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BU0229", "short": "HD B 5591 L", "color": "WC", "glass_w": 545, "glass_h": 761, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0133", "short": "OB WT 45134 M", "color": "WC", "glass_w": 445, "glass_h": 1342, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0053", "short": "OB WRMB 9533 M", "color": "ETP", "glass_w": 945, "glass_h": 324, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 5, "active_months": 3, "monthly": {"2025-11": 5, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BA0017", "short": "OB BRO1R 6091 M", "color": "WC", "glass_w": 595, "glass_h": 247, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WR0026", "short": "OB WRMB 6148 M", "color": "WC", "glass_w": 605, "glass_h": 477, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 6, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BN0027", "short": "HD BNDB2N 2091 M", "color": "ETP", "glass_w": 195, "glass_h": 761, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0042", "short": "OB WRMB 10045 M", "color": "ETP", "glass_w": 995, "glass_h": 452, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 6, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0050", "short": "OB WFUP 9036 M", "color": "WC", "glass_w": 895, "glass_h": 353, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0059", "short": "OB M 4065 M", "color": "ETP", "glass_w": 395, "glass_h": 649, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 4, "2025-12": 4, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BN0025", "short": "OB BNDB2N 2091 M", "color": "ETP", "glass_w": 195, "glass_h": 729, "total_6m": 9, "avg_monthly": 1.5, "min_monthly": 0, "max_monthly": 3, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 2, "2026-02": 0, "2026-03": 1, "2026-04": 3}}, {"code": "ME1WU0034", "short": "OB M 3586 M", "color": "WC", "glass_w": 345, "glass_h": 857, "total_6m": 9, "avg_monthly": 1.5, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 4, "2026-03": 4, "2026-04": 1}}, {"code": "ME1BD0097", "short": "OB BD3U 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 170, "total_6m": 9, "avg_monthly": 1.5, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 1, "2026-02": 2, "2026-03": 1, "2026-04": 0}}, {"code": "ME1TD0012", "short": "HD BTAO1U 6014 M", "color": "WC", "glass_w": 595, "glass_h": 139, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0174", "short": "OB WTA 60147 R", "color": "ETP", "glass_w": 595, "glass_h": 1470, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0079", "short": "OB BD3U 6091 M", "color": "WC", "glass_w": 595, "glass_h": 170, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1WU0025", "short": "OB M 2073(공용) M", "color": "WC", "glass_w": 195, "glass_h": 729, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 4, "2026-03": 1, "2026-04": 1}}, {"code": "ME1WT0126", "short": "OB WMLDT 6083 M", "color": "WC", "glass_w": 595, "glass_h": 827, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BD0083", "short": "OB BLD1UA 4591 M", "color": "WC", "glass_w": 405, "glass_h": 57, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 2, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BA0016", "short": "OB BADMIL 6091", "color": "WC", "glass_w": 595, "glass_h": 729, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0157", "short": "OB WMLDT 6086 M", "color": "ETP", "glass_w": 595, "glass_h": 857, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 3, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1TD0018", "short": "HD BTAO1U 6014 M", "color": "ETP", "glass_w": 595, "glass_h": 139, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 5, "active_months": 3, "monthly": {"2025-11": 5, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0103", "short": "OB BLD2R 6062 M", "color": "ETP", "glass_w": 555, "glass_h": 77, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BD0100", "short": "OB BLD1R 6091 M", "color": "ETP", "glass_w": 555, "glass_h": 57, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WR0041", "short": "OB WRMB 10033 M", "color": "ETP", "glass_w": 995, "glass_h": 324, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0101", "short": "OB BLD1UA 4591 M", "color": "ETP", "glass_w": 405, "glass_h": 57, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WF0028", "short": "OB WF 10037 M", "color": "WC", "glass_w": 995, "glass_h": 369, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 6, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 1}}, {"code": "ME1TN0013", "short": "OB TND2 30149 M", "color": "ETP", "glass_w": 295, "glass_h": 606, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 2, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 2, "2026-03": 1, "2026-04": 1}}, {"code": "ME1BD0090", "short": "HD BD3U 6091 M", "color": "WC", "glass_w": 595, "glass_h": 185, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0151", "short": "OB WMLDT 3073 M", "color": "ETP", "glass_w": 295, "glass_h": 729, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 4, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WH0014", "short": "OB WHMH 6065 M", "color": "ETP", "glass_w": 595, "glass_h": 649, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 2, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 1, "2026-02": 2, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WF0031", "short": "OB WF 8037 M", "color": "WC", "glass_w": 795, "glass_h": 369, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 5, "active_months": 2, "monthly": {"2025-11": 5, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0012", "short": "Euro700 Grace Sahara CH M 4073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0230", "short": "HD B 5591 R", "color": "WC", "glass_w": 545, "glass_h": 761, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WR0046", "short": "OB WRMB 6148 M", "color": "ETP", "glass_w": 605, "glass_h": 477, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 6}}, {"code": "ME1TN0014", "short": "HD TND2 30149 M", "color": "ETP", "glass_w": 295, "glass_h": 606, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 4, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0221", "short": "HD B 3591 L", "color": "WC", "glass_w": 345, "glass_h": 761, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 3, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 3, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WF0046", "short": "OB WFUP 10036 M", "color": "WC", "glass_w": 995, "glass_h": 353, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0166", "short": "OB WT 60147 M", "color": "ETP", "glass_w": 595, "glass_h": 1470, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0105", "short": "HD BD2R 12091 M", "color": "ETP", "glass_w": 1195, "glass_h": 377, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0018", "short": "Euro700 Grace Sahara CH M 5073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0063", "short": "OB WFED 7053 M", "color": "ETP", "glass_w": 695, "glass_h": 529, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0032", "short": "OB M 3565 M", "color": "WC", "glass_w": 345, "glass_h": 649, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0131", "short": "OB WT 40134 M", "color": "WC", "glass_w": 395, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0111", "short": "HD BLD2R 6062 M", "color": "ETP", "glass_w": null, "glass_h": null, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0171", "short": "OB WTA 60134 L", "color": "ETP", "glass_w": 595, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WU0048", "short": "OB M 6086 M", "color": "WC", "glass_w": 595, "glass_h": 857, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0136", "short": "OB WT 60147 M", "color": "WC", "glass_w": 595, "glass_h": 1470, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 4, "2026-04": 1}}, {"code": "ME1WT0129", "short": "OB WT 30134 M", "color": "WC", "glass_w": 295, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0027", "short": "OB WRMB 7135 M", "color": "WC", "glass_w": 710, "glass_h": 349, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0080", "short": "OB BDI1R 4591 M", "color": "WC", "glass_w": 445, "glass_h": 729, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 4, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0120", "short": "OB WLDL 9051 M", "color": "WC", "glass_w": 895, "glass_h": 507, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0249", "short": "HD B 5591 L", "color": "ETP", "glass_w": 545, "glass_h": 761, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 3, "active_months": 3, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WF0048", "short": "OB WFUP 8036 M", "color": "WC", "glass_w": 795, "glass_h": 353, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0047", "short": "OB WRMB 7135 M", "color": "ETP", "glass_w": 710, "glass_h": 349, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0021", "short": "OB WRMB 10033 M", "color": "WC", "glass_w": 995, "glass_h": 324, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0161", "short": "OB WT 40134 M", "color": "ETP", "glass_w": 395, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0006", "short": "Euro700 Grace Sahara CH M 3073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0009", "short": "Euro700 Grace Sahara CH M 3573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0086", "short": "HD BD2R 12091 M", "color": "WC", "glass_w": 1195, "glass_h": 377, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 4, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 4}}, {"code": "ME1BD0081", "short": "OB BLD1R 4591 M", "color": "WC", "glass_w": 405, "glass_h": 57, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BU0224", "short": "HD B 4091 R", "color": "WC", "glass_w": 395, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1TN0012", "short": "HD TND2 30149 M", "color": "WC", "glass_w": 295, "glass_h": 606, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0121", "short": "OB WMLDT 3073 M", "color": "WC", "glass_w": 295, "glass_h": 729, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1TD0017", "short": "OB BTAO1U 6014 M", "color": "ETP", "glass_w": 595, "glass_h": 139, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 2}}, {"code": "ME1BU0240", "short": "HD B 3091 R", "color": "ETP", "glass_w": 295, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BN0023", "short": "HD BNDB2N 2091 M", "color": "WC", "glass_w": 195, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0242", "short": "HD B 3591 R", "color": "ETP", "glass_w": 345, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WH0010", "short": "OB WHMH 6073 M", "color": "WC", "glass_w": 595, "glass_h": 729, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0250", "short": "HD B 5591 R", "color": "ETP", "glass_w": 545, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0222", "short": "HD B 3591 R", "color": "WC", "glass_w": 345, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WT0156", "short": "OB WMLDT 6083 M", "color": "ETP", "glass_w": 595, "glass_h": 827, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0075", "short": "OB WFUP 9036 M", "color": "ETP", "glass_w": 895, "glass_h": 353, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WH0015", "short": "OB WHMH 6073 M", "color": "ETP", "glass_w": 595, "glass_h": 729, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0027", "short": "OB W2U 4542 M", "color": "WC", "glass_w": 445, "glass_h": 417, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 4, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0058", "short": "OB M 3586 M", "color": "ETP", "glass_w": 345, "glass_h": 857, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 4, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWF0017", "short": "Euro700 Grace Sahara CH WFUP 10036 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 4, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0068", "short": "OB WFMD 9035 M", "color": "ETP", "glass_w": 895, "glass_h": 349, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WU0067", "short": "OB M 5086 M", "color": "ETP", "glass_w": 495, "glass_h": 857, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0110", "short": "HD BDI1R 4591 M", "color": "ETP", "glass_w": 445, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WU0053", "short": "OB M 3065 M", "color": "ETP", "glass_w": 295, "glass_h": 649, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0052", "short": "OB WRMB 9348 M", "color": "ETP", "glass_w": 925, "glass_h": 477, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WF0040", "short": "OB WFED 9053 M", "color": "WC", "glass_w": 895, "glass_h": 529, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0169", "short": "OB WTA 45147 L", "color": "ETP", "glass_w": 445, "glass_h": 1470, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 2}}, {"code": "ME1WT0170", "short": "OB WTA 45147 R", "color": "ETP", "glass_w": 445, "glass_h": 1470, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 2}}, {"code": "ME1WF0069", "short": "OB WFMD 9048 M", "color": "ETP", "glass_w": 895, "glass_h": 477, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0134", "short": "OB WT 45147 M", "color": "WC", "glass_w": 445, "glass_h": 1470, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0241", "short": "HD B 3591 L", "color": "ETP", "glass_w": 345, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0049", "short": "OB M 2073(공용) M", "color": "ETP", "glass_w": 195, "glass_h": 729, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "MRSWU0018", "short": "CH M 5073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0093", "short": "OB BD2R 12091 M", "color": "ETP", "glass_w": 1195, "glass_h": 347, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 3, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BA0020", "short": "HD BADMIL 6091", "color": "WC", "glass_w": 595, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BU0216", "short": "HD B 2091 R", "color": "WC", "glass_w": 195, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0109", "short": "HD BD3U 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 185, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TU0005", "short": "HD TH 45220 L", "color": "WC", "glass_w": 445, "glass_h": 2200, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TU0006", "short": "HD TH 45220 R", "color": "WC", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0092", "short": "HD BLD2R 6062 M", "color": "WC", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0038", "short": "OB M 4565 M", "color": "WC", "glass_w": 445, "glass_h": 649, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 3, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0141", "short": "OB WTA 60134 L", "color": "WC", "glass_w": 595, "glass_h": 1342, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWF0019", "short": "Euro700 Grace Sahara CH WFUP 8036 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 3, "active_months": 1, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0219", "short": "HD B 3091 L", "color": "WC", "glass_w": 295, "glass_h": 761, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0072", "short": "OB M 6086 M", "color": "ETP", "glass_w": 595, "glass_h": 857, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0139", "short": "OB WTA 45147 L", "color": "WC", "glass_w": 445, "glass_h": 1470, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0140", "short": "OB WTA 45147 R", "color": "WC", "glass_w": 445, "glass_h": 1470, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WF0037", "short": "OB WFED 6053 M", "color": "WC", "glass_w": 595, "glass_h": 529, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WF0038", "short": "OB WFED 7053 M", "color": "WC", "glass_w": 695, "glass_h": 529, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BA0026", "short": "HD BADMIL 6091", "color": "ETP", "glass_w": 595, "glass_h": 761, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "MRRWU0020", "short": "CH M 5573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BC0031", "short": "OB BC1A 4291 M", "color": "WC", "glass_w": 422, "glass_h": 729, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BC0032", "short": "OB BC1B 4091 M", "color": "WC", "glass_w": 402, "glass_h": 729, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0055", "short": "OB M 3086 M", "color": "ETP", "glass_w": 295, "glass_h": 857, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0069", "short": "OB M 5586 M", "color": "ETP", "glass_w": 545, "glass_h": 857, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0059", "short": "OB WF 9037 M", "color": "ETP", "glass_w": 895, "glass_h": 369, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0082", "short": "OB BLD1R 6091 M", "color": "WC", "glass_w": 555, "glass_h": 57, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0029", "short": "OB M 3065 M", "color": "WC", "glass_w": 295, "glass_h": 649, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WH0009", "short": "OB WHMH 6065 M", "color": "WC", "glass_w": 595, "glass_h": 649, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTBD0002", "short": "Euro700 Grace Sahara CH BD2R 6091 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTBN0002", "short": "Euro700 Grace Sahara CH BNDC2N 3091 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0078", "short": "OB BD3U 4591 M", "color": "WC", "glass_w": 445, "glass_h": 170, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0056", "short": "OB WF 8037 M", "color": "ETP", "glass_w": 795, "glass_h": 369, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0073", "short": "OB WFUP 8036 M", "color": "ETP", "glass_w": 795, "glass_h": 353, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0142", "short": "OB WTA 60134 R", "color": "WC", "glass_w": 595, "glass_h": 1342, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0099", "short": "OB BLD1R 4591 M", "color": "ETP", "glass_w": 405, "glass_h": 57, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0043", "short": "OB WFMD 9035 M", "color": "WC", "glass_w": 895, "glass_h": 349, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0053", "short": "OB WF 10037 M", "color": "ETP", "glass_w": 995, "glass_h": 369, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0059", "short": "OB WRMBS 9035 M", "color": "ETP", "glass_w": 895, "glass_h": 349, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0235", "short": "HD B 2091 L", "color": "ETP", "glass_w": 195, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BA0022", "short": "OB BADMIL 6091", "color": "ETP", "glass_w": 595, "glass_h": 729, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WF0058", "short": "OB WF 9033 M", "color": "ETP", "glass_w": 895, "glass_h": 329, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0220", "short": "HD B 3091 R", "color": "WC", "glass_w": 295, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0023", "short": "OB WRMB 4735 M", "color": "WC", "glass_w": 465, "glass_h": 349, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "MRRBD0012", "short": "CH BLD1UA 6091 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WH0008", "short": "OB WHM 6061 M", "color": "WC", "glass_w": 595, "glass_h": 603, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0034", "short": "OB WRMB 9545 M", "color": "WC", "glass_w": 945, "glass_h": 452, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0043", "short": "OB M 5086 M", "color": "WC", "glass_w": 495, "glass_h": 857, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "MRRWU0011", "short": "CH M 4065 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WF0060", "short": "OB WF 9044 M", "color": "ETP", "glass_w": 895, "glass_h": 433, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BA0025", "short": "OB BTARG 6070 R", "color": "ETP", "glass_w": 592, "glass_h": 693, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WT0178", "short": "OB WTARG 60154 R", "color": "ETP", "glass_w": 592, "glass_h": 1538, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WT0150", "short": "OB WLDL 9051 M", "color": "ETP", "glass_w": 895, "glass_h": 507, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TU0010", "short": "HD TH 45220 L", "color": "ETP", "glass_w": 445, "glass_h": 2200, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TU0011", "short": "HD TH 45220 R", "color": "ETP", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRRWU0012", "short": "CH M 4073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0236", "short": "HD B 2091 R", "color": "ETP", "glass_w": 195, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRSWU0012", "short": "CH M 4073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0217", "short": "HD B 2591 L", "color": "WC", "glass_w": 245, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0173", "short": "OB WTA 60147 L", "color": "ETP", "glass_w": 595, "glass_h": 1470, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BC0038", "short": "OB BC1B 4091 M", "color": "ETP", "glass_w": 402, "glass_h": 729, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0164", "short": "OB WT 45147 M", "color": "ETP", "glass_w": 445, "glass_h": 1470, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRQWU0015", "short": "Euro700 Grace MID/N CH M 4573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WH0006", "short": "OB WHFM 6027 M", "color": "WC", "glass_w": 595, "glass_h": 269, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0020", "short": "Euro700 Grace Sahara CH M 5573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0066", "short": "OB WFMD 6035 M", "color": "ETP", "glass_w": 595, "glass_h": 349, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0237", "short": "HD B 2591 L", "color": "ETP", "glass_w": 245, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TC0011", "short": "HD TCP1D 42222 L", "color": "ETP", "glass_w": 422, "glass_h": 2110, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TC0012", "short": "HD TCP1D 40222 R", "color": "ETP", "glass_w": 402, "glass_h": 2110, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0159", "short": "OB WT 30134 M", "color": "ETP", "glass_w": 295, "glass_h": 1342, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0127", "short": "OB WMLDT 6086 M", "color": "WC", "glass_w": 595, "glass_h": 857, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}];
 const SIZE_GROUPS=[{"w": 595, "h": 139, "key": "595x139", "label": "595 × 139", "models": ["OB BTAO1U 6014 M", "HD BTAO1U 6014 M"], "tags": ["595", "139", "ob btao1u 6014 m", "hd btao1u 6014 m", "595x139"], "avg_monthly": 12.6, "total_6m": 76}, {"w": 445, "h": 170, "key": "445x170", "label": "445 × 170", "models": ["OB BD3U 4591 M"], "tags": ["170", "445x170", "445", "ob bd3u 4591 m"], "avg_monthly": 0.3, "total_6m": 2}, {"w": 595, "h": 170, "key": "595x170", "label": "595 × 170", "models": ["OB BD3U 6091 M"], "tags": ["170", "595", "595x170", "ob bd3u 6091 m"], "avg_monthly": 2.8, "total_6m": 17}, {"w": 445, "h": 185, "key": "445x185", "label": "445 × 185", "models": ["HD BD3U 4591 M"], "tags": ["445x185", "185", "hd bd3u 4591 m", "445"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 185, "key": "595x185", "label": "595 × 185", "models": ["HD BD3U 6091 M"], "tags": ["595x185", "595", "185", "hd bd3u 6091 m"], "avg_monthly": 1.7, "total_6m": 10}, {"w": 445, "h": 247, "key": "445x247", "label": "445 × 247", "models": ["OB BLD1R 4591 M", "OB BLD1UA 4591 M"], "tags": ["445x247", "ob bld1ua 4591 m", "247", "ob bld1r 4591 m", "445"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 247, "key": "595x247", "label": "595 × 247", "models": ["OB BLD1R 6091 M", "OB BLD1UA 6091 M", "OB BRO1R 6091 M"], "tags": ["ob bld1r 6091 m", "595", "ob bld1ua 6091 m", "247", "595x247", "ob bro1r 6091 m"], "avg_monthly": 13.5, "total_6m": 81}, {"w": 595, "h": 271, "key": "595x271", "label": "595 × 271", "models": ["OB WHFM 6027 M"], "tags": ["595", "ob whfm 6027 m", "271", "595x271"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 271, "key": "895x271", "label": "895 × 271", "models": ["OB WHFM 9027 M"], "tags": ["ob whfm 9027 m", "271", "895x271", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 304, "key": "595x304", "label": "595 × 304", "models": ["OB WF 6030 M"], "tags": ["595", "ob wf 6030 m", "595x304", "304"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 315, "key": "795x315", "label": "795 × 315", "models": ["OB WFUP 8032 M"], "tags": ["795x315", "315", "ob wfup 8032 m", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 315, "key": "895x315", "label": "895 × 315", "models": ["OB WFUP 9032 M"], "tags": ["895", "ob wfup 9032 m", "315", "895x315"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 315, "key": "995x315", "label": "995 × 315", "models": ["OB WFUP 10032 M"], "tags": ["ob wfup 10032 m", "995x315", "315", "995"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 326, "key": "795x326", "label": "795 × 326", "models": ["OB WRMB 8033 M"], "tags": ["795x326", "326", "ob wrmb 8033 m", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 945, "h": 326, "key": "945x326", "label": "945 × 326", "models": ["OB WRMB 9533 M"], "tags": ["945x326", "326", "945", "ob wrmb 9533 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 326, "key": "995x326", "label": "995 × 326", "models": ["OB WRMB 10033 M"], "tags": ["326", "ob wrmb 10033 m", "995x326", "995"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 331, "key": "895x331", "label": "895 × 331", "models": ["OB WF 9033 M"], "tags": ["331", "ob wf 9033 m", "895x331", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 295, "h": 345, "key": "295x345", "label": "295 × 345", "models": ["OB BUIF 3034", "HD BUIF 3034"], "tags": ["345", "ob buif 3034", "hd buif 3034", "295x345", "295"], "avg_monthly": 25.6, "total_6m": 154}, {"w": 595, "h": 347, "key": "595x347", "label": "595 × 347", "models": ["OB BD2R 6091 M", "OB BLD2R 6062 M"], "tags": ["595", "347", "ob bld2r 6062 m", "595x347", "ob bd2r 6091 m"], "avg_monthly": 24.6, "total_6m": 148}, {"w": 895, "h": 347, "key": "895x347", "label": "895 × 347", "models": ["OB BD2R 9091 M"], "tags": ["895x347", "347", "ob bd2r 9091 m", "895"], "avg_monthly": 21.8, "total_6m": 131}, {"w": 1195, "h": 347, "key": "1195x347", "label": "1195 × 347", "models": ["OB BD2R 12091 M"], "tags": ["1195x347", "ob bd2r 12091 m", "1195", "347"], "avg_monthly": 0.5, "total_6m": 3}, {"w": 465, "h": 351, "key": "465x351", "label": "465 × 351", "models": ["OB WRMB 4735 M"], "tags": ["465", "ob wrmb 4735 m", "465x351", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 351, "key": "595x351", "label": "595 × 351", "models": ["OB WFMD 6035 M"], "tags": ["ob wfmd 6035 m", "595", "595x351", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 605, "h": 351, "key": "605x351", "label": "605 × 351", "models": ["OB WRMB 6135 M"], "tags": ["ob wrmb 6135 m", "605", "605x351", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 710, "h": 351, "key": "710x351", "label": "710 × 351", "models": ["OB WRMB 7135 M"], "tags": ["710x351", "710", "ob wrmb 7135 m", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 351, "key": "795x351", "label": "795 × 351", "models": ["OB WRMBS 8035 M"], "tags": ["795x351", "ob wrmbs 8035 m", "795", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 351, "key": "895x351", "label": "895 × 351", "models": ["OB WFMD 9035 M", "OB WRMBS 9035 M"], "tags": ["895x351", "ob wrmbs 9035 m", "ob wfmd 9035 m", "895", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 925, "h": 351, "key": "925x351", "label": "925 × 351", "models": ["OB WRMB 9335 M"], "tags": ["925x351", "ob wrmb 9335 m", "925", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 351, "key": "995x351", "label": "995 × 351", "models": ["OB WRMBS 10035 M"], "tags": ["995", "995x351", "ob wrmbs 10035 m", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 355, "key": "795x355", "label": "795 × 355", "models": ["OB WFUP 8036 M"], "tags": ["795x355", "ob wfup 8036 m", "355", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 355, "key": "895x355", "label": "895 × 355", "models": ["OB WFUP 9036 M"], "tags": ["895x355", "ob wfup 9036 m", "355", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 355, "key": "995x355", "label": "995 × 355", "models": ["OB WFUP 10036 M"], "tags": ["995", "ob wfup 10036 m", "995x355", "355"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 371, "key": "795x371", "label": "795 × 371", "models": ["OB WF 8037 M"], "tags": ["795x371", "371", "ob wf 8037 m", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 371, "key": "895x371", "label": "895 × 371", "models": ["OB WF 9037 M"], "tags": ["ob wf 9037 m", "895x371", "371", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 371, "key": "995x371", "label": "995 × 371", "models": ["OB WF 10037 M"], "tags": ["995x371", "371", "ob wf 10037 m", "995"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 377, "key": "595x377", "label": "595 × 377", "models": ["HD BD2R 6091 M", "HD BLD2R 6062 M"], "tags": ["595", "hd bd2r 6091 m", "hd bld2r 6062 m", "595x377", "377"], "avg_monthly": 16.4, "total_6m": 98}, {"w": 895, "h": 377, "key": "895x377", "label": "895 × 377", "models": ["HD BD2R 9091 M"], "tags": ["hd bd2r 9091 m", "377", "895x377", "895"], "avg_monthly": 14.0, "total_6m": 84}, {"w": 1195, "h": 377, "key": "1195x377", "label": "1195 × 377", "models": ["HD BD2R 12091 M"], "tags": ["377", "1195", "hd bd2r 12091 m", "1195x377"], "avg_monthly": 1.7, "total_6m": 10}, {"w": 395, "h": 417, "key": "395x417", "label": "395 × 417", "models": ["OB W2U 4042 M"], "tags": ["ob w2u 4042 m", "395x417", "395", "417"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 417, "key": "445x417", "label": "445 × 417", "models": ["OB W2U 4542 M"], "tags": ["445x417", "ob w2u 4542 m", "445", "417"], "avg_monthly": 0.7, "total_6m": 4}, {"w": 595, "h": 432, "key": "595x432", "label": "595 × 432", "models": ["OB WF 6043 M"], "tags": ["432", "595", "595x432", "ob wf 6043 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 435, "key": "795x435", "label": "795 × 435", "models": ["OB WF 8044 M"], "tags": ["795x435", "435", "ob wf 8044 m", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 435, "key": "895x435", "label": "895 × 435", "models": ["OB WF 9044 M"], "tags": ["ob wf 9044 m", "435", "895x435", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 454, "key": "795x454", "label": "795 × 454", "models": ["OB WRMB 8045 M"], "tags": ["ob wrmb 8045 m", "454", "795x454", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 945, "h": 454, "key": "945x454", "label": "945 × 454", "models": ["OB WRMB 9545 M"], "tags": ["ob wrmb 9545 m", "945x454", "945", "454"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 454, "key": "995x454", "label": "995 × 454", "models": ["OB WRMB 10045 M"], "tags": ["995", "995x454", "454", "ob wrmb 10045 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 465, "h": 479, "key": "465x479", "label": "465 × 479", "models": ["OB WRMB 4748 M"], "tags": ["465", "ob wrmb 4748 m", "479", "465x479"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 479, "key": "595x479", "label": "595 × 479", "models": ["OB WFMD 6048 M"], "tags": ["479", "595", "ob wfmd 6048 m", "595x479"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 605, "h": 479, "key": "605x479", "label": "605 × 479", "models": ["OB WRMB 6148 M"], "tags": ["479", "ob wrmb 6148 m", "605x479", "605"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 710, "h": 479, "key": "710x479", "label": "710 × 479", "models": ["OB WRMB 7148 M"], "tags": ["ob wrmb 7148 m", "710", "479", "710x479"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 479, "key": "795x479", "label": "795 × 479", "models": ["OB WRMBS 8048 M"], "tags": ["795x479", "ob wrmbs 8048 m", "479", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 479, "key": "895x479", "label": "895 × 479", "models": ["OB WFMD 9048 M", "OB WRMBS 9048 M"], "tags": ["479", "895x479", "ob wrmbs 9048 m", "ob wfmd 9048 m", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 925, "h": 479, "key": "925x479", "label": "925 × 479", "models": ["OB WRMB 9348 M"], "tags": ["479", "ob wrmb 9348 m", "925x479", "925"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 479, "key": "995x479", "label": "995 × 479", "models": ["OB WRMBS 10048 M"], "tags": ["995x479", "479", "ob wrmbs 10048 m", "995"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 507, "key": "595x507", "label": "595 × 507", "models": ["OB WLDL 6051 M"], "tags": ["595", "ob wldl 6051 m", "595x507", "507"], "avg_monthly": 7.5, "total_6m": 45}, {"w": 895, "h": 507, "key": "895x507", "label": "895 × 507", "models": ["OB WLDL 9051 M"], "tags": ["895x507", "ob wldl 9051 m", "507", "895"], "avg_monthly": 1.0, "total_6m": 6}, {"w": 595, "h": 513, "key": "595x513", "label": "595 × 513", "models": ["OB M 6052 M"], "tags": ["595", "ob m 6052 m", "513", "595x513"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 531, "key": "595x531", "label": "595 × 531", "models": ["OB WFED 6053 M"], "tags": ["595x531", "595", "ob wfed 6053 m", "531"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 695, "h": 531, "key": "695x531", "label": "695 × 531", "models": ["OB WFED 7053 M"], "tags": ["ob wfed 7053 m", "695", "695x531", "531"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 531, "key": "795x531", "label": "795 × 531", "models": ["OB WFED 8053 M"], "tags": ["531", "ob wfed 8053 m", "795x531", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 531, "key": "895x531", "label": "895 × 531", "models": ["OB WFED 9053 M"], "tags": ["895", "ob wfed 9053 m", "895x531", "531"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 531, "key": "995x531", "label": "995 × 531", "models": ["OB WFED 10053 M"], "tags": ["995x531", "995", "ob wfed 10053 m", "531"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 583, "key": "595x583", "label": "595 × 583", "models": ["OB BAD 6091"], "tags": ["583", "595", "595x583", "ob bad 6091"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 605, "key": "595x605", "label": "595 × 605", "models": ["OB WHM 6061 M"], "tags": ["595", "ob whm 6061 m", "595x605", "605"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 295, "h": 606, "key": "295x606", "label": "295 × 606", "models": ["OB TND2 30149 M", "HD TND2 30149 M"], "tags": ["295x606", "ob tnd2 30149 m", "606", "hd tnd2 30149 m", "295"], "avg_monthly": 10.0, "total_6m": 60}, {"w": 295, "h": 649, "key": "295x649", "label": "295 × 649", "models": ["OB M 3065 M"], "tags": ["ob m 3065 m", "649", "295", "295x649"], "avg_monthly": 0.8, "total_6m": 5}, {"w": 345, "h": 649, "key": "345x649", "label": "345 × 649", "models": ["OB M 3565 M"], "tags": ["649", "345", "345x649", "ob m 3565 m"], "avg_monthly": 4.5, "total_6m": 27}, {"w": 395, "h": 649, "key": "395x649", "label": "395 × 649", "models": ["OB M 4065 M"], "tags": ["649", "ob m 4065 m", "395", "395x649"], "avg_monthly": 4.3, "total_6m": 26}, {"w": 445, "h": 649, "key": "445x649", "label": "445 × 649", "models": ["OB M 4565 M"], "tags": ["ob m 4565 m", "649", "445x649", "445"], "avg_monthly": 3.0, "total_6m": 18}, {"w": 495, "h": 649, "key": "495x649", "label": "495 × 649", "models": ["OB M 5065 M"], "tags": ["649", "495x649", "ob m 5065 m", "495"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 651, "key": "595x651", "label": "595 × 651", "models": ["OB WHMH 6065 M"], "tags": ["595", "651", "595x651", "ob whmh 6065 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 592, "h": 693, "key": "592x693", "label": "592 × 693", "models": ["OB BTARG 6070"], "tags": ["592", "ob btarg 6070", "693", "592x693"], "avg_monthly": 0.4, "total_6m": 2}, {"w": 195, "h": 729, "key": "195x729", "label": "195 × 729", "models": ["OB BNDB2N 2091 M", "OB M 2073(공용) M"], "tags": ["ob m 2073(공용) m", "195", "ob bndb2n 2091 m", "195x729", "729"], "avg_monthly": 14.6, "total_6m": 88}, {"w": 245, "h": 729, "key": "245x729", "label": "245 × 729", "models": ["OB M 2573(공용) M"], "tags": ["245x729", "729", "ob m 2573(공용) m", "245"], "avg_monthly": 2.3, "total_6m": 14}, {"w": 295, "h": 729, "key": "295x729", "label": "295 × 729", "models": ["OB BNDC2N 3091 M", "OB M 3073(공용) M", "OB WMLDT 3073 M"], "tags": ["ob m 3073(공용) m", "295", "ob bndc2n 3091 m", "295x729", "729", "ob wmldt 3073 m"], "avg_monthly": 77.1, "total_6m": 462}, {"w": 345, "h": 729, "key": "345x729", "label": "345 × 729", "models": ["OB M 3573(공용) M"], "tags": ["345", "345x729", "729", "ob m 3573(공용) m"], "avg_monthly": 26.8, "total_6m": 161}, {"w": 395, "h": 729, "key": "395x729", "label": "395 × 729", "models": ["OB M 4073(공용) M"], "tags": ["395x729", "ob m 4073(공용) m", "395", "729"], "avg_monthly": 53.8, "total_6m": 323}, {"w": 402, "h": 729, "key": "402x729", "label": "402 × 729", "models": ["OB BC1B 4091 M"], "tags": ["402x729", "402", "ob bc1b 4091 m", "729"], "avg_monthly": 0.5, "total_6m": 3}, {"w": 422, "h": 729, "key": "422x729", "label": "422 × 729", "models": ["OB BC1A 4291 M"], "tags": ["ob bc1a 4291 m", "422", "422x729", "729"], "avg_monthly": 0.3, "total_6m": 2}, {"w": 445, "h": 729, "key": "445x729", "label": "445 × 729", "models": ["OB BDI1R 4591 M", "OB M 4573(공용) M", "OB WMLDT 4573 M"], "tags": ["ob m 4573(공용) m", "ob bdi1r 4591 m", "445", "445x729", "ob wmldt 4573 m", "729"], "avg_monthly": 292.5, "total_6m": 1755}, {"w": 495, "h": 729, "key": "495x729", "label": "495 × 729", "models": ["OB M 5073(공용) M"], "tags": ["ob m 5073(공용) m", "495x729", "729", "495"], "avg_monthly": 55.5, "total_6m": 333}, {"w": 545, "h": 729, "key": "545x729", "label": "545 × 729", "models": ["OB M 5573(공용) M"], "tags": ["ob m 5573(공용) m", "545x729", "545", "729"], "avg_monthly": 11.7, "total_6m": 70}, {"w": 595, "h": 729, "key": "595x729", "label": "595 × 729", "models": ["OB BADMIL 6091", "OB M 6073(공용) M", "OB WMLDT 6073 M"], "tags": ["595", "ob wmldt 6073 m", "ob badmil 6091", "595x729", "729", "ob m 6073(공용) m"], "avg_monthly": 158.1, "total_6m": 948}, {"w": 595, "h": 731, "key": "595x731", "label": "595 × 731", "models": ["OB WHMH 6073 M"], "tags": ["595", "731", "ob whmh 6073 m", "595x731"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 195, "h": 761, "key": "195x761", "label": "195 × 761", "models": ["HD BNDB2N 2091 M", "HD B 2091"], "tags": ["hd bndb2n 2091 m", "761", "195x761", "hd b 2091", "195"], "avg_monthly": 9.6, "total_6m": 57}, {"w": 245, "h": 761, "key": "245x761", "label": "245 × 761", "models": ["HD B 2591"], "tags": ["hd b 2591", "245x761", "761", "245"], "avg_monthly": 0.6, "total_6m": 4}, {"w": 295, "h": 761, "key": "295x761", "label": "295 × 761", "models": ["HD BNDC2N 3091 M", "HD B 3091"], "tags": ["761", "295", "hd bndc2n 3091 m", "hd b 3091", "295x761"], "avg_monthly": 24.9, "total_6m": 150}, {"w": 345, "h": 761, "key": "345x761", "label": "345 × 761", "models": ["HD B 3591"], "tags": ["345", "761", "345x761", "hd b 3591"], "avg_monthly": 5.6, "total_6m": 34}, {"w": 395, "h": 761, "key": "395x761", "label": "395 × 761", "models": ["HD B 4091"], "tags": ["hd b 4091", "761", "395x761", "395"], "avg_monthly": 15.4, "total_6m": 92}, {"w": 402, "h": 761, "key": "402x761", "label": "402 × 761", "models": ["HD BC1B 4091"], "tags": ["402", "761", "hd bc1b 4091", "402x761"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 422, "h": 761, "key": "422x761", "label": "422 × 761", "models": ["HD BC1A 4291"], "tags": ["hd bc1a 4291", "761", "422", "422x761"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 761, "key": "445x761", "label": "445 × 761", "models": ["HD BDI1R 4591 M", "HD B 4591"], "tags": ["445x761", "761", "hd bdi1r 4591 m", "hd b 4591", "445"], "avg_monthly": 62.1, "total_6m": 372}, {"w": 495, "h": 761, "key": "495x761", "label": "495 × 761", "models": ["HD B 5091"], "tags": ["hd b 5091", "761", "495x761", "495"], "avg_monthly": 48.4, "total_6m": 290}, {"w": 545, "h": 761, "key": "545x761", "label": "545 × 761", "models": ["HD B 5591"], "tags": ["545", "761", "hd b 5591", "545x761"], "avg_monthly": 8.4, "total_6m": 50}, {"w": 595, "h": 761, "key": "595x761", "label": "595 × 761", "models": ["HD BADMIL 6091", "HD B 6091"], "tags": ["595", "761", "595x761", "hd b 6091", "hd badmil 6091"], "avg_monthly": 57.9, "total_6m": 348}, {"w": 595, "h": 827, "key": "595x827", "label": "595 × 827", "models": ["OB WMLDT 6083 M"], "tags": ["595", "ob wmldt 6083 m", "827", "595x827"], "avg_monthly": 2.0, "total_6m": 12}, {"w": 195, "h": 857, "key": "195x857", "label": "195 × 857", "models": ["OB M 2086 M"], "tags": ["195", "195x857", "857", "ob m 2086 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 245, "h": 857, "key": "245x857", "label": "245 × 857", "models": ["OB M 2586 M"], "tags": ["857", "ob m 2586 m", "245x857", "245"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 295, "h": 857, "key": "295x857", "label": "295 × 857", "models": ["OB M 3086 M", "OB WMLDT 3086 M"], "tags": ["ob m 3086 m", "857", "295x857", "ob wmldt 3086 m", "295"], "avg_monthly": 4.4, "total_6m": 26}, {"w": 345, "h": 857, "key": "345x857", "label": "345 × 857", "models": ["OB M 3586 M"], "tags": ["ob m 3586 m", "345", "857", "345x857"], "avg_monthly": 2.2, "total_6m": 13}, {"w": 395, "h": 857, "key": "395x857", "label": "395 × 857", "models": ["OB M 4086 M"], "tags": ["395x857", "857", "ob m 4086 m", "395"], "avg_monthly": 8.2, "total_6m": 49}, {"w": 445, "h": 857, "key": "445x857", "label": "445 × 857", "models": ["OB M 4586 M", "OB WMLDT 4586 M"], "tags": ["445x857", "ob wmldt 4586 m", "ob m 4586 m", "857", "445"], "avg_monthly": 11.4, "total_6m": 68}, {"w": 495, "h": 857, "key": "495x857", "label": "495 × 857", "models": ["OB M 5086 M"], "tags": ["857", "495x857", "ob m 5086 m", "495"], "avg_monthly": 0.7, "total_6m": 4}, {"w": 545, "h": 857, "key": "545x857", "label": "545 × 857", "models": ["OB M 5586 M"], "tags": ["857", "ob m 5586 m", "545", "545x857"], "avg_monthly": 0.3, "total_6m": 2}, {"w": 595, "h": 857, "key": "595x857", "label": "595 × 857", "models": ["OB M 6086 M", "OB WMLDT 6086 M"], "tags": ["595x857", "595", "ob m 6086 m", "857", "ob wmldt 6086 m"], "avg_monthly": 5.4, "total_6m": 32}, {"w": 595, "h": 955, "key": "595x955", "label": "595 × 955", "models": ["OB WMLDT 6096 M"], "tags": ["955", "595", "595x955", "ob wmldt 6096 m"], "avg_monthly": 2.3, "total_6m": 14}, {"w": 295, "h": 1342, "key": "295x1342", "label": "295 × 1342", "models": ["OB WT 30134 M"], "tags": ["295x1342", "295", "1342", "ob wt 30134 m"], "avg_monthly": 1.0, "total_6m": 6}, {"w": 395, "h": 1342, "key": "395x1342", "label": "395 × 1342", "models": ["OB WT 40134 M"], "tags": ["395x1342", "1342", "395", "ob wt 40134 m"], "avg_monthly": 1.7, "total_6m": 10}, {"w": 445, "h": 1342, "key": "445x1342", "label": "445 × 1342", "models": ["OB WT 45134 M", "OB WTA 45134"], "tags": ["ob wta 45134", "1342", "445", "ob wt 45134 m", "445x1342"], "avg_monthly": 27.0, "total_6m": 162}, {"w": 595, "h": 1342, "key": "595x1342", "label": "595 × 1342", "models": ["OB WT 60134 M", "OB WTA 60134"], "tags": ["595", "ob wta 60134", "ob wt 60134 m", "1342", "595x1342"], "avg_monthly": 18.6, "total_6m": 111}, {"w": 402, "h": 1347, "key": "402x1347", "label": "402 × 1347", "models": ["HD TCP1D 40222"], "tags": ["402x1347", "402", "hd tcp1d 40222", "1347"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 422, "h": 1347, "key": "422x1347", "label": "422 × 1347", "models": ["HD TCP1D 42222"], "tags": ["hd tcp1d 42222", "422", "422x1347", "1347"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 1347, "key": "445x1347", "label": "445 × 1347", "models": ["HD TH 45220"], "tags": ["1347", "hd th 45220", "445", "445x1347"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 592, "h": 1410, "key": "592x1410", "label": "592 × 1410", "models": ["OB WTARG 60141"], "tags": ["592x1410", "ob wtarg 60141", "592", "1410"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 295, "h": 1470, "key": "295x1470", "label": "295 × 1470", "models": ["OB WT 30147 M"], "tags": ["1470", "295x1470", "295", "ob wt 30147 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 395, "h": 1470, "key": "395x1470", "label": "395 × 1470", "models": ["OB WT 40147 M"], "tags": ["395x1470", "ob wt 40147 m", "1470", "395"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 1470, "key": "445x1470", "label": "445 × 1470", "models": ["OB WT 45147 M", "OB WTA 45147"], "tags": ["445x1470", "1470", "ob wta 45147", "445", "ob wt 45147 m"], "avg_monthly": 6.9, "total_6m": 42}, {"w": 595, "h": 1470, "key": "595x1470", "label": "595 × 1470", "models": ["OB WT 60147 M", "OB WTA 60147"], "tags": ["595", "ob wt 60147 m", "ob wta 60147", "1470", "595x1470"], "avg_monthly": 9.9, "total_6m": 60}, {"w": 402, "h": 1475, "key": "402x1475", "label": "402 × 1475", "models": ["HD TCP1D 40235"], "tags": ["402", "hd tcp1d 40235", "402x1475", "1475"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 422, "h": 1475, "key": "422x1475", "label": "422 × 1475", "models": ["HD TCP1D 42235"], "tags": ["422", "1475", "422x1475", "hd tcp1d 42235"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 1475, "key": "445x1475", "label": "445 × 1475", "models": ["HD TH 45233"], "tags": ["445x1475", "hd th 45233", "1475", "445"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 592, "h": 1538, "key": "592x1538", "label": "592 × 1538", "models": ["OB WTARG 60154"], "tags": ["592x1538", "ob wtarg 60154", "1538", "592"], "avg_monthly": 0.4, "total_6m": 2}];
 const CODE_MODEL_MAP={"ME1WM0001": {"short": "유리장식벽장 AL도어 4586 M", "color": ""}, "ME1BU0223": {"short": "HD B 4091", "color": "WC"}, "ME1WT0131": {"short": "OB WT 40134 M", "color": "WC"}, "ME1WR0025": {"short": "OB WRMB 6135 M", "color": "WC"}, "ME1BD0086": {"short": "HD BD2R 12091 M", "color": "WC"}, "ME1BD0081": {"short": "OB BLD1R 4591 M", "color": "WC"}, "ME1BN0024": {"short": "HD BNDC2N 3091 M", "color": "WC"}, "ME1BU0227": {"short": "HD B 5091", "color": "WC"}, "ME1BU0228": {"short": "HD B 5091", "color": "WC"}, "ME1BU0224": {"short": "HD B 4091", "color": "WC"}, "ME1BU0219": {"short": "HD B 3091", "color": "WC"}, "ME1BU0232": {"short": "HD B 6091", "color": "WC"}, "ME1TD0012": {"short": "HD BTAO1U 6014 M", "color": "WC"}, "ME1WT0125": {"short": "OB WMLDT 6073 M", "color": "WC"}, "ME1TN0012": {"short": "HD TND2 30149 M", "color": "WC"}, "ME1WT0121": {"short": "OB WMLDT 3073 M", "color": "WC"}, "ME1BU0245": {"short": "HD B 4591", "color": "ETP"}, "ME1BU0246": {"short": "HD B 4591", "color": "ETP"}, "ME1TM0003": {"short": "유리장식키큰장 AL도어 60222 M", "color": ""}, "ME1WUX004": {"short": "OB M 비규격", "color": "WC"}, "ME1BUX025": {"short": "HD B 비규격", "color": "ETP"}, "ME1WUX007": {"short": "OB M 비규격", "color": "ETP"}, "ME1WU0114": {"short": "OB M 5073(공용) M", "color": ""}, "ME1WU0111": {"short": "OB M 4573(공용) M", "color": ""}, "ME1BD0135": {"short": "OB BD3U 6091 M", "color": ""}, "ME1BD0139": {"short": "OB BLD1UA 4591 M", "color": ""}, "ME1BN0033": {"short": "OB BNDB2N 2091 M", "color": ""}, "ME1WU0119": {"short": "OB M 6073(공용) M", "color": ""}, "ME1WT0232": {"short": "OB WTA 60134", "color": ""}, "ME1WT0216": {"short": "OB WMLDT 6083 M", "color": ""}, "ME1WH0025": {"short": "OB WHMH 6073 M", "color": ""}, "ME1WR0091": {"short": "OB WRMB 9335 M", "color": ""}, "ME1WU0105": {"short": "OB M 3573(공용) M", "color": ""}, "ME1WU0108": {"short": "OB M 4073(공용) M", "color": ""}, "ME1BU0244": {"short": "HD B 4091", "color": "ETP"}, "ME1BD0107": {"short": "HD BD2R 9091 M", "color": "ETP"}, "ME1BU0251": {"short": "HD B 6091", "color": "ETP"}, "ME1WT0155": {"short": "OB WMLDT 6073 M", "color": "ETP"}, "ME1WT0163": {"short": "OB WT 45134 M", "color": "ETP"}, "ME1WU0057": {"short": "OB M 3573(공용) M", "color": "ETP"}, "ME1WR0041": {"short": "OB WRMB 10033 M", "color": "ETP"}, "ME1WU0060": {"short": "OB M 4073(공용) M", "color": "ETP"}, "ME1WU0063": {"short": "OB M 4573(공용) M", "color": "ETP"}, "ME1WU0066": {"short": "OB M 5073(공용) M", "color": "ETP"}, "ME1WU0068": {"short": "OB M 5573(공용) M", "color": "ETP"}, "ME1BD0133": {"short": "OB BD2R 9091 M", "color": ""}, "ME1BN0034": {"short": "OB BNDC2N 3091 M", "color": ""}, "ME1WM0002": {"short": "유리장식벽장 AL도어 5086 M", "color": ""}, "ME1BD0084": {"short": "OB BLD1UA 6091 M", "color": "WC"}, "ME1BU0225": {"short": "HD B 4591", "color": "WC"}, "ME1BU0226": {"short": "HD B 4591", "color": "WC"}, "ME1WU0042": {"short": "OB M 5073(공용) M", "color": "WC"}, "ME1WU0039": {"short": "OB M 4573(공용) M", "color": "WC"}, "ME1BD0094": {"short": "OB BD2R 6091 M", "color": "ETP"}, "ME1BD0095": {"short": "OB BD2R 9091 M", "color": "ETP"}, "ME1BD0101": {"short": "OB BLD1UA 4591 M", "color": "ETP"}, "ME1BN0026": {"short": "OB BNDC2N 3091 M", "color": "ETP"}, "ME1WT0167": {"short": "OB WTA 45134", "color": "ETP"}, "ME1WT0168": {"short": "OB WTA 45134", "color": "ETP"}, "ME1TD0017": {"short": "OB BTAO1U 6014 M", "color": "ETP"}, "ME1WU0071": {"short": "OB M 6073(공용) M", "color": "ETP"}, "ME1WF0068": {"short": "OB WFMD 9035 M", "color": "ETP"}, "ME1WR0051": {"short": "OB WRMB 9335 M", "color": "ETP"}, "ME1WU0054": {"short": "OB M 3073(공용) M", "color": "ETP"}, "ME1WU0112": {"short": "OB M 4586 M", "color": ""}, "ME1WU0109": {"short": "OB M 4086 M", "color": ""}, "ME1BD0087": {"short": "HD BD2R 6091 M", "color": "WC"}, "ME1BD0088": {"short": "HD BD2R 9091 M", "color": "WC"}, "ME1BU0229": {"short": "HD B 5591", "color": "WC"}, "ME1BU0230": {"short": "HD B 5591", "color": "WC"}, "ME1WR0033": {"short": "OB WRMB 9533 M", "color": "WC"}, "ME1WR0031": {"short": "OB WRMB 9335 M", "color": "WC"}, "ME1TMX001": {"short": "유리장식키큰장 AL도어 비규격", "color": ""}, "ME1WMX001": {"short": "유리장식벽장 AL도어 비규격", "color": ""}, "ME1BUX023": {"short": "OB BHBU 비규격", "color": "ETP"}, "ME1WRX003": {"short": "OB WRMB 비규격", "color": "ETP"}, "KITAS0075": {"short": "MBD2R소마이다(멍)_555*80(W/Cott", "color": ""}, "ME1BN0022": {"short": "OB BNDC2N 3091 M", "color": "WC"}, "ME1WU0030": {"short": "OB M 3073(공용) M", "color": "WC"}, "ME1BD0077": {"short": "OB BD2R 9091 M", "color": "WC"}, "ME1BU0235": {"short": "HD B 2091", "color": "ETP"}, "ME1WU0067": {"short": "OB M 5086 M", "color": "ETP"}, "ME1BD0106": {"short": "HD BD2R 6091 M", "color": "ETP"}, "ME1BD0110": {"short": "HD BDI1R 4591 M", "color": "ETP"}, "ME1BA0023": {"short": "OB BRO1R 6091 M", "color": "ETP"}, "ME1BU0247": {"short": "HD B 5091", "color": "ETP"}, "ME1BU0248": {"short": "HD B 5091", "color": "ETP"}, "ME1BU0240": {"short": "HD B 3091", "color": "ETP"}, "ME1WT0149": {"short": "OB WLDL 6051 M", "color": "ETP"}, "ME1WU0062": {"short": "OB M 4565 M", "color": "ETP"}, "ME1WU0053": {"short": "OB M 3065 M", "color": "ETP"}, "ME1BU0214": {"short": "HD BUIF 3034", "color": "WC"}, "ME1BU0233": {"short": "OB BUIF 3034", "color": "ETP"}, "ME1BU0253": {"short": "BRZ OB BUIF 3034", "color": ""}, "ME1BU0273": {"short": "OB BUIF 3034", "color": ""}, "ME1WFX010": {"short": "OB WF 비규격", "color": "ETP"}, "ME1TM0001": {"short": "유리장식키큰장 AL도어 45222 M", "color": ""}, "ME1WM0003": {"short": "유리장식벽장 AL도어 6086 M", "color": ""}, "ME1WU0087": {"short": "BRZ OB M 4573(공용) M", "color": ""}, "ME1BD0114": {"short": "BRZ OB BD2R 9091 M", "color": ""}, "ME1BN0030": {"short": "BRZ OB BNDC2N 3091 M", "color": ""}, "ME1WU0090": {"short": "BRZ OB M 5073(공용) M", "color": ""}, "ME1WU0095": {"short": "BRZ OB M 6073(공용) M", "color": ""}, "ME1WT0195": {"short": "BRZ OB WT 60134 M", "color": ""}, "ME1WU0084": {"short": "BRZ OB M 4073(공용) M", "color": ""}, "ME1WF0081": {"short": "BRZ OB WF 8037 M", "color": ""}, "ME1WF0098": {"short": "BRZ OB WFUP 8036 M", "color": ""}, "ME1WF0084": {"short": "BRZ OB WF 9037 M", "color": ""}, "ME1WF0100": {"short": "BRZ OB WFUP 9036 M", "color": ""}, "ME1WU0080": {"short": "BRZ OB M 3565 M", "color": ""}, "ME1WU0083": {"short": "BRZ OB M 4065 M", "color": ""}, "ME1WUX010": {"short": "BRZ OB M 비규격", "color": ""}, "ME1WTX029": {"short": "BRZ OB WT 비규격", "color": ""}, "ME1BUX022": {"short": "HD B 비규격", "color": "WC"}, "ME1WRX002": {"short": "OB WRMB 비규격", "color": "WC"}, "ME1WFX007": {"short": "OB WFED 비규격", "color": "WC"}, "MK1TM0006": {"short": "KB 키큰장용 빗면 프레임 유리 도어 60211", "color": ""}, "MK1TM0007": {"short": "KB 키큰장용 빗면 프레임 유리 도어 60211", "color": ""}, "MK1WM0006": {"short": "KB 플랩장용 빗면 프레임 유리 도어 10054 M", "color": ""}, "ME1BA0022": {"short": "OB BADMIL 6091", "color": "ETP"}, "ME1BD0102": {"short": "OB BLD1UA 6091 M", "color": "ETP"}, "ME1WT0174": {"short": "OB WTA 60147", "color": "ETP"}, "ME1WF0058": {"short": "OB WF 9033 M", "color": "ETP"}, "ME1WR0052": {"short": "OB WRMB 9348 M", "color": "ETP"}, "ME1WU0064": {"short": "OB M 4586 M", "color": "ETP"}, "ME1TM0004": {"short": "유리장식키큰장 AL도어 60235 M", "color": ""}, "ME1WRX004": {"short": "BRZ OB WRMB 비규격", "color": ""}, "ME1WUX011": {"short": "BRZ OB W2HBT 비규격", "color": ""}, "ME1WUX012": {"short": "BRZ OB WHBT 비규격", "color": ""}, "ME1BUX026": {"short": "BRZ OB BHBU 비규격", "color": ""}, "MK1TM0005": {"short": "AL프레임 에어힌지 키큰장유리도어 18T(545*2113)", "color": ""}, "ME1BDX021": {"short": "OB BD2R 비규격", "color": "WC"}, "ME1WU0047": {"short": "OB M 6073(공용) M", "color": "WC"}, "ME1TN0011": {"short": "OB TND2 30149 M", "color": "WC"}, "ME1BA0028": {"short": "BRZ OB BADMIL 6091", "color": ""}, "ME1BD0113": {"short": "BRZ OB BD2R 6091 M", "color": ""}, "ME1WT0199": {"short": "BRZ OB WTA 45147", "color": ""}, "ME1WT0200": {"short": "BRZ OB WTA 45147", "color": ""}, "ME1WU0096": {"short": "BRZ OB M 6086 M", "color": ""}, "ME1WT0179": {"short": "BRZ OB WLDL 6051 M", "color": ""}, "ME1WF0034": {"short": "OB WF 9037 M", "color": "WC"}, "ME1BD0079": {"short": "OB BD3U 6091 M", "color": "WC"}, "ME1BN0021": {"short": "OB BNDB2N 2091 M", "color": "WC"}, "ME1WU0033": {"short": "OB M 3573(공용) M", "color": "WC"}, "ME1WU0036": {"short": "OB M 4073(공용) M", "color": "WC"}, "ME1WU0027": {"short": "OB M 2573(공용) M", "color": "WC"}, "ME1TD0011": {"short": "OB BTAO1U 6014 M", "color": "WC"}, "ME1WF0040": {"short": "OB WFED 9053 M", "color": "WC"}, "ME1WU0044": {"short": "OB M 5573(공용) M", "color": "WC"}, "MK1MM0001": {"short": "AL프레임 에어힌지 분리장유리도어(W595*H1345)", "color": ""}, "ME1BD0085": {"short": "OB BLD2R 6062 M", "color": "WC"}, "ME1BD0076": {"short": "OB BD2R 6091 M", "color": "WC"}, "ME1WF0028": {"short": "OB WF 10037 M", "color": "WC"}, "ME1BU0213": {"short": "OB BUIF 3034", "color": "WC"}, "ME1BU0234": {"short": "HD BUIF 3034", "color": "ETP"}, "ME1BU0274": {"short": "HD BUIF 3034", "color": ""}, "ME1BDX029": {"short": "BRZ OB BD2R 비규격", "color": ""}, "ME1WTX019": {"short": "OB WT 비규격", "color": "WC"}, "ME1WTX024": {"short": "OB WT 비규격", "color": "ETP"}, "MK1WMX001": {"short": "AL프레임 에어힌지 벽장유리도어 18T 비규격", "color": ""}, "MK1MMX001": {"short": "AL프레임 에어힌지 분리장유리도어 비규격", "color": ""}, "ME1WUX013": {"short": "OB M 비규격", "color": ""}, "ME1WFX018": {"short": "OB WF 비규격", "color": ""}, "ME1WRX005": {"short": "OB WRMB 비규격", "color": ""}, "ME1BUX029": {"short": "OB BHBU 비규격", "color": ""}, "ME1BN0023": {"short": "HD BNDB2N 2091 M", "color": "WC"}, "ME1BU0220": {"short": "HD B 3091", "color": "WC"}, "ME1BU0231": {"short": "HD B 6091", "color": "WC"}, "ME1WT0133": {"short": "OB WT 45134 M", "color": "WC"}, "ME1WT0119": {"short": "OB WLDL 6051 M", "color": "WC"}, "ME1WR0023": {"short": "OB WRMB 4735 M", "color": "WC"}, "ME1BDX025": {"short": "OB BD2R 비규격", "color": "ETP"}, "ME1BD0122": {"short": "BRZ OB BLD2R 6062 M", "color": ""}, "ME1WU0025": {"short": "OB M 2073(공용) M", "color": "WC"}, "ME1BU0243": {"short": "HD B 4091", "color": "ETP"}, "ME1BN0028": {"short": "HD BNDC2N 3091 M", "color": "ETP"}, "ME1BD0111": {"short": "HD BLD2R 6062 M", "color": "ETP"}, "ME1WR0053": {"short": "OB WRMB 9533 M", "color": "ETP"}, "ME1WU0116": {"short": "OB M 5573(공용) M", "color": ""}, "ME1BU0254": {"short": "BRZ HD BUIF 3034", "color": ""}, "MK1TMX001": {"short": "AL프레임 에어힌지 키큰장유리도어 18T 비규격", "color": ""}, "MRRBD0012": {"short": "White CH BLD1UA 6091 M", "color": ""}, "ME1WT0126": {"short": "OB WMLDT 6083 M", "color": "WC"}, "ME1WT0135": {"short": "OB WT 60134 M", "color": "WC"}, "ME1BDX023": {"short": "HD BD2R 비규격", "color": "WC"}, "ME1BN0025": {"short": "OB BNDB2N 2091 M", "color": "ETP"}, "ME1BUX020": {"short": "OB BHBU 비규격", "color": "WC"}, "MK1WM0005": {"short": "KB 벽장용 빗면 프레임 유리 도어 5074 M", "color": ""}, "ME1WT0169": {"short": "OB WTA 45147", "color": "ETP"}, "ME1WT0170": {"short": "OB WTA 45147", "color": "ETP"}, "ME1WU0072": {"short": "OB M 6086 M", "color": "ETP"}, "ME1TM0002": {"short": "유리장식키큰장 AL도어 45235 M", "color": ""}, "ME1WF0069": {"short": "OB WFMD 9048 M", "color": "ETP"}, "ME1WR0046": {"short": "OB WRMB 6148 M", "color": "ETP"}, "ME1BD0083": {"short": "OB BLD1UA 4591 M", "color": "WC"}, "ME1BA0017": {"short": "OB BRO1R 6091 M", "color": "WC"}, "ME1TN0013": {"short": "OB TND2 30149 M", "color": "ETP"}, "ME1WT0171": {"short": "OB WTA 60134", "color": "ETP"}, "ME1WTX036": {"short": "OB WTAP 비규격", "color": ""}, "ME1WTX034": {"short": "OB WT 비규격", "color": ""}, "ME1BN0029": {"short": "BRZ OB BNDB2N 2091 M", "color": ""}, "ME1WR0065": {"short": "BRZ OB WRMB 6135 M", "color": ""}, "ME1WT0191": {"short": "BRZ OB WT 40134 M", "color": ""}, "ME1WU0075": {"short": "BRZ OB M 2573(공용) M", "color": ""}, "ME1WU0081": {"short": "BRZ OB M 3573(공용) M", "color": ""}, "ME1WT0139": {"short": "OB WTA 45147", "color": "WC"}, "ME1WT0140": {"short": "OB WTA 45147", "color": "WC"}, "ME1WU0048": {"short": "OB M 6086 M", "color": "WC"}, "ME1WT0134": {"short": "OB WT 45147 M", "color": "WC"}, "ME1WT0136": {"short": "OB WT 60147 M", "color": "WC"}, "ME1WH0008": {"short": "OB WHM 6061 M", "color": "WC"}, "ME1WR0034": {"short": "OB WRMB 9545 M", "color": "WC"}, "ME1WR0026": {"short": "OB WRMB 6148 M", "color": "WC"}, "ME1WU0031": {"short": "OB M 3086 M", "color": "WC"}, "ME1WU0043": {"short": "OB M 5086 M", "color": "WC"}, "ME1WU0037": {"short": "OB M 4086 M", "color": "WC"}, "ME1WU0034": {"short": "OB M 3586 M", "color": "WC"}, "ME1BD0132": {"short": "OB BD2R 6091 M", "color": ""}, "ME1WT0209": {"short": "OB WLDL 6051 M", "color": ""}, "ME1WT0129": {"short": "OB WT 30134 M", "color": "WC"}, "ME1WR0027": {"short": "OB WRMB 7135 M", "color": "WC"}, "ME1BA0016": {"short": "OB BADMIL 6091", "color": "WC"}, "ME1WU0040": {"short": "OB M 4586 M", "color": "WC"}, "ME1WF0037": {"short": "OB WFED 6053 M", "color": "WC"}, "ME1WF0038": {"short": "OB WFED 7053 M", "color": "WC"}, "ME1BUX024": {"short": "HD BHBU 비규격", "color": "ETP"}, "ME1WFX021": {"short": "OB WFMD 비규격", "color": "ETP"}, "ME1BUX028": {"short": "BRZ HD B 비규격", "color": ""}, "ME1WTX028": {"short": "BRZ OB WMLDT 비규격", "color": ""}, "ME1TUX006": {"short": "BRZ HD TH 비규격", "color": ""}, "MK1WM0004": {"short": "KB 벽장용 빗면 프레임 유리 도어 4574 M", "color": ""}, "ME1BDX024": {"short": "HD BD3U 비규격", "color": "WC"}, "ME1BUX021": {"short": "HD BHBU 비규격", "color": "WC"}, "ME1WFX025": {"short": "OB WFMD 비규격", "color": "WC"}, "ME1WUX005": {"short": "OB W2HBT 비규격", "color": "WC"}, "ME1WUX006": {"short": "OB WHBT 비규격", "color": "WC"}, "ME1WFX006": {"short": "OB WF 비규격", "color": "WC"}, "ME1WTX021": {"short": "OB WTAP 비규격", "color": "WC"}, "ME1BD0130": {"short": "BRZ HD BLD2R 6062 M", "color": ""}, "ME1WT0187": {"short": "BRZ OB WMLDT 6086 M", "color": ""}, "ME1WU0085": {"short": "BRZ OB M 4086 M", "color": ""}, "ME1WU0088": {"short": "BRZ OB M 4586 M", "color": ""}, "ME1WT0157": {"short": "OB WMLDT 6086 M", "color": "ETP"}, "ME1WU0061": {"short": "OB M 4086 M", "color": "ETP"}, "ME1BD0080": {"short": "OB BDI1R 4591 M", "color": "WC"}, "ME1BU0241": {"short": "HD B 3591", "color": "ETP"}, "ME1BU0242": {"short": "HD B 3591", "color": "ETP"}, "ME1WU0049": {"short": "OB M 2073(공용) M", "color": "ETP"}, "MRRWU0011": {"short": "White CH M 4065 M", "color": ""}, "ME1BD0090": {"short": "HD BD3U 6091 M", "color": "WC"}, "ME1WFX011": {"short": "OB WFED 비규격", "color": "ETP"}, "MRSWU0018": {"short": "Forest CH M 5073(공용) M", "color": ""}, "ME1TD0029": {"short": "OB BTAO1U 6014 M", "color": ""}, "ME1BD0093": {"short": "OB BD2R 12091 M", "color": "ETP"}, "ME1BD0121": {"short": "BRZ OB BLD1UA 6091 M", "color": ""}, "MK1WM0002": {"short": "AL프레임 에어힌지 벽장유리도어 18T(495*738)", "color": ""}, "ME1BA0026": {"short": "HD BADMIL 6091", "color": "ETP"}, "ME1BD0119": {"short": "BRZ OB BLD1R 6091 M", "color": ""}, "ME1BN0031": {"short": "BRZ HD BNDB2N 2091 M", "color": ""}, "ME1BU0267": {"short": "BRZ HD B 5091", "color": ""}, "ME1BU0268": {"short": "BRZ HD B 5091", "color": ""}, "MK1WM0001": {"short": "AL프레임 에어힌지 벽장유리도어 18T(445*738)", "color": ""}, "ME1BCX031": {"short": "OB BC1A 비규격", "color": "WC"}, "ME1BCX032": {"short": "OB BC1B 비규격", "color": "WC"}, "ME1TD0018": {"short": "HD BTAO1U 6014 M", "color": "ETP"}, "ME1BC0046": {"short": "BRZ HD BC1A 4291", "color": ""}, "ME1BC0047": {"short": "BRZ HD BC1B 4091", "color": ""}, "ME1BD0125": {"short": "BRZ HD BD2R 6091 M", "color": ""}, "ME1BA0029": {"short": "BRZ OB BRO1R 6091 M", "color": ""}, "ME1BU0265": {"short": "BRZ HD B 4591", "color": ""}, "ME1BU0266": {"short": "BRZ HD B 4591", "color": ""}, "ME1BDX033": {"short": "OB BD2R 비규격", "color": ""}, "ME1WR0074": {"short": "BRZ OB WRMB 9545 M", "color": ""}, "ME1WT0120": {"short": "OB WLDL 9051 M", "color": "WC"}, "ME1WH0010": {"short": "OB WHMH 6073 M", "color": "WC"}, "ME1BUX031": {"short": "HD B 비규격", "color": ""}, "ME1WU0102": {"short": "OB M 3073(공용) M", "color": ""}, "ME1WU0120": {"short": "OB M 6086 M", "color": ""}, "ME1WT0224": {"short": "OB WT 45147 M", "color": ""}, "ME1BU0249": {"short": "HD B 5591", "color": "ETP"}, "ME1BU0250": {"short": "HD B 5591", "color": "ETP"}, "ME1TN0014": {"short": "HD TND2 30149 M", "color": "ETP"}, "ME1WT0151": {"short": "OB WMLDT 3073 M", "color": "ETP"}, "ME1BU0256": {"short": "BRZ HD B 2091", "color": ""}, "ME1BU0252": {"short": "HD B 6091", "color": "ETP"}, "ME1WF0060": {"short": "OB WF 9044 M", "color": "ETP"}, "ME1WUX008": {"short": "OB W2HBT 비규격", "color": "ETP"}, "ME1WUX009": {"short": "OB WHBT 비규격", "color": "ETP"}, "ME1BDX027": {"short": "HD BD2R 비규격", "color": "ETP"}, "ME1BU0221": {"short": "HD B 3591", "color": "WC"}, "ME1BU0222": {"short": "HD B 3591", "color": "WC"}, "ME1BD0140": {"short": "OB BLD1UA 6091 M", "color": ""}, "ME1BD0141": {"short": "OB BLD2R 6062 M", "color": ""}, "ME1WF0125": {"short": "OB WFUP 9036 M", "color": ""}, "ME1WF0109": {"short": "OB WF 9037 M", "color": ""}, "ME1WF0103": {"short": "OB WF 10037 M", "color": ""}, "ME1WF0121": {"short": "OB WFUP 10036 M", "color": ""}, "ME1BD0097": {"short": "OB BD3U 6091 M", "color": "ETP"}, "ME1BD0103": {"short": "OB BLD2R 6062 M", "color": "ETP"}, "ME1BA0020": {"short": "HD BADMIL 6091", "color": "WC"}, "MRRWU0020": {"short": "White CH M 5573(공용) M", "color": ""}, "MROBUX001": {"short": "Euro700 Veil/DW CH BHBU 비규격(527*0*826*0", "color": ""}, "ME1BD0100": {"short": "OB BLD1R 6091 M", "color": "ETP"}, "ME1WH0014": {"short": "OB WHMH 6065 M", "color": "ETP"}, "ME1BDX026": {"short": "OB BD3U 비규격", "color": "ETP"}, "ME1BD0126": {"short": "BRZ HD BD2R 9091 M", "color": ""}, "ME1BU0271": {"short": "BRZ HD B 6091", "color": ""}, "ME1WT0185": {"short": "BRZ OB WMLDT 6073 M", "color": ""}, "ME1WR0077": {"short": "BRZ OB WRMBS 8035 M", "color": ""}, "ME1BU0270": {"short": "BRZ HD B 5591", "color": ""}, "ME1WF0093": {"short": "BRZ OB WFMD 9035 M", "color": ""}, "ME1BA0025": {"short": "OB BTARG 6070", "color": "ETP"}, "ME1WT0178": {"short": "OB WTARG 60154", "color": "ETP"}, "ME1WF0046": {"short": "OB WFUP 10036 M", "color": "WC"}, "ME1BA0035": {"short": "OB BRO1R 6091 M", "color": ""}, "ME1BC0031": {"short": "OB BC1A 4291 M", "color": "WC"}, "ME1BC0032": {"short": "OB BC1B 4091 M", "color": "WC"}, "ME1BC0049": {"short": "OB BC1A 4291 M", "color": ""}, "ME1BC0050": {"short": "OB BC1B 4091 M", "color": ""}, "ME1BN0027": {"short": "HD BNDB2N 2091 M", "color": "ETP"}, "ME1WT0166": {"short": "OB WT 60147 M", "color": "ETP"}, "ME1BCX038": {"short": "OB BC1B 비규격", "color": "ETP"}, "ME1WT0194": {"short": "BRZ OB WT 45147 M", "color": ""}, "ME1WU0091": {"short": "BRZ OB M 5086 M", "color": ""}, "ME1WR0042": {"short": "OB WRMB 10045 M", "color": "ETP"}, "ME1WT0158": {"short": "OB WMLDT 6096 M", "color": "ETP"}, "ME1BAX005": {"short": "OB BAD 비규격(600*0*926*", "color": ""}, "ME1WF0031": {"short": "OB WF 8037 M", "color": "WC"}, "ME1WF0048": {"short": "OB WFUP 8036 M", "color": "WC"}, "ME1WF0050": {"short": "OB WFUP 9036 M", "color": "WC"}, "ME1BU0216": {"short": "HD B 2091", "color": "WC"}, "ME1BD0105": {"short": "HD BD2R 12091 M", "color": "ETP"}, "ME1WT0165": {"short": "OB WT 60134 M", "color": "ETP"}, "ME1WR0047": {"short": "OB WRMB 7135 M", "color": "ETP"}, "ME1BA0034": {"short": "OB BADMIL 6091", "color": ""}, "MK1TMX002": {"short": "KB 키큰장용 빗면 프레임 유리 도어 비규격", "color": ""}, "MK1WMX002": {"short": "KB 벽장용 빗면 프레임 유리 도어 비규격", "color": ""}, "ME1BDX022": {"short": "OB BD3U 비규격", "color": "WC"}, "ME1WT0156": {"short": "OB WMLDT 6083 M", "color": "ETP"}, "ME1WT0225": {"short": "OB WT 60134 M", "color": ""}, "ME1WF0118": {"short": "OB WFMD 9035 M", "color": ""}, "ME1WF0094": {"short": "BRZ OB WFMD 9048 M", "color": ""}, "ME1BD0120": {"short": "BRZ OB BLD1UA 4591 M", "color": ""}, "ME1BU0255": {"short": "BRZ HD B 2091", "color": ""}, "ME1WU0055": {"short": "OB M 3086 M", "color": "ETP"}, "ME1WR0045": {"short": "OB WRMB 6135 M", "color": "ETP"}, "MALWF0558": {"short": "(P)AL45 PG새틴그레이[연장P] WFGO 9037 M", "color": ""}, "ME1BU0272": {"short": "BRZ HD B 6091", "color": ""}, "ME1TUX004": {"short": "HD TH 비규격", "color": "ETP"}, "ME1WU0069": {"short": "OB M 5586 M", "color": "ETP"}, "ME1WTX018": {"short": "OB WMLDT 비규격", "color": "WC"}, "ME1BD0109": {"short": "HD BD3U 6091 M", "color": "ETP"}, "ME1WU0056": {"short": "OB M 3565 M", "color": "ETP"}, "ME1WU0059": {"short": "OB M 4065 M", "color": "ETP"}, "ME1TU0005": {"short": "HD TH 45220", "color": "WC"}, "ME1TU0006": {"short": "HD TH 45220", "color": "WC"}, "ME1BDX031": {"short": "BRZ HD BD2R 비규격", "color": ""}, "ME1WFX014": {"short": "BRZ OB WF 비규격", "color": ""}, "ME1WT0226": {"short": "OB WT 60147 M", "color": ""}, "ME1BU0264": {"short": "BRZ HD B 4091", "color": ""}, "ME1WF0085": {"short": "BRZ OB WF 9044 M", "color": ""}, "ME1WF0077": {"short": "BRZ OB W2U 4542 M", "color": ""}, "ME1WU0078": {"short": "BRZ OB M 3073(공용) M", "color": ""}, "ME1WR0073": {"short": "BRZ OB WRMB 9533 M", "color": ""}, "ME1BN0032": {"short": "BRZ HD BNDC2N 3091 M", "color": ""}, "ME1WT0150": {"short": "OB WLDL 9051 M", "color": "ETP"}, "ME1TU0010": {"short": "HD TH 45220", "color": "ETP"}, "ME1TU0011": {"short": "HD TH 45220", "color": "ETP"}, "ME1WF0075": {"short": "OB WFUP 9036 M", "color": "ETP"}, "ME1WF0059": {"short": "OB WF 9037 M", "color": "ETP"}, "ME1WH0015": {"short": "OB WHMH 6073 M", "color": "ETP"}, "ME1BU0291": {"short": "HD B 6091", "color": ""}, "ME1BU0285": {"short": "HD B 4591", "color": ""}, "ME1BU0286": {"short": "HD B 4591", "color": ""}, "ME1WT0231": {"short": "OB WTA 60134", "color": ""}, "ME1TN0018": {"short": "HD TND2 30149 M", "color": ""}, "ME1WT0211": {"short": "OB WMLDT 3073 M", "color": ""}, "ME1WT0223": {"short": "OB WT 45134 M", "color": ""}, "MK1WM0007": {"short": "KB 플랩장용 빗면 프레임 유리 도어 12054 M", "color": ""}, "MRQWUX001": {"short": "MID/N CH M 비규격(600*0*688*0", "color": ""}, "MROWT0010": {"short": "Euro700 Veil/DW CH WT 45134 M", "color": ""}, "MROWU0015": {"short": "Euro700 Veil/DW CH M 4573(공용) M", "color": ""}, "ME1BD0092": {"short": "HD BLD2R 6062 M", "color": "WC"}, "ME1BU0284": {"short": "HD B 4091", "color": ""}, "ME1BD0145": {"short": "HD BD2R 9091 M", "color": ""}, "ME1BU0292": {"short": "HD B 6091", "color": ""}, "ME1BU0287": {"short": "HD B 5091", "color": ""}, "ME1BU0288": {"short": "HD B 5091", "color": ""}, "ME1BU0282": {"short": "HD B 3591", "color": ""}, "ME1BU0283": {"short": "HD B 4091", "color": ""}, "ME1WT0217": {"short": "OB WMLDT 6086 M", "color": ""}, "ME1WF0119": {"short": "OB WFMD 9048 M", "color": ""}, "ME1WUX014": {"short": "OB W2HBT 비규격", "color": ""}, "ME1WUX015": {"short": "OB WHBT 비규격", "color": ""}, "MRRWU0012": {"short": "White CH M 4073(공용) M", "color": ""}, "ME1BD0082": {"short": "OB BLD1R 6091 M", "color": "WC"}, "ME1WR0021": {"short": "OB WRMB 10033 M", "color": "WC"}, "ME1WF0027": {"short": "OB W2U 4542 M", "color": "WC"}, "MALWF0552": {"short": "(P)AL45 PG새틴그레이[연장P] WFGO 10033 M", "color": ""}, "ME1BU0236": {"short": "HD B 2091", "color": "ETP"}, "MRSWU0012": {"short": "Forest CH M 4073(공용) M", "color": ""}, "ME1BCX037": {"short": "OB BC1A 비규격", "color": "ETP"}, "ME1WFX008": {"short": "OB WFUP 비규격", "color": "WC"}, "MROWT0013": {"short": "Euro700 Veil/DW CH WT 60147 M", "color": ""}, "MROWU0016": {"short": "Euro700 Veil/DW CH M 4586 M", "color": ""}, "MROWU0022": {"short": "Euro700 Veil/DW CH M 6073(공용) M", "color": ""}, "MROWUX001": {"short": "Euro700 Veil/DW CH M 비규격(470*0*864*0 M)", "color": ""}, "ME1BU0217": {"short": "HD B 2591", "color": "WC"}, "ME1WU0029": {"short": "OB M 3065 M", "color": "WC"}, "ME1WU0038": {"short": "OB M 4565 M", "color": "WC"}, "ME1WT0173": {"short": "OB WTA 60147", "color": "ETP"}, "ME1WT0161": {"short": "OB WT 40134 M", "color": "ETP"}, "ME1BC0038": {"short": "OB BC1B 4091 M", "color": "ETP"}, "ME1WT0164": {"short": "OB WT 45147 M", "color": "ETP"}, "ME1WH0009": {"short": "OB WHMH 6065 M", "color": "WC"}, "MHIWF0009": {"short": "PT/BK CH WF 9037 M", "color": ""}, "ME1WU0058": {"short": "OB M 3586 M", "color": "ETP"}, "ME1BUX027": {"short": "BRZ HD BHBU 비규격", "color": ""}, "ME1BD0147": {"short": "HD BD3U 6091 M", "color": ""}, "ME1BN0036": {"short": "HD BNDC2N 3091 M", "color": ""}, "ME1BU0275": {"short": "HD B 2091", "color": ""}, "ME1WU0107": {"short": "OB M 4065 M", "color": ""}, "MRTWU0006": {"short": "CH M 3073(공용) M", "color": ""}, "MRTWU0009": {"short": "CH M 3573(공용) M", "color": ""}, "MRTWU0012": {"short": "CH M 4073(공용) M", "color": ""}, "MRTWU0015": {"short": "CH M 4573(공용) M", "color": ""}, "MRQWU0015": {"short": "MID/N CH M 4573(공용) M", "color": ""}, "MROWU0018": {"short": "Euro700 Veil/DW CH M 5073(공용) M", "color": ""}, "ME1BD0116": {"short": "BRZ OB BD3U 6091 M", "color": ""}, "ME1WTX026": {"short": "OB WTAP 비규격", "color": "ETP"}, "MRTBD0002": {"short": "CH BD2R 6091 M", "color": ""}, "MRTBN0002": {"short": "CH BNDC2N 3091 M", "color": ""}, "MRTWF0017": {"short": "CH WFUP 10036 M", "color": ""}, "MRTWU0018": {"short": "CH M 5073(공용) M", "color": ""}, "ME1WF0063": {"short": "OB WFED 7053 M", "color": "ETP"}, "MALWU0531": {"short": "(P)AL45 PG새틴그레이[연장P] MGO 4586 M", "color": ""}, "ME1WU0032": {"short": "OB M 3565 M", "color": "WC"}, "ME1WU0035": {"short": "OB M 4065 M", "color": "WC"}, "MRMWF0013": {"short": "Euro700 Veil/LW CH WFED 7053 M", "color": ""}, "MRMWF0014": {"short": "Euro700 Veil/LW CH WFED 8053 M", "color": ""}, "MRMWF0015": {"short": "Euro700 Veil/LW CH WFED 9053 M", "color": ""}, "ME1TN0016": {"short": "BRZ HD TND2 30149 M", "color": ""}, "ME1WFX023": {"short": "BRZ OB WFMD 비규격(900*0*511*0", "color": ""}, "ME1WR0072": {"short": "BRZ OB WRMB 9348 M", "color": ""}, "ME1WTX031": {"short": "BRZ OB WTAP 비규격(600*0*1502*", "color": ""}, "ME1WU0097": {"short": "OB M 2073(공용) M", "color": ""}, "ME1WHX005": {"short": "OB WHMH 비규격", "color": "WC"}, "ME1BD0078": {"short": "OB BD3U 4591 M", "color": "WC"}, "ME1WU0092": {"short": "BRZ OB M 5573(공용) M", "color": ""}, "MHIWR0007": {"short": "PT/BK CH WRMB 9533 M", "color": ""}, "MHIWT0012": {"short": "PT/BK CH WT 60134 M", "color": ""}, "MHIWU0018": {"short": "PT/BK CH M 5073(공용) M", "color": ""}, "MHIWUX001": {"short": "PT/BK CH M 비규격(150*0*736*0", "color": ""}, "ME1WF0056": {"short": "OB WF 8037 M", "color": "ETP"}, "ME1WF0073": {"short": "OB WFUP 8036 M", "color": "ETP"}, "ME1WT0222": {"short": "OB WT 40147 M", "color": ""}, "ME1WR0082": {"short": "OB WRMB 10045 M", "color": ""}, "ME1WT0141": {"short": "OB WTA 60134", "color": "WC"}, "ME1WT0142": {"short": "OB WTA 60134", "color": "WC"}, "ME1WH0006": {"short": "OB WHFM 6027 M", "color": "WC"}, "MRMBN0002": {"short": "Euro700 Veil/LW CH BNDC2N 3091 M", "color": ""}, "ME1BN0035": {"short": "HD BNDB2N 2091 M", "color": ""}, "ME1BD0099": {"short": "OB BLD1R 4591 M", "color": "ETP"}, "ME1WF0043": {"short": "OB WFMD 9035 M", "color": "WC"}, "MRTWU0020": {"short": "CH M 5573(공용) M", "color": ""}, "MRTWF0019": {"short": "CH WFUP 8036 M", "color": ""}, "ME1WF0066": {"short": "OB WFMD 6035 M", "color": "ETP"}, "ME1BU0237": {"short": "HD B 2591", "color": "ETP"}, "ME1TC0011": {"short": "HD TCP1D 42222", "color": "ETP"}, "ME1TC0012": {"short": "HD TCP1D 40222", "color": "ETP"}, "ME1TN0017": {"short": "OB TND2 30149 M", "color": ""}, "ME1WT0159": {"short": "OB WT 30134 M", "color": "ETP"}, "MHIWU0015": {"short": "PT/BK CH M 4573(공용) M", "color": ""}, "ME1BD0128": {"short": "BRZ HD BD3U 6091 M", "color": ""}, "ME1WH0020": {"short": "BRZ OB WHMH 6073 M", "color": ""}, "ME1BU0269": {"short": "BRZ HD B 5591", "color": ""}, "ME1WR0061": {"short": "BRZ OB WRMB 10033 M", "color": ""}, "ME1WU0086": {"short": "BRZ OB M 4565 M", "color": ""}, "ME1WT0127": {"short": "OB WMLDT 6086 M", "color": "WC"}, "ME1BD0118": {"short": "BRZ OB BLD1R 4591 M", "color": ""}, "ME1WFX012": {"short": "OB WFUP 비규격", "color": "ETP"}, "ME1WTX023": {"short": "OB WMLDT 비규격", "color": "ETP"}, "ME1WF0053": {"short": "OB WF 10037 M", "color": "ETP"}, "ME1BU0289": {"short": "HD B 5591", "color": ""}, "ME1WU0110": {"short": "OB M 4565 M", "color": ""}, "ME1WU0104": {"short": "OB M 3565 M", "color": ""}, "ME1BU0261": {"short": "BRZ HD B 3591", "color": ""}, "ME1BU0262": {"short": "BRZ HD B 3591", "color": ""}, "ME1WT0201": {"short": "BRZ OB WTA 60134", "color": ""}, "ME1WT0197": {"short": "BRZ OB WTA 45134", "color": ""}, "ME1WT0198": {"short": "BRZ OB WTA 45134", "color": ""}, "ME1WT0193": {"short": "BRZ OB WT 45134 M", "color": ""}, "MRMWRX001": {"short": "Euro700 Veil/LW CH WRMB 비규격", "color": ""}, "MRMWUX001": {"short": "Euro700 Veil/LW CH M 비규격", "color": ""}, "MRMBN0001": {"short": "Euro700 Veil/LW CH BNDB2N 2091 M", "color": ""}, "MRMBD0002": {"short": "Euro700 Veil/LW CH BD2R 6091 M", "color": ""}, "ME1BD0117": {"short": "BRZ OB BDI1R 4591 M", "color": ""}, "MALWT0137": {"short": "(P)AL45 PG새틴그레이[연장P] WTGO 45147 M", "color": ""}, "MALWU0528": {"short": "(P)AL45 PG새틴그레이[연장P] MGO 4073(공용) M", "color": ""}, "ME1WU0103": {"short": "OB M 3086 M", "color": ""}, "ME1WR0092": {"short": "OB WRMB 9348 M", "color": ""}, "ME1WR0059": {"short": "OB WRMBS 9035 M", "color": "ETP"}, "ME1BCX043": {"short": "BRZ OB BC1A 비규격", "color": ""}, "ME1BC0044": {"short": "BRZ OB BC1B 4091 M", "color": ""}, "ME1WT0202": {"short": "BRZ OB WTA 60134", "color": ""}, "ME1TD0023": {"short": "BRZ OB BTAO1U 6014 M", "color": ""}, "ME1BDX035": {"short": "HD BD2R 비규격", "color": ""}, "ME1TUX008": {"short": "HD TH 비규격", "color": ""}, "ME1WU0051": {"short": "OB M 2573(공용) M", "color": "ETP"}, "ME1BA0033": {"short": "OB BAD 6091", "color": ""}, "ME1BD0144": {"short": "HD BD2R 6091 M", "color": ""}, "ME1TD0030": {"short": "HD BTAO1U 6014 M", "color": ""}, "ME1WT0215": {"short": "OB WMLDT 6073 M", "color": ""}, "ME1TC0023": {"short": "HD TCP1D 42222", "color": ""}, "ME1TC0024": {"short": "HD TCP1D 40222", "color": ""}, "ME1WR0097": {"short": "OB WRMBS 8035 M", "color": ""}, "ME1WF0106": {"short": "OB WF 8037 M", "color": ""}, "ME1WR0093": {"short": "OB WRMB 9533 M", "color": ""}, "ME1WU0117": {"short": "OB M 5586 M", "color": ""}, "ME1BD0124": {"short": "BRZ HD BD2R 12091 M", "color": ""}, "ME1BU0260": {"short": "BRZ HD B 3091", "color": ""}, "ME1BC0043": {"short": "BRZ OB BC1A 4291 M", "color": ""}, "ME1WTX033": {"short": "OB WMLDT 비규격", "color": ""}, "MRTWR0003": {"short": "CH WRMB 6135 M", "color": ""}, "MRTWR0006": {"short": "CH WRMB 9335 M", "color": ""}, "ME1WT0189": {"short": "BRZ OB WT 30134 M", "color": ""}, "MROWF0042": {"short": "Euro700 Veil/DW CH WFMD 9035 M", "color": ""}};
+// ── MODELS 정규화: code 필드가 없으면 id를 복사 (재고 식별용 키) ──
+MODELS.forEach(m=>{
+  if(!m.code) m.code = m.id;
+  // 기본 임계값 (min_stock, freq)이 없으면 추정값 채움
+  if(m.min_stock===undefined){
+    // 월평균 사용량의 1.5배를 최소재고로 보수적 추정
+    m.min_stock = Math.max(1, Math.round((m.avg_monthly||0) * 1.5));
+  }
+  if(!m.freq){
+    const am = m.avg_monthly||0;
+    if(am >= 20) m.freq='high';
+    else if(am <= 1) m.freq='rare';
+    else m.freq='normal';
+  }
+  // monthly가 없으면 추이용 빈 객체
+  if(!m.monthly) m.monthly = {};
+  // codes 배열을 검색가능 문자열로 미리 합쳐둠
+  if(Array.isArray(m.codes)) m._codesSearchable = m.codes.join(' ').toLowerCase();
+});
+
+// 모델을 다양한 키로 찾는 헬퍼 (m.code, m.id, codes 배열, 외부 발주 코드 모두 지원)
+function findModel(key){
+  if(!key) return null;
+  const k = String(key);
+  // 1) code 또는 id로 직접 매칭
+  let found = MODELS.find(m=>m.code===k || m.id===k);
+  if(found) return found;
+  // 2) codes 배열에서 매칭 (외부 발주 코드 → 내부 모델)
+  found = MODELS.find(m=>Array.isArray(m.codes) && m.codes.includes(k));
+  if(found) return found;
+  // 3) CODE_MODEL_MAP에서 short 찾아서 → MODELS의 short으로 역추적
+  if(typeof CODE_MODEL_MAP !== 'undefined' && CODE_MODEL_MAP[k]){
+    const sh = CODE_MODEL_MAP[k].short;
+    if(sh){
+      found = MODELS.find(m=>m.short===sh);
+      if(found) return found;
+    }
+  }
+  return null;
+}
 
 
 // ── STORAGE ──
@@ -1142,8 +1234,8 @@ function calcDday(due){
 
 // ── NAV ──
 const MAINS=['home','todo','board','stock','settings'];
-const SUBS=['dashboard','ink','stocklist','stockedit','trend','nonspec'];
-let curMain='home', curSub='dashboard';
+const SUBS=['stocklist','dashboard','trend','ink','nonspec'];
+let curMain='home', curSub='stocklist';
 
 function showMain(id){
   curMain=id;
@@ -1173,7 +1265,6 @@ function renderSub(id){
   if(id==='dashboard')renderDash();
   if(id==='ink')renderInk();
   if(id==='stocklist')renderStockList();
-  if(id==='stockedit')renderStockEdit();
   if(id==='trend')renderTrend();
   if(id==='nonspec')renderNonspec();
 }
@@ -1570,54 +1661,573 @@ function confirmInk(){
 let stockFilter='all';
 function setStockFilter(f,btn){stockFilter=f;document.querySelectorAll('#sp-stocklist .f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStockList();}
 function renderStockList(){
-  const q=(document.getElementById('stock-search')?.value||'').toLowerCase();
-  let ms=[...MODELS];
-  if(q)ms=ms.filter(m=>m.code.toLowerCase().includes(q)||m.short.toLowerCase().includes(q)||m.name.toLowerCase().includes(q)||(m.glass_w&&(m.glass_w+'x'+m.glass_h).includes(q)));
-  if(stockFilter==='urgent')ms=ms.filter(m=>isUrgent(m));
-  else if(stockFilter==='warn')ms=ms.filter(m=>isWarn(m));
-  else if(stockFilter==='WC')ms=ms.filter(m=>m.color==='WC');
-  else if(stockFilter==='ETP')ms=ms.filter(m=>m.color==='ETP');
-  else if(stockFilter==='HD')ms=ms.filter(m=>m.door_type==='HD');
-  else if(stockFilter==='OB')ms=ms.filter(m=>m.door_type==='OB');
-  else if(stockFilter==='high')ms=ms.filter(m=>m.freq==='high');
-  else if(stockFilter==='rare')ms=ms.filter(m=>m.freq==='rare');
-  ms.sort((a,b)=>{const au=isUrgent(a)?2:isWarn(a)?1:0,bu=isUrgent(b)?2:isWarn(b)?1:0;return bu-au||b.total_6m-a.total_6m;});
-  const el=document.getElementById('stock-list');if(!el)return;
-  if(!ms.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>검색 결과 없음</div>';return;}
-  el.innerHTML=ms.map(m=>{
-    const s=getStock(m.code),urg=isUrgent(m),wrn=isWarn(m);
-    const sz=m.glass_w?m.glass_w+'×'+m.glass_h+'mm':'미등록';
-    return '<div class="model-card'+(urg?' urgent':wrn?' warn':'')+'" onclick="openSModal(\''+m.code+'\')">'
-      +'<div class="ml"><div class="mc">'+m.code+'</div><div class="mn">'+hlName(m.short,m.color)+'</div>'
-      +'<div class="mt">'+colorBadge(m.color)+' '+doorBadge(m.door_type)+' '+freqBadge(m.freq,m.avg_monthly)+'</div>'
-      +'<div class="ms">📐 '+sz+'</div>'
-      +'<div class="stock-row"><div class="stock-box'+(s.raw<m.min_stock&&m.freq!=='rare'?' urgent-box':'')+'"><div class="sl">인쇄실 원유리</div><div class="sv '+(s.raw===0?'zero':s.raw<m.min_stock?'low':'ok')+'">'+s.raw+'</div></div>'
-      +'<div class="stock-box"><div class="sl">조립실 인쇄유리</div><div class="sv '+(s.printed===0?'zero':'ok')+'">'+s.printed+'</div></div></div></div>'
-      +'<div class="mr"><div class="mr-qty">'+m.total_6m+'<span class="mr-unit">장</span></div><div class="mr-sub">6개월</div><div class="trend">'+miniTrend(m.monthly||{})+'</div></div></div>';
+  let q=(document.getElementById('stock-search')?.value||'').toLowerCase().trim();
+  const qNorm = q.replace(/[×x*\s]/g,'');
+  const qDigits = q.replace(/[^0-9]/g,'');
+
+  const el=document.getElementById('stock-list');
+  const miscEl=document.getElementById('stock-misc-section');
+  if(!el) return;
+
+  const groups = (typeof SIZE_GROUPS !== 'undefined') ? [...SIZE_GROUPS] : [];
+
+  function getAsmInfo(sg){
+    if(typeof ASSEMBLY_MODELS === 'undefined') return null;
+    return ASSEMBLY_MODELS.filter(a=>a.glass_w===sg.w && a.glass_h===sg.h);
+  }
+
+  // ── 원유리/인쇄유리 합산 헬퍼 (작업일지 코드 안 건드림) ──
+  // 원유리 = WC.raw + ETP.raw 합산 (사용자 정신모델: 색상 구분 없음)
+  function getRawTotal(sg){
+    const wc = getSzStock(sg.w, sg.h, 'WC');
+    const etp = getSzStock(sg.w, sg.h, 'ETP');
+    return (wc.raw||0) + (etp.raw||0);
+  }
+  function getPrintedWC(sg){ return getSzStock(sg.w, sg.h, 'WC').printed || 0; }
+  function getPrintedETP(sg){ return getSzStock(sg.w, sg.h, 'ETP').printed || 0; }
+
+  // ── 빈도별 차등 경고 기준 ──
+  // 고빈도 (월20장+): 월평균*30% 미만 비상
+  // 중빈도 (월5-20장): 월평균*60% 미만 비상
+  // 저빈도 (월1-5장): 3장 미만 비상
+  // 희귀 (월1장 미만): 1장 미만 비상
+  function getRawWarnLevel(sg){
+    const raw = getRawTotal(sg);
+    const am = sg.avg_monthly || 0;
+    let urgent, warn;
+    if(am >= 20){
+      urgent = Math.max(5, Math.round(am * 0.3));
+      warn = Math.max(10, Math.round(am * 0.5));
+    } else if(am >= 5){
+      urgent = Math.max(3, Math.round(am * 0.6));
+      warn = Math.round(am * 1.0);
+    } else if(am >= 1){
+      urgent = 3;
+      warn = 5;
+    } else {
+      // 희귀: 안 쓰는 사이즈
+      return raw === 0 ? 'none' : 'ok';
+    }
+    if(raw < urgent) return 'urgent';
+    if(raw < warn) return 'warn';
+    return 'ok';
+  }
+
+  function sgHasStock(sg){
+    const raw = getRawTotal(sg);
+    const pwc = getPrintedWC(sg);
+    const petp = getPrintedETP(sg);
+    return raw>0 || pwc!==0 || petp!==0;
+  }
+  function sgIsUrgent(sg){ return getRawWarnLevel(sg) === 'urgent'; }
+  function sgHasMinus(sg){
+    return getPrintedWC(sg) < 0 || getPrintedETP(sg) < 0;
+  }
+  function sgBrand(sg){
+    if(!sg.models || !sg.models.length) return '';
+    if(sg.models.every(m=>m.startsWith('HD'))) return 'HD';
+    if(sg.models.every(m=>m.startsWith('OB'))) return 'OB';
+    return 'MIX';
+  }
+
+  // 검색 필터
+  let filtered = groups;
+  if(q){
+    filtered = groups.filter(sg=>{
+      if(sg.label && sg.label.toLowerCase().includes(q)) return true;
+      if(sg.key && sg.key.toLowerCase().includes(q)) return true;
+      if(sg.models && sg.models.some(mn=>String(mn).toLowerCase().includes(q))) return true;
+      if(sg.tags && sg.tags.some(t=>String(t).toLowerCase().includes(q))) return true;
+      if(qDigits.length >= 3){
+        const wh = String(sg.w) + String(sg.h);
+        if(wh === qDigits || wh.startsWith(qDigits) || wh.includes(qDigits)) return true;
+        if(String(sg.w).includes(qDigits)) return true;
+        if(String(sg.h).includes(qDigits)) return true;
+      }
+      const asms = getAsmInfo(sg);
+      if(asms && asms.length){
+        for(const a of asms){
+          const aWh = String(a.asm_w) + String(a.asm_h);
+          if(qDigits.length >= 3 && aWh.includes(qDigits)) return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  // 필터 적용
+  if(stockFilter==='has') filtered = filtered.filter(sgHasStock);
+  else if(stockFilter==='urgent') filtered = filtered.filter(sg=>sgIsUrgent(sg)||sgHasMinus(sg));
+  else if(stockFilter==='WC') filtered = filtered.filter(sg=>{const s=getSzStock(sg.w,sg.h,'WC');return s.printed!==0;});
+  else if(stockFilter==='ETP') filtered = filtered.filter(sg=>{const s=getSzStock(sg.w,sg.h,'ETP');return s.printed!==0;});
+  else if(stockFilter==='HD') filtered = filtered.filter(sg=>sgBrand(sg)==='HD' || sgBrand(sg)==='MIX');
+  else if(stockFilter==='OB') filtered = filtered.filter(sg=>sgBrand(sg)==='OB' || sgBrand(sg)==='MIX');
+  else if(stockFilter==='high') filtered = filtered.filter(sg=>(sg.avg_monthly||0)>=20);
+
+  // 정렬: 마이너스(출고초과) → 부족 → 재고있음 → 사용량 많은 순
+  filtered.sort((a,b)=>{
+    const ap = sgHasMinus(a) ? 3 : sgIsUrgent(a) ? 2 : sgHasStock(a) ? 1 : 0;
+    const bp = sgHasMinus(b) ? 3 : sgIsUrgent(b) ? 2 : sgHasStock(b) ? 1 : 0;
+    if(ap !== bp) return bp - ap;
+    return (b.total_6m||0) - (a.total_6m||0);
+  });
+
+  if(!filtered.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>검색 결과 없음</div>';
+    if(miscEl) miscEl.innerHTML='';
+    return;
+  }
+
+  el.innerHTML = filtered.map(sg=>{
+    const raw = getRawTotal(sg);
+    const pwc = getPrintedWC(sg);
+    const petp = getPrintedETP(sg);
+    const warnLevel = getRawWarnLevel(sg);
+    const brand = sgBrand(sg);
+    const asms = getAsmInfo(sg);
+    const am = sg.avg_monthly || 0;
+
+    // 경고 텍스트
+    let warnTxt = '';
+    if(warnLevel === 'urgent'){
+      warnTxt = `🚨 부족 (월평균 ${am.toFixed(1)}장)`;
+    } else if(warnLevel === 'warn'){
+      warnTxt = `⚠️ 주의 (월평균 ${am.toFixed(1)}장)`;
+    }
+
+    // 조립실 사이즈
+    let asmSizeHtml = '';
+    if(asms && asms.length){
+      const uniqueAsm = [...new Set(asms.map(a=>a.asm_w+'×'+a.asm_h))];
+      if(uniqueAsm.length === 1 && uniqueAsm[0] !== sg.w+'×'+sg.h){
+        asmSizeHtml = `<span style="font-size:10px;color:var(--tx2);margin-left:6px">🔧조립 ${uniqueAsm[0]}</span>`;
+      } else if(uniqueAsm.length > 1){
+        asmSizeHtml = `<span style="font-size:10px;color:var(--tx2);margin-left:6px">🔧조립 ${uniqueAsm.length}종</span>`;
+      }
+    }
+
+    // 모델명 태그 (L/R 통합)
+    const modelTags = (sg.models||[]).map(mn=>String(mn).replace(/\s+[LR]$/,''));
+    const uniqueModels = [...new Set(modelTags)];
+    const tagsHtml = uniqueModels.slice(0,4).map(mn=>
+      `<span style="display:inline-block;padding:2px 7px;background:var(--s2);border:1px solid var(--b2);border-radius:10px;font-size:10px;color:var(--tx1);margin:1px 2px 1px 0">${mn}</span>`
+    ).join('') + (uniqueModels.length>4 ? `<span style="font-size:10px;color:var(--tx2);margin-left:4px">+${uniqueModels.length-4}</span>` : '');
+
+    // 경고 노트 (조립모델의 warning)
+    let asmWarnHtml = '';
+    if(asms && asms.length){
+      const warns = asms.filter(a=>a.warning).map(a=>a.warning);
+      if(warns.length){
+        asmWarnHtml = `<div style="font-size:10px;color:var(--acc4);margin-top:4px;background:rgba(248,81,73,.08);padding:4px 8px;border-radius:6px">⚠️ ${[...new Set(warns)].join(' / ')}</div>`;
+      }
+    }
+
+    // 카드 스타일 (마이너스가 가장 위험, 그다음 부족, 주의)
+    let cardCls = 'model-card';
+    if(sgHasMinus(sg)) cardCls += ' urgent';
+    else if(warnLevel === 'urgent') cardCls += ' urgent';
+    else if(warnLevel === 'warn') cardCls += ' warn';
+
+    // 원유리 색상: 부족=빨강, 주의=주황, 정상=평소
+    const rawColor = warnLevel==='urgent' ? '#f85149' : warnLevel==='warn' ? '#d29922' : 'var(--acc)';
+    // 인쇄유리 색상: 마이너스=빨강
+    const pwcColor = pwc < 0 ? '#f85149' : pwc === 0 ? 'var(--tx3)' : 'var(--acc3)';
+    const petpColor = petp < 0 ? '#f85149' : petp === 0 ? 'var(--tx3)' : 'var(--acc3)';
+
+    return `
+    <div class="${cardCls}" style="cursor:pointer" onclick="openSizeModal('${sg.key}')">
+      <div class="ml" style="flex:1">
+        <div style="display:flex;align-items:baseline;flex-wrap:wrap">
+          <div class="mn" style="font-size:16px;font-weight:800;color:var(--tx1)">📐 ${sg.label}</div>
+          ${asmSizeHtml}
+          ${brand?`<span style="font-size:10px;padding:1px 6px;background:var(--s2);border-radius:8px;color:var(--tx2);margin-left:6px">${brand}</span>`:''}
+        </div>
+        <div style="margin-top:6px">${tagsHtml}</div>
+        ${asmWarnHtml}
+        ${warnTxt?`<div style="font-size:11px;color:${warnLevel==='urgent'?'#f85149':'#d29922'};margin-top:4px;font-weight:700">${warnTxt}</div>`:''}
+
+        <!-- 원유리 (사이즈만, 색상 통합) -->
+        <div style="margin-top:10px;background:var(--s2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border:2px solid ${warnLevel==='urgent'?'#f85149':warnLevel==='warn'?'#d29922':'transparent'}">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:18px">📦</span>
+            <span style="font-size:12px;color:var(--tx1);font-weight:700">원유리</span>
+            <span style="font-size:9px;color:var(--tx3)">(인쇄 전)</span>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:${rawColor}">${raw}<span style="font-size:11px;color:var(--tx2);font-weight:400">장</span></div>
+        </div>
+
+        <!-- 인쇄유리 (색상별) -->
+        <div class="stock-row" style="margin-top:6px">
+          <div class="stock-box" style="border-left:3px solid ${pwc<0?'#f85149':'#1f6feb'};${pwc<0?'background:rgba(248,81,73,.08)':''}">
+            <div class="sl" style="display:flex;justify-content:space-between;align-items:center">
+              <span>🔵 WC 인쇄유리</span>
+              ${pwc<0?'<span style="color:#f85149;font-weight:700;font-size:9px">⚠️출고초과</span>':''}
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:${pwcColor};text-align:center;margin-top:4px">${pwc}</div>
+          </div>
+          <div class="stock-box" style="border-left:3px solid ${petp<0?'#f85149':'#d29922'};${petp<0?'background:rgba(248,81,73,.08)':''}">
+            <div class="sl" style="display:flex;justify-content:space-between;align-items:center">
+              <span>🟠 ETP 인쇄유리</span>
+              ${petp<0?'<span style="color:#f85149;font-weight:700;font-size:9px">⚠️출고초과</span>':''}
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:${petpColor};text-align:center;margin-top:4px">${petp}</div>
+          </div>
+        </div>
+      </div>
+      <div class="mr">
+        <div class="mr-qty">${sg.total_6m||0}<span class="mr-unit">장</span></div>
+        <div class="mr-sub">6개월</div>
+        ${am>=1?`<div style="font-size:9px;color:var(--tx3);margin-top:2px">월${am.toFixed(1)}</div>`:''}
+      </div>
+    </div>`;
   }).join('');
+
+  // ── 비규격 섹션 ──
+  if(miscEl){
+    const miscAsm = (typeof ASSEMBLY_MODELS!=='undefined' ? ASSEMBLY_MODELS : [])
+      .filter(a=>String(a.short).includes('비규격'));
+    let miscFiltered = miscAsm;
+    if(q) miscFiltered = miscAsm.filter(a=>String(a.short).toLowerCase().includes(q));
+
+    if(miscFiltered.length && stockFilter==='all'){
+      miscEl.innerHTML = `
+        <div style="border-top:1px dashed var(--b2);padding-top:14px;margin-top:14px">
+          <div style="font-size:12px;color:var(--tx2);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+            <span style="font-size:14px">🔲</span>
+            <span>비규격 (사이즈 미등록)</span>
+            <span style="color:var(--tx3);font-size:10px">${miscFiltered.length}건</span>
+          </div>
+          ${miscFiltered.map(a=>{
+            const raw = (getSzStock(a.glass_w,a.glass_h,'WC').raw||0) + (getSzStock(a.glass_w,a.glass_h,'ETP').raw||0);
+            const pwc = getSzStock(a.glass_w,a.glass_h,'WC').printed||0;
+            const petp = getSzStock(a.glass_w,a.glass_h,'ETP').printed||0;
+            return `<div class="model-card" style="cursor:pointer;opacity:.85" onclick="openSizeModal('${a.glass_w}x${a.glass_h}')">
+              <div class="ml" style="flex:1">
+                <div class="mn" style="font-size:14px;font-weight:700">${a.short}</div>
+                <div style="font-size:10px;color:var(--tx2);margin-top:2px">조립 ${a.asm_w}×${a.asm_h} → 유리 ${a.glass_w}×${a.glass_h}</div>
+                ${a.note?`<div style="font-size:10px;color:var(--tx2);margin-top:2px">📌 ${a.note}</div>`:''}
+                <div style="display:flex;gap:8px;margin-top:6px;font-size:11px">
+                  <span>📦 원유리 ${raw}</span>
+                  <span style="color:${pwc<0?'#f85149':'var(--tx2)'}">🔵 WC ${pwc}</span>
+                  <span style="color:${petp<0?'#f85149':'var(--tx2)'}">🟠 ETP ${petp}</span>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`;
+    } else {
+      miscEl.innerHTML='';
+    }
+  }
 }
 
 // ── STOCK MODAL ──
-let sCode='',sTab='raw',sQty=0;
+let sCode='',sTab='raw',sQty=0,sMode='set'; // sMode: 'set'(직접수정) 또는 'move'(인쇄→조립 이동)
 function openSModal(code){
   const m=MODELS.find(x=>x.code===code);if(!m)return;
-  sCode=code;sTab='raw';const s=getStock(code);sQty=s.raw;
+  sCode=code;sTab='raw';sMode='set';
+  const s=getStock(code);
+  sQty=s.raw;
   document.getElementById('sm-name').textContent=m.short;
   document.getElementById('sm-sub').textContent=code+(m.glass_w?' | '+m.glass_w+'×'+m.glass_h+'mm':'');
-  document.getElementById('sm-qty').textContent=sQty;
+  document.getElementById('sm-cur-raw').textContent=s.raw;
+  document.getElementById('sm-cur-printed').textContent=s.printed;
+  document.getElementById('sm-qty').value=sQty;
   document.getElementById('stab-raw').classList.add('on');
   document.getElementById('stab-printed').classList.remove('on');
+  document.getElementById('smode-set').classList.add('on');
+  document.getElementById('smode-move').classList.remove('on');
+  _updateSModalUI();
   document.getElementById('stock-modal').classList.add('on');
 }
-function setSTab(t){sTab=t;const s=getStock(sCode);sQty=t==='raw'?s.raw:s.printed;document.getElementById('sm-qty').textContent=sQty;document.getElementById('stab-raw').classList.toggle('on',t==='raw');document.getElementById('stab-printed').classList.toggle('on',t==='printed');}
-function sQtyD(d){sQty=Math.max(0,sQty+d);document.getElementById('sm-qty').textContent=sQty;}
-function setSQ(n){sQty=n;document.getElementById('sm-qty').textContent=n;}
+function setSTab(t){
+  sTab=t;
+  const s=getStock(sCode);
+  // 직접수정 모드에선 해당 탭의 현재값을 보여주고, 이동 모드에선 0에서 시작
+  if(sMode==='set'){
+    sQty = (t==='raw' ? s.raw : s.printed);
+  } else {
+    sQty = 0;
+  }
+  document.getElementById('sm-qty').value=sQty;
+  document.getElementById('stab-raw').classList.toggle('on',t==='raw');
+  document.getElementById('stab-printed').classList.toggle('on',t==='printed');
+  _updateSModalUI();
+}
+function setSMode(mode){
+  sMode = mode;
+  document.getElementById('smode-set').classList.toggle('on', mode==='set');
+  document.getElementById('smode-move').classList.toggle('on', mode==='move');
+  const s=getStock(sCode);
+  if(mode==='set'){
+    sQty = (sTab==='raw' ? s.raw : s.printed);
+  } else {
+    // 이동 모드는 항상 인쇄실 탭(원유리)이 출발지
+    sTab = 'raw';
+    document.getElementById('stab-raw').classList.add('on');
+    document.getElementById('stab-printed').classList.remove('on');
+    sQty = 0;
+  }
+  document.getElementById('sm-qty').value=sQty;
+  _updateSModalUI();
+}
+function _updateSModalUI(){
+  const lbl=document.getElementById('sm-qty-label');
+  const desc=document.getElementById('sm-confirm-desc');
+  const btn=document.getElementById('sm-confirm-btn');
+  if(sMode==='set'){
+    lbl.textContent = (sTab==='raw'?'인쇄실 원유리':'조립실 인쇄유리') + ' 현재 재고';
+    desc.textContent = '입력한 값으로 직접 변경';
+    btn.textContent = '✓ 재고 저장';
+  } else {
+    lbl.textContent = '인쇄실 → 조립실로 이동할 수량';
+    desc.textContent = '인쇄실 원유리 차감 → 조립실 인쇄유리 증가';
+    btn.textContent = '🔄 인쇄→조립 이동';
+  }
+}
+function sQtyD(d){sQty=Math.max(0,sQty+d);document.getElementById('sm-qty').value=sQty;}
+function addSQ(d){sQty=Math.max(0,sQty+d);document.getElementById('sm-qty').value=sQty;}
+function setSQ(n){sQty=Math.max(0,n);document.getElementById('sm-qty').value=n;}
 function confirmStock(){
   const s=getStock(sCode);
+  if(sMode==='move'){
+    // 인쇄실 → 조립실 이동
+    if(sQty<=0){showToast('이동 수량 입력');return;}
+    if(sQty>s.raw){
+      if(!confirm(`인쇄실 원유리(${s.raw}장)보다 많은 ${sQty}장을 이동하려고 합니다. 계속할까요?`))return;
+    }
+    s.raw = Math.max(0, s.raw - sQty);
+    s.printed = (s.printed||0) + sQty;
+    stock[sCode]=s;
+    meta.lastStock=new Date().toISOString();
+    saveAll();closeM('stock-modal');showToast(`✓ ${sQty}장 인쇄→조립 이동`);
+    renderDash();
+    if(document.getElementById('sp-stocklist').style.display!=='none')renderStockList();
+    autoSync();
+    return;
+  }
+  // 직접 수정
   if(sTab==='raw')s.raw=sQty;else s.printed=sQty;
   stock[sCode]=s;meta.lastStock=new Date().toISOString();
   saveAll();closeM('stock-modal');showToast('✓ 재고 저장');renderDash();
   if(document.getElementById('sp-stocklist').style.display!=='none')renderStockList();
+  autoSync();
+}
+
+// ── SIZE STOCK MODAL (원유리/인쇄유리 관리) ──
+let szmKey='', szmW=0, szmH=0, szmColor='WC', szmMode='rawin', szQty=0;
+// szmMode: 'rawin' (원유리 입고/수정), 'print' (인쇄), 'out' (출고)
+
+function openSizeModal(sizeKey){
+  let key = String(sizeKey);
+  if(key.startsWith('sz_')) key = key.substring(3).split('_')[0];
+  const parts = key.split('x');
+  if(parts.length !== 2) { showToast('잘못된 사이즈 키'); return; }
+  szmW = parseInt(parts[0]);
+  szmH = parseInt(parts[1]);
+  szmKey = key;
+  szmColor = 'WC';
+  szmMode = 'rawin';
+  szQty = 0;
+
+  const sg = (typeof SIZE_GROUPS!=='undefined') ? SIZE_GROUPS.find(s=>s.w===szmW && s.h===szmH) : null;
+  const asms = (typeof ASSEMBLY_MODELS!=='undefined') ? ASSEMBLY_MODELS.filter(a=>a.glass_w===szmW && a.glass_h===szmH) : [];
+
+  document.getElementById('szm-title').textContent = `📐 ${szmW} × ${szmH} mm`;
+
+  // 조립실 사이즈 정보
+  let subText = '';
+  if(asms.length){
+    const uniqueAsm = [...new Set(asms.map(a=>a.asm_w+'×'+a.asm_h))];
+    if(uniqueAsm.length === 1){
+      subText = `🔧 조립실 사이즈: ${uniqueAsm[0]} mm`;
+    } else if(uniqueAsm.length > 1){
+      subText = `🔧 조립실 사이즈: ${uniqueAsm.join(', ')} mm`;
+    }
+  }
+  if(sg && sg.avg_monthly){
+    subText += (subText?' · ':'') + `월평균 ${sg.avg_monthly.toFixed(1)}장`;
+  }
+  document.getElementById('szm-sub').textContent = subText;
+
+  // 매핑된 모델명 태그
+  const modelsEl = document.getElementById('szm-models');
+  if(sg && sg.models && sg.models.length){
+    const uniqueModels = [...new Set(sg.models.map(m=>String(m).replace(/\s+[LR]$/,'')))];
+    modelsEl.innerHTML = uniqueModels.map(mn=>
+      `<span style="display:inline-block;padding:3px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:12px;font-size:11px;color:var(--tx1);margin:2px 3px 2px 0">${mn}</span>`
+    ).join('');
+  } else if(asms.length){
+    const ms = [...new Set(asms.map(a=>a.short))];
+    modelsEl.innerHTML = ms.map(mn=>
+      `<span style="display:inline-block;padding:3px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:12px;font-size:11px;color:var(--tx1);margin:2px 3px 2px 0">${mn}</span>`
+    ).join('');
+  } else {
+    modelsEl.innerHTML = '<span style="font-size:11px;color:var(--tx3)">매핑된 모델 없음</span>';
+  }
+
+  // 경고/노트
+  const warnEl = document.getElementById('szm-warning');
+  const warns = asms.filter(a=>a.warning).map(a=>a.warning);
+  const notes = asms.filter(a=>a.note).map(a=>a.note);
+  let warnHtml = '';
+  if(warns.length){
+    warnHtml += `<div style="font-size:11px;color:var(--acc4);background:rgba(248,81,73,.1);padding:6px 10px;border-radius:6px;margin-bottom:4px">⚠️ ${[...new Set(warns)].join(' / ')}</div>`;
+  }
+  if(notes.length){
+    warnHtml += `<div style="font-size:10px;color:var(--tx2);background:var(--s2);padding:6px 10px;border-radius:6px">📌 ${[...new Set(notes)].join(' / ')}</div>`;
+  }
+  warnEl.innerHTML = warnHtml;
+
+  _refreshSzmModal();
+  document.getElementById('size-modal').classList.add('on');
+}
+
+function _szmRaw(){
+  // 원유리 = WC.raw + ETP.raw 합산
+  const wc = getSzStock(szmW, szmH, 'WC');
+  const etp = getSzStock(szmW, szmH, 'ETP');
+  return (wc.raw||0) + (etp.raw||0);
+}
+
+function _refreshSzmSummary(){
+  const raw = _szmRaw();
+  const pwc = getSzStock(szmW, szmH, 'WC').printed || 0;
+  const petp = getSzStock(szmW, szmH, 'ETP').printed || 0;
+  const pwcCol = pwc < 0 ? '#f85149' : pwc === 0 ? 'var(--tx3)' : 'var(--acc3)';
+  const petpCol = petp < 0 ? '#f85149' : petp === 0 ? 'var(--tx3)' : 'var(--acc3)';
+
+  document.getElementById('szm-summary').innerHTML = `
+    <div style="display:flex;justify-content:space-around;align-items:center;gap:8px">
+      <div style="text-align:center;flex:1">
+        <div style="color:var(--tx3);font-size:10px">📦 원유리</div>
+        <div style="font-weight:700;color:var(--acc);font-family:'JetBrains Mono',monospace;font-size:20px">${raw}</div>
+      </div>
+      <div style="width:1px;background:var(--b2);align-self:stretch"></div>
+      <div style="text-align:center;flex:1">
+        <div style="color:var(--tx3);font-size:10px">🔵 WC 인쇄</div>
+        <div style="font-weight:700;color:${pwcCol};font-family:'JetBrains Mono',monospace;font-size:20px">${pwc}</div>
+      </div>
+      <div style="width:1px;background:var(--b2);align-self:stretch"></div>
+      <div style="text-align:center;flex:1">
+        <div style="color:var(--tx3);font-size:10px">🟠 ETP 인쇄</div>
+        <div style="font-weight:700;color:${petpCol};font-family:'JetBrains Mono',monospace;font-size:20px">${petp}</div>
+      </div>
+    </div>`;
+}
+
+function setSzmColor(color){
+  szmColor = color;
+  document.getElementById('szm-tab-WC').classList.toggle('on', color==='WC');
+  document.getElementById('szm-tab-ETP').classList.toggle('on', color==='ETP');
+  _refreshSzmInput();
+}
+
+function setSzmMode(mode){
+  szmMode = mode;
+  ['rawin','print','out'].forEach(m=>{
+    const btn = document.getElementById('szm-mode-'+m);
+    if(btn) btn.classList.toggle('on', mode===m);
+  });
+  // 색상 선택 영역 표시/숨김
+  document.getElementById('szm-color-row').style.display = (mode==='rawin') ? 'none' : 'block';
+  _refreshSzmInput();
+}
+
+function _refreshSzmInput(){
+  _refreshSzmSummary();
+  const lbl = document.getElementById('szm-qty-label');
+  const desc = document.getElementById('szm-confirm-desc');
+  const btn = document.getElementById('szm-confirm-btn');
+  const colorLabel = szmColor==='WC' ? '웜코튼' : '에토프';
+  const raw = _szmRaw();
+  const pcur = getSzStock(szmW, szmH, szmColor).printed || 0;
+
+  if(szmMode === 'rawin'){
+    szQty = raw; // 현재 원유리 총량
+    lbl.textContent = `📦 원유리 현재 재고 (직접 수정)`;
+    desc.textContent = '유리업체에서 입고된 원유리 총량을 입력 (사이즈만, 색상 무관)';
+    btn.textContent = '✓ 원유리 재고 저장';
+  } else if(szmMode === 'print'){
+    szQty = 0;
+    lbl.textContent = `🖨 ${colorLabel}로 인쇄할 수량 (원유리 차감)`;
+    desc.textContent = `원유리 ${raw}장 → ${colorLabel} 인쇄유리로 변환`;
+    btn.textContent = `🖨 ${colorLabel} 인쇄 작업`;
+  } else { // out
+    szQty = 0;
+    lbl.textContent = `📤 ${colorLabel} 인쇄유리 출고 수량 (현재 ${pcur}장)`;
+    desc.textContent = '재고 부족 시 마이너스로 기록됨';
+    btn.textContent = `📤 ${colorLabel} 출고`;
+  }
+  document.getElementById('szm-qty').value = szQty;
+}
+
+function _refreshSzmModal(){ _refreshSzmInput(); }
+
+function szmQtyD(d){ szQty = (parseInt(szQty)||0) + d; if(szmMode!=='rawin') szQty=Math.max(0,szQty); document.getElementById('szm-qty').value = szQty; }
+function szmAddQ(d){ szQty = (parseInt(szQty)||0) + d; if(szmMode!=='rawin') szQty=Math.max(0,szQty); document.getElementById('szm-qty').value = szQty; }
+
+function confirmSizeStock(){
+  const wc = getSzStock(szmW, szmH, 'WC');
+  const etp = getSzStock(szmW, szmH, 'ETP');
+  const curRaw = (wc.raw||0) + (etp.raw||0);
+  const colorLabel = szmColor==='WC' ? '웜코튼' : '에토프';
+  szQty = parseInt(szQty) || 0;
+
+  if(szmMode === 'rawin'){
+    // 원유리 총량을 szQty로 설정 - WC.raw에 모아둠 (어차피 표시는 합산이라 무관)
+    if(szQty < 0){ showToast('원유리는 음수일 수 없음'); return; }
+    // WC.raw에 전부 저장하고 ETP.raw는 0
+    setSzStock(szmW, szmH, 'WC', szQty, wc.printed||0);
+    setSzStock(szmW, szmH, 'ETP', 0, etp.printed||0);
+    showToast(`✓ 원유리 ${szQty}장`);
+  } else if(szmMode === 'print'){
+    // 인쇄: 원유리에서 차감, 해당 색상 인쇄유리로 증가
+    if(szQty <= 0){ showToast('인쇄 수량 입력'); return; }
+    if(szQty > curRaw){
+      if(!confirm(`원유리 ${curRaw}장보다 많은 ${szQty}장을 인쇄하려고 합니다. 계속할까요?\n\n(원유리가 마이너스가 됩니다)`)) return;
+    }
+    // 원유리 차감 - WC.raw에서 먼저 차감, 부족하면 ETP.raw에서 차감
+    let remaining = szQty;
+    let newWcRaw = wc.raw || 0;
+    let newEtpRaw = etp.raw || 0;
+    if(newWcRaw >= remaining){
+      newWcRaw -= remaining;
+      remaining = 0;
+    } else {
+      remaining -= newWcRaw;
+      newWcRaw = 0;
+      newEtpRaw -= remaining; // 마이너스 가능
+    }
+    // 해당 색상 인쇄유리 증가
+    if(szmColor === 'WC'){
+      setSzStock(szmW, szmH, 'WC', newWcRaw, (wc.printed||0) + szQty);
+      setSzStock(szmW, szmH, 'ETP', newEtpRaw, etp.printed||0);
+    } else {
+      setSzStock(szmW, szmH, 'WC', newWcRaw, wc.printed||0);
+      setSzStock(szmW, szmH, 'ETP', newEtpRaw, (etp.printed||0) + szQty);
+    }
+    showToast(`🖨 ${colorLabel} ${szQty}장 인쇄`);
+  } else { // out (출고)
+    if(szQty <= 0){ showToast('출고 수량 입력'); return; }
+    const curPrinted = (szmColor==='WC' ? wc.printed : etp.printed) || 0;
+    const newPrinted = curPrinted - szQty; // 마이너스 허용
+    if(newPrinted < 0){
+      if(!confirm(`${colorLabel} 인쇄유리가 ${curPrinted}장인데 ${szQty}장 출고하려고 합니다.\n\n재고가 ${newPrinted}장으로 마이너스가 됩니다. 계속할까요?`)) return;
+    }
+    if(szmColor === 'WC'){
+      setSzStock(szmW, szmH, 'WC', wc.raw||0, newPrinted);
+    } else {
+      setSzStock(szmW, szmH, 'ETP', etp.raw||0, newPrinted);
+    }
+    showToast(newPrinted<0 ? `⚠️ ${colorLabel} 출고 (재고 ${newPrinted}장!)` : `📤 ${colorLabel} ${szQty}장 출고`);
+  }
+
+  meta.lastStock = new Date().toISOString();
+  saveAll();
+  _refreshSzmInput(); // 모달 안에서 연속 작업 가능하게 유지
+  renderDash();
+  if(document.getElementById('sp-stocklist').style.display !== 'none') renderStockList();
   autoSync();
 }
 
