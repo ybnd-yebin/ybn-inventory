@@ -636,6 +636,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- SETTINGS -->
 <div class="sec-pg" id="pg-settings" style="padding:14px 14px 80px">
+  <div class="card" style="border-left:3px solid var(--acc)">
+    <div class="card-ttl">👤 내 이름 (작성자 식별)</div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:10px">
+      여러 명이 동시에 작업할 때 누가 등록했는지 표시하기 위해 사용됩니다.<br>
+      예) <b>예빈PC</b>, <b>예빈모바일</b>, <b>원영PC</b>
+    </div>
+    <input id="actor-input" class="inp" placeholder="예: 예빈모바일" style="font-size:13px;font-family:'Noto Sans KR',sans-serif">
+    <button onclick="saveActor()" style="width:100%;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">✓ 이름 저장</button>
+    <div id="actor-current" style="margin-top:8px;font-size:11px;color:var(--tx3);text-align:center"></div>
+  </div>
   <div class="card">
     <div class="card-ttl">📥 발주서 엑셀 업로드</div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.7;margin-bottom:10px">
@@ -863,7 +873,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
 </div>
 
-<!-- SIZE STOCK MODAL (원유리/인쇄/출고) -->
+<!-- SIZE STOCK MODAL (입고/실측/인쇄/출고) -->
 <div class="modal-bg" id="size-modal">
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeM('size-modal')">×</button>
@@ -872,33 +882,52 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="szm-models" style="margin-bottom:10px"></div>
     <div id="szm-warning" style="margin-bottom:10px"></div>
 
-    <!-- 현재 재고 한눈에 -->
-    <div id="szm-summary" style="background:var(--s2);border-radius:8px;padding:10px 14px;margin-bottom:12px"></div>
+    <!-- 현재 재고 요약 -->
+    <div id="szm-summary" style="background:var(--s2);border-radius:8px;padding:10px 14px;margin-bottom:8px"></div>
 
-    <!-- 액션 모드 -->
+    <!-- 미기록 손실 경고 -->
+    <div id="szm-mismatch" style="margin-bottom:12px"></div>
+
+    <!-- 액션 모드 4가지 -->
     <span class="lbl" style="font-size:10px">동작 선택</span>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px">
-      <button class="q-btn szm-mode-btn on" id="szm-mode-rawin" onclick="setSzmMode('rawin')" style="padding:11px 4px;font-size:11px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
-        📦 원유리<br><span style="font-size:9px;color:var(--tx3)">입고/수정</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:12px">
+      <button class="q-btn szm-mode-btn on" id="szm-mode-in" onclick="setSzmMode('in')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        📦 입고<br><span style="font-size:9px;color:var(--tx3)">발주서</span>
       </button>
-      <button class="q-btn szm-mode-btn" id="szm-mode-print" onclick="setSzmMode('print')" style="padding:11px 4px;font-size:11px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
-        🖨 인쇄<br><span style="font-size:9px;color:var(--tx3)">원→인쇄유리</span>
+      <button class="q-btn szm-mode-btn" id="szm-mode-count" onclick="setSzmMode('count')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        🔢 실측<br><span style="font-size:9px;color:var(--tx3)">눈으로 셈</span>
       </button>
-      <button class="q-btn szm-mode-btn" id="szm-mode-out" onclick="setSzmMode('out')" style="padding:11px 4px;font-size:11px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
-        📤 출고<br><span style="font-size:9px;color:var(--tx3)">인쇄유리 차감</span>
+      <button class="q-btn szm-mode-btn" id="szm-mode-print" onclick="setSzmMode('print')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        🖨 인쇄<br><span style="font-size:9px;color:var(--tx3)">원→인쇄</span>
+      </button>
+      <button class="q-btn szm-mode-btn" id="szm-mode-out" onclick="setSzmMode('out')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        📤 출고<br><span style="font-size:9px;color:var(--tx3)">납품</span>
       </button>
     </div>
 
-    <!-- 색상 선택 (인쇄/출고 시에만 표시) -->
+    <!-- 색상 (인쇄/출고/실측 시 표시) -->
     <div id="szm-color-row" style="display:none">
-      <span class="lbl" style="font-size:10px">색상</span>
+      <span class="lbl" style="font-size:10px">대상 색상</span>
       <div class="modal-tabs" style="margin-bottom:10px">
         <button class="m-tab on" id="szm-tab-WC" onclick="setSzmColor('WC')">🔵 웜코튼</button>
         <button class="m-tab" id="szm-tab-ETP" onclick="setSzmColor('ETP')">🟠 에토프</button>
       </div>
     </div>
 
-    <!-- 수량 입력 -->
+    <!-- 일시 입력 -->
+    <span class="lbl" style="font-size:10px">일시 (기본: 오늘)</span>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:10px">
+      <input type="date" id="szm-date" class="inp" style="margin:0;padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+      <div style="display:flex;gap:4px">
+        <button class="q-btn szm-ampm on" id="szm-am" onclick="setSzmAmpm('AM')" style="flex:1;padding:9px 4px;font-size:11px">오전</button>
+        <button class="q-btn szm-ampm" id="szm-pm" onclick="setSzmAmpm('PM')" style="flex:1;padding:9px 4px;font-size:11px">오후</button>
+      </div>
+    </div>
+
+    <!-- 메모 -->
+    <input type="text" id="szm-note" class="inp" placeholder="메모 (선택, 예: 발주서 #1234)" style="margin-bottom:10px;padding:9px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif">
+
+    <!-- 수량 -->
     <span class="lbl" id="szm-qty-label">수량</span>
     <div class="qty-ctrl">
       <button class="qty-btn" onclick="szmQtyD(-1)">−</button>
@@ -909,11 +938,15 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="q-btn" onclick="szmAddQ(1)">+1</button>
       <button class="q-btn" onclick="szmAddQ(5)">+5</button>
       <button class="q-btn" onclick="szmAddQ(10)">+10</button>
-      <button class="q-btn" onclick="szmAddQ(-1)">-1</button>
+      <button class="q-btn" onclick="szmAddQ(30)">+30</button>
       <button class="q-btn" style="color:var(--acc4)" onclick="szQty=0;document.getElementById('szm-qty').value=0">초기화</button>
     </div>
     <button class="act-btn blue" onclick="confirmSizeStock()" id="szm-confirm-btn">✓ 저장</button>
     <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:6px" id="szm-confirm-desc"></div>
+
+    <!-- 이력 토글 -->
+    <button onclick="toggleSzmHistory()" id="szm-history-toggle" style="width:100%;margin-top:14px;padding:9px;background:none;border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📜 이력 보기 ▼</button>
+    <div id="szm-history" style="display:none;margin-top:8px"></div>
   </div>
 </div>
 
@@ -1142,7 +1175,7 @@ function findModel(key){
 
 
 // ── STORAGE ──
-const LS={stock:'ybn-s5',meta:'ybn-m5',work:'ybn-w5',ink:'ybn-i5',inkRate:'ybn-ir2',notices:'ybn-n2',schedules:'ybn-sc2',todos:'ybn-t2',gsUrl:'ybn-gs2',delivLog:'ybn-deliv-v1'};
+const LS={stock:'ybn-s5',meta:'ybn-m5',work:'ybn-w5',ink:'ybn-i5',inkRate:'ybn-ir2',notices:'ybn-n2',schedules:'ybn-sc2',todos:'ybn-t2',gsUrl:'ybn-gs2',delivLog:'ybn-deliv-v1',actor:'ybn-actor-v1',stockEvents:'ybn-sev-v1'};
 function J(s){try{return s?JSON.parse(s):null;}catch{return null;}}
 let stock=J(localStorage.getItem(LS.stock))||{};
 let meta=J(localStorage.getItem(LS.meta))||{};
@@ -1153,7 +1186,200 @@ let notices=J(localStorage.getItem(LS.notices))||INITIAL_NOTICES;
 let schedules=J(localStorage.getItem(LS.schedules))||[];
 let todos=J(localStorage.getItem(LS.todos))||INITIAL_TODOS;
 let gsUrl=localStorage.getItem(LS.gsUrl)||'';
+let actor=localStorage.getItem(LS.actor)||'';
 let delivLog=J(localStorage.getItem(LS.delivLog))||[];
+
+// ── 재고 이력 (StockEvents) ──
+// 키: "595x729" (원유리) 또는 "595x729_WC" / "595x729_ETP" (인쇄유리)
+// 각 키마다 events 배열: [{id, at, type, qty, by, byAt, note, source}]
+// type: 'in'(입고), 'count'(실측), 'print'(인쇄), 'out'(출고), 'adjust'(조정), 'defect'(불량)
+// source: 'manual' | 'worklog' | 'auto-adjust'
+let stockEvents = J(localStorage.getItem(LS.stockEvents)) || {};
+
+// 이벤트 → 현재 재고 계산
+// 가장 최근 'count' 이후의 모든 in/print/out/adjust/defect를 누적
+function calcStockFromEvents(key){
+  const evs = (stockEvents[key] || []).slice().sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  let lastCountIdx = -1;
+  let baseQty = 0;
+  for(let i=evs.length-1; i>=0; i--){
+    if(evs[i].type === 'count'){
+      lastCountIdx = i;
+      baseQty = parseInt(evs[i].qty)||0;
+      break;
+    }
+  }
+  // count가 없으면 모든 in/out 누계
+  let q = baseQty;
+  const startIdx = lastCountIdx === -1 ? 0 : lastCountIdx + 1;
+  for(let i=startIdx; i<evs.length; i++){
+    const e = evs[i];
+    const v = parseInt(e.qty)||0;
+    if(e.type === 'in') q += v;
+    else if(e.type === 'print' || e.type === 'out' || e.type === 'defect') q -= v;
+    else if(e.type === 'adjust') q += v; // adjust는 부호 포함된 값
+  }
+  return q;
+}
+
+// 원유리 이벤트 (사이즈만)
+function getRawEvents(w, h){ return stockEvents[`${w}x${h}`] || []; }
+function getPrintedEvents(w, h, color){ return stockEvents[`${w}x${h}_${color}`] || []; }
+
+// 현재 원유리 / 인쇄유리 재고 (이벤트 기반)
+function getRawQty(w, h){ return calcStockFromEvents(`${w}x${h}`); }
+function getPrintedQty(w, h, color){ return calcStockFromEvents(`${w}x${h}_${color}`); }
+
+// 이벤트 추가 헬퍼 (시간순 자동 정렬, ID 자동 부여)
+function addStockEvent(key, ev){
+  if(!stockEvents[key]) stockEvents[key] = [];
+  const event = {
+    id: 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    at: ev.at || new Date().toISOString(),
+    type: ev.type,
+    qty: parseInt(ev.qty) || 0,
+    by: ev.by || getActor() || '',
+    byAt: new Date().toISOString(),
+    note: ev.note || '',
+    source: ev.source || 'manual'
+  };
+  stockEvents[key].push(event);
+  // 시간순 정렬
+  stockEvents[key].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  // 만약 이 키에 count가 있으면, 자동조정 재계산
+  // (시간 역순으로 입고/인쇄 등이 들어오면 기존 조정값이 틀어지므로)
+  if(event.source !== 'auto-adjust' && stockEvents[key].some(e=>e.type==='count')){
+    recalcAutoAdjusts(key);
+  }
+  return event;
+}
+
+// 이벤트 삭제
+function deleteStockEvent(key, evId){
+  if(!stockEvents[key]) return false;
+  const before = stockEvents[key].length;
+  stockEvents[key] = stockEvents[key].filter(e=>e.id !== evId);
+  return stockEvents[key].length < before;
+}
+
+// 이벤트 수정 (qty/at/note만)
+function updateStockEvent(key, evId, patch){
+  if(!stockEvents[key]) return false;
+  const e = stockEvents[key].find(x=>x.id === evId);
+  if(!e) return false;
+  if(patch.qty !== undefined) e.qty = parseInt(patch.qty) || 0;
+  if(patch.at !== undefined) e.at = patch.at;
+  if(patch.note !== undefined) e.note = patch.note;
+  // 시간 바꿨으면 재정렬
+  stockEvents[key].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  return true;
+}
+
+// 실측 이벤트 추가 시 자동 조정 이력 생성
+// (사용자 결정: 실측을 절대값으로 덮어쓰고 차이는 '조정' 이력으로 자동 생성)
+function addCountWithAutoAdjust(key, ev){
+  // 1) 실측 이벤트 추가
+  if(!stockEvents[key]) stockEvents[key] = [];
+  const newEv = {
+    id: 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    at: ev.at || new Date().toISOString(),
+    type: 'count',
+    qty: parseInt(ev.qty) || 0,
+    by: ev.by || getActor() || '',
+    byAt: new Date().toISOString(),
+    note: ev.note || '',
+    source: 'manual'
+  };
+  stockEvents[key].push(newEv);
+
+  // 2) 자동조정 재계산 (이 키의 모든 count에 대해)
+  recalcAutoAdjusts(key);
+
+  // 3) 방금 추가한 count의 diff 확인 (브리핑용)
+  const adjForThis = stockEvents[key].find(e => e.relatedCountId === newEv.id);
+  const diff = adjForThis ? adjForThis.qty : 0;
+
+  return { count: newEv, diff };
+}
+
+// 작업일지 항목의 eventIds로 stockEvents에서 해당 이벤트들 제거
+// (작업일지 수정/삭제 시 호출)
+function removeStockEventsByIds(ids){
+  if(!ids || !ids.length) return 0;
+  let removed = 0;
+  Object.keys(stockEvents).forEach(key=>{
+    const before = stockEvents[key].length;
+    stockEvents[key] = stockEvents[key].filter(e => !ids.includes(e.id));
+    removed += (before - stockEvents[key].length);
+  });
+  return removed;
+}
+
+// 시간 역순/중간 삽입 후 모든 count의 auto-adjust 재계산
+// (한 키 내에서, count의 시점까지의 모든 변동을 다시 계산해서 조정 이력을 갱신)
+function recalcAutoAdjusts(key){
+  if(!stockEvents[key]) return;
+  // 1) 기존 auto-adjust 이력 모두 제거
+  stockEvents[key] = stockEvents[key].filter(e => e.source !== 'auto-adjust');
+  // 2) 시간순 정렬
+  stockEvents[key].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  // 3) 각 count마다 그 시점까지의 이론값 계산 → 차이를 adjust로 재추가
+  const evs = stockEvents[key].slice(); // 복사본 순회 (원본 수정 중)
+  let runningTheoretical = 0;
+  let prevCountQty = 0;
+  let prevCountSeen = false;
+  for(let i=0; i<evs.length; i++){
+    const e = evs[i];
+    if(e.type === 'count'){
+      // 이 count 시점까지의 이론값 vs 실측값
+      const diff = (parseInt(e.qty)||0) - runningTheoretical;
+      if(diff !== 0){
+        // 이 count보다 1ms 이전 시각에 auto-adjust 추가
+        const adjustAt = new Date(new Date(e.at).getTime() - 1).toISOString();
+        const adjEv = {
+          id: 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + '_radj',
+          at: adjustAt,
+          type: 'adjust',
+          qty: diff,
+          by: e.by || '',
+          byAt: new Date().toISOString(),
+          note: diff > 0 ? `실측 조정 +${diff}장 (미기록 입고 추정)` : `실측 조정 ${diff}장 (미기록 손실 추정)`,
+          source: 'auto-adjust',
+          relatedCountId: e.id
+        };
+        stockEvents[key].push(adjEv);
+      }
+      runningTheoretical = parseInt(e.qty)||0; // count 시점부터 다시 시작
+      prevCountSeen = true;
+    } else {
+      const v = parseInt(e.qty)||0;
+      if(e.type === 'in') runningTheoretical += v;
+      else if(e.type === 'print' || e.type === 'out' || e.type === 'defect') runningTheoretical -= v;
+      // adjust는 이미 제거됨
+    }
+  }
+  // 4) 최종 정렬
+  stockEvents[key].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+}
+
+// 일자 + 오전/오후 → ISO 문자열
+function dateAmPmToIso(dateStr, ampm){
+  // dateStr: "2025-05-18", ampm: "AM" or "PM"
+  const hour = ampm === 'PM' ? '15' : '09';
+  return `${dateStr}T${hour}:00:00.000Z`;
+}
+// ISO → "5/18 오전"
+function formatEventDate(iso){
+  try{
+    const d = new Date(iso);
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const h = d.getHours();
+    // ISO를 그대로 파싱하면 시간대 차이 - 09시(AM) / 15시(PM)
+    const period = h < 12 ? '오전' : '오후';
+    return `${m}/${day} ${period}`;
+  }catch(e){ return iso; }
+}
 
 // ── 사이즈+색상 기반 재고 함수 ──
 function szKey(w,h,color){return `sz_${w}x${h}_${color||'X'}`;}
@@ -1162,8 +1388,19 @@ function getSzStock(w,h,color){
   if(stock[k]) return stock[k];
   return {raw:0,printed:0};
 }
-function setSzStock(w,h,color,raw,printed){
-  stock[szKey(w,h,color)]={raw:Math.max(0,raw),printed:Math.max(0,printed)};
+function setSzStock(w,h,color,raw,printed,opts){
+  // opts: { allowNeg: true } - 인쇄유리는 출고초과로 마이너스 허용
+  const key = szKey(w,h,color);
+  if(opts && opts.allowNeg){
+    stock[key]={raw:Math.max(0,raw), printed:printed};
+  } else {
+    stock[key]={raw:Math.max(0,raw), printed:Math.max(0,printed)};
+  }
+  // 마지막 수정자 기록 (작성자 추적용)
+  if(getActor()){
+    if(!stock._meta) stock._meta = {};
+    stock._meta[key] = { by: getActor(), byAt: new Date().toISOString() };
+  }
 }
 // 사이즈 전체 재고 (WC+ETP 합산)
 function getSzStockTotal(w,h){
@@ -1174,11 +1411,54 @@ function getSzStockTotal(w,h){
 let wSelSize=null;
 let wSelModel=null; // {short, color, w, h}
 let wlColor='WC';
+// ── 작성자 (Actor) 관리 ──
+// 여러 명이 동시 작업 시 누가 무엇을 등록했는지 추적
+function getActor(){ return (actor || '').trim(); }
+function actorTag(){
+  // 모든 데이터 항목에 첨부할 메타 필드
+  const a = getActor();
+  if(!a) return {};
+  return { by: a, byAt: new Date().toISOString() };
+}
+function saveActor(){
+  const val = (document.getElementById('actor-input')?.value || '').trim();
+  if(!val){ showToast('이름을 입력하세요'); return; }
+  if(val.length > 20){ showToast('20자 이하로'); return; }
+  actor = val;
+  localStorage.setItem(LS.actor, actor);
+  document.getElementById('actor-current').textContent = `현재: ${actor}`;
+  showToast(`✓ "${actor}" 으로 저장`);
+}
+function actorBadge(by, when){
+  // 다른 곳에서 작은 배지 HTML을 생성할 때 사용
+  if(!by) return '';
+  const isMe = by === getActor();
+  const bg = isMe ? 'rgba(46,160,67,.15)' : 'rgba(88,166,255,.12)';
+  const fg = isMe ? 'var(--acc3)' : 'var(--acc)';
+  const border = isMe ? 'rgba(46,160,67,.35)' : 'rgba(88,166,255,.3)';
+  const time = when ? ` · ${_formatActorTime(when)}` : '';
+  return `<span style="display:inline-block;padding:1px 6px;background:${bg};border:1px solid ${border};border-radius:8px;font-size:9px;color:${fg};font-weight:600;white-space:nowrap" title="${by}${time}">👤 ${by}</span>`;
+}
+function _formatActorTime(iso){
+  try{
+    const d = new Date(iso);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    if(sameDay){
+      const h = String(d.getHours()).padStart(2,'0');
+      const m = String(d.getMinutes()).padStart(2,'0');
+      return `${h}:${m}`;
+    }
+    return d.toISOString().slice(5,10).replace('-','/');
+  }catch(e){ return ''; }
+}
+
 function saveAll(){
   // 로컬 변경 시각 기록 (시트→앱 받기 직전 경고용)
   // _skipLocalChange가 true면 외부(시트→앱)에서 받은 후 호출이므로 갱신 안 함
   if(!window._skipLocalChange && meta){
     meta.lastLocalChange = new Date().toISOString();
+    if(getActor()) meta.lastActor = getActor();
   }
   localStorage.setItem(LS.stock,JSON.stringify(stock));
   localStorage.setItem(LS.meta,JSON.stringify(meta));
@@ -1189,6 +1469,7 @@ function saveAll(){
   localStorage.setItem(LS.schedules,JSON.stringify(schedules));
   localStorage.setItem(LS.todos,JSON.stringify(todos));
   localStorage.setItem(LS.delivLog,JSON.stringify(delivLog));
+  localStorage.setItem(LS.stockEvents,JSON.stringify(stockEvents));
   if(typeof matStock!=='undefined') localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
   if(typeof matLog!=='undefined') localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
   if(typeof sheetLog!=='undefined') localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
@@ -1384,7 +1665,7 @@ function confirmTodo(){
   if(!content){showToast('내용을 입력하세요');return;}
   const data={content,assignee:document.getElementById('tm-assignee').value.trim(),company:document.getElementById('tm-company').value.trim(),priority:document.getElementById('tm-priority').value,dueDate:document.getElementById('tm-due').value};
   if(editTodoId){const t=todos.find(x=>x.id===editTodoId);if(t)Object.assign(t,data);}
-  else todos.push({id:Date.now().toString(),...data,status:'시작전',date:todayStr(),createdAt:new Date().toISOString()});
+  else todos.push({id:Date.now().toString(),...data,status:'시작전',date:todayStr(),createdAt:new Date().toISOString(),...actorTag()});
   saveAll();closeM('todo-modal');renderTodo();renderHome();autoSync();
   showToast(editTodoId?'✅ 수정됨':'✅ 추가됨');editTodoId=null;
 }
@@ -1611,7 +1892,7 @@ function renderInk(){
     document.getElementById('ink-'+id+'-bar').className='ink-bar '+(isLow?'low':id);
     document.getElementById('ink-'+id+'-days').textContent=calc.remaining>0?(daysLeft>99?'충분':daysLeft+'일 예상'):'소진';
     const logs=inkLog.filter(l=>l.color===color).slice(-6).reverse();
-    document.getElementById('ink-'+id+'-log').innerHTML=!logs.length?'<div class="empty-sm">입고 기록 없음</div>':logs.map(l=>'<div class="ink-log-row"><span class="ink-log-date">'+l.date.slice(5).replace('-','/')+'</span><span class="ink-log-type" style="color:'+(l.type==='in'?'var(--acc3)':'var(--acc)')+'">'+( l.type==='in'?'입고':'설정')+'</span><span class="ink-log-qty" style="color:'+(l.type==='in'?'var(--acc3)':'var(--acc)')+'">'+( l.type==='in'?'+':'=')+l.qty+'통</span></div>').join('');
+    document.getElementById('ink-'+id+'-log').innerHTML=!logs.length?'<div class="empty-sm">입고 기록 없음</div>':logs.map(l=>'<div class="ink-log-row"><span class="ink-log-date">'+l.date.slice(5).replace('-','/')+'</span><span class="ink-log-type" style="color:'+(l.type==='in'?'var(--acc3)':'var(--acc)')+'">'+( l.type==='in'?'입고':'설정')+'</span><span class="ink-log-qty" style="color:'+(l.type==='in'?'var(--acc3)':'var(--acc)')+'">'+( l.type==='in'?'+':'=')+l.qty+'통</span>'+(l.by?'<span style="margin-left:6px">'+actorBadge(l.by,l.byAt)+'</span>':'')+'</div>').join('');
   });
   document.getElementById('ink-rate-wc').value=inkRates.WC;
   document.getElementById('ink-rate-etp').value=inkRates.ETP;
@@ -1648,7 +1929,7 @@ function confirmInk(){
   inkQty=parseInt(document.getElementById('im-qty')?.value)||inkQty||0;
   if(inkQty<=0){showToast('수량을 입력하세요');return;}
   // 같은 날짜+색상 기록이 이미 있어도 별도 행으로 추가 (누적)
-  inkLog.push({date:dateVal, color:inkColor, type:inkTab, qty:inkQty});
+  inkLog.push({date:dateVal, color:inkColor, type:inkTab, qty:inkQty, ...actorTag()});
   meta.lastInk=new Date().toISOString();
   saveAll(); renderInk(); renderDash();
   showToast(inkTab==='in'?'✓ '+inkQty+'통 입고':'✓ '+inkQty+'통 설정');
@@ -1676,15 +1957,57 @@ function renderStockList(){
     return ASSEMBLY_MODELS.filter(a=>a.glass_w===sg.w && a.glass_h===sg.h);
   }
 
-  // ── 원유리/인쇄유리 합산 헬퍼 (작업일지 코드 안 건드림) ──
-  // 원유리 = WC.raw + ETP.raw 합산 (사용자 정신모델: 색상 구분 없음)
+  // ── 원유리/인쇄유리 (이벤트 기반 우선, 없으면 구버전 stock 호환) ──
   function getRawTotal(sg){
+    // 이벤트 기반 값 우선
+    if(stockEvents[`${sg.w}x${sg.h}`] && stockEvents[`${sg.w}x${sg.h}`].length){
+      return getRawQty(sg.w, sg.h);
+    }
+    // 구버전 호환: WC.raw + ETP.raw
     const wc = getSzStock(sg.w, sg.h, 'WC');
     const etp = getSzStock(sg.w, sg.h, 'ETP');
     return (wc.raw||0) + (etp.raw||0);
   }
-  function getPrintedWC(sg){ return getSzStock(sg.w, sg.h, 'WC').printed || 0; }
-  function getPrintedETP(sg){ return getSzStock(sg.w, sg.h, 'ETP').printed || 0; }
+  function getPrintedWC(sg){
+    if(stockEvents[`${sg.w}x${sg.h}_WC`] && stockEvents[`${sg.w}x${sg.h}_WC`].length){
+      return getPrintedQty(sg.w, sg.h, 'WC');
+    }
+    return getSzStock(sg.w, sg.h, 'WC').printed || 0;
+  }
+  function getPrintedETP(sg){
+    if(stockEvents[`${sg.w}x${sg.h}_ETP`] && stockEvents[`${sg.w}x${sg.h}_ETP`].length){
+      return getPrintedQty(sg.w, sg.h, 'ETP');
+    }
+    return getSzStock(sg.w, sg.h, 'ETP').printed || 0;
+  }
+
+  // 가장 최근 실측 정보
+  function getLastCount(key){
+    const evs = stockEvents[key] || [];
+    let last = null;
+    evs.forEach(e=>{ if(e.type==='count' && (!last || String(e.at)>String(last.at))) last = e; });
+    return last;
+  }
+  // 가장 최근 입고 정보
+  function getLastIn(key){
+    const evs = stockEvents[key] || [];
+    let last = null;
+    evs.forEach(e=>{ if(e.type==='in' && (!last || String(e.at)>String(last.at))) last = e; });
+    return last;
+  }
+  // 미기록 손실 감지 (가장 최근 count 또는 in 이후 작업일지 외 손실)
+  function getMismatchInfo(key){
+    const lastCount = getLastCount(key);
+    if(!lastCount) return null;
+    const evs = (stockEvents[key]||[]).slice().sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+    let autoAdj = 0;
+    evs.forEach(e=>{
+      if(e.source==='auto-adjust' && String(e.at) >= String(lastCount.at)){
+        autoAdj += parseInt(e.qty)||0;
+      }
+    });
+    return autoAdj !== 0 ? autoAdj : null;
+  }
 
   // ── 빈도별 차등 경고 기준 ──
   // 고빈도 (월20장+): 월평균*30% 미만 비상
@@ -1828,6 +2151,18 @@ function renderStockList(){
     else if(warnLevel === 'urgent') cardCls += ' urgent';
     else if(warnLevel === 'warn') cardCls += ' warn';
 
+    // 마지막 수정자 (WC/ETP 중 더 최근 것)
+    let lastBy = null, lastByAt = '';
+    if(stock._meta){
+      const wcMeta = stock._meta[`sz_${sg.w}x${sg.h}_WC`];
+      const etpMeta = stock._meta[`sz_${sg.w}x${sg.h}_ETP`];
+      if(wcMeta && etpMeta){
+        const winner = new Date(wcMeta.byAt) > new Date(etpMeta.byAt) ? wcMeta : etpMeta;
+        lastBy = winner.by; lastByAt = winner.byAt;
+      } else if(wcMeta){ lastBy = wcMeta.by; lastByAt = wcMeta.byAt; }
+      else if(etpMeta){ lastBy = etpMeta.by; lastByAt = etpMeta.byAt; }
+    }
+
     // 원유리 색상: 부족=빨강, 주의=주황, 정상=평소
     const rawColor = warnLevel==='urgent' ? '#f85149' : warnLevel==='warn' ? '#d29922' : 'var(--acc)';
     // 인쇄유리 색상: 마이너스=빨강
@@ -1837,14 +2172,49 @@ function renderStockList(){
     return `
     <div class="${cardCls}" style="cursor:pointer" onclick="openSizeModal('${sg.key}')">
       <div class="ml" style="flex:1">
-        <div style="display:flex;align-items:baseline;flex-wrap:wrap">
+        <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px">
           <div class="mn" style="font-size:16px;font-weight:800;color:var(--tx1)">📐 ${sg.label}</div>
           ${asmSizeHtml}
           ${brand?`<span style="font-size:10px;padding:1px 6px;background:var(--s2);border-radius:8px;color:var(--tx2);margin-left:6px">${brand}</span>`:''}
+          ${lastBy?actorBadge(lastBy, lastByAt):''}
         </div>
         <div style="margin-top:6px">${tagsHtml}</div>
         ${asmWarnHtml}
         ${warnTxt?`<div style="font-size:11px;color:${warnLevel==='urgent'?'#f85149':'#d29922'};margin-top:4px;font-weight:700">${warnTxt}</div>`:''}
+
+        ${(()=>{
+          // 최신 실측/입고 요약
+          const rawKey = `${sg.w}x${sg.h}`;
+          const wcKey = `${sg.w}x${sg.h}_WC`;
+          const etpKey = `${sg.w}x${sg.h}_ETP`;
+          const lastRawIn = getLastIn(rawKey);
+          const lastWcCount = getLastCount(wcKey);
+          const lastEtpCount = getLastCount(etpKey);
+          const wcMismatch = getMismatchInfo(wcKey);
+          const etpMismatch = getMismatchInfo(etpKey);
+          let html = '';
+          if(lastRawIn){
+            html += `<div style="font-size:10px;color:var(--tx2);margin-top:4px">📦 최근입고: ${formatEventDate(lastRawIn.at)} +${lastRawIn.qty}장${lastRawIn.note?' · '+lastRawIn.note:''}</div>`;
+          }
+          if(lastWcCount){
+            html += `<div style="font-size:10px;color:var(--acc2);margin-top:2px">🔢 WC실측: ${formatEventDate(lastWcCount.at)} ${lastWcCount.qty}장</div>`;
+          }
+          if(lastEtpCount){
+            html += `<div style="font-size:10px;color:var(--acc2);margin-top:2px">🔢 ETP실측: ${formatEventDate(lastEtpCount.at)} ${lastEtpCount.qty}장</div>`;
+          }
+          // 미기록 손실 경고
+          if(wcMismatch && wcMismatch < 0){
+            html += `<div style="font-size:11px;color:#a371f7;margin-top:4px;background:rgba(163,113,247,.1);padding:4px 8px;border-radius:6px">⚠️ WC 미기록 손실 ${Math.abs(wcMismatch)}장 (실측 기준 자동조정)</div>`;
+          } else if(wcMismatch && wcMismatch > 0){
+            html += `<div style="font-size:11px;color:#a371f7;margin-top:4px;background:rgba(163,113,247,.1);padding:4px 8px;border-radius:6px">ℹ️ WC 미기록 입고 +${wcMismatch}장 (실측 기준 자동조정)</div>`;
+          }
+          if(etpMismatch && etpMismatch < 0){
+            html += `<div style="font-size:11px;color:#a371f7;margin-top:4px;background:rgba(163,113,247,.1);padding:4px 8px;border-radius:6px">⚠️ ETP 미기록 손실 ${Math.abs(etpMismatch)}장 (실측 기준 자동조정)</div>`;
+          } else if(etpMismatch && etpMismatch > 0){
+            html += `<div style="font-size:11px;color:#a371f7;margin-top:4px;background:rgba(163,113,247,.1);padding:4px 8px;border-radius:6px">ℹ️ ETP 미기록 입고 +${etpMismatch}장 (실측 기준 자동조정)</div>`;
+          }
+          return html;
+        })()}
 
         <!-- 원유리 (사이즈만, 색상 통합) -->
         <div style="margin-top:10px;background:var(--s2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border:2px solid ${warnLevel==='urgent'?'#f85149':warnLevel==='warn'?'#d29922':'transparent'}">
@@ -2014,9 +2384,10 @@ function confirmStock(){
   autoSync();
 }
 
-// ── SIZE STOCK MODAL (원유리/인쇄유리 관리) ──
-let szmKey='', szmW=0, szmH=0, szmColor='WC', szmMode='rawin', szQty=0;
-// szmMode: 'rawin' (원유리 입고/수정), 'print' (인쇄), 'out' (출고)
+// ── SIZE STOCK MODAL (입고/실측/인쇄/출고 + 이벤트 이력) ──
+// szmMode: 'in'(입고), 'count'(실측), 'print'(인쇄), 'out'(출고)
+let szmKey='', szmW=0, szmH=0, szmColor='WC', szmMode='in', szQty=0;
+let szmDateStr='', szmAmpm='AM', szmHistoryOpen=false;
 
 function openSizeModal(sizeKey){
   let key = String(sizeKey);
@@ -2027,30 +2398,37 @@ function openSizeModal(sizeKey){
   szmH = parseInt(parts[1]);
   szmKey = key;
   szmColor = 'WC';
-  szmMode = 'rawin';
+  szmMode = 'in';
   szQty = 0;
+  szmHistoryOpen = false;
 
+  // 일시 기본값 = 오늘
+  const now = new Date();
+  szmDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  szmAmpm = now.getHours() < 12 ? 'AM' : 'PM';
+  document.getElementById('szm-date').value = szmDateStr;
+  document.getElementById('szm-am').classList.toggle('on', szmAmpm==='AM');
+  document.getElementById('szm-pm').classList.toggle('on', szmAmpm==='PM');
+  document.getElementById('szm-note').value = '';
+
+  // 사이즈/조립 정보
   const sg = (typeof SIZE_GROUPS!=='undefined') ? SIZE_GROUPS.find(s=>s.w===szmW && s.h===szmH) : null;
   const asms = (typeof ASSEMBLY_MODELS!=='undefined') ? ASSEMBLY_MODELS.filter(a=>a.glass_w===szmW && a.glass_h===szmH) : [];
 
   document.getElementById('szm-title').textContent = `📐 ${szmW} × ${szmH} mm`;
 
-  // 조립실 사이즈 정보
   let subText = '';
   if(asms.length){
     const uniqueAsm = [...new Set(asms.map(a=>a.asm_w+'×'+a.asm_h))];
-    if(uniqueAsm.length === 1){
-      subText = `🔧 조립실 사이즈: ${uniqueAsm[0]} mm`;
-    } else if(uniqueAsm.length > 1){
-      subText = `🔧 조립실 사이즈: ${uniqueAsm.join(', ')} mm`;
-    }
+    if(uniqueAsm.length === 1) subText = `🔧 조립실: ${uniqueAsm[0]} mm`;
+    else if(uniqueAsm.length > 1) subText = `🔧 조립실: ${uniqueAsm.join(', ')} mm`;
   }
   if(sg && sg.avg_monthly){
     subText += (subText?' · ':'') + `월평균 ${sg.avg_monthly.toFixed(1)}장`;
   }
   document.getElementById('szm-sub').textContent = subText;
 
-  // 매핑된 모델명 태그
+  // 모델명 태그
   const modelsEl = document.getElementById('szm-models');
   if(sg && sg.models && sg.models.length){
     const uniqueModels = [...new Set(sg.models.map(m=>String(m).replace(/\s+[LR]$/,'')))];
@@ -2079,21 +2457,41 @@ function openSizeModal(sizeKey){
   }
   warnEl.innerHTML = warnHtml;
 
+  document.getElementById('szm-history').style.display='none';
+  document.getElementById('szm-history-toggle').textContent='📜 이력 보기 ▼';
+
   _refreshSzmModal();
   document.getElementById('size-modal').classList.add('on');
 }
 
-function _szmRaw(){
-  // 원유리 = WC.raw + ETP.raw 합산
-  const wc = getSzStock(szmW, szmH, 'WC');
-  const etp = getSzStock(szmW, szmH, 'ETP');
-  return (wc.raw||0) + (etp.raw||0);
+function setSzmColor(color){
+  szmColor = color;
+  document.getElementById('szm-tab-WC').classList.toggle('on', color==='WC');
+  document.getElementById('szm-tab-ETP').classList.toggle('on', color==='ETP');
+  _refreshSzmInput();
+}
+
+function setSzmAmpm(v){
+  szmAmpm = v;
+  document.getElementById('szm-am').classList.toggle('on', v==='AM');
+  document.getElementById('szm-pm').classList.toggle('on', v==='PM');
+}
+
+function setSzmMode(mode){
+  szmMode = mode;
+  ['in','count','print','out'].forEach(m=>{
+    const btn = document.getElementById('szm-mode-'+m);
+    if(btn) btn.classList.toggle('on', mode===m);
+  });
+  // 색상 선택은 'in'을 제외하고 모두 표시 (count/print/out)
+  document.getElementById('szm-color-row').style.display = (mode==='in') ? 'none' : 'block';
+  _refreshSzmInput();
 }
 
 function _refreshSzmSummary(){
-  const raw = _szmRaw();
-  const pwc = getSzStock(szmW, szmH, 'WC').printed || 0;
-  const petp = getSzStock(szmW, szmH, 'ETP').printed || 0;
+  const raw = getRawQty(szmW, szmH);
+  const pwc = getPrintedQty(szmW, szmH, 'WC');
+  const petp = getPrintedQty(szmW, szmH, 'ETP');
   const pwcCol = pwc < 0 ? '#f85149' : pwc === 0 ? 'var(--tx3)' : 'var(--acc3)';
   const petpCol = petp < 0 ? '#f85149' : petp === 0 ? 'var(--tx3)' : 'var(--acc3)';
 
@@ -2116,47 +2514,42 @@ function _refreshSzmSummary(){
     </div>`;
 }
 
-function setSzmColor(color){
-  szmColor = color;
-  document.getElementById('szm-tab-WC').classList.toggle('on', color==='WC');
-  document.getElementById('szm-tab-ETP').classList.toggle('on', color==='ETP');
-  _refreshSzmInput();
-}
-
-function setSzmMode(mode){
-  szmMode = mode;
-  ['rawin','print','out'].forEach(m=>{
-    const btn = document.getElementById('szm-mode-'+m);
-    if(btn) btn.classList.toggle('on', mode===m);
-  });
-  // 색상 선택 영역 표시/숨김
-  document.getElementById('szm-color-row').style.display = (mode==='rawin') ? 'none' : 'block';
-  _refreshSzmInput();
+function _refreshSzmMismatch(){
+  // 가장 최근 실측이 있고, 그 이후 변동 없는데 이론과 실제가 다르면 표시
+  // (현재는 _refreshSzmSummary가 이미 이벤트 기반이라 별도 처리 불필요)
+  document.getElementById('szm-mismatch').innerHTML = '';
 }
 
 function _refreshSzmInput(){
   _refreshSzmSummary();
+  _refreshSzmMismatch();
+  if(szmHistoryOpen) _renderSzmHistory();
+
   const lbl = document.getElementById('szm-qty-label');
   const desc = document.getElementById('szm-confirm-desc');
   const btn = document.getElementById('szm-confirm-btn');
   const colorLabel = szmColor==='WC' ? '웜코튼' : '에토프';
-  const raw = _szmRaw();
-  const pcur = getSzStock(szmW, szmH, szmColor).printed || 0;
+  const raw = getRawQty(szmW, szmH);
+  const pcur = getPrintedQty(szmW, szmH, szmColor);
+  szQty = 0;
 
-  if(szmMode === 'rawin'){
-    szQty = raw; // 현재 원유리 총량
-    lbl.textContent = `📦 원유리 현재 재고 (직접 수정)`;
-    desc.textContent = '유리업체에서 입고된 원유리 총량을 입력 (사이즈만, 색상 무관)';
-    btn.textContent = '✓ 원유리 재고 저장';
+  if(szmMode === 'in'){
+    lbl.textContent = '📦 원유리 입고 수량';
+    desc.textContent = '유리업체 입고 (사이즈만, 색상 무관) - 발주서 기반 입력 가능';
+    btn.textContent = '📦 원유리 입고 기록';
+  } else if(szmMode === 'count'){
+    szQty = szmColor==='WC' ? pcur : pcur; // 실측은 색상별 인쇄유리에 대해서만 (원유리는 'count_raw' 모드 분리?)
+    // 실측 대상이 원유리인지 인쇄유리인지에 따라 다름 - 일단 인쇄유리 실측
+    lbl.textContent = `🔢 ${colorLabel} 인쇄유리 실측 수량 (현재 이론: ${pcur})`;
+    desc.textContent = '눈으로 직접 센 정확한 수량 (차이는 자동 조정 이력 생성)';
+    btn.textContent = `🔢 ${colorLabel} 실측 등록`;
   } else if(szmMode === 'print'){
-    szQty = 0;
-    lbl.textContent = `🖨 ${colorLabel}로 인쇄할 수량 (원유리 차감)`;
-    desc.textContent = `원유리 ${raw}장 → ${colorLabel} 인쇄유리로 변환`;
-    btn.textContent = `🖨 ${colorLabel} 인쇄 작업`;
+    lbl.textContent = `🖨 ${colorLabel}로 인쇄할 수량 (원유리 ${raw}장 보유)`;
+    desc.textContent = `원유리 차감 → ${colorLabel} 인쇄유리 증가`;
+    btn.textContent = `🖨 ${colorLabel} 인쇄`;
   } else { // out
-    szQty = 0;
-    lbl.textContent = `📤 ${colorLabel} 인쇄유리 출고 수량 (현재 ${pcur}장)`;
-    desc.textContent = '재고 부족 시 마이너스로 기록됨';
+    lbl.textContent = `📤 ${colorLabel} 인쇄유리 출고 (현재 ${pcur}장)`;
+    desc.textContent = '재고 부족 시 마이너스로 기록';
     btn.textContent = `📤 ${colorLabel} 출고`;
   }
   document.getElementById('szm-qty').value = szQty;
@@ -2164,71 +2557,144 @@ function _refreshSzmInput(){
 
 function _refreshSzmModal(){ _refreshSzmInput(); }
 
-function szmQtyD(d){ szQty = (parseInt(szQty)||0) + d; if(szmMode!=='rawin') szQty=Math.max(0,szQty); document.getElementById('szm-qty').value = szQty; }
-function szmAddQ(d){ szQty = (parseInt(szQty)||0) + d; if(szmMode!=='rawin') szQty=Math.max(0,szQty); document.getElementById('szm-qty').value = szQty; }
+function szmQtyD(d){ szQty = (parseInt(szQty)||0) + d; szQty=Math.max(0,szQty); document.getElementById('szm-qty').value = szQty; }
+function szmAddQ(d){ szQty = (parseInt(szQty)||0) + d; szQty=Math.max(0,szQty); document.getElementById('szm-qty').value = szQty; }
 
 function confirmSizeStock(){
-  const wc = getSzStock(szmW, szmH, 'WC');
-  const etp = getSzStock(szmW, szmH, 'ETP');
-  const curRaw = (wc.raw||0) + (etp.raw||0);
+  szQty = parseInt(document.getElementById('szm-qty').value) || 0;
   const colorLabel = szmColor==='WC' ? '웜코튼' : '에토프';
-  szQty = parseInt(szQty) || 0;
+  const dateVal = document.getElementById('szm-date').value || szmDateStr;
+  const noteVal = (document.getElementById('szm-note').value || '').trim();
+  const atIso = dateAmPmToIso(dateVal, szmAmpm);
 
-  if(szmMode === 'rawin'){
-    // 원유리 총량을 szQty로 설정 - WC.raw에 모아둠 (어차피 표시는 합산이라 무관)
-    if(szQty < 0){ showToast('원유리는 음수일 수 없음'); return; }
-    // WC.raw에 전부 저장하고 ETP.raw는 0
-    setSzStock(szmW, szmH, 'WC', szQty, wc.printed||0);
-    setSzStock(szmW, szmH, 'ETP', 0, etp.printed||0);
-    showToast(`✓ 원유리 ${szQty}장`);
+  if(szQty <= 0 && szmMode !== 'count'){ showToast('수량 입력'); return; }
+
+  if(szmMode === 'in'){
+    // 원유리 입고
+    addStockEvent(`${szmW}x${szmH}`, {at: atIso, type:'in', qty: szQty, note: noteVal, source:'manual'});
+    showToast(`📦 원유리 ${szQty}장 입고 (${formatEventDate(atIso)})`);
+  } else if(szmMode === 'count'){
+    // 실측 - 인쇄유리 (WC/ETP 중 선택)
+    const result = addCountWithAutoAdjust(`${szmW}x${szmH}_${szmColor}`, {at: atIso, qty: szQty, note: noteVal});
+    if(result.diff === 0){
+      showToast(`✓ ${colorLabel} 실측 ${szQty}장 (이론과 일치)`);
+    } else if(result.diff > 0){
+      showToast(`⚠️ ${colorLabel} 실측 ${szQty}장 (+${result.diff}장 미기록 입고 추정)`);
+    } else {
+      showToast(`⚠️ ${colorLabel} 실측 ${szQty}장 (${result.diff}장 미기록 손실 추정)`);
+    }
   } else if(szmMode === 'print'){
-    // 인쇄: 원유리에서 차감, 해당 색상 인쇄유리로 증가
-    if(szQty <= 0){ showToast('인쇄 수량 입력'); return; }
+    // 인쇄: 원유리 차감 + 인쇄유리(색) 증가
+    const curRaw = getRawQty(szmW, szmH);
     if(szQty > curRaw){
-      if(!confirm(`원유리 ${curRaw}장보다 많은 ${szQty}장을 인쇄하려고 합니다. 계속할까요?\n\n(원유리가 마이너스가 됩니다)`)) return;
+      if(!confirm(`원유리 ${curRaw}장보다 많은 ${szQty}장 인쇄. 계속할까요? (원유리가 마이너스 됩니다)`)) return;
     }
-    // 원유리 차감 - WC.raw에서 먼저 차감, 부족하면 ETP.raw에서 차감
-    let remaining = szQty;
-    let newWcRaw = wc.raw || 0;
-    let newEtpRaw = etp.raw || 0;
-    if(newWcRaw >= remaining){
-      newWcRaw -= remaining;
-      remaining = 0;
-    } else {
-      remaining -= newWcRaw;
-      newWcRaw = 0;
-      newEtpRaw -= remaining; // 마이너스 가능
-    }
-    // 해당 색상 인쇄유리 증가
-    if(szmColor === 'WC'){
-      setSzStock(szmW, szmH, 'WC', newWcRaw, (wc.printed||0) + szQty);
-      setSzStock(szmW, szmH, 'ETP', newEtpRaw, etp.printed||0);
-    } else {
-      setSzStock(szmW, szmH, 'WC', newWcRaw, wc.printed||0);
-      setSzStock(szmW, szmH, 'ETP', newEtpRaw, (etp.printed||0) + szQty);
-    }
+    addStockEvent(`${szmW}x${szmH}`, {at: atIso, type:'print', qty: szQty, note: noteVal || `→ ${colorLabel} 인쇄`, source:'manual'});
+    addStockEvent(`${szmW}x${szmH}_${szmColor}`, {at: atIso, type:'in', qty: szQty, note: noteVal || '인쇄완료', source:'manual'});
     showToast(`🖨 ${colorLabel} ${szQty}장 인쇄`);
-  } else { // out (출고)
-    if(szQty <= 0){ showToast('출고 수량 입력'); return; }
-    const curPrinted = (szmColor==='WC' ? wc.printed : etp.printed) || 0;
-    const newPrinted = curPrinted - szQty; // 마이너스 허용
-    if(newPrinted < 0){
-      if(!confirm(`${colorLabel} 인쇄유리가 ${curPrinted}장인데 ${szQty}장 출고하려고 합니다.\n\n재고가 ${newPrinted}장으로 마이너스가 됩니다. 계속할까요?`)) return;
+  } else { // out
+    const curP = getPrintedQty(szmW, szmH, szmColor);
+    if(szQty > curP){
+      if(!confirm(`${colorLabel} ${curP}장보다 많은 ${szQty}장 출고. 재고가 ${curP - szQty}장으로 마이너스 됩니다. 계속할까요?`)) return;
     }
-    if(szmColor === 'WC'){
-      setSzStock(szmW, szmH, 'WC', wc.raw||0, newPrinted);
-    } else {
-      setSzStock(szmW, szmH, 'ETP', etp.raw||0, newPrinted);
-    }
-    showToast(newPrinted<0 ? `⚠️ ${colorLabel} 출고 (재고 ${newPrinted}장!)` : `📤 ${colorLabel} ${szQty}장 출고`);
+    addStockEvent(`${szmW}x${szmH}_${szmColor}`, {at: atIso, type:'out', qty: szQty, note: noteVal, source:'manual'});
+    const newQ = curP - szQty;
+    showToast(newQ<0 ? `⚠️ ${colorLabel} 출고 (재고 ${newQ}장)` : `📤 ${colorLabel} ${szQty}장 출고`);
   }
+
+  // 옛 stock 객체도 동기화 (호환성 - 카드/홈 렌더용)
+  _syncOldStockFromEvents(szmW, szmH);
 
   meta.lastStock = new Date().toISOString();
   saveAll();
-  _refreshSzmInput(); // 모달 안에서 연속 작업 가능하게 유지
+  _refreshSzmInput();
   renderDash();
   if(document.getElementById('sp-stocklist').style.display !== 'none') renderStockList();
   autoSync();
+}
+
+// 새 이벤트 기반 데이터 → 옛 stock 객체 동기화 (카드/홈 화면 호환성)
+function _syncOldStockFromEvents(w, h){
+  const raw = getRawQty(w, h);
+  const wcP = getPrintedQty(w, h, 'WC');
+  const etpP = getPrintedQty(w, h, 'ETP');
+  // 원유리는 WC.raw에 모두 저장 (구버전 표시는 합산이라 무관)
+  stock[`sz_${w}x${h}_WC`] = { raw: raw, printed: wcP };
+  stock[`sz_${w}x${h}_ETP`] = { raw: 0, printed: etpP };
+}
+
+// 이력 토글
+function toggleSzmHistory(){
+  szmHistoryOpen = !szmHistoryOpen;
+  const el = document.getElementById('szm-history');
+  const tg = document.getElementById('szm-history-toggle');
+  el.style.display = szmHistoryOpen ? 'block' : 'none';
+  tg.textContent = szmHistoryOpen ? '📜 이력 닫기 ▲' : '📜 이력 보기 ▼';
+  if(szmHistoryOpen) _renderSzmHistory();
+}
+
+function _renderSzmHistory(){
+  // 원유리 + WC인쇄유리 + ETP인쇄유리 이력을 통합해서 시간 역순으로 표시
+  const all = [];
+  (stockEvents[`${szmW}x${szmH}`]||[]).forEach(e=>all.push({...e, kind:'원유리'}));
+  (stockEvents[`${szmW}x${szmH}_WC`]||[]).forEach(e=>all.push({...e, kind:'WC인쇄'}));
+  (stockEvents[`${szmW}x${szmH}_ETP`]||[]).forEach(e=>all.push({...e, kind:'ETP인쇄'}));
+  all.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+
+  if(!all.length){
+    document.getElementById('szm-history').innerHTML = '<div style="text-align:center;color:var(--tx3);font-size:11px;padding:14px">이력이 없습니다</div>';
+    return;
+  }
+
+  const typeIcon = { in:'📦', count:'🔢', print:'🖨', out:'📤', adjust:'🔧', defect:'🚫' };
+  const typeLabel = { in:'입고', count:'실측', print:'인쇄', out:'출고', adjust:'조정', defect:'불량' };
+  const typeColor = { in:'var(--acc3)', count:'var(--acc2)', print:'var(--acc)', out:'#d29922', adjust:'#a371f7', defect:'var(--acc4)' };
+
+  const kindColor = { '원유리':'var(--tx1)', 'WC인쇄':'#1f6feb', 'ETP인쇄':'#d29922' };
+
+  document.getElementById('szm-history').innerHTML = `
+    <div style="max-height:360px;overflow-y:auto">
+    ${all.map(e=>{
+      const sign = (e.type==='print'||e.type==='out'||e.type==='defect') ? '-' : (e.type==='count'?'=':'+');
+      const isAuto = e.source==='auto-adjust' || e.source==='worklog';
+      return `<div style="display:flex;align-items:center;gap:6px;padding:7px 6px;border-bottom:1px solid var(--b1);font-size:11px${isAuto?';opacity:.85':''}">
+        <div style="font-size:14px">${typeIcon[e.type]||'•'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+            <span style="font-weight:700;color:${typeColor[e.type]||'var(--tx1)'}">${typeLabel[e.type]||e.type}</span>
+            <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:var(--s2);color:${kindColor[e.kind]||'var(--tx2)'}">${e.kind}</span>
+            ${e.source==='worklog'?'<span style="font-size:9px;color:var(--tx3)">← 작업일지</span>':''}
+            ${e.source==='auto-adjust'?'<span style="font-size:9px;color:#a371f7">← 자동조정</span>':''}
+          </div>
+          <div style="font-size:10px;color:var(--tx2);margin-top:1px">${formatEventDate(e.at)}${e.by?' · '+e.by:''}</div>
+          ${e.note?`<div style="font-size:10px;color:var(--tx3);margin-top:1px">${e.note}</div>`:''}
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:${typeColor[e.type]||'var(--tx1)'}">${sign}${Math.abs(e.qty)}</div>
+        ${e.source!=='worklog' && e.source!=='auto-adjust' ? `<button onclick="deleteSzmEvent('${e.kind==='원유리'?szmW+'x'+szmH:szmW+'x'+szmH+'_'+(e.kind==='WC인쇄'?'WC':'ETP')}','${e.id}')" style="padding:3px 6px;background:none;border:1px solid var(--b2);border-radius:6px;color:var(--acc4);font-size:10px;cursor:pointer">🗑</button>` : ''}
+      </div>`;
+    }).join('')}
+    </div>`;
+}
+
+function deleteSzmEvent(key, evId){
+  if(!confirm('이 이력을 삭제할까요?\n(연관된 자동 조정 이력도 같이 사라질 수 있습니다)')) return;
+  // 같은 이벤트와 연관된 자동 조정 이력도 같이 삭제
+  if(stockEvents[key]){
+    const target = stockEvents[key].find(e=>e.id===evId);
+    if(target && target.type==='count'){
+      // count 삭제 시 연관된 auto-adjust도 삭제
+      stockEvents[key] = stockEvents[key].filter(e => e.id !== evId && e.relatedCountId !== evId);
+    } else {
+      stockEvents[key] = stockEvents[key].filter(e => e.id !== evId);
+    }
+  }
+  _syncOldStockFromEvents(szmW, szmH);
+  saveAll();
+  _refreshSzmInput();
+  renderDash();
+  if(document.getElementById('sp-stocklist').style.display !== 'none') renderStockList();
+  autoSync();
+  showToast('🗑 이력 삭제됨');
 }
 
 // ── WORK MODAL ──
@@ -2627,26 +3093,36 @@ function confirmWork(){
   if(w&&h){
     const s=getSzStock(w,h,color);
     const itemKey=`sz_${w}x${h}`;
+    // 작업일지 입력 일자 ISO 시간 (날짜만 있으니 그날 늦은 시간으로 기록)
+    // → 같은 날 입고(오전 09시/오후 15시)보다 뒤에 발생한 것으로 처리
+    const workAtIso = `${td}T23:00:00.000Z`;
 
     if(wMode==='defect'){
       if(wDefectLoc==='print'){
         setSzStock(w,h,color,s.raw-wQty,s.printed);
+        // stockEvents: 인쇄실 불량 = 원유리에서 차감 (defect)
+        const ev1 = addStockEvent(`${w}x${h}`, {at:workAtIso, type:'defect', qty:wQty, note:`인쇄실 불량 (${wDefectReason}) ${shortName} ${colorLabel}`, source:'worklog'});
         const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='print'&&i.reason===wDefectReason&&i.short===shortName);
-        if(ex) ex.qty+=wQty;
-        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'defect',loc:'print',reason:wDefectReason});
+        if(ex){ ex.qty+=wQty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
+        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'defect',loc:'print',reason:wDefectReason,eventIds:[ev1.id],...actorTag()});
         showToast(`🚫 인쇄실 불량 ${wQty}장 (${shortName} ${colorLabel})`);
       } else {
         setSzStock(w,h,color,s.raw,s.printed-wQty);
+        // stockEvents: 조립실 불량 = 인쇄유리에서 차감 (defect)
+        const ev1 = addStockEvent(`${w}x${h}_${color}`, {at:workAtIso, type:'defect', qty:wQty, note:`조립실 불량 (${wDefectReason}) ${shortName}`, source:'worklog'});
         const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='assembly'&&i.reason===wDefectReason&&i.short===shortName);
-        if(ex) ex.qty+=wQty;
-        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'defect',loc:'assembly',reason:wDefectReason});
+        if(ex){ ex.qty+=wQty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
+        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'defect',loc:'assembly',reason:wDefectReason,eventIds:[ev1.id],...actorTag()});
         showToast(`🚫 조립실 불량 ${wQty}장 (${shortName} ${colorLabel})`);
       }
     } else {
       setSzStock(w,h,color,s.raw-wQty,s.printed+wQty);
+      // stockEvents: 인쇄작업 = 원유리에서 차감 + 인쇄유리(해당 색) 추가
+      const ev1 = addStockEvent(`${w}x${h}`, {at:workAtIso, type:'print', qty:wQty, note:`인쇄작업 ${shortName} → ${colorLabel}`, source:'worklog'});
+      const ev2 = addStockEvent(`${w}x${h}_${color}`, {at:workAtIso, type:'in', qty:wQty, note:`인쇄완료 ${shortName}`, source:'worklog'});
       const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='work'&&i.short===shortName);
-      if(ex) ex.qty+=wQty;
-      else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'work'});
+      if(ex){ ex.qty+=wQty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id, ev2.id]); Object.assign(ex, actorTag()); }
+      else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'work',eventIds:[ev1.id, ev2.id],...actorTag()});
       showToast(`✓ ${shortName} ${colorLabel} ${wQty}장`);
     }
   } else if(wSelCode){
@@ -2654,14 +3130,14 @@ function confirmWork(){
     if(wMode==='defect'){
       if(wDefectLoc==='print') stock[wSelCode]={raw:Math.max(0,s.raw-wQty),printed:s.printed};
       else stock[wSelCode]={raw:s.raw,printed:Math.max(0,s.printed-wQty)};
-      dl.items.push({code:wSelCode,qty:wQty,type:'defect',loc:wDefectLoc,reason:wDefectReason});
+      dl.items.push({code:wSelCode,qty:wQty,type:'defect',loc:wDefectLoc,reason:wDefectReason,...actorTag()});
     } else {
       stock[wSelCode]={raw:Math.max(0,s.raw-wQty),printed:s.printed+wQty};
       const wScMdl=MODELS.find(x=>x.code===wSelCode)||CODE_MODEL_MAP[wSelCode]||{};
       const wScColor=wlColor||wScMdl.color||'WC';
       const exCode=dl.items.find(i=>i.code===wSelCode&&i.color===wScColor&&i.type==='work');
-      if(exCode) exCode.qty+=wQty;
-      else dl.items.push({code:wSelCode,color:wScColor,qty:wQty,type:'work'});
+      if(exCode){ exCode.qty+=wQty; Object.assign(exCode, actorTag()); }
+      else dl.items.push({code:wSelCode,color:wScColor,qty:wQty,type:'work',...actorTag()});
     }
     showToast('✓ '+wQty+'장 기록');
   }
@@ -2705,6 +3181,11 @@ function initGsUI(){
   if(gsUrl)document.getElementById('gs-url-input').value=gsUrl;
   updateGsStatus(gsUrl?'ok':'idle');
   updateGsSyncTime();
+  // 작성자 정보 입력란도 함께 채움
+  const ai = document.getElementById('actor-input');
+  const ac = document.getElementById('actor-current');
+  if(ai) ai.value = actor || '';
+  if(ac) ac.textContent = actor ? `현재: ${actor}` : '아직 이름이 설정되지 않았습니다';
 }
 function updateGsStatus(state){
   const dot=document.getElementById('gs-dot');
@@ -2798,7 +3279,8 @@ async function autoSync(){
       action:'saveAll',
       clientLastSync: meta.lastGsSync || null,
       clientTs: ts,
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog}
+      actor: getActor(),
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents}
     });
     // 서버가 충돌을 알려주면 result.conflict === true (서버 가드 추가 시)
     if(result && result.conflict){
@@ -2842,8 +3324,9 @@ async function syncToSheet(){
       action:'saveAll',
       clientLastSync: meta.lastGsSync || null,
       clientTs: new Date().toISOString(),
+      actor: getActor(),
       force: true, // 사용자가 직접 누른 경우 force 플래그
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog}
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents}
     });
     if(result && result.conflict && !result.forced){
       updateGsStatus('error');
@@ -2883,6 +3366,7 @@ async function syncFromSheet(){
     if(data.matLog)matLog=data.matLog;
     if(data.sheetLog)sheetLog=data.sheetLog;
     if(data.delivLog)delivLog=data.delivLog;
+    if(data.stockEvents)stockEvents=data.stockEvents;
     if(data.meta)Object.assign(meta,data.meta);
     meta.lastGsSync=new Date().toISOString();
     meta.lastLocalChange=meta.lastGsSync; // 방금 받았으니 로컬변경=시트와 동일
@@ -2924,6 +3408,13 @@ function clearInk(){if(!confirm('잉크 이력 삭제?'))return;inkLog=[];meta.l
 // ── INIT ──
 renderHome();
 initGsUI();
+
+// 첫 진입 시 작성자 이름 미설정 안내 (살짝 부드럽게)
+if(!getActor()){
+  setTimeout(()=>{
+    showToast('👤 설정 → "내 이름"을 등록하세요 (동시 작업 시 식별용)');
+  }, 1200);
+}
 
 // ══════════════════════════════════════════════════
 //  자재 관리 (HPM Veil - 브리즈/쉐이드/사하라)
@@ -4313,7 +4804,7 @@ function renderWlTodayList(){
       <div style="width:8px;height:8px;border-radius:50%;background:${colorDot};flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-          ${di.label} ${colorTag}
+          ${di.label} ${colorTag} ${it.by?actorBadge(it.by, it.byAt):''}
         </div>
         <div style="font-size:10px;color:var(--tx2)">${di.sz}</div>
       </div>
@@ -4543,6 +5034,7 @@ function renderWlHistory(){
             <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:2px">
               ${sz?`<span style="font-size:10px;color:var(--tx3);font-family:'JetBrains Mono',monospace">📐 ${sz}</span>`:''}
               ${colorLbl&&!isDefect?`<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${colorBg};color:${colorTx};font-weight:600">${colorLbl}</span>`:''}
+              ${it.by?actorBadge(it.by, it.byAt):''}
               ${(()=>{
                 if(!modelName&&it.sizeKey){
                   const sgKey2=it.sizeKey.replace('sz_','');
@@ -4713,10 +5205,27 @@ function wlBulkDate(){
     idxArr.sort((a,b)=>b-a).forEach(idx=>{
       const it = dayLog.items[idx];
       if(!it) return;
+      // stockEvents 시간 변경 (eventIds로 추적)
+      if(it.eventIds && it.eventIds.length){
+        const newAtIso = `${newDate}T23:00:00.000Z`;
+        Object.keys(stockEvents).forEach(k=>{
+          stockEvents[k].forEach(e=>{
+            if(it.eventIds.includes(e.id)){
+              e.at = newAtIso;
+            }
+          });
+          // 정렬 다시
+          stockEvents[k].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+        });
+      }
       // 중복 체크 후 이동
       const ex = newDayLog.items.find(i=>(i.sizeKey&&i.sizeKey===it.sizeKey||i.code&&i.code===it.code)&&i.color===it.color&&i.type===it.type&&i.short===it.short);
-      if(ex) ex.qty+=it.qty;
-      else newDayLog.items.push({...it});
+      if(ex){
+        ex.qty+=it.qty;
+        ex.eventIds = (ex.eventIds||[]).concat(it.eventIds||[]);
+      } else {
+        newDayLog.items.push({...it});
+      }
       dayLog.items.splice(idx,1);
     });
     if(!dayLog.items.length) workLog=workLog.filter(d=>d.date!==date);
@@ -4762,6 +5271,10 @@ function wlBulkDelete(){
       } else if(it.code){
         const s=getStock(it.code);
         if(it.type==='work') stock[it.code]={raw:s.raw+it.qty,printed:Math.max(0,s.printed-it.qty)};
+      }
+      // 연관된 stockEvents 정리
+      if(it.eventIds && it.eventIds.length){
+        removeStockEventsByIds(it.eventIds);
       }
       dayLog.items.splice(idx,1);
     });
@@ -4856,6 +5369,12 @@ function deleteWlItem(date, idx){
 
   dayLog.items.splice(idx,1);
   if(!dayLog.items.length) workLog = workLog.filter(d=>d.date!==date);
+
+  // 연관된 stockEvents 정리
+  if(it.eventIds && it.eventIds.length){
+    removeStockEventsByIds(it.eventIds);
+  }
+
   saveAll(); renderWorklogMain(); renderDash(); autoSync();
   showToast('🗑 삭제됨');
 }
@@ -4967,7 +5486,7 @@ function confirmWlEdit(){
   const it = dayLog.items[idx];
   const newDate = document.getElementById('wl-edit-date').value;
   const newQty = Math.max(1, parseInt(document.getElementById('wl-edit-qty').value)||1);
-  const newColor = it.color ? wlEditColor : (it.color||wlEditColor||'WC'); // 색상 유지 또는 새 색상
+  const newColor = it.color ? wlEditColor : (it.color||wlEditColor||'WC');
 
   // 재고 역산 후 재반영
   if(it.sizeKey){
@@ -4976,10 +5495,8 @@ function confirmWlEdit(){
     const oldColor = it.color||'WC';
 
     if(it.type==='work'){
-      // 기존 기록 역산
       const sOld=getSzStock(w,h,oldColor);
       setSzStock(w,h,oldColor,sOld.raw+it.qty,sOld.printed-it.qty);
-      // 새로 반영 (색상 변경 가능)
       const sNew=getSzStock(w,h,newColor);
       setSzStock(w,h,newColor,sNew.raw-newQty,sNew.printed+newQty);
     } else if(it.type==='defect'){
@@ -4990,6 +5507,29 @@ function confirmWlEdit(){
       if(it.loc==='print') setSzStock(w,h,newColor,sNew.raw-newQty,sNew.printed);
       else setSzStock(w,h,newColor,sNew.raw,sNew.printed-newQty);
     }
+
+    // ── stockEvents 동기화: 기존 eventIds 제거 후 새로 추가 ──
+    if(it.eventIds && it.eventIds.length){
+      removeStockEventsByIds(it.eventIds);
+    }
+    const newAtIso = `${newDate}T23:00:00.000Z`;
+    const shortName = it.short || `${w}×${h}`;
+    const colorLbl = newColor==='WC'?'웜코튼':'에토프';
+    const newEventIds = [];
+    if(it.type==='work'){
+      const ev1 = addStockEvent(`${w}x${h}`, {at:newAtIso, type:'print', qty:newQty, note:`인쇄작업 ${shortName} → ${colorLbl}`, source:'worklog'});
+      const ev2 = addStockEvent(`${w}x${h}_${newColor}`, {at:newAtIso, type:'in', qty:newQty, note:`인쇄완료 ${shortName}`, source:'worklog'});
+      newEventIds.push(ev1.id, ev2.id);
+    } else if(it.type==='defect'){
+      if(it.loc==='print'){
+        const ev1 = addStockEvent(`${w}x${h}`, {at:newAtIso, type:'defect', qty:newQty, note:`인쇄실 불량 ${shortName}`, source:'worklog'});
+        newEventIds.push(ev1.id);
+      } else {
+        const ev1 = addStockEvent(`${w}x${h}_${newColor}`, {at:newAtIso, type:'defect', qty:newQty, note:`조립실 불량 ${shortName}`, source:'worklog'});
+        newEventIds.push(ev1.id);
+      }
+    }
+    it.eventIds = newEventIds;
     it.color = newColor;
   }
   it.qty = newQty;
