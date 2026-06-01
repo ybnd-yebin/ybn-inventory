@@ -634,6 +634,22 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       </div>
     </div>
 
+    <!-- 붙여넣기로 한 번에 입력 -->
+    <details style="margin-top:8px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);padding:8px 10px">
+      <summary style="font-size:12px;font-weight:700;color:var(--acc3);cursor:pointer;list-style:none">📋 붙여넣기로 한 번에 입력 (클로드가 정리해준 내용)</summary>
+      <div style="font-size:10px;color:var(--tx3);margin:6px 0">
+        클로드 채팅에 명세서 사진을 보내고, 정리해준 내용을 그대로 복사해서 아래에 붙여넣고 "불러오기"를 누르세요.<br>
+        한 줄에 한 품목 · 쉼표(,)나 탭으로 구분 · 순서는 <b>품목, 단가, 수량, 금액</b>.<br>
+        "거래처: …", "날짜: …" 줄이 있으면 거래처·날짜도 같이 채워져요.
+      </div>
+      <textarea id="lg-paste" rows="5" placeholder="거래처: 아름지엠에스&#10;날짜: 2026-06-01&#10;5T 투명 505*2073, 43706, 20, 874111&#10;5T 브론즈 500*2476, 57104, 2, 114208" style="width:100%;box-sizing:border-box;padding:8px;font-size:12px;font-family:'JetBrains Mono',monospace;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);resize:vertical"></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button onclick="lgParsePaste(false)" style="flex:1;padding:9px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📥 불러오기 (기존에 추가)</button>
+        <button onclick="lgParsePaste(true)" style="flex:1;padding:9px;background:var(--s3);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">🔄 새로 채우기</button>
+      </div>
+      <div id="lg-paste-status" style="font-size:11px;margin-top:6px"></div>
+    </details>
+
     <span class="lbl" style="margin-top:8px;display:block">품목 (명세서에 여러 줄이면 추가하세요)</span>
     <div id="lg-items"></div>
     <button onclick="lgAddItemRow()" style="width:100%;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:13px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin:4px 0 10px">➕ 품목 추가</button>
@@ -6706,7 +6722,8 @@ function odDeleteOrder(orderId){
 // ════════════════════════════════════════════
 let lgKind='buy';        // buy=매입, sell=매출
 let lgEditId=null;
-let lgPhotoData=null;    // 압축된 base64 (data URL)
+let lgPhotoData=null;    // 저장용(작은) base64 (data URL)
+let lgReadData=null;     // 읽기용(큰) base64 (data URL)
 
 function setLedgerKind(k){
   lgKind=k;
@@ -6780,8 +6797,60 @@ function lgItemField(i,field,val){
 function lgAddItemRow(){ lgItems.push({item:'',price:'',qty:'',amount:''}); lgRenderItems(); }
 function lgRemoveItemRow(i){ lgItems.splice(i,1); if(!lgItems.length) lgItems=[{item:'',price:'',qty:'',amount:''}]; lgRenderItems(); }
 
+// 붙여넣기 파싱: 거래처/날짜 줄 + 품목 줄(쉼표 또는 탭 구분)
+function lgParsePaste(replace){
+  const raw=(document.getElementById('lg-paste').value||'').trim();
+  const statusEl=document.getElementById('lg-paste-status');
+  if(!raw){ statusEl.innerHTML='<span style="color:var(--tx3)">붙여넣은 내용이 없어요.</span>'; return; }
+  const lines=raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  let vendor='', date='';
+  const parsed=[];
+  const num=s=>{ const n=parseFloat((s||'').toString().replace(/[^0-9.\-]/g,'')); return isNaN(n)?'':n; };
+  lines.forEach(line=>{
+    const mv=line.match(/^거?래?처\s*[:：]\s*(.+)$/) || line.match(/^업체\s*[:：]\s*(.+)$/);
+    const md=line.match(/^날짜\s*[:：]\s*(.+)$/) || line.match(/^일자\s*[:：]\s*(.+)$/);
+    if(mv){ vendor=mv[1].trim(); return; }
+    if(md){
+      let d=md[1].trim();
+      const dm=d.match(/(\d{2,4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})/);
+      if(dm){ let y=dm[1]; if(y.length===2)y='20'+y; date=`${y}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}`; }
+      return;
+    }
+    let parts = line.includes('\t') ? line.split('\t') : line.split(',');
+    parts = parts.map(p=>p.trim());
+    if(parts.length<2){ parsed.push({item:parts[0]||'', price:'', qty:'', amount:''}); return; }
+    const item=parts[0]||'';
+    const price=num(parts[1]);
+    const qty=num(parts[2]);
+    let amount=num(parts[3]);
+    if((amount===''||amount===0) && price && qty) amount=Math.round(price*qty);
+    parsed.push({item, price, qty, amount});
+  });
+  if(!parsed.length && !vendor && !date){
+    statusEl.innerHTML='<span style="color:var(--acc4)">품목을 못 찾았어요. 형식을 확인해 주세요 (한 줄에 한 품목).</span>';
+    return;
+  }
+  if(vendor) document.getElementById('lg-vendor').value=vendor;
+  if(date) document.getElementById('lg-date').value=date;
+  if(parsed.length){
+    if(replace){
+      lgItems = parsed.slice();
+    } else {
+      const onlyEmpty = lgItems.length===1 && !lgItems[0].item && !lgItems[0].amount;
+      lgItems = onlyEmpty ? parsed.slice() : lgItems.concat(parsed);
+    }
+    lgRenderItems();
+  }
+  const bits=[];
+  if(parsed.length) bits.push(parsed.length+'개 품목');
+  if(vendor) bits.push('거래처');
+  if(date) bits.push('날짜');
+  statusEl.innerHTML='<span style="color:var(--acc2)">✅ '+bits.join(' · ')+' 불러왔어요. <b>확인 후 저장</b>하세요.</span>';
+  document.getElementById('lg-paste').value='';
+}
+
 function lgResetForm(){
-  lgEditId=null; lgPhotoData=null;
+  lgEditId=null; lgPhotoData=null; lgReadData=null;
   lgItems=[{item:'',price:'',qty:'',amount:''}];
   ['lg-vendor','lg-memo'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const d=document.getElementById('lg-date'); if(d)d.value=new Date().toISOString().slice(0,10);
@@ -6800,14 +6869,18 @@ function lgPhotoSelected(ev){
   reader.onload=function(e){
     const img=new Image();
     img.onload=function(){
-      // 긴 변 1000px로 축소, JPEG 0.6 압축 (용량 절약)
-      const maxDim=1000;
-      let w=img.width,h=img.height;
-      if(w>h && w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}
-      else if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}
-      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
-      cv.getContext('2d').drawImage(img,0,0,w,h);
-      lgPhotoData=cv.toDataURL('image/jpeg',0.6);
+      function resize(maxDim,quality){
+        let w=img.width,h=img.height;
+        if(w>h && w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}
+        else if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        return cv.toDataURL('image/jpeg',quality);
+      }
+      // 저장용: 작게 (localStorage 용량 보호)
+      lgPhotoData=resize(1000,0.6);
+      // 읽기용: 크고 선명하게 (글씨 인식 정확도↑)
+      lgReadData=resize(1600,0.82);
       document.getElementById('lg-photo-preview').innerHTML=
         '<img src="'+lgPhotoData+'" onclick="lgShowBig()" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--b2);cursor:pointer"><div style="font-size:10px;color:var(--tx3);margin-top:4px">탭하면 크게 보기</div>';
       lgReadPhoto();
@@ -6826,11 +6899,12 @@ function lgShowBig(){
 
 // ── 명세서 사진을 AI로 읽어 폼에 채우기 (사용자 확인용) ──
 async function lgReadPhoto(){
-  if(!lgPhotoData) return;
+  const src=lgReadData||lgPhotoData;
+  if(!src) return;
   const statusEl=document.getElementById('lg-read-status');
   statusEl.innerHTML='🔍 명세서 읽는 중... (잠시만요)';
   try{
-    const b64=lgPhotoData.split(',')[1];
+    const b64=src.split(',')[1];
     const prompt='이 거래명세서 사진에서 거래처/날짜/모든 품목 줄을 JSON으로만 추출해줘. 설명 없이 JSON만. '
       +'형식: {"vendor":"거래처(공급자/상호)명","date":"YYYY-MM-DD","items":[{"item":"품목명(규격 포함)","price":단가숫자,"qty":수량숫자,"amount":공급가/금액숫자}]}. '
       +'품목이 여러 줄이면 items 배열에 모두 넣어줘. 숫자에서 쉼표는 빼고. 모르는 값은 0 또는 빈 문자열. 날짜는 발행일자 기준, 두 자리 연도면 2000년대로.';
@@ -6846,6 +6920,7 @@ async function lgReadPhoto(){
         ]}]
       })
     });
+    if(!res.ok) throw new Error('API '+res.status);
     const data=await res.json();
     const text=(data.content||[]).filter(i=>i.type==='text').map(i=>i.text).join('').trim();
     const clean=text.replace(/```json|```/g,'').trim();
@@ -6861,11 +6936,13 @@ async function lgReadPhoto(){
         amount:(it.amount||it.amount===0)?it.amount:''
       }));
       lgRenderItems();
+      statusEl.innerHTML='<span style="color:var(--acc2)">⚠️ 자동으로 채웠어요. 품목 줄을 <b>하나씩 꼭 확인하고</b> 틀린 곳은 고친 뒤 저장하세요.</span>';
+    } else {
+      statusEl.innerHTML='<span style="color:var(--tx3)">읽긴 했는데 품목을 못 찾았어요. 사진이 흐리면 더 밝고 반듯하게 다시 찍어보거나, 직접 입력해 주세요.</span>';
     }
-    statusEl.innerHTML='<span style="color:var(--acc2)">⚠️ 자동으로 채웠어요. 품목 줄을 <b>하나씩 꼭 확인하고</b> 틀린 곳은 고친 뒤 저장하세요.</span>';
   }catch(e){
     console.log('명세서 읽기 실패:',e);
-    statusEl.innerHTML='<span style="color:var(--tx3)">사진은 첨부됐어요. 자동 읽기는 안 돼서 직접 입력해 주세요. (PC 브라우저에서 더 잘 동작해요)</span>';
+    statusEl.innerHTML='<span style="color:var(--tx3)">사진은 첨부됐어요. 이 환경에서는 자동 읽기가 안 돼서 직접 입력해 주세요.</span>';
   }
 }
 
