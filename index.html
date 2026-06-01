@@ -287,6 +287,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="main-nav-btn" onclick="showMain('order')">🧾 발주</button>
     <button class="main-nav-btn" onclick="showMain('order-analysis')">📊 발주분석</button>
     <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
+    <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
     <button class="main-nav-btn" onclick="showMain('delivery')">📦 납품서</button>
     <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
   </nav>
@@ -599,6 +600,64 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
 </div>
 
+<!-- VENDORS (거래처 명부) -->
+<div class="sec-pg" id="pg-vendors">
+  <div class="info-note" style="margin-bottom:12px">
+    🏢 거래처의 사업자번호·대표자·주소·연락처·업태·종목을 모아둡니다.<br>
+    매입·매출에 새 거래처가 들어오면 여기에 자동으로 등록돼요. 상세정보는 직접 채우거나, 명세서 내용을 붙여넣어 한 번에 채울 수 있어요.
+  </div>
+
+  <div class="card">
+    <div class="card-ttl" id="vd-form-title">➕ 거래처 추가 / 수정</div>
+
+    <!-- 붙여넣기로 한 번에 입력 -->
+    <details style="margin-bottom:10px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);padding:8px 10px">
+      <summary style="font-size:12px;font-weight:700;color:var(--acc3);cursor:pointer;list-style:none">📋 명세서 내용 붙여넣기 (클로드가 정리해준 거래처 정보)</summary>
+      <div style="font-size:10px;color:var(--tx3);margin:6px 0">
+        "상호: …", "사업자번호: …", "대표자: …", "주소: …", "전화: …", "팩스: …", "업태: …", "종목: …" 형식으로 붙여넣고 불러오기를 누르세요.
+      </div>
+      <textarea id="vd-paste" rows="5" placeholder="상호: 아름지엠에스&#10;사업자번호: 132-81-49411&#10;대표자: 유지송&#10;주소: 경기도 포천시 화현면 …&#10;전화: 031-534-5408&#10;팩스: 031-534-5407&#10;업태: 제조&#10;종목: …" style="width:100%;box-sizing:border-box;padding:8px;font-size:12px;font-family:'JetBrains Mono',monospace;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);resize:vertical"></textarea>
+      <button onclick="vdParsePaste()" style="width:100%;margin-top:6px;padding:9px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📥 불러오기 (아래 칸에 채우기)</button>
+      <div id="vd-paste-status" style="font-size:11px;margin-top:6px"></div>
+    </details>
+
+    <span class="lbl">상호 (거래처명)</span>
+    <input id="vd-name" class="inp" placeholder="거래처명" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+
+    <div class="f-row">
+      <div><span class="lbl">사업자번호</span><input id="vd-bizno" class="inp" placeholder="000-00-00000" style="padding:9px 10px;font-size:13px;font-family:'JetBrains Mono',monospace"></div>
+      <div><span class="lbl">대표자</span><input id="vd-ceo" class="inp" placeholder="대표자명" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif"></div>
+    </div>
+
+    <span class="lbl">주소</span>
+    <input id="vd-addr" class="inp" placeholder="사업장 주소" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+
+    <div class="f-row">
+      <div><span class="lbl">전화</span><input id="vd-tel" class="inp" placeholder="전화번호" style="padding:9px 10px;font-size:13px;font-family:'JetBrains Mono',monospace"></div>
+      <div><span class="lbl">팩스</span><input id="vd-fax" class="inp" placeholder="팩스번호" style="padding:9px 10px;font-size:13px;font-family:'JetBrains Mono',monospace"></div>
+    </div>
+
+    <div class="f-row">
+      <div><span class="lbl">업태</span><input id="vd-biztype" class="inp" placeholder="예: 제조" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif"></div>
+      <div><span class="lbl">종목</span><input id="vd-bizitem" class="inp" placeholder="예: 유리,가구" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif"></div>
+    </div>
+
+    <input id="vd-memo" class="inp" placeholder="메모 (선택)" style="padding:9px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif;margin:8px 0 10px">
+
+    <button class="act-btn blue" id="vd-save-btn" onclick="vdSave()" style="background:var(--acc3)">💾 거래처 저장</button>
+    <div id="vd-edit-cancel" style="display:none;text-align:center;margin-top:6px"><button onclick="vdResetForm()" style="background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;text-decoration:underline">수정 취소</button></div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl" style="display:flex;align-items:center;justify-content:space-between">
+      <span>📋 거래처 목록 <span id="vd-count" style="font-weight:400;color:var(--tx3)"></span></span>
+      <button onclick="vdMakeExcel()" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--acc3);font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📊 엑셀 저장</button>
+    </div>
+    <input id="vd-search" class="inp" placeholder="🔍 거래처 검색" oninput="renderVendorList()" style="padding:8px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px">
+    <div id="vd-list"></div>
+  </div>
+</div>
+
 <!-- LEDGER (매입/매출) -->
 <div class="sec-pg" id="pg-ledger">
   <div class="info-note" style="margin-bottom:12px">
@@ -703,12 +762,24 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="card">
     <div class="card-ttl">📝 새 발주서 작성</div>
 
-    <span class="lbl">발주처</span>
-    <select class="sel" id="od-vendor" onchange="odVendorChanged()">
-      <option value="대원유리">대원유리</option>
-      <option value="아름유리">아름유리</option>
-      <option value="명성산업">명성산업</option>
+    <span class="lbl">대분류</span>
+    <select class="sel" id="od-cat" onchange="odCatChanged()">
+      <option value="유리">유리</option>
+      <option value="알루미늄">알루미늄</option>
+      <option value="브라켓">브라켓</option>
+      <option value="힌지">힌지</option>
+      <option value="알판">알판</option>
+      <option value="박스">박스</option>
+      <option value="목대">목대</option>
+      <option value="기타용품">기타용품</option>
     </select>
+
+    <span class="lbl">발주처</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <select class="sel" id="od-vendor" onchange="odVendorChanged()" style="flex:1;margin:0"></select>
+      <button onclick="odAddVendor()" title="발주처 추가" style="flex-shrink:0;padding:9px 12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">＋</button>
+      <button onclick="odRemoveVendor()" title="추가한 발주처 삭제" style="flex-shrink:0;padding:9px 11px;background:var(--s3);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;cursor:pointer">🗑</button>
+    </div>
 
     <span class="lbl">종류 (두께 / 비고 자동)</span>
     <select class="sel" id="od-type" onchange="odTypeChanged()"></select>
@@ -766,8 +837,20 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <div id="od-capture-host" style="position:fixed;left:-9999px;top:0;background:#fff"></div>
 
 <div class="sec-pg" id="pg-order-analysis">
+  <!-- 내가 넣은 발주 통계 (orderLog 기반) -->
+  <div class="card" style="border-left:3px solid var(--acc3)">
+    <div class="card-ttl">📈 내 발주 통계 <span style="font-weight:400;color:var(--tx3);font-size:11px">(앱에서 기록한 발주 기준)</span></div>
+    <div class="filter-row" style="margin-bottom:10px">
+      <button class="f-btn on" id="ods-p-1" onclick="setOdStatPeriod(1,this)">이번달</button>
+      <button class="f-btn" id="ods-p-3" onclick="setOdStatPeriod(3,this)">최근 3개월</button>
+      <button class="f-btn" id="ods-p-6" onclick="setOdStatPeriod(6,this)">최근 6개월</button>
+      <button class="f-btn" id="ods-p-0" onclick="setOdStatPeriod(0,this)">전체</button>
+    </div>
+    <div id="od-stat-body"></div>
+  </div>
+
   <div class="info-note" style="margin-bottom:12px">
-    📊 <b>2025.11 ~ 2026.04 (6개월)</b> 발주 데이터 기준 분석입니다.<br>
+    📊 아래는 <b>2025.11 ~ 2026.04 (6개월)</b> 과거 발주 데이터 기준 분석입니다.<br>
     월평균 수량을 참고해 발주량을 결정하세요.
   </div>
 
@@ -1400,6 +1483,8 @@ let gsUrl=localStorage.getItem(LS.gsUrl)||'';
 let actor=localStorage.getItem(LS.actor)||'';
 let delivLog=J(localStorage.getItem(LS.delivLog))||[];
 let ledgerLog=J(localStorage.getItem('ybn-ledger-v1'))||[];
+let vendorBook=J(localStorage.getItem('ybn-vendors-v1'))||[];
+let odCustomVendors=J(localStorage.getItem('ybn-od-vendors-v1'))||{}; // {대분류: [발주처명,...]}
 
 // ── 재고 이력 (StockEvents) ──
 // 키: "595x729" (원유리) 또는 "595x729_WC" / "595x729_ETP" (인쇄유리)
@@ -1708,6 +1793,8 @@ function saveAll(){
   localStorage.setItem(LS.todos,JSON.stringify(todos));
   localStorage.setItem(LS.delivLog,JSON.stringify(delivLog));
   localStorage.setItem('ybn-ledger-v1',JSON.stringify(ledgerLog));
+  localStorage.setItem('ybn-vendors-v1',JSON.stringify(vendorBook));
+  localStorage.setItem('ybn-od-vendors-v1',JSON.stringify(odCustomVendors));
   localStorage.setItem(LS.stockEvents,JSON.stringify(stockEvents));
   if(typeof matStock!=='undefined') localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
   if(typeof matLog!=='undefined') localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
@@ -3935,7 +4022,7 @@ async function autoSync(){
       clientLastSync: meta.lastGsSync || null,
       clientTs: ts,
       actor: getActor(),
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents,ledgerLog:ledgerForSync()}
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors}
     });
     // 서버가 충돌을 알려주면 result.conflict === true (서버 가드 추가 시)
     if(result && result.conflict){
@@ -3981,7 +4068,7 @@ async function syncToSheet(){
       clientTs: new Date().toISOString(),
       actor: getActor(),
       force: true, // 사용자가 직접 누른 경우 force 플래그
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents,ledgerLog:ledgerForSync()}
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors}
     });
     if(result && result.conflict && !result.forced){
       updateGsStatus('error');
@@ -4022,6 +4109,8 @@ async function syncFromSheet(){
     if(data.sheetLog)sheetLog=data.sheetLog;
     if(data.delivLog)delivLog=data.delivLog;
     if(data.ledgerLog)mergeLedgerFromSheet(data.ledgerLog);
+    if(data.vendorBook)vendorBook=data.vendorBook;
+    if(data.odCustomVendors)odCustomVendors=data.odCustomVendors;
     if(data.stockEvents)stockEvents=data.stockEvents;
     if(data.meta)Object.assign(meta,data.meta);
     meta.lastGsSync=new Date().toISOString();
@@ -4908,7 +4997,111 @@ function setAnalysisFilter(f,btn){
   renderAnalysis();
 }
 
+let odStatPeriod=1; // 1=이번달, 3, 6, 0=전체
+function setOdStatPeriod(n,btn){
+  odStatPeriod=n;
+  document.querySelectorAll('[id^="ods-p-"]').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  renderOdStat();
+}
+
+function renderOdStat(){
+  const host=document.getElementById('od-stat-body');
+  if(!host) return;
+  const orders=(typeof orderLog!=='undefined'?orderLog:[]);
+  if(!orders.length){
+    host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:18px">아직 앱에서 기록한 발주가 없어요.<br>발주 탭에서 발주서를 작성·기록하면 여기에 통계가 쌓여요.</div>';
+    return;
+  }
+  // 기간 필터: 최근 N개월 (이번달 포함). 0이면 전체.
+  const now=new Date();
+  let cutoff=null;
+  if(odStatPeriod>0){
+    cutoff=new Date(now.getFullYear(), now.getMonth()-(odStatPeriod-1), 1); // N개월 전 1일
+  }
+  const inRange=o=>{
+    if(!cutoff) return true;
+    const d=new Date((o.date||o.createdAt||'').slice(0,10));
+    return !isNaN(d) && d>=cutoff;
+  };
+  const sel=orders.filter(inRange);
+  // 집계
+  let totalQty=0, totalLines=0;
+  const byMonth={}, byVendor={}, byModel={}, byCat={};
+  sel.forEach(o=>{
+    const ym=(o.date||o.createdAt||'').slice(0,7)||'기타';
+    (o.items||[]).forEach(it=>{
+      const q=parseInt(it.qty)||0;
+      totalQty+=q; totalLines++;
+      byMonth[ym]=(byMonth[ym]||0)+q;
+      byVendor[o.vendor||'(미지정)']=(byVendor[o.vendor||'(미지정)']||0)+q;
+      byCat[o.cat||'유리']=(byCat[o.cat||'유리']||0)+q;
+      const key=(it.pname||'(품명없음)')+(it.w&&it.h?` ${it.w}×${it.h}`:'');
+      byModel[key]=(byModel[key]||0)+q;
+    });
+  });
+  const won=n=>n.toLocaleString('ko-KR');
+  const periodLabel=odStatPeriod===1?'이번 달':odStatPeriod===0?'전체 기간':`최근 ${odStatPeriod}개월`;
+
+  // 상단 요약
+  let html=`<div style="display:flex;gap:8px;margin-bottom:12px">
+    <div style="flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:var(--tx3)">${periodLabel} 발주건</div>
+      <div style="font-size:18px;font-weight:900;color:var(--acc3)">${sel.length}<span style="font-size:11px;font-weight:400">건</span></div>
+    </div>
+    <div style="flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:var(--tx3)">총 수량</div>
+      <div style="font-size:18px;font-weight:900;color:var(--acc)">${won(totalQty)}<span style="font-size:11px;font-weight:400">장</span></div>
+    </div>
+    <div style="flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:var(--tx3)">품목 줄</div>
+      <div style="font-size:18px;font-weight:900;color:var(--tx1)">${totalLines}<span style="font-size:11px;font-weight:400">개</span></div>
+    </div>
+  </div>`;
+
+  // 월별 막대
+  const yms=Object.keys(byMonth).sort();
+  if(yms.length){
+    const mx=Math.max(...yms.map(m=>byMonth[m]),1);
+    html+='<div style="font-size:11px;font-weight:700;margin:6px 0 4px">월별 발주 수량</div><div style="display:flex;gap:4px;align-items:flex-end;padding:4px 0 2px">';
+    html+=yms.map(m=>{
+      const v=byMonth[m];
+      const h=Math.max(Math.round(v/mx*60),v>0?4:0);
+      return `<div style="flex:1;text-align:center">
+        <div style="font-size:9px;color:var(--tx2);font-family:'JetBrains Mono',monospace">${won(v)}</div>
+        <div style="height:60px;display:flex;align-items:flex-end;justify-content:center"><div style="width:70%;background:var(--acc3);border-radius:3px 3px 0 0;height:${h}px"></div></div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:2px">${m.slice(2).replace('-','/')}</div>
+      </div>`;
+    }).join('');
+    html+='</div>';
+  }
+
+  // 대분류별
+  const cats=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  if(cats.length>1 || (cats.length===1 && cats[0][0]!=='유리')){
+    html+='<div style="font-size:11px;font-weight:700;margin:12px 0 4px">대분류별</div>';
+    html+=cats.map(c=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--b1)"><span>${c[0]}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">${won(c[1])}장</span></div>`).join('');
+  }
+
+  // 발주처별
+  const vendors=Object.entries(byVendor).sort((a,b)=>b[1]-a[1]);
+  if(vendors.length){
+    html+='<div style="font-size:11px;font-weight:700;margin:12px 0 4px">발주처별</div>';
+    html+=vendors.map(v=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--b1)"><span>${v[0]}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">${won(v[1])}장</span></div>`).join('');
+  }
+
+  // 많이 발주한 품목 TOP 10
+  const models=Object.entries(byModel).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(models.length){
+    html+='<div style="font-size:11px;font-weight:700;margin:12px 0 4px">많이 발주한 품목 TOP 10</div>';
+    html+=models.map((m,i)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--b1)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:var(--tx3)">${i+1}.</span> ${m[0]}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;flex-shrink:0;margin-left:8px">${won(m[1])}장</span></div>`).join('');
+  }
+
+  host.innerHTML=html;
+}
+
 function renderAnalysis(){
+  renderOdStat();
   const el=document.getElementById('analysis-list');
   if(!el||typeof ANALYSIS==='undefined') return;
 
@@ -6222,7 +6415,7 @@ function saveMatData(){
 // ── 자재탭 포함 네비게이션 재정의 ──
 const MAINS_EXT=['home','todo','board','stock','mat','settings'];
 document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
-  const pages=['home','worklog','stock','order','order-analysis','ledger','delivery','settings'];
+  const pages=['home','worklog','stock','order','order-analysis','ledger','vendors','delivery','settings'];
   btn.onclick=function(){
     const id=pages[i];
     curMain=id;
@@ -6242,6 +6435,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
     else if(id==='order')renderOrderPage();
     else if(id==='order-analysis')renderAnalysis();
     else if(id==='ledger')renderLedger();
+    else if(id==='vendors')renderVendors();
     else if(id==='settings')initGsUI();
   };
 });
@@ -6255,33 +6449,134 @@ function saveOrderLog(){ localStorage.setItem('ybn-order-v1', JSON.stringify(ord
 // 발주처별 종류 프리셋
 //  thick: 유리 두께표시 / title: 발주서 제목 / bigo: 비고 자동 / pname: 품명 기본값
 //  modelMode: true면 품명에 모델명 입력 → 사이즈 자동 / sizeMode: true면 사이즈 직접입력
-const OD_PRESETS = {
-  '대원유리': [
-    {type:'비규격 (5T투명·한샘장식장)', thick:'5T 투명',   title:'5T 투명',        bigo:'휠/반강화',     pname:'5T 투명',  sizeMode:true,
-       hint:'한샘 장식장에 들어가는 5T 투명유리 · 비고 휠/반강화'},
-    {type:'3T 은경',                    thick:'3T 은경',   title:'3t 은경',        bigo:'각면/후면시트지', pname:'3t 은경', sizeMode:true,
-       hint:'3T 은경 · 비고 각면/후면시트지'},
-    {type:'바스 정규격 (백사틴·한샘바스)', thick:'백사틴',    title:'백샤틴(정규격)',  bigo:'각면/강화',     pname:'한샘바스', sizeMode:true,
-       sizes:['293*794','313*446','393*794'],
-       hint:'한샘바스에 들어가는 백사틴 · 비고 각면/강화'},
-    {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화',     pname:'',        modelMode:true,
-       hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
-    {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화',     pname:'비규격',  sizeMode:true,
-       hint:'3.2T 백사틴 비규격 · 비고 각면/강화'}
-  ],
-  '아름유리': [
-    {type:'일반', thick:'', title:'발주', bigo:'', pname:'', sizeMode:true, hint:'사이즈 직접 입력'}
-  ],
-  '명성산업': [
-    {type:'일반', thick:'', title:'발주', bigo:'', pname:'', sizeMode:true, hint:'사이즈 직접 입력'}
-  ]
+// 대분류 → 발주처 → 종류(프리셋)
+const OD_CATALOG = {
+  '유리': {
+    '대원유리': [
+      {type:'비규격 (5T투명·한샘장식장)', thick:'5T 투명',   title:'5T 투명',        bigo:'휠/반강화',     pname:'5T 투명',  sizeMode:true,
+         hint:'한샘 장식장에 들어가는 5T 투명유리 · 비고 휠/반강화'},
+      {type:'3T 은경',                    thick:'3T 은경',   title:'3t 은경',        bigo:'각면/후면시트지', pname:'3t 은경', sizeMode:true,
+         hint:'3T 은경 · 비고 각면/후면시트지'},
+      {type:'3T 브론즈경',                 thick:'3T 브론즈경', title:'3t 브론즈경',   bigo:'각면/후면시트지', pname:'3t 브론즈경', sizeMode:true,
+         hint:'3T 브론즈경 · 비고 각면/후면시트지'},
+      {type:'바스 정규격 (백사틴·한샘바스)', thick:'백사틴',    title:'백샤틴(정규격)',  bigo:'각면/강화',     pname:'한샘바스', sizeMode:true,
+         sizes:['293*794','313*446','393*794'],
+         hint:'한샘바스에 들어가는 백사틴 · 비고 각면/강화'},
+      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화',     pname:'',        modelMode:true,
+         hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
+      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화',     pname:'비규격',  sizeMode:true,
+         hint:'3.2T 백사틴 비규격 · 비고 각면/강화'}
+    ],
+    '아름유리': [
+      {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
+      {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T 투명(비산방지필름)', bigo:'비산방지필름', pname:'5T 투명', sizeMode:true, hint:'5T 투명 + 비산방지필름'},
+      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T 브론즈(비산방지필름)', bigo:'비산방지필름', pname:'5T 브론즈', sizeMode:true, hint:'5T 브론즈 + 비산방지필름'}
+    ],
+    '현성유리': [
+      {type:'5T 백유리', thick:'5T 백유리', title:'5T 백유리', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 · 사이즈 직접 입력'}
+    ],
+    '명그라스': [
+      {type:'3.2T 백사틴 정규격 (모델명 자동)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'', modelMode:true,
+         hint:'품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
+      {type:'3.2T 백사틴 비규격 (수기)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'각면/강화', pname:'비규격', sizeMode:true,
+         hint:'3.2T 백사틴 비규격 · 사이즈 직접 입력 · 비고 각면/강화'},
+      {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'}
+    ]
+  },
+  '힌지': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'힌지 발주', bigo:'', pname:'', sizeMode:true, hint:'아직 종류가 등록되지 않았어요. 규격·수량을 직접 입력하거나, 필요한 힌지 종류를 알려주시면 추가해 드릴게요.'}
+    ]
+  },
+  '알판': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'알판 발주', bigo:'', pname:'', sizeMode:true, hint:'아직 종류가 등록되지 않았어요. 규격·수량을 직접 입력하거나, 필요한 알판 종류를 알려주시면 추가해 드릴게요.'}
+    ]
+  },
+  '알루미늄': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'알루미늄 발주', bigo:'', pname:'', sizeMode:true, hint:'아직 종류가 등록되지 않았어요. 규격·수량을 직접 입력하거나, 필요한 알루미늄 종류를 알려주시면 추가해 드릴게요.'}
+    ]
+  },
+  '브라켓': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'브라켓 발주', bigo:'', pname:'', sizeMode:true, hint:'아직 종류가 등록되지 않았어요. 규격·수량을 직접 입력하거나, 필요한 브라켓 종류를 알려주시면 추가해 드릴게요.'}
+    ]
+  },
+  '박스': {
+    '승일포장': [
+      {type:'일반', thick:'', title:'박스 발주', bigo:'', pname:'', sizeMode:true, hint:'규격·수량 직접 입력. 자주 쓰는 박스 종류를 알려주시면 프리셋으로 추가해 드릴게요.'}
+    ]
+  },
+  '목대': {
+    '대연산업': [
+      {type:'일반', thick:'', title:'목대 발주', bigo:'', pname:'', sizeMode:true, hint:'규격·수량 직접 입력. 자주 쓰는 목대 종류를 알려주시면 프리셋으로 추가해 드릴게요.'}
+    ]
+  },
+  '기타용품': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'기타용품 발주', bigo:'', pname:'', qtyOnly:true, hint:'매직블럭·테이프·종이컵 등 잡자재. 품명과 수량만 입력하면 돼요 (규격은 비워둬도 됩니다).'}
+    ]
+  }
 };
+
+// 현재 선택된 대분류의 발주처 묶음을 돌려줌 (카탈로그 + 사용자추가 병합)
+function curCat(){ return (document.getElementById('od-cat')||{}).value || '유리'; }
+function curCatVendors(){
+  const cat=curCat();
+  const base=Object.assign({}, OD_CATALOG[cat]||{});
+  // 사용자가 추가한 발주처는 기본 '일반' 종류 하나로 생성
+  (odCustomVendors[cat]||[]).forEach(name=>{
+    if(!base[name]) base[name]=[{type:'일반', thick:'', title:cat+' 발주', bigo:'', pname:'', sizeMode:true, hint:'직접 추가한 발주처 · 규격·수량 직접 입력. 종류(두께·비고 자동 등)가 필요하면 클로드에게 요청하세요.'}];
+  });
+  return base;
+}
+
+function odAddVendor(){
+  const cat=curCat();
+  const name=(prompt(`"${cat}" 대분류에 추가할 발주처 이름을 입력하세요`)||'').trim();
+  if(!name) return;
+  // 중복 체크 (카탈로그 + 사용자추가)
+  const existing=Object.keys(curCatVendors());
+  if(existing.includes(name)){ showToast('이미 있는 발주처예요'); return; }
+  if(!odCustomVendors[cat]) odCustomVendors[cat]=[];
+  odCustomVendors[cat].push(name);
+  saveAll();
+  if(typeof autoSync==='function') autoSync();
+  odCatChanged();
+  // 새로 추가한 발주처 선택
+  const vsel=document.getElementById('od-vendor');
+  vsel.value=name; odVendorChanged();
+  showToast('🏢 발주처 추가됨: '+name);
+}
+
+function odRemoveVendor(){
+  const cat=curCat();
+  const name=document.getElementById('od-vendor').value;
+  if(!(odCustomVendors[cat]||[]).includes(name)){
+    showToast('기본 발주처는 삭제할 수 없어요 (직접 추가한 것만 가능)'); return;
+  }
+  if(!confirm(`"${name}" 발주처를 목록에서 뺄까요? (이미 기록한 발주는 그대로 남아요)`)) return;
+  odCustomVendors[cat]=odCustomVendors[cat].filter(n=>n!==name);
+  saveAll();
+  if(typeof autoSync==='function') autoSync();
+  odCatChanged();
+  showToast('삭제됨');
+}
 
 let odLines = [];
 
+function odCatChanged(){
+  const vendors=curCatVendors();
+  const vsel=document.getElementById('od-vendor');
+  const names=Object.keys(vendors);
+  vsel.innerHTML=names.map(n=>`<option value="${n}">${n}</option>`).join('');
+  odVendorChanged();
+}
+
 function renderOrderPage(){
-  // 발주처 셀렉트 초기화는 HTML에 이미 있음. 종류 채우기
-  odVendorChanged(true);
+  // 대분류 → 발주처 → 종류 채우기
+  odCatChanged();
   // 날짜 기본 오늘
   const d=document.getElementById('od-date');
   if(!d.value) d.value=new Date().toISOString().slice(0,10);
@@ -6293,7 +6588,7 @@ function renderOrderPage(){
 function odVendorChanged(keep){
   const vendor=document.getElementById('od-vendor').value;
   const sel=document.getElementById('od-type');
-  const presets=OD_PRESETS[vendor]||[];
+  const presets=curCatVendors()[vendor]||[];
   sel.innerHTML=presets.map((p,i)=>`<option value="${i}">${p.type}</option>`).join('');
   odTypeChanged();
 }
@@ -6311,7 +6606,7 @@ function odTypeChanged(){
 function curPreset(){
   const vendor=document.getElementById('od-vendor').value;
   const idx=parseInt(document.getElementById('od-type').value)||0;
-  return {vendor, idx, p:(OD_PRESETS[vendor]||[])[idx]||{}};
+  return {vendor, idx, p:(curCatVendors()[vendor]||[])[idx]||{}};
 }
 
 function renderOdLines(){
@@ -6336,7 +6631,16 @@ function renderOdLines(){
     }
   }
   const host=document.getElementById('od-lines');
+  const qtyOnly=!!(p&&p.qtyOnly);
   host.innerHTML=odLines.map((ln,i)=>{
+    if(qtyOnly){
+      return `
+      <div style="display:grid;grid-template-columns:1fr 64px auto;gap:6px;align-items:center;margin-bottom:6px">
+        <input value="${(ln.pname||'').replace(/"/g,'&quot;')}" placeholder="품명 (예: 매직블럭, 테이프, 종이컵)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <input type="number" inputmode="numeric" value="${ln.qty}" placeholder="수량" oninput="odLines[${i}].qty=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 4px;text-align:center;font-size:13px">
+        <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
+      </div>`;
+    }
     if(modelMode){
       return `
       <div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:8px;margin-bottom:6px">
@@ -6388,23 +6692,30 @@ function odAddPresetSize(sz){
 }
 function odDelLine(i){ odLines.splice(i,1); if(!odLines.length)odLines.push({w:'',h:'',qty:1}); renderOdLines(); }
 function odUpdateCount(){
-  const valid=odLines.filter(l=>l.w&&l.h&&(parseInt(l.qty)||0)>0);
+  const valid=odLines.filter(odLineValid);
   const tot=valid.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
   document.getElementById('od-livecount').textContent=`품목 ${valid.length}건 · 총수량 ${tot}장`;
+}
+// 유효한 줄: 수량>0 이고 (가로·세로가 있거나 OR 품명이 있음 → 기타용품 대응)
+function odLineValid(l){
+  const q=parseInt(l.qty)||0;
+  if(q<=0) return false;
+  return (l.w&&l.h) || ((l.pname||'').trim()!=='');
 }
 
 function odCollect(){
   const vendor=document.getElementById('od-vendor').value;
+  const cat=(document.getElementById('od-cat')||{}).value||'유리';
   const {p}=curPreset();
   const date=document.getElementById('od-date').value||new Date().toISOString().slice(0,10);
   const due=(document.getElementById('od-due').value||'').trim();
   const bigo=(document.getElementById('od-bigo').value||'').trim();
   const client=(document.getElementById('od-client').value||'').trim();
-  const items=odLines.filter(l=>l.w&&l.h&&(parseInt(l.qty)||0)>0).map(l=>({
-    w:parseInt(l.w), h:parseInt(l.h), qty:parseInt(l.qty)||0,
+  const items=odLines.filter(odLineValid).map(l=>({
+    w:parseInt(l.w)||0, h:parseInt(l.h)||0, qty:parseInt(l.qty)||0,
     pname:((l.pname||p.pname||'')+'').trim(), bigo:bigo
   }));
-  return {vendor, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, items};
+  return {vendor, cat, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, items};
 }
 
 // ── 발주서 행렬(AOA) 생성 — 양식 구조 그대로 ──
@@ -6426,7 +6737,7 @@ function odBuildAOA(o){
   let tot=0;
   o.items.forEach((it,i)=>{
     tot+=it.qty;
-    const r=['',i+1,it.pname,'',`${it.w}*${it.h}`,'','',it.qty,o.due,it.bigo];
+    const r=['',i+1,it.pname,'',(it.w&&it.h)?`${it.w}*${it.h}`:'','','',it.qty,o.due,it.bigo];
     if(hasClient) r.push(o.client);
     rows.push(r);
   });
@@ -6459,7 +6770,7 @@ function odRenderCapture(o){
     <tr>
       <td style="${td}">${i+1}</td>
       <td style="${td}">${it.pname||''}</td>
-      <td style="${td};font-weight:700">${it.w}*${it.h}</td>
+      <td style="${td};font-weight:700">${(it.w&&it.h)?`${it.w}*${it.h}`:''}</td>
       <td style="${td};font-weight:700">${it.qty}</td>
       <td style="${td}">${o.due||''}</td>
       <td style="${td}">${it.bigo||''}</td>
@@ -6622,16 +6933,21 @@ function renderOrderList(){
       const total=o.items.length;
       const recv=o.items.filter(i=>i.received).length;
       const allDone=recv===total;
-      const itemsHtml=o.items.map((it,i)=>`
+      const itemsHtml=o.items.map((it,i)=>{
+        const hasSize=it.w&&it.h;
+        const titleLine=hasSize?`${it.w}×${it.h}`:(it.pname||'(품명)');
+        const subLine=hasSize?`${it.pname?it.pname+' · ':''}${it.bigo||''}`:(it.bigo||'');
+        return `
         <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--b1)">
-          <button onclick="odToggleRecv('${o.id}',${i})" class="todo-check ${it.received?'done':''}" style="width:22px;height:22px;flex-shrink:0">${it.received?'✓':''}</button>
+          ${hasSize?`<button onclick="odToggleRecv('${o.id}',${i})" class="todo-check ${it.received?'done':''}" style="width:22px;height:22px;flex-shrink:0">${it.received?'✓':''}</button>`:'<span style="width:22px;flex-shrink:0;text-align:center;color:var(--tx3)">·</span>'}
           <div style="flex:1;min-width:0;${it.received?'opacity:.6':''}">
-            <div style="font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;${it.received?'text-decoration:line-through':''}">${it.w}×${it.h}</div>
-            <div style="font-size:10px;color:var(--tx3)">${it.pname?it.pname+' · ':''}${it.bigo||''}</div>
-            ${it.received?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:var(--acc3)">📦 입고일</span><input type="date" value="${it.recvDate||''}" onchange="odSetRecvDate('${o.id}',${i},this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif"></div>`:''}
+            <div style="font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;${it.received?'text-decoration:line-through':''}">${titleLine}</div>
+            <div style="font-size:10px;color:var(--tx3)">${subLine}</div>
+            ${hasSize&&it.received?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:var(--acc3)">📦 입고일</span><input type="date" value="${it.recvDate||''}" onchange="odSetRecvDate('${o.id}',${i},this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif"></div>`:''}
           </div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc3)">${it.qty}</div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
       return `
       <div class="day-card" style="margin-bottom:8px">
         <div class="day-hdr">
@@ -6958,6 +7274,7 @@ function lgSave(){
   if(!items.length){ showToast('품목을 1개 이상 입력하세요'); return; }
   const total=items.reduce((s,it)=>s+(it.amount||0),0);
   if(!total){ showToast('금액을 입력하세요'); return; }
+  vdEnsure(vendor);
   if(lgEditId){
     const r=ledgerLog.find(x=>x.id===lgEditId);
     if(r){ Object.assign(r,{kind:lgKind,vendor,date,items,total,memo,photo:lgPhotoData||r.photo||null,updatedAt:new Date().toISOString()});
@@ -7136,6 +7453,165 @@ function lgMakeExcel(){
 }
 
 
+// ════════════════════════════════════════════
+// 거래처 명부 (Vendor Book)
+// ════════════════════════════════════════════
+let vdEditId=null;
+
+function renderVendors(){
+  vdRenderList();
+}
+
+// 매입·매출 저장 시 거래처 자동 등록 (없으면 이름만이라도 만들어 둠)
+function vdEnsure(name){
+  const n=(name||'').trim();
+  if(!n) return;
+  const exists=vendorBook.some(v=>(v.name||'').trim()===n);
+  if(!exists){
+    vendorBook.push({id:'vd_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+      name:n, bizno:'', ceo:'', addr:'', tel:'', fax:'', biztype:'', bizitem:'', memo:'',
+      createdAt:new Date().toISOString()});
+  }
+}
+
+function vdResetForm(){
+  vdEditId=null;
+  ['vd-name','vd-bizno','vd-ceo','vd-addr','vd-tel','vd-fax','vd-biztype','vd-bizitem','vd-memo','vd-paste'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const st=document.getElementById('vd-paste-status'); if(st)st.innerHTML='';
+  document.getElementById('vd-save-btn').textContent='💾 거래처 저장';
+  document.getElementById('vd-edit-cancel').style.display='none';
+  document.getElementById('vd-form-title').textContent='➕ 거래처 추가 / 수정';
+}
+
+function vdParsePaste(){
+  const raw=(document.getElementById('vd-paste').value||'').trim();
+  const st=document.getElementById('vd-paste-status');
+  if(!raw){ st.innerHTML='<span style="color:var(--tx3)">붙여넣은 내용이 없어요.</span>'; return; }
+  const map=[
+    [/^(상호|거래처|업체)\s*[:：]\s*(.+)$/, 'vd-name'],
+    [/^(사업자|사업자번호|등록번호)\s*[:：]\s*(.+)$/, 'vd-bizno'],
+    [/^(대표|대표자|성명)\s*[:：]\s*(.+)$/, 'vd-ceo'],
+    [/^(주소|사업장)\s*[:：]\s*(.+)$/, 'vd-addr'],
+    [/^(전화|tel|연락처)\s*[:：]\s*(.+)$/i, 'vd-tel'],
+    [/^(팩스|fax)\s*[:：]\s*(.+)$/i, 'vd-fax'],
+    [/^(업태)\s*[:：]\s*(.+)$/, 'vd-biztype'],
+    [/^(종목|업종)\s*[:：]\s*(.+)$/, 'vd-bizitem'],
+    [/^(메모|비고)\s*[:：]\s*(.+)$/, 'vd-memo']
+  ];
+  let hit=0;
+  raw.split(/\r?\n/).forEach(line=>{
+    line=line.trim(); if(!line) return;
+    for(const pair of map){
+      const m=line.match(pair[0]);
+      if(m){ document.getElementById(pair[1]).value=m[m.length-1].trim(); hit++; break; }
+    }
+  });
+  st.innerHTML = hit ? '<span style="color:var(--acc2)">✅ '+hit+'개 항목 불러왔어요. 확인 후 저장하세요.</span>'
+                     : '<span style="color:var(--acc4)">인식된 항목이 없어요. "상호: …" 형식인지 확인해 주세요.</span>';
+  if(hit) document.getElementById('vd-paste').value='';
+}
+
+function vdSave(){
+  const name=(document.getElementById('vd-name').value||'').trim();
+  if(!name){ showToast('상호(거래처명)를 입력하세요'); return; }
+  const rec={
+    name,
+    bizno:(document.getElementById('vd-bizno').value||'').trim(),
+    ceo:(document.getElementById('vd-ceo').value||'').trim(),
+    addr:(document.getElementById('vd-addr').value||'').trim(),
+    tel:(document.getElementById('vd-tel').value||'').trim(),
+    fax:(document.getElementById('vd-fax').value||'').trim(),
+    biztype:(document.getElementById('vd-biztype').value||'').trim(),
+    bizitem:(document.getElementById('vd-bizitem').value||'').trim(),
+    memo:(document.getElementById('vd-memo').value||'').trim()
+  };
+  if(vdEditId){
+    const v=vendorBook.find(x=>x.id===vdEditId);
+    if(v) Object.assign(v,rec,{updatedAt:new Date().toISOString()});
+    showToast('✅ 거래처 수정됨');
+  } else {
+    const ex=vendorBook.find(v=>(v.name||'').trim()===name);
+    if(ex) Object.assign(ex,rec,{updatedAt:new Date().toISOString()});
+    else vendorBook.push(Object.assign({id:'vd_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),createdAt:new Date().toISOString()},rec));
+    showToast('🏢 거래처 저장됨');
+  }
+  saveAll(); vdResetForm(); vdRenderList();
+  if(typeof autoSync==='function') autoSync();
+}
+
+function vdEdit(id){
+  const v=vendorBook.find(x=>x.id===id); if(!v) return;
+  vdEditId=id;
+  document.getElementById('vd-name').value=v.name||'';
+  document.getElementById('vd-bizno').value=v.bizno||'';
+  document.getElementById('vd-ceo').value=v.ceo||'';
+  document.getElementById('vd-addr').value=v.addr||'';
+  document.getElementById('vd-tel').value=v.tel||'';
+  document.getElementById('vd-fax').value=v.fax||'';
+  document.getElementById('vd-biztype').value=v.biztype||'';
+  document.getElementById('vd-bizitem').value=v.bizitem||'';
+  document.getElementById('vd-memo').value=v.memo||'';
+  document.getElementById('vd-save-btn').textContent='✓ 수정 저장';
+  document.getElementById('vd-edit-cancel').style.display='block';
+  document.getElementById('vd-form-title').textContent='✏️ 거래처 수정';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function vdDelete(id){
+  const v=vendorBook.find(x=>x.id===id); if(!v) return;
+  if(!confirm(`"${v.name}" 거래처를 삭제할까요? (매입·매출 기록은 그대로 남아요)`)) return;
+  vendorBook=vendorBook.filter(x=>x.id!==id);
+  saveAll(); vdRenderList();
+  if(typeof autoSync==='function') autoSync();
+  showToast('삭제됨');
+}
+
+function vdRenderList(){
+  const host=document.getElementById('vd-list'); if(!host) return;
+  const q=((document.getElementById('vd-search')||{}).value||'').trim().toLowerCase();
+  let list=[...vendorBook].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+  if(q) list=list.filter(v=>[v.name,v.bizno,v.ceo,v.addr,v.tel,v.biztype,v.bizitem].some(f=>(f||'').toLowerCase().includes(q)));
+  const cnt=document.getElementById('vd-count'); if(cnt) cnt.textContent=vendorBook.length?`(${vendorBook.length}곳)`:'';
+  if(!list.length){ host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:14px">'+(vendorBook.length?'검색 결과 없음':'아직 거래처가 없어요. 매입·매출을 기록하면 자동으로 등록돼요.')+'</div>'; return; }
+  host.innerHTML=list.map(v=>{
+    const rows=[];
+    if(v.bizno) rows.push(['사업자',v.bizno]);
+    if(v.ceo) rows.push(['대표자',v.ceo]);
+    if(v.tel) rows.push(['전화',v.tel]);
+    if(v.fax) rows.push(['팩스',v.fax]);
+    if(v.addr) rows.push(['주소',v.addr]);
+    if(v.biztype||v.bizitem) rows.push(['업태/종목',[v.biztype,v.bizitem].filter(Boolean).join(' / ')]);
+    if(v.memo) rows.push(['메모',v.memo]);
+    const detail = rows.length
+      ? rows.map(kv=>`<div style="display:flex;gap:8px;font-size:11px;padding:1px 0"><span style="color:var(--tx3);min-width:54px;flex-shrink:0">${kv[0]}</span><span style="color:var(--tx1);word-break:break-all">${kv[1]}</span></div>`).join('')
+      : '<div style="font-size:11px;color:var(--acc4)">상세정보 없음 — 편집해서 채워주세요</div>';
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--b1)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:800;flex:1">${v.name||'(이름없음)'}</span>
+        <button onclick="vdEdit('${v.id}')" class="icon-btn" style="font-size:12px">✏️</button>
+        <button onclick="vdDelete('${v.id}')" class="icon-btn del" style="font-size:12px">🗑</button>
+      </div>
+      ${detail}
+    </div>`;
+  }).join('');
+}
+
+function vdMakeExcel(){
+  if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 - 잠시 후 다시'); return; }
+  if(!vendorBook.length){ showToast('거래처가 없어요'); return; }
+  const list=[...vendorBook].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+  const aoa=[['상호','사업자번호','대표자','주소','전화','팩스','업태','종목','메모']];
+  list.forEach(v=>aoa.push([v.name||'',v.bizno||'',v.ceo||'',v.addr||'',v.tel||'',v.fax||'',v.biztype||'',v.bizitem||'',v.memo||'']));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:18},{wch:15},{wch:8},{wch:34},{wch:14},{wch:14},{wch:10},{wch:14},{wch:16}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'거래처');
+  const today=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  XLSX.writeFile(wb,`거래처목록_${today}.xlsx`);
+  showToast('📊 거래처 엑셀 저장됨');
+}
+
+
 // ── 자동 동기화 ──
 async function autoSyncOnLoad(){
   if(!gsUrl) return;
@@ -7149,6 +7625,8 @@ async function autoSyncOnLoad(){
     if(data.todos) todos=data.todos;
     if(data.delivLog) delivLog=data.delivLog;
     if(data.ledgerLog) mergeLedgerFromSheet(data.ledgerLog);
+    if(data.vendorBook) vendorBook=data.vendorBook;
+    if(data.odCustomVendors) odCustomVendors=data.odCustomVendors;
     if(data.matStock) matStock=data.matStock;
     if(data.matLog) matLog=data.matLog;
     if(data.sheetLog) sheetLog=data.sheetLog;
