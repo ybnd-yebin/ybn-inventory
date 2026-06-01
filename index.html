@@ -6530,11 +6530,30 @@ function odSaveImageFallback(blobP, o){
   blobP.then(blob=>{
     if(!blob){ showToast('이미지 생성 실패'); document.getElementById('od-capture-host').innerHTML=''; return; }
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download=`${o.vendor}_발주서_${o.date.replace(/-/g,'')}.png`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),3000);
-    showToast('🖼 복사 미지원 브라우저 — 이미지로 저장됨');
+    // 1) 다운로드 시도
+    try{
+      const a=document.createElement('a');
+      a.href=url; a.download=`${o.vendor}_발주서_${o.date.replace(/-/g,'')}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+    }catch(e){}
+    // 2) 화면에도 큰 이미지로 띄움 (길게 눌러 저장/복사 — 카톡 공유 가능)
+    const big=document.getElementById('lg-photo-big');
+    if(big){
+      big.src=url;
+      const modal=document.getElementById('lg-photo-modal');
+      // 안내 문구 추가
+      let tip=document.getElementById('od-img-tip');
+      if(!tip){
+        tip=document.createElement('div'); tip.id='od-img-tip';
+        tip.style.cssText='position:fixed;bottom:20px;left:0;right:0;text-align:center;color:#fff;font-size:13px;z-index:100000;text-shadow:0 1px 3px #000;font-family:Noto Sans KR,sans-serif';
+        document.body.appendChild(tip);
+      }
+      tip.textContent='📷 이미지를 길게 눌러 저장하거나 카톡으로 공유하세요';
+      modal.classList.add('on');
+      modal.addEventListener('click',()=>{ if(tip)tip.textContent=''; },{once:true});
+    }
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    showToast('🖼 이미지로 만들었어요 — 길게 눌러 저장/공유');
     document.getElementById('od-capture-host').innerHTML='';
   });
 }
