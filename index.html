@@ -7640,9 +7640,12 @@ async function autoSyncOnLoad(){
     console.log('자동동기화 실패:', e.message);
   }
 }
-// 앱 로드 즉시 + 이후 30초마다 자동 동기화
-autoSyncOnLoad();
-setInterval(autoSyncOnLoad, 300000); // 5분마다 자동 동기화
+// ── 자동 동기화 주기 (단일 지점 관리) ──
+// 혼자 쓸 땐 5분이면 충분. 작업자가 늘면 이 숫자만 조절하세요.
+// 1분=60000, 3분=180000, 5분=300000, 10분=600000
+const AUTO_SYNC_MS = 300000; // = 5분
+autoSyncOnLoad();                          // 앱 켤 때 1회 (시트→앱)
+setInterval(autoSyncOnLoad, AUTO_SYNC_MS); // 이후 주기적으로 (시트→앱)
 </script>
 </body>
 </html>
