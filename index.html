@@ -7,7 +7,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script> 
 <style>
 :root{--bg:#f5f6fa;--s1:#ffffff;--s2:#f0f2f7;--s3:#e4e7f0;--b1:#e0e4ee;--b2:#cdd1df;--acc:#2563eb;--acc2:#ea6c00;--acc3:#16a34a;--acc4:#dc2626;--acc5:#7c3aed;--tx1:#1a1d2e;--tx2:#5a6282;--tx3:#9aa0b8;--wc:#1d6fb5;--etp:#b45309;}
@@ -5323,66 +5322,6 @@ function setWlMainFilter(f,btn){
 // ══════════════════════════════════════════════════
 //  납품서 탭
 // ══════════════════════════════════════════════════
-function renderDelivery(){
-  const el=document.getElementById('deliv-list');
-  if(!el) return;
-
-  if(!delivLog||!delivLog.length){
-    el.innerHTML='<div class="empty"><div class="empty-ico">📦</div>납품서 없음<br><span style="font-size:11px;color:var(--tx3)">설정 탭에서 발주서 엑셀을 업로드하면 자동 반영됩니다</span></div>';
-    return;
-  }
-
-  // 날짜 내림차순
-  const sorted=[...delivLog].sort((a,b)=>b.delivDate.localeCompare(a.delivDate));
-  const today=todayStr();
-
-  el.innerHTML=sorted.map((d,idx)=>{
-    const isRecent=idx===0;
-    const dateLabel=fmtDateSafe(d.delivDate);
-    const isToday=d.delivDate===today;
-    const isPast=d.delivDate<today;
-    const totalQty=d.items.reduce((a,i)=>a+i.qty,0);
-    const uploadLabel=d.uploadedAt?new Date(d.uploadedAt).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' 업로드':'';
-
-    // 색상별 소계
-    const wcQ=d.items.filter(i=>i.color==='WC').reduce((a,i)=>a+i.qty,0);
-    const etpQ=d.items.filter(i=>i.color==='ETP').reduce((a,i)=>a+i.qty,0);
-
-    return `<div class="card" style="margin-bottom:10px${isRecent?';border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)':''}">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;cursor:pointer" onclick="toggleDelivDetail('deliv-detail-${idx}',this)">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px">
-            ${isRecent?'<span style="font-size:10px;background:var(--acc);color:#fff;padding:1px 8px;border-radius:10px;font-weight:700">최신</span>':''}
-            ${isToday?'<span style="font-size:10px;background:var(--acc3);color:#fff;padding:1px 8px;border-radius:10px;font-weight:700">오늘</span>':''}
-            ${isPast&&!isToday?'<span style="font-size:10px;color:var(--tx3)">납품완료</span>':''}
-            <span style="font-size:14px;font-weight:700">📦 납품일: ${dateLabel}</span>
-          </div>
-          <div style="font-size:10px;color:var(--tx2);margin-top:3px">
-            총 ${totalQty}장 &nbsp;|&nbsp;
-            <span style="color:var(--wc)">웜코튼 ${wcQ}장</span> &nbsp;
-            <span style="color:var(--etp)">에토프 ${etpQ}장</span>
-            ${uploadLabel?'&nbsp;| '+uploadLabel:''}
-          </div>
-        </div>
-        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">▼</span>
-      </div>
-      <div id="deliv-detail-${idx}" style="${isRecent?'':'display:none'}">
-        <div style="height:1px;background:var(--b1);margin-bottom:8px"></div>
-        ${d.items.sort((a,b)=>b.qty-a.qty).map(it=>{
-          const dot=it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'var(--tx2)';
-          return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--b1)">
-            <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.short||it.code}</div>
-              <div style="font-size:10px;color:var(--tx2)">${it.code} ${it.size?'| 📐 '+it.size:''}</div>
-            </div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>`;
-  }).join('');
-}
 
 function toggleDelivDetail(id, hdr){
   const el=document.getElementById(id);
