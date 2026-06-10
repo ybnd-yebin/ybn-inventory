@@ -484,6 +484,14 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
   <input id="deliv-search" type="text" oninput="delivSearchKey=this.value.trim();renderDelivery()" placeholder="🔍 납품번호 · 참조문서번호 · 오더번호 · 제품 검색" style="width:100%;box-sizing:border-box;padding:10px;font-size:12px;border:1px solid var(--b2);border-radius:8px;background:var(--s2);color:var(--tx1);margin-bottom:12px;font-family:'Noto Sans KR',sans-serif">
 
+  <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,var(--s2),var(--s1))">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:800">📋 일일 작업 브리핑</span>
+      <input type="date" id="brief-date" onchange="renderBrief()" style="margin-left:auto;padding:5px 8px;font-size:12px;border:1px solid var(--b2);border-radius:7px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif">
+    </div>
+    <div id="brief-host"><div style="font-size:11px;color:var(--tx3)">날짜를 선택하면 그날 발주 기준 작업량이 정리됩니다.</div></div>
+  </div>
+
   <!-- 오늘/예정 출고 -->
   <div id="deliv-active"></div>
 
@@ -900,6 +908,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       발주서 엑셀 파일을 올리면 Grace 모델의 <b>조립실 출고</b>가 자동으로 반영됩니다.
     </div>
     <button onclick="openOrderUpload()" style="width:100%;padding:13px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📊 발주서 파일 업로드</button>
+  </div>
+  <div class="card">
+    <div class="card-ttl">🔋 저장 용량</div>
+    <div id="storage-bar-host"><div style="font-size:11px;color:var(--tx3)">계산 중...</div></div>
   </div>
   <div class="card">
     <div class="card-ttl">🔗 구글 시트 연동</div>
@@ -1813,6 +1825,8 @@ function saveAll(){
   if(typeof matStock!=='undefined') localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
   if(typeof matLog!=='undefined') localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
   if(typeof sheetLog!=='undefined') localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
+  // 설정 화면이 열려 있으면 용량 바 갱신
+  if(typeof renderStorageBar==='function' && document.getElementById('storage-bar-host')) renderStorageBar();
 }
 
 // ── TIME ──
@@ -3942,6 +3956,53 @@ function initGsUI(){
   const ac = document.getElementById('actor-current');
   if(ai) ai.value = actor || '';
   if(ac) ac.textContent = actor ? `현재: ${actor}` : '아직 이름이 설정되지 않았습니다';
+  renderStorageBar();
+}
+
+// ── 저장 용량 배터리 바 ──
+function renderStorageBar(){
+  const host=document.getElementById('storage-bar-host');
+  if(!host) return;
+  // localStorage 항목별 바이트 계산 (UTF-16 기준 2바이트/문자)
+  const CAP = 5*1024*1024; // 보수적으로 5MB 기준
+  const labels={ 'ybn-deliv-log':'📦 납품서','ybn-stock':'📊 재고','ybn-stock-events':'📈 재고이력',
+    'ybn-worklog':'📋 작업일지','ybn-todos':'✅ 할일','ybn-order-history':'🧾 발주이력',
+    'ybn-ink':'🖋 잉크','ybn-ledger':'💰 매입매출','ybn-vendors':'🏢 거래처' };
+  let total=0; const parts=[];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      const v=localStorage.getItem(k)||'';
+      const bytes=(k.length+v.length)*2;
+      total+=bytes;
+      parts.push({key:k, bytes, label:labels[k]||('· '+k)});
+    }
+  }catch(e){ host.innerHTML='<div style="font-size:11px;color:var(--acc4)">용량 확인 불가</div>'; return; }
+  parts.sort((a,b)=>b.bytes-a.bytes);
+  const pct=Math.min(100, total/CAP*100);
+  const fmt=b=> b>1048576 ? (b/1048576).toFixed(2)+' MB' : b>1024 ? (b/1024).toFixed(1)+' KB' : b+' B';
+  // 바 색상: 60%↓ 초록, 80%↓ 주황, 그 이상 빨강
+  const barColor = pct<60?'var(--acc3)' : pct<80?'#e3a008' : 'var(--acc4)';
+  const statusMsg = pct<60?'여유 있어요' : pct<80?'절반 넘었어요' : pct<92?'정리를 권장해요' : '⚠ 곧 가득 차요';
+  // 주요 항목만 (상위 6개, 1KB 이상)
+  const rows=parts.filter(p=>p.bytes>1024).slice(0,6).map(p=>{
+    const w=Math.max(2, p.bytes/total*100);
+    return `<div style="display:flex;align-items:center;gap:8px;font-size:11px;margin-top:5px">
+      <span style="flex:1;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.label}</span>
+      <span style="font-family:'JetBrains Mono',monospace;color:var(--tx3);flex-shrink:0">${fmt(p.bytes)}</span>
+    </div>`;
+  }).join('');
+  host.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+      <span style="font-size:22px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${barColor}">${pct.toFixed(1)}<span style="font-size:13px">%</span></span>
+      <span style="font-size:11px;color:var(--tx2)">${fmt(total)} / ${fmt(CAP)} · ${statusMsg}</span>
+    </div>
+    <div style="width:100%;height:18px;background:var(--s2);border:1px solid var(--b2);border-radius:9px;overflow:hidden;position:relative">
+      <div style="width:${pct}%;height:100%;background:${barColor};border-radius:9px 0 0 9px;transition:width .4s ease"></div>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--tx1);mix-blend-mode:difference">${pct>=8?'':''}</div>
+    </div>
+    <div style="margin-top:10px">${rows||'<div style="font-size:11px;color:var(--tx3)">저장된 데이터가 거의 없어요</div>'}</div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.6">브라우저 저장 공간 기준이며, 구글 시트에는 별도로 백업됩니다. 80%를 넘으면 오래된 납품서를 정리하는 걸 권장해요.</div>`;
 }
 function updateGsStatus(state){
   const dot=document.getElementById('gs-dot');
@@ -7746,6 +7807,97 @@ function parseDelivCellsPage(pageItems){
   return out.length?out:null;
 }
 
+// ── 일일 브리핑: 제품 분류 ──
+const BRIEF_RE_73=/M\s(20|25|30|35|40|45|50|55|60)73\(공용\)/; // 재고생산 정규격(당일 생산 안 함)
+function classifyDelivItem(name){
+  const n=name||'';
+  const o={ is73:BRIEF_RE_73.test(n), isBigyu:n.includes('비규격'), isHPM:/Veil/.test(n) };
+  if(/AL도어/.test(n) && /장식|키큰장|벽장/.test(n)) o.cat='유리장식장 AL도어';
+  else if(/^\(?B\/I|BUIF/.test(n)) o.cat='빌트인';
+  else if(/채널도어|글래스\s?도어/.test(n)) o.cat='글래스도어';
+  else if(/Euro700|Grace|Veil/.test(n)) o.cat='Euro700';
+  else if(/Euro500/.test(n)) o.cat='Euro500';
+  else if(/빗각/.test(n)) o.cat='KB 빗각';
+  else o.cat='기타';
+  return o;
+}
+// 발주일(ymd: '2026-06-08') 기준 브리핑 텍스트 생성
+// 브리핑 렌더링 (날짜 input 기준, 기본 오늘)
+function renderBrief(){
+  const host=document.getElementById('brief-host');
+  const dateEl=document.getElementById('brief-date');
+  if(!host||!dateEl) return;
+  if(!dateEl.value) dateEl.value=todayStr();
+  const ymd=dateEl.value;
+  const b=buildDelivBrief(ymd);
+  if(!b){ host.innerHTML='<div style="font-size:11px;color:var(--tx3)">이 날짜에 발주된 납품서가 없어요.</div>'; return; }
+  const esc=b.text.replace(/</g,'&lt;');
+  host.innerHTML=`
+    <div style="display:flex;gap:10px;margin-bottom:8px">
+      <div style="flex:1;text-align:center;padding:8px;background:rgba(248,81,73,.1);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">🔥 오늘 생산</div>
+        <div style="font-size:22px;font-weight:900;color:var(--acc4);font-family:'JetBrains Mono',monospace">${b.qNon73}</div></div>
+      <div style="flex:1;text-align:center;padding:8px;background:rgba(46,160,67,.1);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">📦 재고출고(73)</div>
+        <div style="font-size:22px;font-weight:900;color:var(--acc3);font-family:'JetBrains Mono',monospace">${b.q73}</div></div>
+      ${b.asQty?`<div style="flex:1;text-align:center;padding:8px;background:rgba(255,107,53,.12);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">🔧 AS</div>
+        <div style="font-size:22px;font-weight:900;color:#ff6b35;font-family:'JetBrains Mono',monospace">${b.asQty}</div></div>`:''}
+    </div>
+    <pre style="white-space:pre-wrap;font-family:'Noto Sans KR',monospace;font-size:12px;line-height:1.7;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:12px;margin:0;color:var(--tx1);overflow-x:auto">${esc}</pre>
+    <button onclick="copyBrief()" style="width:100%;margin-top:8px;padding:11px;background:#FEE500;border:none;border-radius:8px;color:#3C1E1E;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💬 카톡용 텍스트 복사</button>
+    <div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">${b.docs}건 납품서 합산 · 73 = M2073~6073 재고생산분</div>`;
+  window._lastBriefText=b.text;
+}
+function copyBrief(){
+  const t=window._lastBriefText||'';
+  if(!t) return;
+  navigator.clipboard.writeText(t).then(()=>showToast('✅ 복사됐어요! 카톡에 붙여넣기 하세요')).catch(()=>{
+    // 폴백
+    const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+    try{document.execCommand('copy'); showToast('✅ 복사됐어요!');}catch(e){showToast('복사 실패 - 길게 눌러 복사하세요');}
+    document.body.removeChild(ta);
+  });
+}
+
+function buildDelivBrief(ymd){
+  const docs=delivLog.filter(d=>(d.orderDate||d.delivReqDate)===ymd);
+  if(!docs.length) return null;
+  let total=0,q73=0,qNon73=0,asQty=0;
+  const byCat={}; // cat → {total,t73,non73,bi,hpm,grace}
+  docs.forEach(d=>{
+    const isAS=(d.refNo||'').startsWith('54');
+    d.items.forEach(it=>{
+      const info=delivLookup(it.code); const c=classifyDelivItem(info.short||'');
+      total+=it.qty;
+      if(isAS){ asQty+=it.qty; return; }
+      if(c.is73) q73+=it.qty; else qNon73+=it.qty;
+      const b=byCat[c.cat]=byCat[c.cat]||{total:0,t73:0,non73:0,bi:0,hpm:0,grace:0};
+      b.total+=it.qty;
+      if(c.is73) b.t73+=it.qty; else b.non73+=it.qty;
+      if(c.isBigyu) b.bi+=it.qty;
+      if(c.cat==='Euro700'){ if(c.isHPM) b.hpm+=it.qty; else b.grace+=it.qty; }
+    });
+  });
+  const dt=new Date(ymd+'T00:00:00');
+  const wd=['일','월','화','수','목','금','토'][dt.getDay()];
+  const md=`${dt.getMonth()+1}/${dt.getDate()}`;
+  let t=`📦 ${md}(${wd}) 발주 브리핑 · 총 ${total}ea\n`;
+  t+=`🔥 오늘 생산 ${qNon73}ea   📦 재고출고(73) ${q73}ea\n`;
+  t+=`━━━━━━━━━━━━━━\n`;
+  Object.entries(byCat).sort((a,b)=>b[1].total-a[1].total).forEach(([k,v])=>{
+    t+=`■ ${k} ${v.total}ea\n`;
+    const sub=[];
+    if(v.non73) sub.push(`생산 ${v.non73}`);
+    if(v.t73) sub.push(`재고 ${v.t73}`);
+    if(k==='Euro700' && (v.hpm||v.grace)) sub.push(`HPM ${v.hpm}/유리 ${v.grace}`);
+    if(v.bi) sub.push(`⚠비규격 ${v.bi}`);
+    if(sub.length) t+=`   └ ${sub.join(' · ')}\n`;
+  });
+  if(asQty){ t+=`━━━━━━━━━━━━━━\n🔧 AS ${asQty}ea\n`; }
+  return {text:t, total, q73, qNon73, asQty, docs:docs.length};
+}
+
 function parseDelivText(text){
   const joined=(text||'').replace(/\s+/g,' ').trim();
   let delivNo='',refNo='',reqDate='',orderDate='',dest='';
@@ -7929,6 +8081,7 @@ function renderDelivery(){
   const archiveEl=document.getElementById('deliv-archive');
   if(!activeEl||!archiveEl) return;
   const today=todayStr();
+  if(typeof renderBrief==='function' && document.getElementById('brief-host')) renderBrief();
 
   let toggleHost=document.getElementById('deliv-view-toggle');
   if(!toggleHost){
