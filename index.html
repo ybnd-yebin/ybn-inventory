@@ -7,6 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script> 
 <style>
 :root{--bg:#f5f6fa;--s1:#ffffff;--s2:#f0f2f7;--s3:#e4e7f0;--b1:#e0e4ee;--b2:#cdd1df;--acc:#2563eb;--acc2:#ea6c00;--acc3:#16a34a;--acc4:#dc2626;--acc5:#7c3aed;--tx1:#1a1d2e;--tx2:#5a6282;--tx3:#9aa0b8;--wc:#1d6fb5;--etp:#b45309;}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -469,14 +471,22 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- DELIVERY -->
 <div class="sec-pg" id="pg-delivery">
   <div class="info-note" style="margin-bottom:12px">
-    📦 발주서 엑셀 업로드 시 납품일 기준으로 자동 정리됩니다.<br>
-    가장 최근 납품일이 맨 위에 펼쳐진 상태로 표시됩니다.
+    📦 납품서 PDF를 올리면 <b>출고일(납품요청일 − 2일)</b> 기준으로 정리됩니다.<br>
+    오늘 출고할 것만 보이고, 출고일이 지난 건은 자동으로 접혀요. 발주 이력은 계속 누적됩니다.
   </div>
-  <button onclick="showMain('settings')" style="width:100%;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">
-    📊 발주서 업로드 (설정 탭)
+  <input type="file" id="deliv-pdf-input" accept="application/pdf" multiple style="display:none" onchange="handleDelivPdf(event)">
+  <button onclick="document.getElementById('deliv-pdf-input').click()" style="width:100%;padding:13px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">
+    📄 납품서 PDF 올리기 (여러 장 가능)
   </button>
-  <div id="deliv-list"></div>
+  <div id="deliv-upload-status" style="font-size:11px;color:var(--tx2);margin-bottom:12px;min-height:14px"></div>
+
+  <!-- 오늘/예정 출고 -->
+  <div id="deliv-active"></div>
+
+  <!-- 지난(밀린·완료) 출고 접이식 -->
+  <div id="deliv-archive"></div>
 </div>
+
 
 <!-- STOCK -->
 <div class="sec-pg" id="pg-stock">
@@ -7640,7 +7650,197 @@ async function autoSyncOnLoad(){
     console.log('자동동기화 실패:', e.message);
   }
 }
-// ── 자동 동기화 주기 (단일 지점 관리) ──
+// ══════════════════════════════════════════════════
+//  납품서 PDF 업로드 → 출고 정리 (출고일 = 납품요청일 - 2일)
+// ══════════════════════════════════════════════════
+const DELIV_PROD_CODE_RE = /^(ME1|MK1|MR[A-Z]?|CAI|FGI|KIT|MAL|MHI|MRO|MRM|MRQ|MRR|MRS|MRT)[A-Z0-9]+$/;
+
+// YYYYMMDD → YYYY-MM-DD
+function _ymd8(s){
+  if(!s||s.length!==8) return '';
+  return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);
+}
+// 날짜에서 n일 빼기 (YYYY-MM-DD 입력/출력)
+function _addDays(dateStr, n){
+  if(!dateStr) return '';
+  const d=new Date(dateStr+'T00:00:00');
+  if(isNaN(d.getTime())) return dateStr;
+  d.setDate(d.getDate()+n);
+  return d.toISOString().slice(0,10);
+}
+
+// PDF에서 추출한 전체 텍스트 → 납품서 객체
+function parseDelivText(text){
+  const joined = (text||'').replace(/\s+/g,' ').trim();
+  let delivNo='', refNo='', reqDate='', delivDate='', dest='';
+  const mNo = joined.match(/납품번호\/묶음번호\s+(\d{6,})/) || joined.match(/\*(\d{6,})\*/);
+  if(mNo) delivNo = mNo[1];
+  const mRef = joined.match(/참조문서번호\s+(\d{6,})/);
+  if(mRef) refNo = mRef[1];
+  const mDate = joined.match(/납품요청\/?납품일\s+(\d{8})\s+(\d{8})/);
+  if(mDate){ reqDate=mDate[1]; delivDate=mDate[2]; }
+  const mDest = joined.match(/구매조직\/?납품처\s+(.+?)(?:표준입차|입고도크|순번|비\s*고|$)/);
+  if(mDest) dest = mDest[1].replace(/유통통합 구매조직/,'').replace(/\s+/g,' ').trim();
+
+  const tokens = joined.split(/\s+/);
+  const items = [];
+  for(let i=0;i<tokens.length;i++){
+    if(DELIV_PROD_CODE_RE.test(tokens[i])){
+      const code = tokens[i];
+      let j=i+1; const seg=[];
+      while(j<tokens.length && !DELIV_PROD_CODE_RE.test(tokens[j])){ seg.push(tokens[j]); j++; }
+      let qty=1, orderNo='';
+      const order = seg.find(t=>/^\d{9}$/.test(t));
+      if(order) orderNo=order;
+      const oi = order ? seg.indexOf(order) : -1;
+      if(oi>0){ for(let k=oi-1;k>=0;k--){ if(/^\d{1,3}$/.test(seg[k])){ qty=parseInt(seg[k])||1; break; } } }
+      const nameEnd = oi>0 ? oi : seg.length;
+      let name = seg.slice(0,nameEnd).filter(t=>!/^\d{9}$/.test(t)).join(' ').replace(/\s+\d{1,3}$/,'').trim();
+      // DB 매칭으로 모델명 보강
+      const m = (typeof findModel==='function') ? findModel(code) : null;
+      const short = m ? m.short : ((typeof CODE_MODEL_MAP!=='undefined' && CODE_MODEL_MAP[code]) ? CODE_MODEL_MAP[code].short : '');
+      const color = m ? m.color : ((typeof CODE_MODEL_MAP!=='undefined' && CODE_MODEL_MAP[code]) ? CODE_MODEL_MAP[code].color : '');
+      const size = (m && m.glass_w) ? m.glass_w+'×'+m.glass_h : '';
+      items.push({code, name, short:short||name, color, size, qty, orderNo});
+      i = j-1;
+    }
+  }
+  return {delivNo, refNo, reqDate, delivDate, dest, items};
+}
+
+async function handleDelivPdf(ev){
+  const files = Array.from(ev.target.files||[]);
+  if(!files.length) return;
+  if(typeof pdfjsLib==='undefined'){ showToast('PDF 라이브러리 로딩 중 - 잠시 후 다시'); return; }
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const statusEl=document.getElementById('deliv-upload-status');
+  statusEl.textContent='⏳ '+files.length+'개 파일 읽는 중...';
+  let added=0, dup=0, fail=0;
+  for(const file of files){
+    try{
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+      let full='';
+      for(let p=1;p<=pdf.numPages;p++){
+        const page=await pdf.getPage(p);
+        const tc=await page.getTextContent();
+        full += tc.items.map(it=>it.str).join(' ')+' ';
+      }
+      const parsed = parseDelivText(full);
+      if(!parsed.delivNo || !parsed.items.length){ fail++; continue; }
+      // 중복: 납품번호 기준
+      if(delivLog.some(d=>d.delivNo===parsed.delivNo)){ dup++; continue; }
+      const reqD = _ymd8(parsed.reqDate);
+      const shipD = _addDays(reqD, -2); // 출고일 = 납품요청일 - 2일
+      delivLog.push({
+        id:'dv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        source:'pdf',
+        delivNo: parsed.delivNo,
+        refNo: parsed.refNo,
+        dest: parsed.dest,
+        delivReqDate: reqD,                 // 납품요청일
+        delivDate: _ymd8(parsed.delivDate), // 발주일(=납품일)
+        shipDate: shipD,                    // 출고일
+        items: parsed.items,
+        uploadedAt: new Date().toISOString(),
+        by: getActor()||''
+      });
+      added++;
+    }catch(e){ console.log('PDF 파싱 실패', file.name, e); fail++; }
+  }
+  if(added){ saveAll(); if(typeof autoSync==='function') autoSync(); }
+  statusEl.innerHTML = `✅ ${added}건 추가${dup?` · 중복 ${dup}건 건너뜀`:''}${fail?` · 실패 ${fail}건`:''}`;
+  ev.target.value='';
+  renderDelivery();
+}
+
+function renderDelivery(){
+  const activeEl=document.getElementById('deliv-active');
+  const archiveEl=document.getElementById('deliv-archive');
+  if(!activeEl||!archiveEl) return;
+
+  const today=todayStr();
+  // PDF 출고용만 (구버전 엑셀 항목은 source가 없으니 archive 쪽으로)
+  const all=[...delivLog];
+  // 출고일 계산 헬퍼 (구버전 항목은 delivDate를 요청일로 간주)
+  const shipOf = d => d.shipDate || _addDays(d.delivReqDate||d.delivDate||'', -2);
+
+  // 오늘 출고 + 예정(출고일 >= 오늘)
+  const activeList = all.filter(d=>{ const s=shipOf(d); return s && s>=today; })
+                        .sort((a,b)=>shipOf(a).localeCompare(shipOf(b)));
+  // 지난 것 (출고일 < 오늘) → 밀림/완료 보관
+  const pastList = all.filter(d=>{ const s=shipOf(d); return !s || s<today; })
+                      .sort((a,b)=>shipOf(b).localeCompare(shipOf(a)));
+
+  function card(d, dim){
+    const ship=shipOf(d);
+    const isToday = ship===today;
+    const isPast = ship && ship<today;
+    const totalQty=d.items.reduce((a,i)=>a+(i.qty||0),0);
+    const reqLabel = d.delivReqDate?fmtDateSafe(d.delivReqDate):'-';
+    const shipLabel = ship?fmtDateSafe(ship):'-';
+    let badge='';
+    if(isToday) badge='<span style="font-size:10px;background:var(--acc4);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">🔴 오늘 출고</span>';
+    else if(isPast) badge='<span style="font-size:10px;background:var(--tx3);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">지난 출고</span>';
+    else badge='<span style="font-size:10px;background:var(--acc);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">예정</span>';
+    const idSafe='dvc-'+d.id;
+    return `<div class="card" style="margin-bottom:10px;${dim?'opacity:.7;':''}${isToday?'border-color:var(--acc4);box-shadow:0 0 0 1px var(--acc4)':''}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer" onclick="toggleDelivDetail('${idSafe}',this)">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">${badge}
+            <span style="font-size:14px;font-weight:700">🚚 출고일: ${shipLabel}</span>
+          </div>
+          <div style="font-size:11px;color:var(--tx2)">납품요청일 ${reqLabel} · 납품번호 ${d.delivNo}${d.dest?' · '+d.dest:''}</div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:2px">총 ${totalQty}장 / ${d.items.length}품목${d.refNo?' · 참조 '+d.refNo:''}</div>
+        </div>
+        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">${dim?'▼':'▲'}</span>
+        <button onclick="event.stopPropagation();deleteDeliv('${d.id}')" class="icon-btn del" style="font-size:13px;flex-shrink:0">🗑</button>
+      </div>
+      <div id="${idSafe}" style="${dim?'display:none':''}">
+        <div style="height:1px;background:var(--b1);margin:8px 0"></div>
+        ${d.items.sort((a,b)=>(b.qty||0)-(a.qty||0)).map(it=>{
+          const dot=it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'var(--tx2)';
+          return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--b1)">
+            <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.short||it.name||it.code}</div>
+              <div style="font-size:10px;color:var(--tx2)">${it.code}${it.size?' | 📐 '+it.size:''}${it.orderNo?' | 오더 '+it.orderNo:''}</div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  // 활성(오늘/예정)
+  if(!activeList.length){
+    activeEl.innerHTML='<div class="empty"><div class="empty-ico">📦</div>오늘 출고할 납품서가 없어요<br><span style="font-size:11px;color:var(--tx3)">PDF를 올리면 출고일 기준으로 여기에 표시됩니다</span></div>';
+  } else {
+    activeEl.innerHTML = activeList.map(d=>card(d,false)).join('');
+  }
+
+  // 지난(밀림·완료) 접이식
+  if(!pastList.length){
+    archiveEl.innerHTML='';
+  } else {
+    const open = window._delivArchiveOpen;
+    const toggle=`<button onclick="window._delivArchiveOpen=!window._delivArchiveOpen;renderDelivery()" style="width:100%;margin-top:6px;padding:10px;background:none;border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;display:flex;justify-content:space-between;align-items:center">
+      <span>🗂 지난 출고 보관함 (${pastList.length}건)</span><span>${open?'▲ 닫기':'▼ 열기'}</span></button>`;
+    archiveEl.innerHTML = toggle + (open ? '<div style="margin-top:8px">'+pastList.map(d=>card(d,true)).join('')+'</div>' : '');
+  }
+}
+
+function deleteDeliv(id){
+  if(!confirm('이 납품서를 목록에서 삭제할까요?')) return;
+  delivLog=delivLog.filter(d=>d.id!==id);
+  saveAll(); renderDelivery();
+  if(typeof autoSync==='function') autoSync();
+  showToast('삭제됨');
+}
+
+  
+  // ── 자동 동기화 주기 (단일 지점 관리) ──
 // 혼자 쓸 땐 5분이면 충분. 작업자가 늘면 이 숫자만 조절하세요.
 // 1분=60000, 3분=180000, 5분=300000, 10분=600000
 const AUTO_SYNC_MS = 300000; // = 5분
