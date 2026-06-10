@@ -470,7 +470,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- DELIVERY -->
 <div class="sec-pg" id="pg-delivery">
   <div class="info-note" style="margin-bottom:12px">
-    📦 납품서 PDF를 올리면 <b>출고일(납품요청일 기준 영업일 2일 전, 주말 제외)</b> 기준으로 정리됩니다.<br>
+    📦 납품서 PDF를 올리면 <b>공장 출고일(납품요청일 + 2영업일, 주말 제외)</b> 기준으로 정리됩니다.<br>
     오늘 출고할 것만 보이고, 출고일이 지난 건은 자동으로 접혀요. 발주 이력은 계속 누적됩니다.
   </div>
   <input type="file" id="deliv-pdf-input" accept="application/pdf" multiple style="display:none" onchange="handleDelivPdf(event)">
@@ -481,6 +481,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <button onclick="clearDelivLog()" style="width:100%;padding:9px;background:none;border:1px solid var(--b2);border-radius:8px;color:#f85149;font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">
     🗑 납품서 자료 전체 초기화
   </button>
+
+  <input id="deliv-search" type="text" oninput="delivSearchKey=this.value.trim();renderDelivery()" placeholder="🔍 납품번호 · 참조문서번호 · 오더번호 · 제품 검색" style="width:100%;box-sizing:border-box;padding:10px;font-size:12px;border:1px solid var(--b2);border-radius:8px;background:var(--s2);color:var(--tx1);margin-bottom:12px;font-family:'Noto Sans KR',sans-serif">
 
   <!-- 오늘/예정 출고 -->
   <div id="deliv-active"></div>
@@ -7629,19 +7631,25 @@ function _addDays(dateStr,n){
   const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
   d.setDate(d.getDate()+n); return d.toISOString().slice(0,10);
 }
-// 주말이면 직전 평일(금요일)로 당김
-function _toBizDay(dateStr){
+// 주말이면 평일로 보정. dir>0이면 다음 평일(월), dir<0이면 직전 평일(금)
+function _toBizDay(dateStr,dir){
   if(!dateStr) return dateStr;
   const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
+  const fwd = dir===undefined ? true : dir>=0;
   const dow=d.getDay();
-  if(dow===6) d.setDate(d.getDate()-1);      // 토 → 금
-  else if(dow===0) d.setDate(d.getDate()-2); // 일 → 금
+  if(fwd){
+    if(dow===6) d.setDate(d.getDate()+2);      // 토 → 월
+    else if(dow===0) d.setDate(d.getDate()+1); // 일 → 월
+  } else {
+    if(dow===6) d.setDate(d.getDate()-1);      // 토 → 금
+    else if(dow===0) d.setDate(d.getDate()-2); // 일 → 금
+  }
   return d.toISOString().slice(0,10);
 }
-// 출고일 계산: shipDate 저장값이 있어도 주말이면 영업일로 보정
+// 공장 출고일 = 납품요청일 + 2영업일(주말 제외). 저장값 있으면 우선, 주말이면 다음 평일로 보정.
 function _shipOf(d){
-  const raw = d.shipDate || _addBizDays(d.delivReqDate,-2);
-  return _toBizDay(raw);
+  const raw = d.shipDate || _addBizDays(d.delivReqDate,2);
+  return _toBizDay(raw,1);
 }
 // 평일(주말 제외) 기준 영업일 가감. n<0이면 과거 방향.
 function _addBizDays(dateStr,n){
@@ -7675,23 +7683,22 @@ function parseDelivText(text){
   const items=[];
   const isCode = t => (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[t]) ||
                       (t.length===9 && DELIV_PROD_CODE_RE.test(t) && /[0-9]/.test(t));
+  // 데이터 행 구조: 순번 / 심플코드 / 제품코드 / 제품명... / 수량 / [오더번호] / [순번] / [지역] / 존 / 렉
+  // 수량 = 제품코드 다음, 제품명 토큰들을 지난 뒤 나오는 "첫 순수 숫자"(1~4자리).
+  //  - 제품명 끝의 _2 등은 '_'가 붙어 순수 숫자가 아니므로 제외됨
+  //  - 9자리(오더번호), 존 코드(D/C01), 렉번호 등과 구분
   for(let i=0;i<tokens.length;i++){
     if(isCode(tokens[i])){
       const code=tokens[i]; let j=i+1; const seg=[];
       while(j<tokens.length && !isCode(tokens[j])){ seg.push(tokens[j]); j++; }
       let qty=1, orderNo='';
-      const order=seg.find(t=>/^\d{9}$/.test(t));
-      if(order){
-        // 오더번호가 있으면: 수량은 오더번호 바로 앞의 가장 가까운 1~4자리 숫자
-        orderNo=order; const oi=seg.indexOf(order);
-        for(let k=oi-1;k>=0;k--){ if(/^\d{1,4}$/.test(seg[k])){ qty=parseInt(seg[k])||1; break; } }
-      } else {
-        // 오더번호 없는 시그니처/빌트인: "...제품명 수량 [오더번호공란] 존(C01) 렉(10)"
-        // 존 코드(C01 등) 앞의 가장 가까운 1~4자리 숫자가 수량
-        let qi=-1;
-        for(let k=seg.length-1;k>=0;k--){ if(/^[A-Z]\d{0,2}$/.test(seg[k])){ qi=k; break; } }
-        if(qi>0){ for(let k=qi-1;k>=0;k--){ if(/^\d{1,4}$/.test(seg[k])){ qty=parseInt(seg[k])||1; break; } } }
-        else { for(let k=seg.length-1;k>=0;k--){ if(/^\d{1,4}$/.test(seg[k])){ qty=parseInt(seg[k])||1; break; } } }
+      // seg에서 첫 순수 숫자(1~4자리) = 수량
+      const qIdx = seg.findIndex(t=>/^\d{1,4}$/.test(t));
+      if(qIdx>=0){
+        qty=parseInt(seg[qIdx])||1;
+        // 수량 이후 토큰 중 9자리 숫자가 있으면 오더번호
+        const order=seg.slice(qIdx+1).find(t=>/^\d{9}$/.test(t));
+        if(order) orderNo=order;
       }
       const info=delivLookup(code);
       items.push({code, short:info.short||code, color:info.color, size:info.size, gubun:info.gubun, qty, orderNo});
@@ -7724,7 +7731,7 @@ async function handleDelivPdf(ev){
       if(delivLog.some(d=>d.delivNo===parsed.delivNo)){ dup++; continue; }
       const reqD=_ymd8(parsed.reqDate);
       const orderD=_ymd8(parsed.orderDate);
-      const shipD=_addBizDays(reqD,-2);
+      const shipD=_addBizDays(reqD,2);
       delivLog.push({
         id:'dv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
         source:'pdf', delivNo:parsed.delivNo, refNo:parsed.refNo, dest:parsed.dest,
@@ -7751,7 +7758,7 @@ function delivDeductStock(d){
       const color=it.color||m.color||'WC';
       const s=getSzStock(m.glass_w,m.glass_h,color);
       setSzStock(m.glass_w,m.glass_h,color,s.raw,s.printed-it.qty,{allowNeg:true});
-      const atIso=`${d.shipDate||todayStr()}T05:00:00.000Z`;
+      const atIso=`${_shipOf(d)||todayStr()}T05:00:00.000Z`;
       if(typeof addStockEvent==='function')
         addStockEvent(`${m.glass_w}x${m.glass_h}_${color}`,{at:atIso,type:'out',qty:it.qty,note:`출고 ${d.delivNo}${d.dest?' ('+d.dest+')':''}`,source:'deliv'});
       ok++;
@@ -7778,7 +7785,8 @@ function delivUndoDeduct(d){
   showToast('차감 취소됨');
 }
 
-let delivViewMode='ship'; // 'ship'=출고일 기준, 'req'=한샘 납품요청일 기준
+let delivViewMode='ship'; // 'ship'=출고일, 'req'=납품요청일, 'order'=발주일(납품일)
+let delivSearchKey='';    // 납품번호/참조문서번호/오더번호/제품 검색어
 function setDelivView(mode,btn){
   delivViewMode=mode;
   if(btn&&btn.parentElement) btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));
@@ -7811,12 +7819,34 @@ function renderDelivery(){
   }
   toggleHost.innerHTML=
     `<button class="f-btn ${delivViewMode==='ship'?'on':''}" onclick="setDelivView('ship',this)">🚚 출고일 기준</button>`+
-    `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`;
+    `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`+
+    `<button class="f-btn ${delivViewMode==='order'?'on':''}" onclick="setDelivView('order',this)">🧾 발주일(납품일) 기준</button>`;
 
-  const keyOf = d => delivViewMode==='ship' ? _shipOf(d) : d.delivReqDate;
-  const all=[...delivLog];
-  const activeList=all.filter(d=>{const k=keyOf(d);return k&&k>=today;}).sort((a,b)=>keyOf(a).localeCompare(keyOf(b)));
-  const pastList =all.filter(d=>{const k=keyOf(d);return !k||k<today;}).sort((a,b)=>keyOf(b).localeCompare(keyOf(a)));
+  const keyOf = d => delivViewMode==='ship' ? _shipOf(d)
+                  : delivViewMode==='order' ? (d.orderDate||d.delivReqDate)
+                  : d.delivReqDate;
+  let all=[...delivLog];
+  if(delivSearchKey){
+    const q=delivSearchKey.toLowerCase();
+    all=all.filter(d=>{
+      if((d.delivNo||'').toLowerCase().includes(q)) return true;
+      if((d.refNo||'').toLowerCase().includes(q)) return true;
+      if((d.dest||'').toLowerCase().includes(q)) return true;
+      return (d.items||[]).some(it=>
+        (it.orderNo||'').toLowerCase().includes(q) ||
+        (it.code||'').toLowerCase().includes(q) ||
+        (it.short||'').toLowerCase().includes(q));
+    });
+  }
+  let activeList, pastList;
+  if(delivSearchKey){
+    // 검색 모드: 날짜 무관 전체를 최신순으로 한 목록에
+    activeList=all.slice().sort((a,b)=>(keyOf(b)||'').localeCompare(keyOf(a)||''));
+    pastList=[];
+  } else {
+    activeList=all.filter(d=>{const k=keyOf(d);return k&&k>=today;}).sort((a,b)=>keyOf(a).localeCompare(keyOf(b)));
+    pastList =all.filter(d=>{const k=keyOf(d);return !k||k<today;}).sort((a,b)=>keyOf(b).localeCompare(keyOf(a)));
+  }
 
   const todayShips=all.filter(d=>_shipOf(d)===today);
   let todayQty=0,todayItems=0;
@@ -7846,24 +7876,44 @@ function renderDelivery(){
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">${badge}${d.deducted?'<span style="font-size:10px;background:rgba(46,160,67,.15);color:var(--acc3);padding:2px 8px;border-radius:8px;font-weight:700">✓ 차감됨</span>':''}
             <span style="font-size:14px;font-weight:800">🚚 출고 ${ship?fmtDateSafe(ship):'-'}</span></div>
-          <div style="font-size:11px;color:var(--tx2);display:flex;gap:6px;flex-wrap:wrap;align-items:center">${destBadge}<span>한샘납품 ${d.delivReqDate?fmtDateSafe(d.delivReqDate):'-'}</span><span>· No.${d.delivNo}</span></div>
+          <div style="font-size:11px;color:var(--tx2);display:flex;gap:6px;flex-wrap:wrap;align-items:center">${destBadge}<span>한샘납품 ${d.delivReqDate?fmtDateSafe(d.delivReqDate):'-'}</span>${d.orderDate?`<span>· 발주 ${fmtDateSafe(d.orderDate)}</span>`:''}<span>· No.${d.delivNo}</span>${d.refNo?`<span>· 참조 ${d.refNo}</span>`:''}</div>
           <div style="font-size:10px;color:var(--tx3);margin-top:2px">총 ${totalQty}장 / ${d.items.length}품목</div>
         </div>
         <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">${dim?'▼':'▲'}</span>
       </div>
       <div id="${idSafe}" style="${dim?'display:none':''}">
         <div style="height:1px;background:var(--b1);margin:8px 0"></div>
-        ${d.items.slice().sort((a,b)=>(b.qty||0)-(a.qty||0)).map(it=>{
-          const dot=it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'var(--tx2)';
-          return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--b1)">
-            <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.short||it.code}</div>
-              <div style="font-size:10px;color:var(--tx2)">${it.code}${it.size?' | 📐 '+it.size:''}${it.gubun?' | '+it.gubun:''}${it.orderNo?' | 오더 '+it.orderNo:''}</div>
-            </div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
-          </div>`;
-        }).join('')}
+        ${(()=>{
+          // 제품명(코드) 기준 그룹핑 → 작업자용 합계, 오더별 내역은 펼치기
+          const groups={};
+          d.items.forEach(it=>{
+            const key=it.code;
+            if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:it.size,gubun:it.gubun,qty:0,orders:[]};
+            groups[key].qty+=(it.qty||0);
+            groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
+          });
+          return Object.values(groups).sort((a,b)=>b.qty-a.qty).map(g=>{
+            const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
+            const hasOrders=g.orders.some(o=>o.orderNo);
+            const multiline=g.orders.length>1||hasOrders;
+            const gid=idSafe+'-g-'+g.code;
+            const orderRows=g.orders.map(o=>
+              `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);padding:2px 0 2px 18px">
+                <span>${o.orderNo?'오더 '+o.orderNo:'(오더번호 없음)'}</span><span>${o.qty}장</span></div>`).join('');
+            return `<div style="border-bottom:1px solid var(--b1)">
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();var e=document.getElementById('${gid}');var a=this.querySelector('.grp-arrow');if(e){var open=e.style.display==='none';e.style.display=open?'block':'none';if(a)a.textContent=open?'▴':'▾';}"`:''}>
+                <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.short||g.code}</div>
+                  <div style="font-size:10px;color:var(--tx2)">${g.code}${g.size?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
+                </div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+                ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">▾</span>`:''}
+              </div>
+              ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
+            </div>`;
+          }).join('');
+        })()}
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:10px">${dedBtn}
           <button onclick="event.stopPropagation();deleteDeliv('${d.id}')" style="padding:5px 10px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:7px;color:var(--acc4);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑 삭제</button></div>
       </div>
@@ -7872,7 +7922,7 @@ function renderDelivery(){
 
   activeEl.innerHTML=summaryHtml+(activeList.length
     ? activeList.map(d=>card(d,false)).join('')
-    : '<div class="empty"><div class="empty-ico">📦</div>예정된 출고가 없어요<br><span style="font-size:11px;color:var(--tx3)">PDF를 올리면 출고일(D-2) 기준으로 정리됩니다</span></div>');
+    : '<div class="empty"><div class="empty-ico">📦</div>'+(delivSearchKey?'검색 결과가 없어요':'예정된 출고가 없어요<br><span style="font-size:11px;color:var(--tx3)">PDF를 올리면 출고일(납품요청일+2영업일) 기준으로 정리됩니다</span>')+'</div>');
 
   if(!pastList.length){ archiveEl.innerHTML=''; }
   else{
