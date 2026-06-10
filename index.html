@@ -7664,6 +7664,88 @@ function _addBizDays(dateStr,n){
   return d.toISOString().slice(0,10);
 }
 
+// ── 칸(좌표) 기반 파서 (메인) ──────────────────────────────
+// pdf.js 글자 아이템들의 x/y 좌표로 표의 칸을 직접 나눠 읽는다.
+// 수량은 "수량" 헤더 칸의 x범위 안에 있는 숫자만 읽으므로 제품명 속 숫자에 영향받지 않는다.
+// items: [{str, x, y, w}] (y는 위에서 아래로 증가하도록 정규화된 좌표)
+function _clusterRows(items, tol){
+  const sorted=items.slice().sort((a,b)=>a.y-b.y);
+  const rows=[];
+  for(const it of sorted){
+    if(rows.length && Math.abs(it.y-rows[rows.length-1].anchor)<tol) rows[rows.length-1].items.push(it);
+    else rows.push({anchor:it.y, items:[it]});
+  }
+  return rows;
+}
+function _extractCode(full){
+  // 카탈로그에 있는 코드 우선 매칭
+  const cat = (typeof HANSAEM_CATALOG!=='undefined') ? HANSAEM_CATALOG : {};
+  const re=/[A-Z0-9]{8,11}/g; let m;
+  while((m=re.exec(full))){
+    const s=m[0];
+    for(const L of [9,10,8]){
+      for(let st=0; st<=s.length-L; st++){
+        const cand=s.slice(st,st+L);
+        if(cat[cand]) return cand;
+      }
+    }
+  }
+  // 카탈로그 미스: 영문시작 9자 패턴
+  const m2=full.match(/[A-Z]{2,4}[A-Z0-9]{5,7}/);
+  if(m2){ const c=m2[0]; return c.length>9?c.slice(0,9):c; }
+  return null;
+}
+// pageItems: 한 페이지의 [{str,x,y,w}] 배열. 반환: {items:[{code,qty,orderNo}]}
+function parseDelivCellsPage(pageItems){
+  const tol=5;
+  let qcx=null, ocx=null, hy=null;
+  // 헤더 행: '수량' 포함 + (오더번호|제품코드)
+  for(const r of _clusterRows(pageItems,tol)){
+    const seq=r.items.slice().sort((a,b)=>a.x-b.x);
+    const line=seq.map(c=>c.str).join('');
+    const p=line.indexOf('수량');
+    if(p>=0 && (line.indexOf('오더번호')>=0 || line.indexOf('제품코드')>=0)){
+      // '수량' 두 글자의 x중심
+      let acc='', startX=null, endX=null;
+      for(const c of seq){
+        const before=acc.length; acc+=c.str;
+        if(startX===null && before<=p && acc.length>p) startX=c.x;
+        if(acc.length>=p+2 && endX===null) endX=c.x+(c.w||0);
+        if(startX!==null && endX!==null) break;
+      }
+      if(startX!==null && endX!==null) qcx=(startX+endX)/2;
+      // 오더번호 중심
+      const po=line.indexOf('오더번호');
+      if(po>=0){
+        let a2='', sX=null, eX=null;
+        for(const c of seq){ const b=a2.length; a2+=c.str;
+          if(sX===null && b<=po && a2.length>po) sX=c.x;
+          if(a2.length>=po+4 && eX===null) eX=c.x+(c.w||0);
+          if(sX!==null && eX!==null) break; }
+        if(sX!==null && eX!==null) ocx=(sX+eX)/2;
+      }
+      hy=Math.max(...r.items.map(c=>c.y));
+      break;
+    }
+  }
+  if(qcx===null) return null; // 헤더 못 찾음 → 폴백
+  const qx0=qcx-20, qx1=qcx+20;
+  const ox0=ocx!==null?ocx-22:qx1, ox1=ocx!==null?ocx+22:qx1+45;
+  const data=pageItems.filter(c=>c.y>hy+4);
+  const out=[];
+  for(const r of _clusterRows(data,tol)){
+    const seq=r.items.slice().sort((a,b)=>a.x-b.x);
+    const full=seq.map(c=>c.str).join('');
+    const code=_extractCode(full);
+    if(!code) continue;
+    const qcell=seq.filter(c=>{const m=c.x+(c.w||0)/2; return m>=qx0&&m<=qx1&&c.str.trim();}).map(c=>c.str).join('');
+    const ocell=seq.filter(c=>{const m=c.x+(c.w||0)/2; return m>=ox0&&m<=ox1&&c.str.trim();}).map(c=>c.str).join('');
+    const qm=qcell.match(/\d+/); const om=ocell.match(/\d{9}/);
+    out.push({code, qty:qm?parseInt(qm[0]):1, orderNo:om?om[0]:''});
+  }
+  return out.length?out:null;
+}
+
 function parseDelivText(text){
   const joined=(text||'').replace(/\s+/g,' ').trim();
   let delivNo='',refNo='',reqDate='',orderDate='',dest='';
@@ -7671,8 +7753,9 @@ function parseDelivText(text){
   if(mNo) delivNo=mNo[1];
   const mRef=joined.match(/참조문서번호\s+(\d{6,})/);
   if(mRef) refNo=mRef[1];
-  // 날짜: "와이비앤디 YYYYMMDD YYYYMMDD" (앞=납품요청일, 뒤=발주/납품일)
-  let mDate=joined.match(/와이비앤디\s+(\d{8})\s+(\d{8})/);
+  // 날짜: "납품요청/납품일 YYYYMMDD YYYYMMDD" (앞=납품요청일, 뒤=발주/납품일)
+  let mDate=joined.match(/납품요청\/?납품일\s+(\d{8})\s+(\d{8})/);
+  if(!mDate) mDate=joined.match(/와이비앤디\s+(\d{8})\s+(\d{8})/);
   if(!mDate) mDate=joined.match(/(\d{8})\s+(\d{8})\s+유통통합/);
   if(mDate){ reqDate=mDate[1]; orderDate=mDate[2]; }
   // 납품처 (설치센터_…/배송센터_…)
@@ -7683,22 +7766,25 @@ function parseDelivText(text){
   const items=[];
   const isCode = t => (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[t]) ||
                       (t.length===9 && DELIV_PROD_CODE_RE.test(t) && /[0-9]/.test(t));
-  // 데이터 행 구조: 순번 / 심플코드 / 제품코드 / 제품명... / 수량 / [오더번호] / [순번] / [지역] / 존 / 렉
-  // 수량 = 제품코드 다음, 제품명 토큰들을 지난 뒤 나오는 "첫 순수 숫자"(1~4자리).
-  //  - 제품명 끝의 _2 등은 '_'가 붙어 순수 숫자가 아니므로 제외됨
-  //  - 9자리(오더번호), 존 코드(D/C01), 렉번호 등과 구분
+  // 데이터 행 구조 (2가지 양식):
+  //  A) 오더번호 있음: 제품코드 / 제품명... / 수량 / 오더번호(9자리) / 순번 / 지역 ...
+  //     → 수량 = 오더번호 바로 앞의 1~4자리 순수 숫자 (제품명 끝 사이즈 9091 등과 구분됨)
+  //  B) 오더번호 없음: 제품코드 / 제품명... / 수량 / 존(D/C01) / 렉
+  //     → 수량 = 제품명 토큰을 지난 첫 순수 숫자 (제품명 끝 _2 등은 '_'로 제외)
   for(let i=0;i<tokens.length;i++){
     if(isCode(tokens[i])){
       const code=tokens[i]; let j=i+1; const seg=[];
       while(j<tokens.length && !isCode(tokens[j])){ seg.push(tokens[j]); j++; }
       let qty=1, orderNo='';
-      // seg에서 첫 순수 숫자(1~4자리) = 수량
-      const qIdx = seg.findIndex(t=>/^\d{1,4}$/.test(t));
-      if(qIdx>=0){
-        qty=parseInt(seg[qIdx])||1;
-        // 수량 이후 토큰 중 9자리 숫자가 있으면 오더번호
-        const order=seg.slice(qIdx+1).find(t=>/^\d{9}$/.test(t));
-        if(order) orderNo=order;
+      const oIdx = seg.findIndex(t=>/^\d{9}$/.test(t));
+      if(oIdx>=0){
+        // 양식 A: 오더번호 앞에서 가장 가까운 1~4자리 순수 숫자가 수량
+        orderNo=seg[oIdx];
+        for(let k=oIdx-1;k>=0;k--){ if(/^\d{1,4}$/.test(seg[k])){ qty=parseInt(seg[k])||1; break; } }
+      } else {
+        // 양식 B: 제품명 뒤 첫 순수 숫자가 수량
+        const qIdx=seg.findIndex(t=>/^\d{1,4}$/.test(t));
+        if(qIdx>=0) qty=parseInt(seg[qIdx])||1;
       }
       const info=delivLookup(code);
       items.push({code, short:info.short||code, color:info.color, size:info.size, gubun:info.gubun, qty, orderNo});
@@ -7708,6 +7794,12 @@ function parseDelivText(text){
   return {delivNo, refNo, reqDate, orderDate, dest, items};
 }
 
+// "납 품 서 (집계)" 형식인지 판별. 라벨/출고명세 등 다른 양식은 제외.
+function isAggregateDeliv(fullText){
+  const t=(fullText||'').replace(/\s+/g,'');
+  return t.includes('납품번호') && t.includes('묶음번호') && t.includes('수량') && t.includes('오더번호');
+}
+
 async function handleDelivPdf(ev){
   const files=Array.from(ev.target.files||[]);
   if(!files.length) return;
@@ -7715,19 +7807,45 @@ async function handleDelivPdf(ev){
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const statusEl=document.getElementById('deliv-upload-status');
   statusEl.textContent='⏳ '+files.length+'개 파일 읽는 중...';
-  let added=0,dup=0,fail=0;
+  let added=0,dup=0,fail=0,skipped=0;
   for(const file of files){
     try{
       const buf=await file.arrayBuffer();
       const pdf=await pdfjsLib.getDocument({data:buf}).promise;
       let full='';
+      let cellItems=[]; // 칸 파싱용: 페이지별 글자 좌표
+      let cellOk=true;
       for(let p=1;p<=pdf.numPages;p++){
         const page=await pdf.getPage(p);
         const tc=await page.getTextContent();
         full+=tc.items.map(it=>it.str).join(' ')+' ';
+        // pdf.js 좌표: transform[4]=x, transform[5]=y(아래가 0). y를 위→아래로 뒤집어 정규화
+        const vp=page.getViewport({scale:1});
+        const pageGlyphs=tc.items.map(it=>({
+          str:it.str,
+          x:it.transform[4],
+          y:vp.height - it.transform[5], // 위에서 아래로 증가
+          w:it.width||0
+        }));
+        const pageItems=parseDelivCellsPage(pageGlyphs);
+        if(pageItems) cellItems=cellItems.concat(pageItems);
+        else cellOk=false; // 한 페이지라도 헤더 못 찾으면 폴백 신호
       }
+      // 헤더 정보(납품번호/날짜/납품처/참조)는 텍스트 파서로
       const parsed=parseDelivText(full);
-      if(!parsed.delivNo || !parsed.items.length){ fail++; continue; }
+      // "납품서(집계)" 형식이 아니면(라벨/출고명세 등) 건너뜀
+      if(!isAggregateDeliv(full)){ skipped++; continue; }
+      // 품목: 칸 파싱 성공하면 우선, 아니면 텍스트 파서 결과 사용
+      let finalItems;
+      if(cellOk && cellItems.length){
+        finalItems=cellItems.map(it=>{
+          const info=delivLookup(it.code);
+          return {code:it.code, short:info.short||it.code, color:info.color, size:info.size, gubun:info.gubun, qty:it.qty, orderNo:it.orderNo};
+        });
+      } else {
+        finalItems=parsed.items;
+      }
+      if(!parsed.delivNo || !finalItems.length){ fail++; continue; }
       if(delivLog.some(d=>d.delivNo===parsed.delivNo)){ dup++; continue; }
       const reqD=_ymd8(parsed.reqDate);
       const orderD=_ymd8(parsed.orderDate);
@@ -7736,13 +7854,14 @@ async function handleDelivPdf(ev){
         id:'dv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
         source:'pdf', delivNo:parsed.delivNo, refNo:parsed.refNo, dest:parsed.dest,
         delivReqDate:reqD, orderDate:orderD, shipDate:shipD, deducted:false,
-        items:parsed.items, uploadedAt:new Date().toISOString(), by:getActor()||''
+        items:finalItems, uploadedAt:new Date().toISOString(), by:getActor()||'',
+        parseMode: (cellOk && cellItems.length)?'cell':'text'
       });
       added++;
     }catch(e){ console.log('PDF 파싱 실패',file.name,e); fail++; }
   }
   if(added){ saveAll(); if(typeof autoSync==='function') autoSync(); }
-  statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건 건너뜀`:''}${fail?` · 실패 ${fail}건`:''}`;
+  statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${fail?` · 실패 ${fail}건`:''}`;
   ev.target.value='';
   renderDelivery();
 }
