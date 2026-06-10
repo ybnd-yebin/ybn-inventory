@@ -470,7 +470,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- DELIVERY -->
 <div class="sec-pg" id="pg-delivery">
   <div class="info-note" style="margin-bottom:12px">
-    📦 납품서 PDF를 올리면 <b>출고일(납품요청일 − 2일)</b> 기준으로 정리됩니다.<br>
+    📦 납품서 PDF를 올리면 <b>출고일(납품요청일 기준 영업일 2일 전, 주말 제외)</b> 기준으로 정리됩니다.<br>
     오늘 출고할 것만 보이고, 출고일이 지난 건은 자동으로 접혀요. 발주 이력은 계속 누적됩니다.
   </div>
   <input type="file" id="deliv-pdf-input" accept="application/pdf" multiple style="display:none" onchange="handleDelivPdf(event)">
@@ -7626,6 +7626,18 @@ function _addDays(dateStr,n){
   const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
   d.setDate(d.getDate()+n); return d.toISOString().slice(0,10);
 }
+// 평일(주말 제외) 기준 영업일 가감. n<0이면 과거 방향.
+function _addBizDays(dateStr,n){
+  if(!dateStr) return '';
+  const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
+  const step=n<0?-1:1; let remain=Math.abs(n);
+  while(remain>0){
+    d.setDate(d.getDate()+step);
+    const dow=d.getDay(); // 0=일, 6=토
+    if(dow!==0 && dow!==6) remain--;
+  }
+  return d.toISOString().slice(0,10);
+}
 
 function parseDelivText(text){
   const joined=(text||'').replace(/\s+/g,' ').trim();
@@ -7693,7 +7705,7 @@ async function handleDelivPdf(ev){
       if(delivLog.some(d=>d.delivNo===parsed.delivNo)){ dup++; continue; }
       const reqD=_ymd8(parsed.reqDate);
       const orderD=_ymd8(parsed.orderDate);
-      const shipD=_addDays(reqD,-2);
+      const shipD=_addBizDays(reqD,-2);
       delivLog.push({
         id:'dv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
         source:'pdf', delivNo:parsed.delivNo, refNo:parsed.refNo, dest:parsed.dest,
@@ -7771,12 +7783,12 @@ function renderDelivery(){
     `<button class="f-btn ${delivViewMode==='ship'?'on':''}" onclick="setDelivView('ship',this)">🚚 출고일 기준</button>`+
     `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`;
 
-  const keyOf = d => delivViewMode==='ship' ? (d.shipDate||_addDays(d.delivReqDate,-2)) : d.delivReqDate;
+  const keyOf = d => delivViewMode==='ship' ? (d.shipDate||_addBizDays(d.delivReqDate,-2)) : d.delivReqDate;
   const all=[...delivLog];
   const activeList=all.filter(d=>{const k=keyOf(d);return k&&k>=today;}).sort((a,b)=>keyOf(a).localeCompare(keyOf(b)));
   const pastList =all.filter(d=>{const k=keyOf(d);return !k||k<today;}).sort((a,b)=>keyOf(b).localeCompare(keyOf(a)));
 
-  const todayShips=all.filter(d=>(d.shipDate||_addDays(d.delivReqDate,-2))===today);
+  const todayShips=all.filter(d=>(d.shipDate||_addBizDays(d.delivReqDate,-2))===today);
   let todayQty=0,todayItems=0;
   todayShips.forEach(d=>d.items.forEach(it=>{todayQty+=it.qty;todayItems++;}));
   let summaryHtml='';
@@ -7788,7 +7800,7 @@ function renderDelivery(){
   }
 
   function card(d,dim){
-    const ship=d.shipDate||_addDays(d.delivReqDate,-2);
+    const ship=d.shipDate||_addBizDays(d.delivReqDate,-2);
     const isTodayShip=ship===today, isPast=keyOf(d)<today;
     const totalQty=d.items.reduce((a,i)=>a+(i.qty||0),0);
     let badge=isTodayShip?'<span style="font-size:10px;background:var(--acc4);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">🔴 오늘 출고</span>'
