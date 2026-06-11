@@ -4322,6 +4322,20 @@ async function syncToSheet(){
   finally{ _syncBusy = false; }
 }
 
+// 시트→앱 받은 뒤, 현재 보고 있는 탭과 주요 화면을 모두 다시 그림
+function rerenderAfterSync(){
+  try{ renderHome(); }catch(e){}
+  try{ if(curMain==='stock'){ renderSub(curSub); } }catch(e){}
+  try{ if(curMain==='todo') renderTodo(); }catch(e){}
+  try{ if(curMain==='board'){ renderNotices(); renderSchedules(); } }catch(e){}
+  try{ if(curMain==='mat') renderMat(); }catch(e){}
+  try{ if(typeof renderDelivery==='function') renderDelivery(); }catch(e){}
+  try{ if(typeof renderLedger==='function') renderLedger(); }catch(e){}
+  try{ if(typeof renderVendors==='function') renderVendors(); }catch(e){}
+  try{ if(typeof renderOrderHistory==='function') renderOrderHistory(); }catch(e){}
+  try{ if(typeof renderStorageBar==='function') renderStorageBar(); }catch(e){}
+}
+
 async function syncFromSheet(){
   if(!gsUrl){showToast('URL 설정 필요');return;}
   if(_syncBusy){showToast('동기화 진행 중...');return;}
@@ -4360,7 +4374,16 @@ async function syncFromSheet(){
     window._skipLocalChange = true;
     saveAll();
     window._skipLocalChange = false;
-    updateGsStatus('ok');updateGsSyncTime();renderHome();showToast('✅ 불러오기 완료');
+    updateGsStatus('ok');updateGsSyncTime();
+    // 받은 데이터로 현재 보고 있는 화면 전체 갱신 (renderHome만으로는 다른 탭이 안 바뀜)
+    rerenderAfterSync();
+    // 받은 주요 데이터 건수 안내 (빈 시트 받았는지 진단)
+    const cnt = (Object.keys(stock||{}).length) + (workLog||[]).length + (delivLog||[]).length;
+    if(cnt===0){
+      showToast('⚠️ 시트에서 받았지만 데이터가 비어 있어요. 시트에 데이터가 있는지 확인하세요');
+    } else {
+      showToast(`✅ 불러오기 완료 (재고 ${Object.keys(stock||{}).length} · 작업 ${(workLog||[]).length} · 납품 ${(delivLog||[]).length})`);
+    }
   }catch(e){updateGsStatus('error');showToast('❌ 실패: '+e.message);}
   finally{ _syncBusy = false; }
 }
