@@ -8160,8 +8160,9 @@ function renderDelivery(){
     activeList=all.slice().sort((a,b)=>(keyOf(b)||'').localeCompare(keyOf(a)||''));
     pastList=[];
   } else {
-    activeList=all.filter(d=>{const k=keyOf(d);return k&&k>=today;}).sort((a,b)=>keyOf(a).localeCompare(keyOf(b)));
-    pastList =all.filter(d=>{const k=keyOf(d);return !k||k<today;}).sort((a,b)=>keyOf(b).localeCompare(keyOf(a)));
+    // 예정/지난 판정은 항상 '출고일' 기준 (발주일은 항상 과거이므로 분류 기준으로 부적합)
+    activeList=all.filter(d=>{const s=_shipOf(d);return s&&s>=today;}).sort((a,b)=>(keyOf(a)||'').localeCompare(keyOf(b)||''));
+    pastList =all.filter(d=>{const s=_shipOf(d);return !s||s<today;}).sort((a,b)=>(keyOf(b)||'').localeCompare(keyOf(a)||''));
   }
 
   // 오늘 기준 요약: 보기 모드의 키가 오늘인 납품서들의 총수량
@@ -8181,7 +8182,7 @@ function renderDelivery(){
 
   function card(d,dim){
     const ship=_shipOf(d);
-    const isTodayShip=ship===today, isPast=keyOf(d)<today;
+    const isTodayShip=ship===today, isPast=!!ship&&ship<today;
     const totalQty=d.items.reduce((a,i)=>a+(i.qty||0),0);
     const isAS=(d.refNo||'').startsWith('54'); // 참조문서번호 54로 시작 = AS
     let badge=isTodayShip?'<span style="font-size:10px;background:var(--acc4);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">🔴 오늘 출고</span>'
