@@ -1564,7 +1564,9 @@ let inkRates=J(localStorage.getItem(LS.inkRate))||{WC:1.5,ETP:1.5};
 let notices=J(localStorage.getItem(LS.notices))||INITIAL_NOTICES;
 let schedules=J(localStorage.getItem(LS.schedules))||[];
 let todos=J(localStorage.getItem(LS.todos))||INITIAL_TODOS;
-let gsUrl=localStorage.getItem(LS.gsUrl)||'';
+// 기본 시트 연동 주소 (새 기기/새 브라우저도 설정 없이 자동 연결)
+const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycby2fhWdU5Uc39vMDObAqd7w5uuTcz8y2C5suH3FYxVaP--0UCtOGoGEUTry-hGdj89Y/exec';
+let gsUrl=localStorage.getItem(LS.gsUrl)||DEFAULT_GS_URL;
 let actor=localStorage.getItem(LS.actor)||'';
 let delivLog=J(localStorage.getItem(LS.delivLog))||[];
 let ledgerLog=J(localStorage.getItem('ybn-ledger-v1'))||[];
@@ -4187,6 +4189,90 @@ function updateGsSyncTime(){
   const el=document.getElementById('gs-sync-time');
   if(el&&meta.lastGsSync){const d=new Date(meta.lastGsSync);el.textContent=d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}
 }
+// ══════════════════════════════════════════════════
+//  ░░ 받기 병합 헬퍼 ░░
+//  시트에서 받은 데이터로 덮어쓰지 않고, 로컬과 합친다.
+//  → 받기 전 이 기기에만 있던 변경분이 사라지지 않음.
+//  규칙: 같은 id면 더 최근 것, 다른 id면 둘 다 유지.
+// ══════════════════════════════════════════════════
+function _mTs(o){
+  if(!o) return 0;
+  const t=o.updatedAt||o.byAt||o.deletedAt||o.createdAt||o.at||o.uploadedAt||'';
+  const n=new Date(t).getTime();
+  return isNaN(n)?0:n;
+}
+function mergeById(localArr, remoteArr, idKey){
+  idKey=idKey||'id';
+  localArr=Array.isArray(localArr)?localArr:[];
+  remoteArr=Array.isArray(remoteArr)?remoteArr:[];
+  const map=new Map(), order=[], noId=[];
+  function take(it){
+    const id=it&&it[idKey];
+    if(id==null||id===''){ noId.push(it); return; }
+    if(!map.has(id)){ order.push(id); map.set(id,it); }
+    else { const c=map.get(id); map.set(id, _mTs(it)>=_mTs(c)?it:c); }
+  }
+  localArr.forEach(take); remoteArr.forEach(take);
+  return order.map(id=>map.get(id)).concat(noId);
+}
+function mergeStockEventsLocal(localObj, remoteObj){
+  localObj=(localObj&&typeof localObj==='object')?localObj:{};
+  remoteObj=(remoteObj&&typeof remoteObj==='object')?remoteObj:{};
+  const out={}, keys=new Set([...Object.keys(localObj),...Object.keys(remoteObj)]);
+  keys.forEach(k=>{
+    out[k]=mergeById(localObj[k], remoteObj[k], 'id');
+    out[k].sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
+  });
+  return out;
+}
+function mergeWorkLogLocal(localArr, remoteArr){
+  localArr=Array.isArray(localArr)?localArr:[];
+  remoteArr=Array.isArray(remoteArr)?remoteArr:[];
+  const byDate={}, order=[];
+  function addDay(day){
+    if(!day||!day.date) return;
+    if(!byDate[day.date]){ byDate[day.date]={date:day.date,items:[]}; order.push(day.date); }
+    const b=byDate[day.date];
+    (day.items||[]).forEach(it=>{
+      const sig=(it.eventIds&&it.eventIds.length)?it.eventIds.slice().sort().join(','):null;
+      if(sig){ const dup=b.items.find(x=>x.eventIds&&x.eventIds.slice().sort().join(',')===sig); if(dup) return; }
+      b.items.push(it);
+    });
+  }
+  localArr.forEach(addDay); remoteArr.forEach(addDay);
+  return order.map(d=>byDate[d]).sort((a,b)=>a.date.localeCompare(b.date));
+}
+function mergeOdVendorsLocal(localObj, remoteObj){
+  localObj=(localObj&&typeof localObj==='object')?localObj:{};
+  remoteObj=(remoteObj&&typeof remoteObj==='object')?remoteObj:{};
+  const out={}, keys=new Set([...Object.keys(localObj),...Object.keys(remoteObj)]);
+  keys.forEach(k=>{
+    const a=Array.isArray(localObj[k])?localObj[k]:[];
+    const b=Array.isArray(remoteObj[k])?remoteObj[k]:[];
+    out[k]=Array.from(new Set([...a,...b]));
+  });
+  return out;
+}
+// 받은 data를 현재 로컬 변수들에 병합 적용
+function applyMergedFromSheet(data){
+  if(data.worklog!==undefined) workLog=mergeWorkLogLocal(workLog, data.worklog);
+  if(data.delivLog!==undefined) delivLog=mergeById(delivLog, data.delivLog, 'id');
+  if(data.notices!==undefined) notices=mergeById(notices, data.notices, 'id');
+  if(data.schedules!==undefined) schedules=mergeById(schedules, data.schedules, 'id');
+  if(data.todos!==undefined) todos=mergeById(todos, data.todos, 'id');
+  if(data.matLog!==undefined) matLog=mergeById(matLog, data.matLog, 'id');
+  if(data.sheetLog!==undefined && typeof sheetLog!=='undefined') sheetLog=mergeById(sheetLog, data.sheetLog, 'id');
+  if(data.vendorBook!==undefined) vendorBook=mergeById(vendorBook, data.vendorBook, 'id');
+  if(data.stockEvents!==undefined) stockEvents=mergeStockEventsLocal(stockEvents, data.stockEvents);
+  if(data.odCustomVendors!==undefined) odCustomVendors=mergeOdVendorsLocal(odCustomVendors, data.odCustomVendors);
+  if(data.ledgerLog!==undefined) mergeLedgerFromSheet(data.ledgerLog);
+  // 스냅샷 값: 받은 쪽 채택 (서버가 이미 병합본을 보내줌)
+  if(data.stock!==undefined) stock=data.stock;
+  if(data.matStock!==undefined) matStock=data.matStock;
+  if(data.inklog!==undefined) inkLog=data.inklog;
+  if(data.meta!==undefined) Object.assign(meta, data.meta);
+}
+
 async function gsFetch(method,body,qs=''){
   if(!gsUrl)throw new Error('URL 없음');
   try{
@@ -4354,21 +4440,7 @@ async function syncFromSheet(){
   updateGsStatus('syncing');
   try{
     const data=await gsFetch('GET',null,'?action=read');
-    if(data.stock)stock=data.stock;
-    if(data.worklog)workLog=data.worklog;
-    if(data.inklog)inkLog=data.inklog;
-    if(data.notices)notices=data.notices;
-    if(data.schedules)schedules=data.schedules;
-    if(data.todos)todos=data.todos;
-    if(data.matStock)matStock=data.matStock;
-    if(data.matLog)matLog=data.matLog;
-    if(data.sheetLog)sheetLog=data.sheetLog;
-    if(data.delivLog)delivLog=data.delivLog;
-    if(data.ledgerLog)mergeLedgerFromSheet(data.ledgerLog);
-    if(data.vendorBook)vendorBook=data.vendorBook;
-    if(data.odCustomVendors)odCustomVendors=data.odCustomVendors;
-    if(data.stockEvents)stockEvents=data.stockEvents;
-    if(data.meta)Object.assign(meta,data.meta);
+    applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
     meta.lastGsSync=new Date().toISOString();
     meta.lastLocalChange=meta.lastGsSync; // 방금 받았으니 로컬변경=시트와 동일
     window._skipLocalChange = true;
@@ -7822,21 +7894,7 @@ async function autoSyncOnLoad(){
   if(!gsUrl) return;
   try{
     const data=await gsFetch('GET',null,'?action=read');
-    if(data.stock) stock=data.stock;
-    if(data.worklog) workLog=data.worklog;
-    if(data.inklog) inkLog=data.inklog;
-    if(data.notices) notices=data.notices;
-    if(data.schedules) schedules=data.schedules;
-    if(data.todos) todos=data.todos;
-    if(data.delivLog) delivLog=data.delivLog;
-    if(data.ledgerLog) mergeLedgerFromSheet(data.ledgerLog);
-    if(data.vendorBook) vendorBook=data.vendorBook;
-    if(data.odCustomVendors) odCustomVendors=data.odCustomVendors;
-    if(data.matStock) matStock=data.matStock;
-    if(data.matLog) matLog=data.matLog;
-    if(data.sheetLog) sheetLog=data.sheetLog;
-    if(data.stockEvents) stockEvents=data.stockEvents;
-    if(data.meta) Object.assign(meta,data.meta);
+    applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
     meta.lastGsSync=new Date().toISOString();
     saveAll();
     updateGsStatus('ok');
