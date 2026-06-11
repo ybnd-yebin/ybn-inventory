@@ -7692,35 +7692,53 @@ function _addDays(dateStr,n){
   const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
   d.setDate(d.getDate()+n); return d.toISOString().slice(0,10);
 }
-// 주말이면 평일로 보정. dir>0이면 다음 평일(월), dir<0이면 직전 평일(금)
+// 한국 공휴일(대체공휴일 포함). 매년 갱신 필요. 토·일은 별도로 항상 휴무.
+const KR_HOLIDAYS=new Set([
+  // 2026
+  '2026-01-01', // 신정
+  '2026-02-16','2026-02-17','2026-02-18', // 설날
+  '2026-03-01','2026-03-02', // 삼일절+대체
+  '2026-05-01', // 노동절
+  '2026-05-05', // 어린이날
+  '2026-05-24','2026-05-25', // 부처님오신날+대체
+  '2026-06-03', // 지방선거
+  '2026-06-06', // 현충일
+  '2026-08-15','2026-08-17', // 광복절+대체
+  '2026-09-24','2026-09-25','2026-09-26', // 추석
+  '2026-10-03', // 개천절
+  '2026-10-09', // 한글날
+  '2026-12-25', // 성탄절
+  // 2027 (필요시 확장)
+  '2027-01-01'
+]);
+// 쉬는 날(토·일·공휴일)인가
+function _isHoliday(d){
+  const dow=d.getDay();
+  if(dow===0||dow===6) return true;
+  return KR_HOLIDAYS.has(d.toISOString().slice(0,10));
+}
+// 휴일이면 평일로 보정. dir>0이면 다음 근무일, dir<0이면 직전 근무일
 function _toBizDay(dateStr,dir){
   if(!dateStr) return dateStr;
   const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
-  const fwd = dir===undefined ? true : dir>=0;
-  const dow=d.getDay();
-  if(fwd){
-    if(dow===6) d.setDate(d.getDate()+2);      // 토 → 월
-    else if(dow===0) d.setDate(d.getDate()+1); // 일 → 월
-  } else {
-    if(dow===6) d.setDate(d.getDate()-1);      // 토 → 금
-    else if(dow===0) d.setDate(d.getDate()-2); // 일 → 금
-  }
+  const step = (dir===undefined||dir>=0) ? 1 : -1;
+  let guard=0;
+  while(_isHoliday(d) && guard<30){ d.setDate(d.getDate()+step); guard++; }
   return d.toISOString().slice(0,10);
 }
-// 공장 출고일 = 납품요청일 + 2영업일(주말 제외). 저장된 옛 shipDate는 신뢰하지 않고 항상 재계산.
+// 공장 출고일 = 납품요청일 + 2근무일(주말·공휴일 제외). 저장된 옛 shipDate는 무시하고 항상 재계산.
 function _shipOf(d){
   if(d.delivReqDate) return _addBizDays(d.delivReqDate,2);
   return _toBizDay(d.shipDate||'',1);
 }
-// 평일(주말 제외) 기준 영업일 가감. n<0이면 과거 방향.
+// 근무일(주말·공휴일 제외) 기준 가감. n<0이면 과거 방향.
 function _addBizDays(dateStr,n){
   if(!dateStr) return '';
   const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
-  const step=n<0?-1:1; let remain=Math.abs(n);
-  while(remain>0){
-    d.setDate(d.getDate()+step);
-    const dow=d.getDay(); // 0=일, 6=토
-    if(dow!==0 && dow!==6) remain--;
+  const step=n<0?-1:1; let remain=Math.abs(n); let guard=0;
+  while(remain>0 && guard<100){
+    d.setDate(d.getDate()+step); guard++;
+    if(!_isHoliday(d)) remain--;
   }
   return d.toISOString().slice(0,10);
 }
@@ -7807,21 +7825,28 @@ function parseDelivCellsPage(pageItems){
   return out.length?out:null;
 }
 
-// ── 일일 브리핑: 제품 분류 ──
-const BRIEF_RE_73=/M\s(20|25|30|35|40|45|50|55|60)73\(공용\)/; // 재고생산 정규격(당일 생산 안 함)
+// ── 일일 브리핑: 제품/납품처 분류 ──
 function classifyDelivItem(name){
   const n=name||'';
-  const o={ is73:BRIEF_RE_73.test(n), isBigyu:n.includes('비규격'), isHPM:/Veil/.test(n) };
-  if(/AL도어/.test(n) && /장식|키큰장|벽장/.test(n)) o.cat='유리장식장 AL도어';
+  const o={ is73:/73\(공용\)/.test(n), isBigyu:n.includes('비규격'), isHPM:/Veil/.test(n), isGrace:/Grace/.test(n) };
+  if(/글래스.*도어|글래스.*채널|채널도어/.test(n)){
+    o.cat='글래스도어'; o.ext=/연장/.test(n);
+    o.sz=/450/.test(n)?'450':/500/.test(n)?'500':'기타';
+  }
   else if(/^\(?B\/I|BUIF/.test(n)) o.cat='빌트인';
-  else if(/채널도어|글래스\s?도어/.test(n)) o.cat='글래스도어';
-  else if(/Euro700|Grace|Veil/.test(n)) o.cat='Euro700';
-  else if(/Euro500/.test(n)) o.cat='Euro500';
-  else if(/빗각/.test(n)) o.cat='KB 빗각';
+  else if(/에어힌지/.test(n)) o.cat='에어힌지';
+  else if(/^KB|빗각/.test(n)) o.cat='KB';
+  else if(/AL도어/.test(n) && /장식|키큰장|벽장|분리장/.test(n)) o.cat='유리장식장';
+  else if(/Euro700/.test(n)) o.cat='EURO700';
+  else if(/Euro500/.test(n)) o.cat='EURO500';
   else o.cat='기타';
   return o;
 }
-// 발주일(ymd: '2026-06-08') 기준 브리핑 텍스트 생성
+function delivDestGroup(dest){
+  const d=dest||'';
+  if(d.includes('오이도')) return '오이도';
+  return '그레이박스';
+}
 // 브리핑 렌더링 (날짜 input 기준, 기본 오늘)
 function renderBrief(){
   const host=document.getElementById('brief-host');
@@ -7833,20 +7858,23 @@ function renderBrief(){
   if(!b){ host.innerHTML='<div style="font-size:11px;color:var(--tx3)">이 날짜에 발주된 납품서가 없어요.</div>'; return; }
   const esc=b.text.replace(/</g,'&lt;');
   host.innerHTML=`
-    <div style="display:flex;gap:10px;margin-bottom:8px">
-      <div style="flex:1;text-align:center;padding:8px;background:rgba(248,81,73,.1);border-radius:8px">
-        <div style="font-size:10px;color:var(--tx2)">🔥 오늘 생산</div>
-        <div style="font-size:22px;font-weight:900;color:var(--acc4);font-family:'JetBrains Mono',monospace">${b.qNon73}</div></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div style="flex:1;text-align:center;padding:8px;background:var(--s3);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">총 발주</div>
+        <div style="font-size:20px;font-weight:900;color:var(--acc2);font-family:'JetBrains Mono',monospace">${b.total}</div></div>
+      <div style="flex:1;text-align:center;padding:8px;background:rgba(56,139,253,.1);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">🏠 그레이박스</div>
+        <div style="font-size:20px;font-weight:900;color:var(--acc);font-family:'JetBrains Mono',monospace">${b.total-b.oidoTotal-b.asTotal}</div></div>
       <div style="flex:1;text-align:center;padding:8px;background:rgba(46,160,67,.1);border-radius:8px">
-        <div style="font-size:10px;color:var(--tx2)">📦 재고출고(73)</div>
-        <div style="font-size:22px;font-weight:900;color:var(--acc3);font-family:'JetBrains Mono',monospace">${b.q73}</div></div>
-      ${b.asQty?`<div style="flex:1;text-align:center;padding:8px;background:rgba(255,107,53,.12);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">📦 오이도</div>
+        <div style="font-size:20px;font-weight:900;color:var(--acc3);font-family:'JetBrains Mono',monospace">${b.oidoTotal}</div></div>
+      ${b.asTotal?`<div style="flex:1;text-align:center;padding:8px;background:rgba(255,107,53,.12);border-radius:8px">
         <div style="font-size:10px;color:var(--tx2)">🔧 AS</div>
-        <div style="font-size:22px;font-weight:900;color:#ff6b35;font-family:'JetBrains Mono',monospace">${b.asQty}</div></div>`:''}
+        <div style="font-size:20px;font-weight:900;color:#ff6b35;font-family:'JetBrains Mono',monospace">${b.asTotal}</div></div>`:''}
     </div>
     <pre style="white-space:pre-wrap;font-family:'Noto Sans KR',monospace;font-size:12px;line-height:1.7;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:12px;margin:0;color:var(--tx1);overflow-x:auto">${esc}</pre>
     <button onclick="copyBrief()" style="width:100%;margin-top:8px;padding:11px;background:#FEE500;border:none;border-radius:8px;color:#3C1E1E;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💬 카톡용 텍스트 복사</button>
-    <div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">${b.docs}건 납품서 합산 · 73 = M2073~6073 재고생산분</div>`;
+    <div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">${b.docs}건 납품서 합산 · 발주일 기준</div>`;
   window._lastBriefText=b.text;
 }
 function copyBrief(){
@@ -7863,39 +7891,55 @@ function copyBrief(){
 function buildDelivBrief(ymd){
   const docs=delivLog.filter(d=>(d.orderDate||d.delivReqDate)===ymd);
   if(!docs.length) return null;
-  let total=0,q73=0,qNon73=0,asQty=0;
-  const byCat={}; // cat → {total,t73,non73,bi,hpm,grace}
+  const oido={ '450':0,'500':0 };
+  const G={ glass:{'450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0}, 빌트인:0,
+    EURO700:{total:0,hpm:0,grace:0,t73:0,non73:0,bigyu:0},
+    EURO500:{total:0,t73:0,non73:0,bigyu:0},
+    유리장식장:{total:0,bigyu:0}, 에어힌지:{total:0,bigyu:0}, KB:{total:0,bigyu:0} };
+  const AS={ '글래스도어':0,'빌트인':0,'EURO500':0,'EURO700':0,'유리장식장':0,'에어힌지':0,'KB':0 };
+  let total=0;
   docs.forEach(d=>{
     const isAS=(d.refNo||'').startsWith('54');
+    const dgrp=delivDestGroup(d.dest);
     d.items.forEach(it=>{
-      const info=delivLookup(it.code); const c=classifyDelivItem(info.short||'');
-      total+=it.qty;
-      if(isAS){ asQty+=it.qty; return; }
-      if(c.is73) q73+=it.qty; else qNon73+=it.qty;
-      const b=byCat[c.cat]=byCat[c.cat]||{total:0,t73:0,non73:0,bi:0,hpm:0,grace:0};
-      b.total+=it.qty;
-      if(c.is73) b.t73+=it.qty; else b.non73+=it.qty;
-      if(c.isBigyu) b.bi+=it.qty;
-      if(c.cat==='Euro700'){ if(c.isHPM) b.hpm+=it.qty; else b.grace+=it.qty; }
+      const info=delivLookup(it.code); const c=classifyDelivItem(info.short||''); const q=it.qty||0;
+      total+=q;
+      if(isAS){ if(AS[c.cat]!==undefined) AS[c.cat]+=q; return; }
+      if(dgrp==='오이도'){
+        if(c.cat==='글래스도어'&&(c.sz==='450'||c.sz==='500')) oido[c.sz]+=q;
+        return;
+      }
+      if(c.cat==='글래스도어'){
+        G.glass.total+=q;
+        if(c.ext){ G.glass.ext+=q; if(c.sz==='450')G.glass['450연장']+=q; else if(c.sz==='500')G.glass['500연장']+=q; }
+        else { if(c.sz==='450')G.glass['450']+=q; else if(c.sz==='500')G.glass['500']+=q; }
+      }
+      else if(c.cat==='빌트인') G.빌트인+=q;
+      else if(c.cat==='EURO700'){ const e=G.EURO700; e.total+=q; if(c.isHPM)e.hpm+=q; if(c.isGrace)e.grace+=q; if(c.is73)e.t73+=q; else e.non73+=q; if(c.isBigyu)e.bigyu+=q; }
+      else if(c.cat==='EURO500'){ const e=G.EURO500; e.total+=q; if(c.is73)e.t73+=q; else e.non73+=q; if(c.isBigyu)e.bigyu+=q; }
+      else if(c.cat==='유리장식장'){ G.유리장식장.total+=q; if(c.isBigyu)G.유리장식장.bigyu+=q; }
+      else if(c.cat==='에어힌지'){ G.에어힌지.total+=q; if(c.isBigyu)G.에어힌지.bigyu+=q; }
+      else if(c.cat==='KB'){ G.KB.total+=q; if(c.isBigyu)G.KB.bigyu+=q; }
     });
   });
   const dt=new Date(ymd+'T00:00:00');
   const wd=['일','월','화','수','목','금','토'][dt.getDay()];
-  const md=`${dt.getMonth()+1}/${dt.getDate()}`;
-  let t=`📦 ${md}(${wd}) 발주 브리핑 · 총 ${total}ea\n`;
-  t+=`🔥 오늘 생산 ${qNon73}ea   📦 재고출고(73) ${q73}ea\n`;
-  t+=`━━━━━━━━━━━━━━\n`;
-  Object.entries(byCat).sort((a,b)=>b[1].total-a[1].total).forEach(([k,v])=>{
-    t+=`■ ${k} ${v.total}ea\n`;
-    const sub=[];
-    if(v.non73) sub.push(`생산 ${v.non73}`);
-    if(v.t73) sub.push(`재고 ${v.t73}`);
-    if(k==='Euro700' && (v.hpm||v.grace)) sub.push(`HPM ${v.hpm}/유리 ${v.grace}`);
-    if(v.bi) sub.push(`⚠비규격 ${v.bi}`);
-    if(sub.length) t+=`   └ ${sub.join(' · ')}\n`;
-  });
-  if(asQty){ t+=`━━━━━━━━━━━━━━\n🔧 AS ${asQty}ea\n`; }
-  return {text:t, total, q73, qNon73, asQty, docs:docs.length};
+  const md=`${dt.getMonth()+1}월 ${dt.getDate()}일`;
+  const asTotal=Object.values(AS).reduce((a,b)=>a+b,0);
+  let t=`📦 ${md}(${wd}) 발주 · 총 ${total}EA\n\n`;
+  t+=`[오이도]\n-글래스도어\n 450 : ${oido['450']}EA\n 500 : ${oido['500']}EA\n\n`;
+  t+=`[그레이박스]\n`;
+  t+=`-글래스도어 : ${G.glass.total}EA (연장 : ${G.glass.ext}EA)\n`;
+  t+=` 450 : ${G.glass['450']}EA\n 500 : ${G.glass['500']}EA\n 450 연장 : ${G.glass['450연장']}EA\n 500 연장 : ${G.glass['500연장']}EA\n`;
+  t+=`-빌트인 : ${G.빌트인}EA\n\n`;
+  t+=`-EURO700 : ${G.EURO700.total}EA\n(HPM : ${G.EURO700.hpm}EA / 유리 : ${G.EURO700.grace}EA)\n73 : ${G.EURO700.t73}EA\n73 외 : ${G.EURO700.non73}EA\n(비규격 : ${G.EURO700.bigyu}EA)\n\n`;
+  t+=`-EURO500 : ${G.EURO500.total}EA\n73 : ${G.EURO500.t73}EA\n73 외 : ${G.EURO500.non73}EA\n(비규격 : ${G.EURO500.bigyu}EA)\n\n`;
+  t+=`-유리장식장 : ${G.유리장식장.total}EA (비규격 : ${G.유리장식장.bigyu}EA)\n`;
+  t+=`-에어힌지 : ${G.에어힌지.total}EA (비규격 : ${G.에어힌지.bigyu}EA)\n`;
+  t+=`-KB : ${G.KB.total}EA (비규격 : ${G.KB.bigyu}EA)\n\n`;
+  t+=`-AS : ${asTotal}EA\n`;
+  if(asTotal){ Object.entries(AS).forEach(([k,v])=>{ if(v) t+=` ${k} : ${v}EA\n`; }); }
+  return {text:t, total, asTotal, docs:docs.length, oidoTotal:oido['450']+oido['500'], grayGlass:G.glass.total};
 }
 
 function parseDelivText(text){
