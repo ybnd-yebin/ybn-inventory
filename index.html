@@ -221,7 +221,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 .act-btn{width:100%;padding:14px;border:none;border-radius:10px;color:#0d1117;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px}
 .act-btn.green{background:var(--acc3)}.act-btn.blue{background:var(--acc)}.act-btn.orange{background:var(--acc2)}
 .act-btn:active{opacity:.85}
-.close-btn{float:right;background:none;border:none;color:var(--tx2);font-size:22px;cursor:pointer;line-height:1}
+.close-btn{position:sticky;top:0;float:right;background:var(--s1);border:none;color:var(--tx1);font-size:26px;cursor:pointer;line-height:1;z-index:10;width:40px;height:40px;border-radius:10px;margin:-6px -6px 0 0;box-shadow:0 1px 6px rgba(0,0,0,.18)}
 .qty-ctrl{display:flex;align-items:center;margin-bottom:10px}
 .qty-btn{width:52px;height:52px;background:var(--s2);border:1px solid var(--b2);color:var(--tx1);font-size:24px;cursor:pointer}
 .qty-btn:first-child{border-radius:8px 0 0 8px}.qty-btn:last-child{border-radius:0 8px 8px 0}
@@ -1035,8 +1035,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <div id="wm-qty-box" style="display:none">
       <!-- 선택된 사이즈 정보 -->
-      <div id="wm-sel-size-info" style="background:var(--s2);border-radius:8px;padding:10px 12px;margin-bottom:12px">
-        <div style="font-size:16px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--acc)" id="wm-size-label"></div>
+      <div id="wm-sel-size-info" style="background:var(--s2);border-radius:8px;padding:10px 12px;margin-bottom:12px;position:relative">
+        <button onclick="clearWlSelection()" title="선택 취소" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border:none;border-radius:8px;background:var(--s3);color:var(--tx2);font-size:18px;font-weight:700;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
+        <div style="font-size:16px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--acc);padding-right:34px" id="wm-size-label"></div>
         <div style="font-size:10px;color:var(--tx2);margin-top:4px" id="wm-size-models"></div>
         <div style="font-size:11px;color:var(--tx3);margin-top:3px" id="wm-size-stock"></div>
       </div>
@@ -3536,6 +3537,16 @@ function setWlColor(color, btn){
     const el=document.getElementById('wm-size-stock');
     if(el) el.textContent=(color==='WC'?'🔵 웜코튼':'🟠 에토프')+' — 원유리 '+s.raw+'장 | 인쇄유리 '+s.printed+'장';
   }
+}
+function clearWlSelection(){
+  // 선택만 해제하고 검색 화면으로 복귀 (모달은 유지)
+  wSelCode=null; wSelSize=null; wSelModel=null; wQty=1;
+  const qb=document.getElementById('wm-qty-box'); if(qb) qb.style.display='none';
+  const sel=document.getElementById('wm-selected'); if(sel) sel.style.display='none';
+  const qn=document.getElementById('wm-qty'); if(qn) qn.value=1;
+  const sr=document.getElementById('wm-search'); if(sr){ sr.value=''; sr.focus(); }
+  const res=document.getElementById('wm-results'); if(res) res.innerHTML='';
+  if(typeof renderWorkSearch==='function') renderWorkSearch();
 }
 function openWorkModal(){
   wSelCode=null; wSelSize=null; wSelModel=null; wQty=1; wMode='normal';
@@ -8160,9 +8171,8 @@ function renderDelivery(){
     activeList=all.slice().sort((a,b)=>(keyOf(b)||'').localeCompare(keyOf(a)||''));
     pastList=[];
   } else {
-    // 예정/지난 판정은 항상 '출고일' 기준 (발주일은 항상 과거이므로 분류 기준으로 부적합)
-    activeList=all.filter(d=>{const s=_shipOf(d);return s&&s>=today;}).sort((a,b)=>(keyOf(a)||'').localeCompare(keyOf(b)||''));
-    pastList =all.filter(d=>{const s=_shipOf(d);return !s||s<today;}).sort((a,b)=>(keyOf(b)||'').localeCompare(keyOf(a)||''));
+    activeList=all.filter(d=>{const k=keyOf(d);return k&&k>=today;}).sort((a,b)=>keyOf(a).localeCompare(keyOf(b)));
+    pastList =all.filter(d=>{const k=keyOf(d);return !k||k<today;}).sort((a,b)=>keyOf(b).localeCompare(keyOf(a)));
   }
 
   // 오늘 기준 요약: 보기 모드의 키가 오늘인 납품서들의 총수량
@@ -8182,7 +8192,7 @@ function renderDelivery(){
 
   function card(d,dim){
     const ship=_shipOf(d);
-    const isTodayShip=ship===today, isPast=!!ship&&ship<today;
+    const isTodayShip=ship===today, isPast=keyOf(d)<today;
     const totalQty=d.items.reduce((a,i)=>a+(i.qty||0),0);
     const isAS=(d.refNo||'').startsWith('54'); // 참조문서번호 54로 시작 = AS
     let badge=isTodayShip?'<span style="font-size:10px;background:var(--acc4);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">🔴 오늘 출고</span>'
