@@ -8698,6 +8698,7 @@ function clearDelivLog(){
   saveAll();
   renderDelivery();
   if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync(); // 시트에도 즉시 반영 (새로고침 후 되살아남 방지)
   showToast(`✅ 납품서 자료 ${cnt}건 초기화 완료`);
 }
 
