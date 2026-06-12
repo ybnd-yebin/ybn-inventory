@@ -887,13 +887,53 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="od-stat-body"></div>
   </div>
 
+  <!-- ★ 주차별 누적 (납품서 PDF 기반) -->
+  <div class="card" style="border-left:3px solid var(--acc5)">
+    <div class="card-ttl"><span>📅 주차별 발주 누적 <span style="font-weight:400;color:var(--tx3);font-size:11px">(납품서 PDF · 발주일 기준)</span></span></div>
+    <div class="info-note" style="margin-bottom:10px;font-size:10.5px">
+      올린 <b>납품서</b>를 <b>발주일</b> 기준으로 모아, 한 달을 <b>1주(1~7)·2주(8~14)·3주(15~21)·4주(22~28)·5주(29~31)</b>로 나눠 집계해요. AS(54-)는 제외됩니다.
+    </div>
+    <div class="filter-row" style="margin-bottom:8px">
+      <button class="f-btn on" id="wkv-total" onclick="setWkView('total',this)">총수량</button>
+      <button class="f-btn" id="wkv-size" onclick="setWkView('size',this)">사이즈/모델별</button>
+    </div>
+    <div class="filter-row" style="margin-bottom:10px">
+      <button class="f-btn on" id="wkp-3" onclick="setWkMonths(3,this)">최근 3개월</button>
+      <button class="f-btn" id="wkp-6" onclick="setWkMonths(6,this)">최근 6개월</button>
+      <button class="f-btn" id="wkp-12" onclick="setWkMonths(12,this)">최근 12개월</button>
+      <button class="f-btn" id="wkp-0" onclick="setWkMonths(0,this)">전체</button>
+    </div>
+    <input class="inp" id="wk-size-search" placeholder="🔍 사이즈/모델 검색 (사이즈/모델별 뷰에서)" oninput="renderWeekStat()" style="margin-bottom:10px;display:none">
+    <div id="wk-stat-body"><div style="font-size:11px;color:var(--tx3)">납품서를 올리면 여기 주차별 집계가 표시됩니다.</div></div>
+  </div>
+
+  <!-- ★ 주차 패턴 요약 (매주 평균·예상) -->
+  <div class="card" style="border-left:3px solid var(--acc2)">
+    <div class="card-ttl"><span>📈 주차 패턴 · 예상수량 <span style="font-weight:400;color:var(--tx3);font-size:11px">(과거 같은 주차 평균)</span></span></div>
+    <div class="info-note" style="margin-bottom:10px;font-size:10.5px">
+      과거 데이터에서 <b>1주차끼리, 2주차끼리</b> 평균을 내 "이 달 몇째 주에 발주가 몰리는지"와 <b>다음 각 주차 예상수량</b>을 보여줘요.
+    </div>
+    <div id="wk-pattern-body"><div style="font-size:11px;color:var(--tx3)">데이터가 쌓이면 주차별 평균이 표시됩니다.</div></div>
+  </div>
+
+  <!-- ★ 예시 대조 분석 -->
+  <div class="card" style="border-left:3px solid var(--acc)">
+    <div class="card-ttl"><span>🎯 예시 vs 실제 대조</span>
+      <button onclick="openWkExampleModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">＋ 예시 입력</button>
+    </div>
+    <div class="info-note" style="margin-bottom:10px;font-size:10.5px">
+      "우리가 파악한 예상치"(예: 6월 2주 200장)를 넣으면, <b>실제 납품서 집계와 얼마나 맞았는지</b> 오차율로 분석해줘요.
+    </div>
+    <div id="wk-example-body"><div style="font-size:11px;color:var(--tx3)">＋ 예시 입력으로 우리가 예상했던 수량을 넣어보세요.</div></div>
+  </div>
+
   <div class="info-note" style="margin-bottom:12px">
     📊 아래는 <b>2025.11 ~ 2026.04 (6개월)</b> 과거 발주 데이터 기준 분석입니다.<br>
     월평균 수량을 참고해 발주량을 결정하세요.
   </div>
 
   <!-- 필터 -->
-  <div class="filter-row">
+  <div class="filter-row" id="analysis-model-filters">
     <button class="f-btn on" onclick="setAnalysisFilter('all',this)">전체</button>
     <button class="f-btn" onclick="setAnalysisFilter('high',this)">🔴 고빈도(월10↑)</button>
     <button class="f-btn" onclick="setAnalysisFilter('mid',this)">🟡 중빈도(5~10)</button>
@@ -967,6 +1007,26 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <button class="fab" id="fab-btn" style="background:var(--acc3)" onclick="onFab()">＋</button>
 
 <!-- TODO MODAL -->
+<!-- 주차 예시 입력 모달 -->
+<div class="modal-bg" id="wk-example-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('wk-example-modal')">×</button>
+    <div class="modal-ttl">🎯 예상수량 예시 입력</div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:12px">
+      "우리가 이 주에 이 정도 나갈 거다"라고 <b>예상했던 수량</b>을 넣으면, 실제 납품서 집계와 비교해 얼마나 맞았는지 분석해요.
+    </div>
+    <div class="f-row">
+      <div><span class="lbl">연·월</span><input type="month" id="wke-ym" class="inp"></div>
+      <div><span class="lbl">주차</span><select id="wke-week" class="sel"><option value="1">1주(1~7)</option><option value="2">2주(8~14)</option><option value="3">3주(15~21)</option><option value="4">4주(22~28)</option><option value="5">5주(29~31)</option><option value="0">월 전체</option></select></div>
+    </div>
+    <span class="lbl">예상수량 (장)</span>
+    <input type="number" id="wke-qty" class="inp" placeholder="예: 200" min="0">
+    <span class="lbl">메모 (선택)</span>
+    <input id="wke-note" class="inp" placeholder="예: 명절 직후라 많을 듯">
+    <button class="act-btn blue" onclick="confirmWkExample()">✓ 예시 저장</button>
+  </div>
+</div>
+
 <div class="modal-bg" id="todo-modal">
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeM('todo-modal')">×</button>
@@ -1572,6 +1632,7 @@ let delivLog=J(localStorage.getItem(LS.delivLog))||[];
 let ledgerLog=J(localStorage.getItem('ybn-ledger-v1'))||[];
 let vendorBook=J(localStorage.getItem('ybn-vendors-v1'))||[];
 let odCustomVendors=J(localStorage.getItem('ybn-od-vendors-v1'))||{}; // {대분류: [발주처명,...]}
+let wkExamples=J(localStorage.getItem('ybn-wk-examples-v1'))||[]; // 주차 예상 예시 [{id,ym,week,qty,note}]
 
 // ── 재고 이력 (StockEvents) ──
 // 키: "595x729" (원유리) 또는 "595x729_WC" / "595x729_ETP" (인쇄유리)
@@ -4265,6 +4326,7 @@ function applyMergedFromSheet(data){
   if(data.vendorBook!==undefined) vendorBook=mergeById(vendorBook, data.vendorBook, 'id');
   if(data.stockEvents!==undefined) stockEvents=mergeStockEventsLocal(stockEvents, data.stockEvents);
   if(data.odCustomVendors!==undefined) odCustomVendors=mergeOdVendorsLocal(odCustomVendors, data.odCustomVendors);
+  if(data.wkExamples!==undefined && Array.isArray(data.wkExamples)){ wkExamples=mergeById(wkExamples, data.wkExamples, 'id'); localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples)); }
   if(data.ledgerLog!==undefined) mergeLedgerFromSheet(data.ledgerLog);
   // 스냅샷 값: 받은 쪽 채택 (서버가 이미 병합본을 보내줌)
   if(data.stock!==undefined) stock=data.stock;
@@ -4350,7 +4412,7 @@ async function autoSync(){
       clientLastSync: meta.lastGsSync || null,
       clientTs: ts,
       actor: getActor(),
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors}
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples}
     });
     // 서버가 충돌을 알려주면 result.conflict === true (서버 가드 추가 시)
     if(result && result.conflict){
@@ -4396,7 +4458,7 @@ async function syncToSheet(){
       clientTs: new Date().toISOString(),
       actor: getActor(),
       force: true, // 사용자가 직접 누른 경우 force 플래그
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors}
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples}
     });
     if(result && result.conflict && !result.forced){
       updateGsStatus('error');
@@ -5329,7 +5391,7 @@ let analysisFilter='all';
 
 function setAnalysisFilter(f,btn){
   analysisFilter=f;
-  document.querySelectorAll('#pg-order-analysis .f-btn').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('#analysis-model-filters .f-btn').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   renderAnalysis();
 }
@@ -5439,6 +5501,9 @@ function renderOdStat(){
 
 function renderAnalysis(){
   renderOdStat();
+  renderWeekStat();
+  renderWeekPattern();
+  renderWkExample();
   const el=document.getElementById('analysis-list');
   if(!el||typeof ANALYSIS==='undefined') return;
 
@@ -5509,6 +5574,266 @@ function renderAnalysis(){
   }).join('');
 
   if(list.length>100) el.innerHTML+=`<div style="text-align:center;padding:12px;color:var(--tx3);font-size:12px">필터로 범위를 좁혀보세요 (총 ${list.length}개)</div>`;
+}
+
+// ══════════════════════════════════════════════════
+//  📅 주차별 누적 (납품서 delivLog · 발주일 기준)
+// ══════════════════════════════════════════════════
+let wkView='total';     // 'total' | 'size'
+let wkMonths=3;         // 3,6,12,0(전체)
+
+function setWkView(v,btn){
+  wkView=v;
+  document.querySelectorAll('#wkv-total,#wkv-size').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  const srch=document.getElementById('wk-size-search');
+  if(srch) srch.style.display = (v==='size')?'block':'none';
+  renderWeekStat();
+}
+function setWkMonths(n,btn){
+  wkMonths=n;
+  document.querySelectorAll('#wkp-3,#wkp-6,#wkp-12,#wkp-0').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  renderWeekStat(); renderWeekPattern(); renderWkExample();
+}
+
+// 달력주: 1~7=1주, 8~14=2주, 15~21=3주, 22~28=4주, 29~31=5주
+function _weekOfMonth(ymd){ const day=parseInt(ymd.slice(8,10),10); return Math.floor((day-1)/7)+1; }
+function _wkLabel(w){ return w+'주'; }
+function _wkRange(w){ return ['1~7','8~14','15~21','22~28','29~31'][w-1]||''; }
+
+// delivLog → 발주일 기준 주차 집계
+// 반환: { months:[ym...], data:{ ym:{ 1:{total,bySize:{key:{label,qty}}}, ... } }, monthTotals:{ym:total} }
+function buildWeekAgg(){
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  const out={}; const monthTotals={};
+  // 기간 컷오프
+  let cutoff='';
+  if(wkMonths>0){
+    const now=new Date();
+    const c=new Date(now.getFullYear(), now.getMonth()-(wkMonths-1), 1);
+    cutoff=c.toISOString().slice(0,7); // YYYY-MM
+  }
+  log.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return; // AS 제외
+    const dt=d.orderDate||d.delivReqDate; // 발주일 우선
+    if(!dt||dt.length<10) return;
+    const ym=dt.slice(0,7);
+    if(cutoff && ym<cutoff) return;
+    const wk=_weekOfMonth(dt);
+    out[ym]=out[ym]||{};
+    out[ym][wk]=out[ym][wk]||{total:0,bySize:{}};
+    monthTotals[ym]=monthTotals[ym]||0;
+    (d.items||[]).forEach(it=>{
+      const q=it.qty||0; if(!q) return;
+      out[ym][wk].total+=q;
+      monthTotals[ym]+=q;
+      // 사이즈/모델 키
+      let key, label;
+      const m=(typeof findModel==='function')?findModel(it.code):null;
+      if(m && m.glass_w && m.glass_h){ key=`${m.glass_w}x${m.glass_h}`; label=`${m.glass_w}×${m.glass_h} ${it.short||m.short||''}`.trim(); }
+      else if(it.size){ const s=String(it.size).replace(/[×x*]/g,'x'); key=s; label=`${s} ${it.short||''}`.trim(); }
+      else { key=(it.short||it.code||'기타'); label=key; }
+      out[ym][wk].bySize[key]=out[ym][wk].bySize[key]||{label,qty:0};
+      out[ym][wk].bySize[key].qty+=q;
+    });
+  });
+  const months=Object.keys(out).sort();
+  return {months, data:out, monthTotals};
+}
+
+function _ymKor(ym){ return ym.slice(0,4)+'.'+ym.slice(5,7); }
+
+function renderWeekStat(){
+  const host=document.getElementById('wk-stat-body'); if(!host) return;
+  const agg=buildWeekAgg();
+  if(!agg.months.length){
+    host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:18px">집계할 납품서가 없어요.<br>납품서 탭에서 PDF를 올리면 발주일 기준으로 주차가 쌓여요.</div>';
+    return;
+  }
+  // 최신 월이 위로
+  const months=[...agg.months].reverse();
+  if(wkView==='total'){
+    host.innerHTML=months.map(ym=>{
+      const wks=agg.data[ym];
+      const mTot=agg.monthTotals[ym]||0;
+      // 1~5주 막대
+      const weekVals=[1,2,3,4,5].map(w=>wks[w]?wks[w].total:0);
+      const mx=Math.max(...weekVals,1);
+      const peakWk=weekVals.indexOf(Math.max(...weekVals))+1;
+      const bars=weekVals.map((v,i)=>{
+        const w=i+1; const isPeak=(v>0&&w===peakWk);
+        return `<div style="flex:1;text-align:center">
+          <div style="height:48px;display:flex;align-items:flex-end;justify-content:center">
+            <div style="width:78%;background:${v===0?'var(--b2)':(isPeak?'var(--acc2)':'var(--acc5)')};border-radius:3px 3px 0 0;height:${Math.max(Math.round(v/mx*48),v>0?4:0)}px"></div>
+          </div>
+          <div style="font-size:9px;color:var(--tx3);margin-top:3px">${w}주</div>
+          <div style="font-size:8px;color:var(--tx3)">${_wkRange(w)}</div>
+          <div style="font-size:11px;color:${isPeak?'var(--acc2)':'var(--tx1)'};font-family:'JetBrains Mono',monospace;font-weight:${isPeak?700:400}">${v||''}</div>
+        </div>`;
+      }).join('');
+      return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:800">${_ymKor(ym)}</div>
+          <div style="font-size:11px;color:var(--tx2)">월 합계 <b style="font-family:'JetBrains Mono',monospace;color:var(--acc5);font-size:14px">${mTot}</b> 장 · 피크 <b style="color:var(--acc2)">${peakWk}주</b></div>
+        </div>
+        <div style="display:flex;gap:4px;align-items:flex-end">${bars}</div>
+      </div>`;
+    }).join('');
+  } else {
+    // 사이즈/모델별 — 검색어 필터
+    const q=(document.getElementById('wk-size-search')?.value||'').toLowerCase().replace(/[×x*\s]/g,'x');
+    host.innerHTML=months.map(ym=>{
+      const wks=agg.data[ym];
+      // 사이즈별로 주차 배열 만들기: {key:{label, w:[1..5]}}
+      const sizeMap={};
+      [1,2,3,4,5].forEach(w=>{
+        if(!wks[w]) return;
+        Object.entries(wks[w].bySize).forEach(([k,o])=>{
+          sizeMap[k]=sizeMap[k]||{label:o.label,w:[0,0,0,0,0],tot:0};
+          sizeMap[k].w[w-1]=o.qty; sizeMap[k].tot+=o.qty;
+        });
+      });
+      let rows=Object.entries(sizeMap);
+      if(q) rows=rows.filter(([k,o])=>k.toLowerCase().replace(/[×x*\s]/g,'x').includes(q)||o.label.toLowerCase().includes(q));
+      rows.sort((a,b)=>b[1].tot-a[1].tot);
+      if(!rows.length) return '';
+      const body=rows.slice(0,40).map(([k,o])=>{
+        const cells=o.w.map((v,i)=>`<td style="text-align:center;padding:3px 2px;font-family:'JetBrains Mono',monospace;font-size:11px;color:${v?'var(--tx1)':'var(--tx3)'}">${v||'·'}</td>`).join('');
+        return `<tr style="border-top:1px solid var(--b1)">
+          <td style="padding:4px 6px;font-size:10.5px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.label}</td>
+          ${cells}
+          <td style="text-align:right;padding:4px 6px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--acc5)">${o.tot}</td>
+        </tr>`;
+      }).join('');
+      return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:800;margin-bottom:6px">${_ymKor(ym)} <span style="font-weight:400;color:var(--tx3);font-size:10px">· 월 ${agg.monthTotals[ym]||0}장</span></div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:340px">
+          <thead><tr style="font-size:9px;color:var(--tx3)">
+            <th style="text-align:left;padding:2px 6px;font-weight:600">사이즈/모델</th>
+            <th style="padding:2px">1주</th><th style="padding:2px">2주</th><th style="padding:2px">3주</th><th style="padding:2px">4주</th><th style="padding:2px">5주</th>
+            <th style="text-align:right;padding:2px 6px;font-weight:600">합계</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table></div>
+        ${rows.length>40?`<div style="font-size:10px;color:var(--tx3);text-align:center;margin-top:6px">상위 40개 표시 (총 ${rows.length}개) · 검색으로 좁혀보세요</div>`:''}
+      </div>`;
+    }).join('')||'<div style="font-size:11px;color:var(--tx3);padding:14px;text-align:center">검색 결과가 없어요.</div>';
+  }
+}
+
+// 📈 주차 패턴 — 같은 주차끼리 평균 → 예상수량
+function renderWeekPattern(){
+  const host=document.getElementById('wk-pattern-body'); if(!host) return;
+  const agg=buildWeekAgg();
+  if(!agg.months.length){ host.innerHTML='<div style="font-size:11px;color:var(--tx3)">데이터가 쌓이면 주차별 평균이 표시됩니다.</div>'; return; }
+  // 각 주차별: 해당 주차가 존재했던 월들의 수량 평균
+  const wkSum=[0,0,0,0,0], wkCnt=[0,0,0,0,0];
+  agg.months.forEach(ym=>{
+    for(let w=1;w<=5;w++){
+      const cell=agg.data[ym][w];
+      // 5주는 29~31일이라 없는 달이 많음 → 존재한 달만 카운트
+      if(cell){ wkSum[w-1]+=cell.total; wkCnt[w-1]++; }
+    }
+  });
+  const nMonths=agg.months.length;
+  const wkAvg=wkSum.map((s,i)=> wkCnt[i]? Math.round(s/wkCnt[i]) : 0);
+  const monthAvg=Math.round(Object.values(agg.monthTotals).reduce((a,b)=>a+b,0)/nMonths);
+  const mx=Math.max(...wkAvg,1);
+  const peak=wkAvg.indexOf(Math.max(...wkAvg))+1;
+  const bars=wkAvg.map((v,i)=>{
+    const w=i+1; const isPeak=(w===peak&&v>0);
+    const share=monthAvg? Math.round(v/monthAvg*100):0;
+    return `<div style="flex:1;text-align:center">
+      <div style="height:50px;display:flex;align-items:flex-end;justify-content:center">
+        <div style="width:76%;background:${v===0?'var(--b2)':(isPeak?'var(--acc2)':'var(--acc)')};border-radius:3px 3px 0 0;height:${Math.max(Math.round(v/mx*50),v>0?4:0)}px"></div>
+      </div>
+      <div style="font-size:9px;color:var(--tx3);margin-top:3px">${w}주</div>
+      <div style="font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:${isPeak?700:400};color:${isPeak?'var(--acc2)':'var(--tx1)'}">${v||'·'}</div>
+      <div style="font-size:8px;color:var(--tx3)">${v?share+'%':''}</div>
+    </div>`;
+  }).join('');
+  host.innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div class="stat" style="flex:1;text-align:center"><div class="stat-l">집계 개월수</div><div class="stat-v" style="font-size:18px">${nMonths}</div></div>
+      <div class="stat" style="flex:1;text-align:center"><div class="stat-l">월 평균 수량</div><div class="stat-v" style="font-size:18px;color:var(--acc5)">${monthAvg}</div></div>
+      <div class="stat" style="flex:1;text-align:center"><div class="stat-l">몰리는 주</div><div class="stat-v" style="font-size:18px;color:var(--acc2)">${peak}주</div></div>
+    </div>
+    <div style="font-size:10px;color:var(--tx2);margin-bottom:6px">주차별 평균 (막대) · % = 월 평균 대비 비중 · <b>다음 달 각 주차 예상치</b>로 봐도 돼요</div>
+    <div style="display:flex;gap:4px;align-items:flex-end;background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:10px 8px">${bars}</div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.5">💡 ${peak}주차에 발주가 가장 몰려요 (평균 ${wkAvg[peak-1]}장). 원유리·잉크는 ${peak>1?peak-1:1}주차 전까지 채워두면 안전해요.</div>
+  `;
+}
+
+// 🎯 예시 대조
+function openWkExampleModal(){
+  const now=new Date();
+  document.getElementById('wke-ym').value=now.toISOString().slice(0,7);
+  document.getElementById('wke-week').value='0';
+  document.getElementById('wke-qty').value='';
+  document.getElementById('wke-note').value='';
+  document.getElementById('wk-example-modal').classList.add('on');
+}
+function confirmWkExample(){
+  const ym=document.getElementById('wke-ym').value;
+  const week=parseInt(document.getElementById('wke-week').value,10);
+  const qty=parseInt(document.getElementById('wke-qty').value,10);
+  const note=document.getElementById('wke-note').value.trim();
+  if(!ym||isNaN(qty)){ showToast('연·월과 예상수량을 입력하세요'); return; }
+  wkExamples.push({id:'wke_'+Date.now(), ym, week, qty, note});
+  localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples));
+  closeM('wk-example-modal');
+  renderWkExample();
+  showToast('🎯 예시 저장됨');
+  if(typeof autoSync==='function') autoSync();
+}
+function delWkExample(id){
+  wkExamples=wkExamples.filter(e=>e.id!==id);
+  localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples));
+  renderWkExample();
+}
+function renderWkExample(){
+  const host=document.getElementById('wk-example-body'); if(!host) return;
+  if(!wkExamples.length){ host.innerHTML='<div style="font-size:11px;color:var(--tx3)">＋ 예시 입력으로 우리가 예상했던 수량을 넣어보세요.</div>'; return; }
+  // 실제 집계 (기간 무관 전체에서 찾도록 별도 집계)
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  function actualFor(ym,week){
+    let t=0;
+    log.forEach(d=>{
+      if((d.refNo||'').startsWith('54')) return;
+      const dt=d.orderDate||d.delivReqDate; if(!dt||dt.length<10) return;
+      if(dt.slice(0,7)!==ym) return;
+      if(week!==0 && _weekOfMonth(dt)!==week) return;
+      (d.items||[]).forEach(it=>{ t+=(it.qty||0); });
+    });
+    return t;
+  }
+  const rows=[...wkExamples].sort((a,b)=> (b.ym+ (''+(9-b.week))).localeCompare(a.ym+(''+(9-a.week))) );
+  host.innerHTML=rows.map(e=>{
+    const actual=actualFor(e.ym,e.week);
+    const diff=actual-e.qty;
+    const errPct = e.qty? Math.round(Math.abs(diff)/e.qty*100) : (actual?100:0);
+    const hasData=actual>0;
+    const accColor = !hasData?'var(--tx3)': errPct<=10?'var(--acc3)': errPct<=25?'var(--acc2)':'var(--acc4)';
+    const accLabel = !hasData?'실측 없음': errPct<=10?'정확':'오차 '+errPct+'%';
+    const wkTxt = e.week===0?'월 전체':e.week+'주';
+    return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:9px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:12px;font-weight:700">${_ymKor(e.ym)} · ${wkTxt}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge" style="background:${accColor}22;color:${accColor}">${accLabel}</span>
+          <button onclick="delWkExample('${e.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px">🗑</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">예상</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700">${e.qty}</div></div>
+        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">실제</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc5)">${hasData?actual:'-'}</div></div>
+        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">차이</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${diff>0?'var(--acc4)':diff<0?'var(--acc3)':'var(--tx2)'}">${hasData?(diff>0?'+':'')+diff:'-'}</div></div>
+      </div>
+      ${e.note?`<div style="font-size:10px;color:var(--tx3);margin-top:6px">📝 ${e.note}</div>`:''}
+    </div>`;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════
