@@ -8221,9 +8221,13 @@ async function autoSyncOnLoad(){
     const data=await gsFetch('GET',null,'?action=read');
     applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
     meta.lastGsSync=new Date().toISOString();
+    window._skipLocalChange = true;
     saveAll();
+    window._skipLocalChange = false;
     updateGsStatus('ok');
-    renderHome();
+    // 현재 보고 있는 탭 전체 갱신 (납품서·재고 등도 함께 다시 그림)
+    if(typeof rerenderAfterSync==='function'){ try{ rerenderAfterSync(); }catch(e){ renderHome(); } }
+    else renderHome();
   }catch(e){
     console.log('자동동기화 실패:', e.message);
   }
@@ -8865,9 +8869,89 @@ function deleteDeliv(id){
   // ── 자동 동기화 주기 (단일 지점 관리) ──
 // 혼자 쓸 땐 5분이면 충분. 작업자가 늘면 이 숫자만 조절하세요.
 // 1분=60000, 3분=180000, 5분=300000, 10분=600000
-const AUTO_SYNC_MS = 300000; // = 5분
+const AUTO_SYNC_MS = 300000; // = 5분 (시트→앱 받기 주기)
 autoSyncOnLoad();                          // 앱 켤 때 1회 (시트→앱)
 setInterval(autoSyncOnLoad, AUTO_SYNC_MS); // 이후 주기적으로 (시트→앱)
+
+// ════════════════════════════════════════════════════════════════
+//  🔄 자동 올리기(앱→시트) — 변경하면 알아서 시트로 올라가게
+//  목적: 직원이 자료 넣고 5분 자동주기 전에 창을 닫아도 안 날아가게.
+//  - 데이터 변경 후 8초 잠잠하면 자동 업로드 (디바운스)
+//  - 창을 닫거나 숨길 때(다른 탭/앱 전환) 마지막으로 한 번 업로드
+//  - 창을 다시 보면 즉시 시트→앱 받기
+//  autoSync() 자체에 '빈 데이터 보류'·'충돌 보류' 가드가 있어 안전합니다.
+// ════════════════════════════════════════════════════════════════
+let _autoPushTimer = null;
+let _lastPushedChange = (meta && meta.lastLocalChange) || null;
+
+// 올릴 게 있는지: 마지막 로컬변경이 마지막으로 올린 것보다 새로우면 true
+function _hasUnpushedChange(){
+  if(!meta || !meta.lastLocalChange) return false;
+  if(_isLocalEmpty()) return false; // 빈 데이터는 올리지 않음 (시트 보호)
+  if(!_lastPushedChange) return true;
+  return new Date(meta.lastLocalChange) > new Date(_lastPushedChange);
+}
+
+// 변경 감지 → 8초 디바운스 후 자동 업로드
+function scheduleAutoPush(){
+  if(!gsUrl) return;
+  if(_autoPushTimer) clearTimeout(_autoPushTimer);
+  _autoPushTimer = setTimeout(async ()=>{
+    if(_hasUnpushedChange() && !_syncBusy){
+      _lastPushedChange = meta.lastLocalChange;
+      try{ await autoSync(); }catch(e){}
+    }
+  }, 8000); // 8초간 추가 변경 없으면 올림
+}
+
+// saveAll을 감싸서, 로컬 변경이 생길 때마다 자동 업로드 예약
+(function(){
+  const _origSaveAll = saveAll;
+  window.saveAll = saveAll = function(){
+    const r = _origSaveAll.apply(this, arguments);
+    // 외부(시트→앱)에서 받은 직후 호출이면 올리지 않음
+    if(!window._skipLocalChange) scheduleAutoPush();
+    return r;
+  };
+})();
+
+// 창을 닫거나 새로고침할 때: 마지막으로 한 번 더 올림(동기 요청)
+window.addEventListener('beforeunload', function(){
+  try{
+    if(gsUrl && _hasUnpushedChange()){
+      const payload = JSON.stringify({
+        action:'saveAll',
+        clientLastSync: meta.lastGsSync || null,
+        clientTs: new Date().toISOString(),
+        actor: (typeof getActor==='function'?getActor():'') || '',
+        force: true,
+        data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples}
+      });
+      // sendBeacon: 창이 닫혀도 백그라운드로 전송 보장
+      if(navigator.sendBeacon){
+        const blob = new Blob([payload], {type:'text/plain'});
+        navigator.sendBeacon(gsUrl, blob);
+        _lastPushedChange = meta.lastLocalChange;
+      }
+    }
+  }catch(e){}
+});
+
+// 탭 전환·화면 숨김/복귀 처리
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'hidden'){
+    // 화면을 떠날 때: 안 올린 변경이 있으면 즉시 업로드 시도
+    if(gsUrl && _hasUnpushedChange() && !_syncBusy){
+      _lastPushedChange = meta.lastLocalChange;
+      autoSync().catch(()=>{});
+    }
+  } else if(document.visibilityState === 'visible'){
+    // 화면으로 돌아올 때: 시트의 최신 데이터를 즉시 받아옴
+    if(gsUrl && !_syncBusy){
+      autoSyncOnLoad().then(()=>{ try{ rerenderAfterSync(); }catch(e){} }).catch(()=>{});
+    }
+  }
+});
 </script>
 </body>
 </html>
