@@ -8420,8 +8420,8 @@ function classifyDelivItem(name){
   return o;
 }
 function delivDestGroup(dest){
-  const d=dest||'';
-  if(d.includes('오이도')) return '오이도';
+  const d=(dest||'').replace(/\s+/g,'');
+  if(d.includes('오이도')||d.includes('오이')) return '오이도';
   return '그레이박스';
 }
 // 브리핑 렌더링 (날짜 input 기준, 기본 오늘)
@@ -8468,7 +8468,7 @@ function copyBrief(){
 function buildDelivBrief(ymd){
   const docs=delivLog.filter(d=>(d.orderDate||d.delivReqDate)===ymd);
   if(!docs.length) return null;
-  const oido={ '450':0,'500':0 };
+  const oido={ '450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0 };
   const G={ glass:{'450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0}, 빌트인:0,
     EURO700:{total:0,hpm:0,grace:0,t73:0,non73:0,bigyu:0},
     EURO500:{total:0,t73:0,non73:0,bigyu:0},
@@ -8483,7 +8483,11 @@ function buildDelivBrief(ymd){
       total+=q;
       if(isAS){ if(AS[c.cat]!==undefined) AS[c.cat]+=q; return; }
       if(dgrp==='오이도'){
-        if(c.cat==='글래스도어'&&(c.sz==='450'||c.sz==='500')) oido[c.sz]+=q;
+        if(c.cat==='글래스도어'){
+          oido.total+=q;
+          if(c.ext){ oido.ext+=q; if(c.sz==='450')oido['450연장']+=q; else if(c.sz==='500')oido['500연장']+=q; }
+          else { if(c.sz==='450')oido['450']+=q; else if(c.sz==='500')oido['500']+=q; }
+        }
         return;
       }
       if(c.cat==='글래스도어'){
@@ -8504,10 +8508,10 @@ function buildDelivBrief(ymd){
   const md=`${dt.getMonth()+1}월 ${dt.getDate()}일`;
   const asTotal=Object.values(AS).reduce((a,b)=>a+b,0);
   let t=`📦 ${md}(${wd}) 발주 · 총 ${total}EA\n\n`;
-  t+=`[오이도]\n-글래스도어\n 450 : ${oido['450']}EA\n 500 : ${oido['500']}EA\n\n`;
+  t+=`[오이도]\n-글래스도어 : ${oido.total}EA\n 450 : ${oido['450']}EA\n 500 : ${oido['500']}EA\n\n`;
   t+=`[그레이박스]\n`;
   t+=`-글래스도어 : ${G.glass.total}EA (연장 : ${G.glass.ext}EA)\n`;
-  t+=` 450 : ${G.glass['450']}EA\n 500 : ${G.glass['500']}EA\n 450 연장 : ${G.glass['450연장']}EA\n 500 연장 : ${G.glass['500연장']}EA\n`;
+  t+=` 450 : ${G.glass['450']}EA\n 500 : ${G.glass['500']}EA\n 450 연장 : ${G.glass['450연장']}EA\n 500 연장 : ${G.glass['500연장']}EA\n\n`;
   t+=`-빌트인 : ${G.빌트인}EA\n\n`;
   t+=`-EURO700 : ${G.EURO700.total}EA\n(HPM : ${G.EURO700.hpm}EA / 유리 : ${G.EURO700.grace}EA)\n73 : ${G.EURO700.t73}EA\n73 외 : ${G.EURO700.non73}EA\n(비규격 : ${G.EURO700.bigyu}EA)\n\n`;
   t+=`-EURO500 : ${G.EURO500.total}EA\n73 : ${G.EURO500.t73}EA\n73 외 : ${G.EURO500.non73}EA\n(비규격 : ${G.EURO500.bigyu}EA)\n\n`;
@@ -8516,7 +8520,7 @@ function buildDelivBrief(ymd){
   t+=`-KB : ${G.KB.total}EA (비규격 : ${G.KB.bigyu}EA)\n\n`;
   t+=`-AS : ${asTotal}EA\n`;
   if(asTotal){ Object.entries(AS).forEach(([k,v])=>{ if(v) t+=` ${k} : ${v}EA\n`; }); }
-  return {text:t, total, asTotal, docs:docs.length, oidoTotal:oido['450']+oido['500'], grayGlass:G.glass.total};
+  return {text:t, total, asTotal, docs:docs.length, oidoTotal:oido.total, grayGlass:G.glass.total};
 }
 
 function parseDelivText(text){
@@ -8532,7 +8536,7 @@ function parseDelivText(text){
   if(!mDate) mDate=joined.match(/(\d{8})\s+(\d{8})\s+유통통합/);
   if(mDate){ reqDate=mDate[1]; orderDate=mDate[2]; }
   // 납품처 (설치센터_…/배송센터_…)
-  const mDest=joined.match(/(설치센터_[가-힣]+\([가-힣\s]*\)|배송센터_[가-힣]+\([가-힣A-Z0-9_\s]*\)|설치센터_[가-힣]+|배송센터_[가-힣]+)/);
+  const mDest=joined.match(/(설치센터_[가-힣]+\s*\([가-힣A-Z0-9_\s]*\)|배송센터_[가-힣]+\s*\([가-힣A-Z0-9_\s]*\)|설치센터_[가-힣]+|배송센터_[가-힣]+)/);
   if(mDest) dest=mDest[1].replace(/\s+/g,'').trim();
 
   const tokens=joined.split(/\s+/);
