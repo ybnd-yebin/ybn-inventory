@@ -9008,6 +9008,9 @@ function parseDelivCellsPage(pageItems){
     }
   }
   if(qcx===null) return null; // 헤더 못 찾음 → 폴백
+  // 수량 칸과 오더번호 칸 x중심이 너무 가까우면(헤더가 한 덩어리로 뭉친 깨진 PDF)
+  // 좌표로 칸을 못 나누므로 좌표 파서 폐기 → 텍스트 파서로 폴백
+  if(ocx!==null && Math.abs(qcx-ocx) < 40) return null;
   const qx0=qcx-20, qx1=qcx+20;
   const ox0=ocx!==null?ocx-22:qx1, ox1=ocx!==null?ocx+22:qx1+45;
   const data=pageItems.filter(c=>c.y>hy+4);
@@ -9252,13 +9255,31 @@ function parseDelivText(text){
       let qty=1, orderNo='';
       const oIdx = seg.findIndex(t=>/^\d{9}$/.test(t));
       if(oIdx>=0){
-        // 양식 A: 오더번호 앞에서 가장 가까운 1~4자리 순수 숫자가 수량
+        // 양식 A: ... 제품명 ... [수량+순번뭉치] [오더번호(9자리)] ...
+        // 오더번호 바로 앞 숫자뭉치 = "수량"+"순번"이 붙은 것. 순번=행번호(1,2,3..) → 떼면 수량.
+        // 예: "18"(순번8)→수량1, "212"(순번12)→수량2, "11"(순번1)→수량1
         orderNo=seg[oIdx];
-        for(let k=oIdx-1;k>=0;k--){ if(/^\d{1,4}$/.test(seg[k])){ qty=parseInt(seg[k])||1; break; } }
+        let head=null;
+        for(let k=oIdx-1;k>=0;k--){
+          if(/^\d{1,5}$/.test(seg[k])){ head=seg[k]; break; }
+          else break;
+        }
+        if(head!==null){
+          const rowSeq=items.length+1;        // 이 행의 순번(1부터)
+          const seqStr=String(rowSeq);
+          if(head.length>seqStr.length && head.endsWith(seqStr)){
+            qty=parseInt(head.slice(0, head.length-seqStr.length))||1;
+          } else if(head===seqStr){
+            qty=1; // 수량이 1자리고 순번과 합쳐 안 보이는 극단 케이스 방어
+          } else {
+            qty=parseInt(head)||1;
+          }
+        }
       } else {
-        // 양식 B: 제품명 뒤 첫 순수 숫자가 수량
-        const qIdx=seg.findIndex(t=>/^\d{1,4}$/.test(t));
-        if(qIdx>=0) qty=parseInt(seg[qIdx])||1;
+        // 양식 B(오더번호 없음): 제품명 뒤 [수량][순번] 뭉침 → 행 순번으로 분리
+        const fq=_qtyFromRowText(seg.join(' '), code, items.length+1);
+        if(fq!==null) qty=fq;
+        else { const qIdx=seg.findIndex(t=>/^\d{1,4}$/.test(t)); if(qIdx>=0) qty=parseInt(seg[qIdx])||1; }
       }
       const info=delivLookup(code);
       items.push({code, short:info.short||code, color:info.color, size:info.size, gubun:info.gubun, qty, orderNo});
