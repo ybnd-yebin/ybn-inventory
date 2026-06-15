@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>와이비앤디 업무</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600;700&family=Hi+Melody&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script> 
@@ -7406,6 +7406,23 @@ function odRenderCapture(o){
          <div>인천시 남동구 남동대로 370번지 57-51</div>
          <div>남동공단 35블럭7롯트 신원 휄트 내 5동</div>
          <div>TEL 032)821-0247~8　FAX 032)821-0249</div>
+         <div style="display:flex;justify-content:flex-end;margin-top:8px">
+           <table style="border-collapse:collapse;font-size:13px;text-align:center">
+             <tr>
+               <td rowspan="2" style="border:1px solid #333;padding:4px 6px;letter-spacing:2px;background:#f7f7f7;white-space:nowrap">결<br>재</td>
+               <td style="border:1px solid #333;padding:3px 10px;background:#f7f7f7;white-space:nowrap">담당</td>
+               <td style="border:1px solid #333;padding:3px 10px;background:#f7f7f7;white-space:nowrap">차장</td>
+               <td style="border:1px solid #333;padding:3px 10px;background:#f7f7f7;white-space:nowrap">이사</td>
+               <td style="border:1px solid #333;padding:3px 10px;background:#f7f7f7;white-space:nowrap">사장</td>
+             </tr>
+             <tr>
+               <td style="border:1px solid #333;padding:2px 6px;height:32px;font-family:'Hi Melody','Gaegu',cursive;font-size:18px;color:#1a3a8a;white-space:nowrap">송영훈</td>
+               <td style="border:1px solid #333;min-width:44px"></td>
+               <td style="border:1px solid #333;min-width:44px"></td>
+               <td style="border:1px solid #333;min-width:44px"></td>
+             </tr>
+           </table>
+         </div>
        </div>
      </div>
      <div style="font-size:20px;font-weight:700;text-align:center;margin:6px 0 12px">${titleLine}</div>
@@ -7439,8 +7456,13 @@ function odCopyImage(){
   if(!o.items.length){ showToast('품목을 입력하세요'); return; }
   const node=odRenderCapture(o);
 
+  // 손글씨 폰트(사인)가 로드된 뒤 캡처 — 폰트 미로드 시 기본체로 찍히는 것 방지
+  const fontReady = (document.fonts && document.fonts.load)
+    ? Promise.all([document.fonts.load("17px 'Hi Melody'"), document.fonts.ready]).catch(()=>{})
+    : Promise.resolve();
+
   // canvas → blob Promise
-  const blobP = html2canvas(node,{scale:2,backgroundColor:'#fff'}).then(canvas=>{
+  const blobP = fontReady.then(()=>html2canvas(node,{scale:2,backgroundColor:'#fff'})).then(canvas=>{
     return new Promise(res=>canvas.toBlob(b=>res(b),'image/png'));
   });
 
