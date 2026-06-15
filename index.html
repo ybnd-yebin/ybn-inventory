@@ -9012,17 +9012,79 @@ function parseDelivCellsPage(pageItems){
   const ox0=ocx!==null?ocx-22:qx1, ox1=ocx!==null?ocx+22:qx1+45;
   const data=pageItems.filter(c=>c.y>hy+4);
   const out=[];
+  let rowSeq=0; // 데이터 행 순번(1,2,3...) — 뭉친 셀에서 순번 분리에 사용
   for(const r of _clusterRows(data,tol)){
     const seq=r.items.slice().sort((a,b)=>a.x-b.x);
     const full=seq.map(c=>c.str).join('');
     const code=_extractCode(full);
     if(!code) continue;
+    rowSeq++;
     const qcell=seq.filter(c=>{const m=c.x+(c.w||0)/2; return m>=qx0&&m<=qx1&&c.str.trim();}).map(c=>c.str).join('');
     const ocell=seq.filter(c=>{const m=c.x+(c.w||0)/2; return m>=ox0&&m<=ox1&&c.str.trim();}).map(c=>c.str).join('');
-    const qm=qcell.match(/\d+/); const om=ocell.match(/\d{9}/);
-    out.push({code, qty:qm?parseInt(qm[0]):1, orderNo:om?om[0]:''});
+    const om=ocell.match(/\d{9}/);
+    // 수량 추출: 일부 한샘 양식(물류 배송센터 등)은 수량·순번·심플코드·존·렉이
+    // 한 좌표에 뭉쳐 "81  SG 741 C01 10" 처럼 나옴 → 맨 앞 숫자에서 행 순번을 떼어 복원
+    let qty = _parseQtyCell(qcell, rowSeq);
+    // 좌표로 수량칸을 못 잡았으면(빈칸/1) 행 전체 문자열에서 구조 파싱 폴백
+    if((!qcell || qty===1) ){
+      const fq=_qtyFromRowText(full, code, rowSeq);
+      if(fq!==null) qty=fq;
+    }
+    out.push({code, qty, orderNo:om?om[0]:''});
   }
   return out.length?out:null;
+}
+
+// 행 전체 문자열에서 수량 추출 (좌표 분리 실패한 완전 뭉침 PDF용)
+// 예: "CAIB13894 글래스 도어 450_채널  81  SG 741 C01 10"
+//     코드 뒤 ~ 심플코드(영문2~3+숫자) 사이의 마지막 숫자덩어리 = 수량+순번
+function _qtyFromRowText(full, code, rowSeq){
+  if(!full||!code) return null;
+  let s=full;
+  const ci=s.indexOf(code);
+  if(ci>=0) s=s.slice(ci+code.length); // 코드 이후만
+  // 심플코드 패턴(SG 741 / AB 123 등 영문+공백+숫자) 또는 존(C01) 직전까지가 "수량+순번"
+  // 1) "숫자덩어리 + 공백들 + 영문" 패턴에서 숫자덩어리 캡처
+  const m=s.match(/(\d+)\s+[A-Za-z]{1,3}\s*\d/);
+  let head=null;
+  if(m) head=m[1];
+  else {
+    // 2) 폴백: 제품명(450_채널 등) 이후 첫 독립 숫자덩어리
+    const m2=s.match(/[_\s](\d{1,4})\s/);
+    if(m2) head=m2[1];
+  }
+  if(head===null) return null;
+  const seqStr=String(rowSeq);
+  if(head.length>seqStr.length && head.endsWith(seqStr)){
+    return parseInt(head.slice(0, head.length-seqStr.length))||1;
+  }
+  // 순번이 안 붙은 단독 수량
+  if(head.length<=2) return parseInt(head)||1;
+  // 길면 맨 앞 1자리 (보수적)
+  return parseInt(head[0])||1;
+}
+
+// 수량 셀 문자열에서 실제 수량을 뽑는다.
+// 정상: "8" → 8.  뭉침: "81  SG 741 C01 10" (수량8+순번1) → 8.
+function _parseQtyCell(cell, rowSeq){
+  const s=(cell||'').trim();
+  if(!s) return 1;
+  // 맨 앞 숫자 덩어리
+  const m=s.match(/^(\d+)/);
+  if(!m) return 1;
+  const head=m[1];
+  // 뒤에 영문(심플코드 SG 등)이 따라오면 = 칸이 뭉친 상태 → 순번 분리 시도
+  const tail=s.slice(head.length);
+  const hasMerged=/[A-Za-z]/.test(tail);
+  if(hasMerged){
+    const seqStr=String(rowSeq);
+    if(head.length>seqStr.length && head.endsWith(seqStr)){
+      return parseInt(head.slice(0, head.length-seqStr.length))||1;
+    }
+    // 순번 못 떼면 보수적으로 맨 앞 1자리 (대부분 수량 한 자리)
+    return parseInt(head[0])||1;
+  }
+  return parseInt(head)||1;
 }
 
 // ── 일일 브리핑: 제품/납품처 분류 ──
@@ -9044,7 +9106,9 @@ function classifyDelivItem(name){
 }
 function delivDestGroup(dest){
   const d=(dest||'').replace(/\s+/g,'');
-  if(d.includes('오이도')||d.includes('오이')) return '오이도';
+  // 납품처는 '오이도' 아니면 '그레이박스' 둘 뿐.
+  // PDF에서 '오이도'가 '오이'+줄바꿈+'도'로 쪼개져도 잡히도록 '오이'만 있어도 오이도로 판정.
+  if(d.includes('오이')) return '오이도';
   return '그레이박스';
 }
 // 브리핑 렌더링 (날짜 input 기준, 기본 오늘)
@@ -9110,6 +9174,9 @@ function buildDelivBrief(ymd){
           oido.total+=q;
           if(c.ext){ oido.ext+=q; if(c.sz==='450')oido['450연장']+=q; else if(c.sz==='500')oido['500연장']+=q; }
           else { if(c.sz==='450')oido['450']+=q; else if(c.sz==='500')oido['500']+=q; }
+        } else {
+          // 오이도인데 글래스도어가 아닌 품목 — 누락되지 않도록 기타로 집계
+          oido.etc=(oido.etc||0)+q;
         }
         return;
       }
@@ -9131,7 +9198,9 @@ function buildDelivBrief(ymd){
   const md=`${dt.getMonth()+1}월 ${dt.getDate()}일`;
   const asTotal=Object.values(AS).reduce((a,b)=>a+b,0);
   let t=`📦 ${md}(${wd}) 발주 · 총 ${total}EA\n\n`;
-  t+=`[오이도]\n-글래스도어 : ${oido.total}EA\n 450 : ${oido['450']}EA\n 500 : ${oido['500']}EA\n\n`;
+  t+=`[오이도]\n-글래스도어 : ${oido.total}EA\n 450 : ${oido['450']}EA\n 500 : ${oido['500']}EA\n 450 연장 : ${oido['450연장']}EA\n 500 연장 : ${oido['500연장']}EA\n`;
+  if(oido.etc){ t+=` (글래스도어 외 : ${oido.etc}EA)\n`; }
+  t+=`\n`;
   t+=`[그레이박스]\n`;
   t+=`-글래스도어 : ${G.glass.total}EA (연장 : ${G.glass.ext}EA)\n`;
   t+=` 450 : ${G.glass['450']}EA\n 500 : ${G.glass['500']}EA\n 450 연장 : ${G.glass['450연장']}EA\n 500 연장 : ${G.glass['500연장']}EA\n\n`;
@@ -9161,6 +9230,11 @@ function parseDelivText(text){
   // 납품처 (설치센터_…/배송센터_…)
   const mDest=joined.match(/(설치센터_[가-힣]+\s*\([가-힣A-Z0-9_\s]*\)|배송센터_[가-힣]+\s*\([가-힣A-Z0-9_\s]*\)|설치센터_[가-힣]+|배송센터_[가-힣]+)/);
   if(mDest) dest=mDest[1].replace(/\s+/g,'').trim();
+  // 백업: 납품처는 '오이도' 아니면 '그레이박스' 둘 뿐.
+  // PDF에서 '오이도'가 줄바꿈으로 쪼개져 dest 추출이 불완전해도, 원문에 '오이'가 있으면 오이도로 확정.
+  if(joined.replace(/\s+/g,'').includes('오이') && !dest.includes('오이')){
+    dest = dest ? (dest+'(오이도)') : '오이도';
+  }
 
   const tokens=joined.split(/\s+/);
   const items=[];
