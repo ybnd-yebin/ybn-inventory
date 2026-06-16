@@ -9327,6 +9327,7 @@ async function handleDelivPdf(ev){
   const statusEl=document.getElementById('deliv-upload-status');
   statusEl.textContent='⏳ '+files.length+'개 파일 읽는 중...';
   let added=0,dup=0,fail=0,skipped=0;
+  window._delivDebug=''; // [임시 디버그] 새 업로드마다 초기화
   for(const file of files){
     try{
       const buf=await file.arrayBuffer();
@@ -9370,21 +9371,20 @@ async function handleDelivPdf(ev){
       }
       // 헤더 정보(납품번호/날짜/납품처/참조)는 텍스트 파서로
       const parsed=parseDelivText(full);
-      // ── [임시 디버그] 첫 PDF의 줄 원문과 파싱 결과를 화면에 표시 ──
-      if(window._delivDebug===undefined) window._delivDebug='';
-      if(!window._delivDebug){
+      // ── [임시 디버그] 모든 PDF의 줄 원문과 파싱 결과를 누적 표시 ──
+      {
         const lines=full.split('\n').filter(s=>s.trim());
-        let dbg='[줄 원문]\n'+lines.map((l,i)=>i+': '+l).join('\n');
-        dbg+='\n\n[파싱 결과]\n'+(parsed.items||[]).map(it=>`${it.code} | qty=${it.qty} | ${it.name||it.short||''}`).join('\n');
-        window._delivDebug=dbg;
+        let dbg='\n══════ '+file.name+' ══════\n[줄 원문]\n'+lines.map((l,i)=>i+': '+l).join('\n');
+        dbg+='\n[파싱 결과]\n'+(parsed.items||[]).map(it=>`  ${it.code} | qty=${it.qty} | ${it.name||it.short||''}`).join('\n');
+        window._delivDebug=(window._delivDebug||'')+dbg+'\n';
         let dbgEl=document.getElementById('deliv-debug');
         if(!dbgEl){
           dbgEl=document.createElement('pre');
           dbgEl.id='deliv-debug';
-          dbgEl.style.cssText='white-space:pre-wrap;font-size:10px;background:#1a1a1a;color:#7fd;padding:10px;border-radius:8px;margin-top:8px;max-height:300px;overflow:auto';
+          dbgEl.style.cssText='white-space:pre-wrap;font-size:10px;background:#1a1a1a;color:#7fd;padding:10px;border-radius:8px;margin-top:8px;max-height:400px;overflow:auto';
           statusEl.parentNode.insertBefore(dbgEl, statusEl.nextSibling);
         }
-        dbgEl.textContent=dbg;
+        dbgEl.textContent=window._delivDebug;
       }
       // "납품서(집계)" 형식이 아니면(라벨/출고명세 등) 건너뜀
       if(!isAggregateDeliv(full)){ skipped++; continue; }
