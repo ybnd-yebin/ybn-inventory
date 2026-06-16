@@ -9255,7 +9255,7 @@ function parseDelivText(text){
   const isCode = t => (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[t]) ||
                       (t.length===9 && DELIV_PROD_CODE_RE.test(t) && /[0-9]/.test(t));
   const isNum = t => /^\d{1,3}$/.test(t);
-  const isZone = t => /^[A-Za-z]\d{0,2}$/.test(t) && !['M','L','R','X'].includes(t); // 존: C01/D/A (방향표기 제외)
+  const isZone = t => /^[A-Za-z]\d{0,2}$/.test(t) && !['M','L','R','X','Z'].includes(t); // 존: C01/D/A (방향표기·심플코드Z 제외)
 
   const rawLines=(text||'').split('\n');
   for(let li=0; li<rawLines.length; li++){
@@ -9268,30 +9268,56 @@ function parseDelivText(text){
     const code=toks[cIdx];
     const after=toks.slice(cIdx+1); // 제품코드 이후 = 제품명 ... 수량 ...
 
-    let qty=1, orderNo='';
+    let qty=1, orderNo='', qtyTokIdx=-1;
     const oIdx=after.findIndex(t=>/^\d{9}$/.test(t));
     if(oIdx>=0){
       // 양식 A: 제품명 ... [수량] [오더번호(9)] [순번(6)] [지역]
       // 수량 = 오더번호 바로 앞의 순수 숫자 (제품명 끝 사이즈 9091 등과 구분)
       orderNo=after[oIdx];
       for(let k=oIdx-1;k>=0;k--){
-        if(isNum(after[k])){ qty=parseInt(after[k])||1; break; }
+        if(isNum(after[k])){ qty=parseInt(after[k])||1; qtyTokIdx=k; break; }
         // 숫자가 아니면 계속 왼쪽으로 (제품명 토큰 건너뜀) — 단 다른 9자리 만나면 중단
         if(/^\d{9}$/.test(after[k])) break;
       }
     } else {
       // 양식 B: 제품명 ... [수량] [존] [렉]   (오더번호 없음)
       // 줄 단위라 다음 행 침범 없음 → 존 앞 숫자 = 수량, 존 없으면 끝 숫자 = 수량
-      let zone=after.findIndex(isZone);
+      // 존은 '오른쪽 끝에서부터' 찾는다. 앞쪽 심플코드(Z xx 등)를 가짜 존으로 잡지 않게.
+      let zone=-1;
+      for(let i=after.length-1;i>=0;i--){ if(isZone(after[i])){ zone=i; break; } }
       if(zone>=1){
-        for(let k=zone-1;k>=0;k--){ if(isNum(after[k])){ qty=parseInt(after[k])||1; break; } }
+        for(let k=zone-1;k>=0;k--){ if(isNum(after[k])){ qty=parseInt(after[k])||1; qtyTokIdx=k; break; } }
       } else {
         // 존 없음: 오른쪽에서 첫 순수숫자 (제품명 끝 모델숫자보다 뒤에 있는 수량)
-        for(let k=after.length-1;k>=0;k--){ if(isNum(after[k])){ qty=parseInt(after[k])||1; break; } }
+        for(let k=after.length-1;k>=0;k--){ if(isNum(after[k])){ qty=parseInt(after[k])||1; qtyTokIdx=k; break; } }
       }
     }
+    // ── 제품명: 코드 다음부터 수량 토큰 직전까지 (수량 못 찾으면 전체) ──
+    const nameToks = qtyTokIdx>=0 ? after.slice(0, qtyTokIdx) : after.slice();
+    const rawName = nameToks.join(' ').trim();
+    // ── 사이즈·좌우(LR) 추출 ──
+    let lineSize='', lr='';
+    let mBig=rawName.match(/비규격\(([\d*]+)\s*([LR])?\)/);
+    if(mBig){
+      // 비규격: 450*0*2174*0 → 0 제외하고 ×로 (450×2174), 뒤따르는 L/R
+      const nums=mBig[1].split('*').filter(n=>n!=='0'&&n!=='');
+      lineSize=nums.join('×'); lr=mBig[2]||'';
+      // 괄호 뒤 단독 LR 표기(예: "...0 R) 450X0X2174X0")도 커버
+      if(!lr){ const m2=rawName.match(/비규격\([^)]*\)\s*([LR])\b/); if(m2) lr=m2[1]; }
+    } else {
+      // 정규격: 모델명 끝 사이즈코드 (표시용 참고만, 그룹핑엔 안 씀)
+      const mE=rawName.match(/(\d{3,4})(?:\(공용\))?\s+M\s*$/);
+      if(mE) lineSize=mE[1];
+    }
     const info=delivLookup(code);
-    items.push({code, short:info.short||code, color:info.color, size:info.size, gubun:info.gubun, qty, orderNo});
+    // ── 비규격 판정 (사용자 규칙) ──
+    //  제품명 또는 카탈로그 short에 '비규격' 또는 '(비)'가 있으면 비규격.
+    //  비규격이면 모델명+사이즈(+LR) 조합이 다르면 무조건 별도 행으로 분리한다.
+    //  그 단어가 없으면 정규격 → 제품코드 단위로 묶는다.
+    const nameForJudge = (rawName||'') + ' ' + (info.short||'');
+    const isBig = /비규격/.test(nameForJudge) || /\(비\)/.test(nameForJudge);
+    items.push({code, short:info.short||rawName||code, name:rawName, color:info.color,
+                size:lineSize||info.size, lr, isBig, gubun:info.gubun, qty, orderNo});
   }
   return {delivNo, refNo, reqDate, orderDate, dest, items};
 }
@@ -9424,6 +9450,8 @@ function delivUndoDeduct(d){
 
 let delivViewMode='order'; // 'order'=발주일(기본), 'ship'=출고일, 'req'=납품요청일
 let delivSearchKey='';    // 납품번호/참조문서번호/오더번호/제품 검색어
+let delivLrMode='print';  // 'print'=인쇄실(사이즈만,좌우합산) / 'assy'=조립실(사이즈+L/R 분리)
+function setDelivLr(mode){ delivLrMode=mode; renderDelivery(); }
 function setDelivView(mode,btn){
   delivViewMode=mode;
   if(btn&&btn.parentElement) btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));
@@ -9535,6 +9563,17 @@ function renderDelivery(){
     `<button class="f-btn ${delivViewMode==='ship'?'on':''}" onclick="setDelivView('ship',this)">🚚 출고일 기준</button>`+
     `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`;
 
+  // 비규격 좌우 구분 토글 (인쇄실: 사이즈만 / 조립실: 사이즈+L/R)
+  let lrHost=document.getElementById('deliv-lr-toggle');
+  if(!lrHost){
+    lrHost=document.createElement('div');
+    lrHost.id='deliv-lr-toggle'; lrHost.className='filter-row'; lrHost.style.marginBottom='10px';
+    toggleHost.parentNode.insertBefore(lrHost, toggleHost.nextSibling);
+  }
+  lrHost.innerHTML=
+    `<button class="f-btn ${delivLrMode==='print'?'on':''}" onclick="setDelivLr('print')">🖨 인쇄실 (사이즈별)</button>`+
+    `<button class="f-btn ${delivLrMode==='assy'?'on':''}" onclick="setDelivLr('assy')">🔧 조립실 (좌우 구분)</button>`;
+
   const keyOf = d => delivViewMode==='ship' ? _shipOf(d)
                   : delivViewMode==='order' ? (d.orderDate||d.delivReqDate)
                   : d.delivReqDate;
@@ -9612,19 +9651,27 @@ function renderDelivery(){
       <div id="${idSafe}" style="${dim?'display:none':''}">
         <div style="height:1px;background:var(--b1);margin:8px 0"></div>
         ${(()=>{
-          // 제품명(코드) 기준 그룹핑 → 작업자용 합계, 오더별 내역은 펼치기
+          // 그룹핑: 비규격은 사이즈별(조립실 모드면 +L/R)로 분리, 정규격은 코드 단위.
+          // 인쇄실(print): 좌우 합산(사이즈만) / 조립실(assy): 좌우 구분
           const groups={};
           d.items.forEach(it=>{
-            const key=it.code;
-            if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:it.size,gubun:it.gubun,qty:0,orders:[]};
+            const big=!!it.isBig;
+            const useLr = big && delivLrMode==='assy' && it.lr;
+            const key = big
+              ? it.code+'|'+(it.size||'')+(useLr?'|'+it.lr:'')
+              : it.code;
+            if(!groups[key]) groups[key]={code:it.code,short:it.short,name:it.name,color:it.color,size:it.size,lr:(useLr?it.lr:''),isBig:big,gubun:it.gubun,qty:0,orders:[]};
             groups[key].qty+=(it.qty||0);
             groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
           });
-          return Object.values(groups).sort((a,b)=>b.qty-a.qty).map(g=>{
+          return Object.values(groups).sort((a,b)=>b.qty-a.qty).map((g,gi)=>{
             const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
             const hasOrders=g.orders.some(o=>o.orderNo);
             const multiline=g.orders.length>1||hasOrders;
-            const gid=idSafe+'-g-'+g.code;
+            const gid=idSafe+'-g-'+gi;
+            // 사이즈/좌우 배지
+            const sizeTag = g.size?`<span style="display:inline-block;background:var(--s3);color:var(--tx1);font-size:10px;padding:1px 6px;border-radius:6px;margin-right:4px">📐 ${g.size}</span>`:'';
+            const lrTag = g.lr?`<span style="display:inline-block;background:${g.lr==='L'?'rgba(56,139,253,.15)':'rgba(248,81,73,.12)'};color:${g.lr==='L'?'var(--acc)':'var(--acc4)'};font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;margin-right:4px">${g.lr==='L'?'◀ 좌(L)':'우(R) ▶'}</span>`:'';
             const orderRows=g.orders.map(o=>
               `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);padding:2px 0 2px 18px">
                 <span>${o.orderNo?'오더 '+o.orderNo:'(오더번호 없음)'}</span><span>${o.qty}장</span></div>`).join('');
@@ -9632,8 +9679,8 @@ function renderDelivery(){
               <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();var e=document.getElementById('${gid}');var a=this.querySelector('.grp-arrow');if(e){var open=e.style.display==='none';e.style.display=open?'block':'none';if(a)a.textContent=open?'▴':'▾';}"`:''}>
                 <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.short||g.code}</div>
-                  <div style="font-size:10px;color:var(--tx2)">${g.code}${g.size?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
+                  <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.short||g.name||g.code}</div>
+                  <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?(sizeTag+lrTag):''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
                 </div>
                 <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
                 ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">▾</span>`:''}
