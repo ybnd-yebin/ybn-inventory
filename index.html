@@ -9723,7 +9723,7 @@ function renderDelivery(){
               <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();var e=document.getElementById('${gid}');var a=this.querySelector('.grp-arrow');if(e){var open=e.style.display==='none';e.style.display=open?'block':'none';if(a)a.textContent=open?'▴':'▾';}"`:''}>
                 <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.short||g.code}</div>
+                  <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.short||g.code}${g.isBig&&g.size?`<span style="color:var(--acc2);font-weight:700"> (${g.size}${g.lr?' '+g.lr:''})</span>`:''}</div>
                   <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?(sizeTag+lrTag):''}${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
                 </div>
                 <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
