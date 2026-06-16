@@ -8870,6 +8870,22 @@ const HANSAEM_CATALOG={"SAE000227":["AL55 리프트업 도어 600","빌트인","
 const DELIV_PROD_CODE_RE = /^[A-Z]{2,6}[0-9A-Z]*$/;
 
 // 코드 → 제품명/색상/구분/사이즈 (엑셀 카탈로그 우선)
+// 비규격 제품명에서 사이즈·좌우(LR)를 추출. 파서와 카드 렌더 양쪽에서 사용.
+// 괄호 형식: (450*0*781*0 M) — 숫자들 뒤 방향표기 L/R/M(M=공용). 0은 제외.
+function delivSizeLR(rawName){
+  const name=rawName||''; let size='', lr='';
+  let m=name.match(/비규격\s*\(\s*([\d*]+)\s*([LRM])?\s*\)/);
+  if(m){
+    size=m[1].split('*').filter(n=>n!=='0'&&n!=='').join('×');
+    lr=(m[2]==='L'||m[2]==='R')?m[2]:'';
+  } else {
+    const m2=name.match(/비규격\s*\(\s*([\d*]+)/); // 괄호 안 닫힘(줄바꿈) 폴백
+    if(m2) size=m2[1].split('*').filter(n=>n!=='0'&&n!=='').join('×');
+  }
+  if(!lr){ const ml=name.match(/\b([LR])\)/); if(ml) lr=ml[1]; } // LR 폴백
+  if(!size){ const mx=name.match(/(\d+)X(\d+)X(\d+)X(\d+)/i); if(mx) size=[mx[1],mx[2],mx[3],mx[4]].filter(n=>n!=='0').join('×'); }
+  return {size, lr};
+}
 function delivLookup(code){
   const out={short:'', color:'', gubun:'', size:'', daegubun:''};
   if(typeof DAEGUBUN!=='undefined' && DAEGUBUN[code]) out.daegubun=DAEGUBUN[code];
@@ -9308,33 +9324,13 @@ function parseDelivText(text){
     // ── 제품명: 코드 다음부터 수량 토큰 직전까지 ──
     const nameToks = qtyTokIdx>=0 ? after.slice(0, qtyTokIdx) : after.slice();
     const rawName = nameToks.join(' ').trim();
-    // ── 사이즈·좌우(LR) 추출 ──
-    // 괄호 안 형식: (450*0*781*0 M) — 숫자들 뒤 방향표기 L/R/M(M=공용). 0은 사이즈에서 제외.
+    // ── 사이즈·좌우(LR) 추출 (공용 함수) ──
     let lineSize='', lr='';
-    let mBig=rawName.match(/비규격\s*\(\s*([\d*]+)\s*([LRM])?\s*\)/);
-    if(mBig){
-      const nums=mBig[1].split('*').filter(n=>n!=='0'&&n!=='');
-      lineSize=nums.join('×');
-      lr=(mBig[2]==='L'||mBig[2]==='R')?mBig[2]:''; // M은 공용이라 좌우 아님
+    if(/비규격/.test(rawName)){
+      const sz=delivSizeLR(rawName); lineSize=sz.size; lr=sz.lr;
     } else {
-      // 폴백1: 괄호가 줄바꿈으로 안 닫힌 경우 '비규격(숫자*숫자...' 만으로 사이즈 추출
-      const mb2=rawName.match(/비규격\s*\(\s*([\d*]+)/);
-      if(mb2){ lineSize=mb2[1].split('*').filter(n=>n!=='0'&&n!=='').join('×'); }
-      else {
-        // 정규격: 모델명 끝 사이즈코드
-        const mE=rawName.match(/(\d{3,4})(?:\(공용\))?\s+M\s*$/);
-        if(mE) lineSize=mE[1];
-      }
-    }
-    // LR 폴백: 제품명 어디서든 '... L)' / 'R)' 또는 사이즈표기 뒤
-    if(!lr){
-      const mlr=rawName.match(/\b([LR])\)/);
-      if(mlr) lr=mlr[1];
-    }
-    // 폴백2: AXBXCXD 표기에서 사이즈 보강 (괄호 추출 실패 시)
-    if(!lineSize){
-      const mx=rawName.match(/(\d+)X(\d+)X(\d+)X(\d+)/i);
-      if(mx){ lineSize=[mx[1],mx[2],mx[3],mx[4]].filter(n=>n!=='0').join('×'); }
+      const mE=rawName.match(/(\d{3,4})(?:\(공용\))?\s+M\s*$/); // 정규격 모델 끝 사이즈코드
+      if(mE) lineSize=mE[1];
     }
     const info=delivLookup(code);
     // ── 비규격 판정: 제품명 또는 카탈로그 short에 '비규격'/'(비)' 있을 때만 ──
@@ -9701,10 +9697,13 @@ function renderDelivery(){
           // 인쇄실(print): 좌우 합산(사이즈만) / 조립실(assy): 좌우 구분
           const groups={};
           d.items.forEach(it=>{
-            const big=!!it.isBig;
-            const useLr = big && delivLrMode==='assy' && it.lr;
-            const key = big ? (it.code+'|'+(it.size||'')+(useLr?'|'+it.lr:'')) : it.code;
-            if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:it.size,lr:(useLr?it.lr:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,qty:0,orders:[]};
+            const big=!!it.isBig || /비규격/.test(it.name||it.short||'');
+            // 옛 데이터 대응: size/lr이 비어 있으면 제품명에서 즉시 재추출
+            let sz=it.size, lrv=it.lr;
+            if(big && (!sz || lrv===undefined)){ const r=delivSizeLR(it.name||it.short||''); if(!sz)sz=r.size; if(!lrv)lrv=r.lr; }
+            const useLr = big && delivLrMode==='assy' && lrv;
+            const key = big ? (it.code+'|'+(sz||'')+(useLr?'|'+lrv:'')) : it.code;
+            if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:sz,lr:(useLr?lrv:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,qty:0,orders:[]};
             groups[key].qty+=(it.qty||0);
             groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
           });
