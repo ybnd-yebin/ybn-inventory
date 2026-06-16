@@ -9309,15 +9309,32 @@ function parseDelivText(text){
     const nameToks = qtyTokIdx>=0 ? after.slice(0, qtyTokIdx) : after.slice();
     const rawName = nameToks.join(' ').trim();
     // ── 사이즈·좌우(LR) 추출 ──
+    // 괄호 안 형식: (450*0*781*0 M) — 숫자들 뒤 방향표기 L/R/M(M=공용). 0은 사이즈에서 제외.
     let lineSize='', lr='';
-    const mBig=rawName.match(/비규격\s*\(\s*([\d*]+)\s*([LR])?\s*\)/);
+    let mBig=rawName.match(/비규격\s*\(\s*([\d*]+)\s*([LRM])?\s*\)/);
     if(mBig){
       const nums=mBig[1].split('*').filter(n=>n!=='0'&&n!=='');
-      lineSize=nums.join('×'); lr=mBig[2]||'';
-      if(!lr){ const m2=rawName.match(/비규격\([^)]*\)\s*([LR])\b/); if(m2) lr=m2[1]; }
+      lineSize=nums.join('×');
+      lr=(mBig[2]==='L'||mBig[2]==='R')?mBig[2]:''; // M은 공용이라 좌우 아님
     } else {
-      const mE=rawName.match(/(\d{3,4})(?:\(공용\))?\s+M\s*$/);
-      if(mE) lineSize=mE[1];
+      // 폴백1: 괄호가 줄바꿈으로 안 닫힌 경우 '비규격(숫자*숫자...' 만으로 사이즈 추출
+      const mb2=rawName.match(/비규격\s*\(\s*([\d*]+)/);
+      if(mb2){ lineSize=mb2[1].split('*').filter(n=>n!=='0'&&n!=='').join('×'); }
+      else {
+        // 정규격: 모델명 끝 사이즈코드
+        const mE=rawName.match(/(\d{3,4})(?:\(공용\))?\s+M\s*$/);
+        if(mE) lineSize=mE[1];
+      }
+    }
+    // LR 폴백: 제품명 어디서든 '... L)' / 'R)' 또는 사이즈표기 뒤
+    if(!lr){
+      const mlr=rawName.match(/\b([LR])\)/);
+      if(mlr) lr=mlr[1];
+    }
+    // 폴백2: AXBXCXD 표기에서 사이즈 보강 (괄호 추출 실패 시)
+    if(!lineSize){
+      const mx=rawName.match(/(\d+)X(\d+)X(\d+)X(\d+)/i);
+      if(mx){ lineSize=[mx[1],mx[2],mx[3],mx[4]].filter(n=>n!=='0').join('×'); }
     }
     const info=delivLookup(code);
     // ── 비규격 판정: 제품명 또는 카탈로그 short에 '비규격'/'(비)' 있을 때만 ──
@@ -9479,6 +9496,8 @@ function delivUndoDeduct(d){
 
 let delivViewMode='order'; // 'order'=발주일(기본), 'ship'=출고일, 'req'=납품요청일
 let delivSearchKey='';    // 납품번호/참조문서번호/오더번호/제품 검색어
+let delivLrMode='print';  // 'print'=인쇄실(사이즈만,좌우합산) / 'assy'=조립실(사이즈+L/R 분리)
+function setDelivLr(mode){ delivLrMode=mode; renderDelivery(); }
 function setDelivView(mode,btn){
   delivViewMode=mode;
   if(btn&&btn.parentElement) btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));
@@ -9590,6 +9609,17 @@ function renderDelivery(){
     `<button class="f-btn ${delivViewMode==='ship'?'on':''}" onclick="setDelivView('ship',this)">🚚 출고일 기준</button>`+
     `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`;
 
+  // 비규격 좌우 구분 토글 (인쇄실=사이즈만 / 조립실=사이즈+L/R)
+  let lrHost=document.getElementById('deliv-lr-toggle');
+  if(!lrHost){
+    lrHost=document.createElement('div');
+    lrHost.id='deliv-lr-toggle'; lrHost.className='filter-row'; lrHost.style.marginBottom='10px';
+    toggleHost.parentNode.insertBefore(lrHost, toggleHost.nextSibling);
+  }
+  lrHost.innerHTML=
+    `<button class="f-btn ${delivLrMode==='print'?'on':''}" onclick="setDelivLr('print')">🖨 인쇄실 (사이즈별)</button>`+
+    `<button class="f-btn ${delivLrMode==='assy'?'on':''}" onclick="setDelivLr('assy')">🔧 조립실 (좌우 구분)</button>`;
+
   const keyOf = d => delivViewMode==='ship' ? _shipOf(d)
                   : delivViewMode==='order' ? (d.orderDate||d.delivReqDate)
                   : d.delivReqDate;
@@ -9667,19 +9697,25 @@ function renderDelivery(){
       <div id="${idSafe}" style="${dim?'display:none':''}">
         <div style="height:1px;background:var(--b1);margin:8px 0"></div>
         ${(()=>{
-          // 제품명(코드) 기준 그룹핑 → 작업자용 합계, 오더별 내역은 펼치기
+          // 그룹핑: 비규격은 사이즈별(조립실 모드면 +L/R)로 분리, 정규격은 코드 단위.
+          // 인쇄실(print): 좌우 합산(사이즈만) / 조립실(assy): 좌우 구분
           const groups={};
           d.items.forEach(it=>{
-            const key=it.code;
-            if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:it.size,gubun:it.gubun,daegubun:it.daegubun,qty:0,orders:[]};
+            const big=!!it.isBig;
+            const useLr = big && delivLrMode==='assy' && it.lr;
+            const key = big ? (it.code+'|'+(it.size||'')+(useLr?'|'+it.lr:'')) : it.code;
+            if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:it.size,lr:(useLr?it.lr:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,qty:0,orders:[]};
             groups[key].qty+=(it.qty||0);
             groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
           });
-          return Object.values(groups).sort((a,b)=>b.qty-a.qty).map(g=>{
+          return Object.values(groups).sort((a,b)=>b.qty-a.qty).map((g,gi)=>{
             const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
             const hasOrders=g.orders.some(o=>o.orderNo);
             const multiline=g.orders.length>1||hasOrders;
-            const gid=idSafe+'-g-'+g.code;
+            const gid=idSafe+'-g-'+gi;
+            // 사이즈/좌우 배지
+            const sizeTag = g.isBig&&g.size?`<span style="display:inline-block;background:var(--s3);color:var(--tx1);font-size:10px;padding:1px 6px;border-radius:6px;margin-right:4px">📐 ${g.size}</span>`:'';
+            const lrTag = g.lr?`<span style="display:inline-block;background:${g.lr==='L'?'rgba(56,139,253,.15)':'rgba(248,81,73,.12)'};color:${g.lr==='L'?'var(--acc)':'var(--acc4)'};font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;margin-right:4px">${g.lr==='L'?'◀ 좌(L)':'우(R) ▶'}</span>`:'';
             const orderRows=g.orders.map(o=>
               `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);padding:2px 0 2px 18px">
                 <span>${o.orderNo?'오더 '+o.orderNo:'(오더번호 없음)'}</span><span>${o.qty}장</span></div>`).join('');
@@ -9688,7 +9724,7 @@ function renderDelivery(){
                 <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
                 <div style="flex:1;min-width:0">
                   <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.short||g.code}</div>
-                  <div style="font-size:10px;color:var(--tx2)">${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${g.size?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
+                  <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?(sizeTag+lrTag):''}${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
                 </div>
                 <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
                 ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">▾</span>`:''}
