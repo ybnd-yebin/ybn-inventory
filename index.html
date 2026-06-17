@@ -9822,7 +9822,7 @@ function renderDelivery(){
           if(!sz) sz=r1.size||r2.size;
           if(!lrv) lrv=r1.lr||r2.lr;
         }
-        const useLr = big && delivLrMode==='assy' && lrv;
+        const useLr = big && lrv; // 합본 카드(조립실 성격): 비규격은 항상 좌우 구분
         const key = (big ? (it.code+'|'+(sz||'')+(useLr?'|'+lrv:'')) : it.code) + '|' + dgrp;
         if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:sz,lr:(useLr?lrv:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,dest:dgrp,qty:0,orders:[]};
         groups[key].qty+=(it.qty||0);
@@ -9838,6 +9838,7 @@ function renderDelivery(){
         const multiline=g.orders.length>1||hasOrders;
         const gid=idSafe+'-g-'+gi;
         const sizeTag = g.isBig&&g.size?`<span style="display:inline-block;background:var(--s3);color:var(--tx1);font-size:10px;padding:1px 6px;border-radius:6px;margin-right:4px">📐 ${g.size}</span>`:'';
+        const lrTag = g.lr?`<span style="display:inline-block;background:${g.lr==='L'?'rgba(56,139,253,.15)':'rgba(248,81,73,.12)'};color:${g.lr==='L'?'var(--acc)':'var(--acc4)'};font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;margin-right:4px">${g.lr==='L'?'◀ 좌(L)':'우(R) ▶'}</span>`:'';
         const orderRows=g.orders.map(o=>
           `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);padding:2px 0 2px 18px">
             <span>${o.orderNo?'오더 '+o.orderNo:'(오더번호 없음)'}</span><span>${o.qty}장</span></div>`).join('');
@@ -9846,7 +9847,7 @@ function renderDelivery(){
             <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
             <div style="flex:1;min-width:0">
               <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_destTag(g.dest)}${g.short||g.code}${g.isBig&&g.size?`<span style="color:var(--acc2);font-weight:700"> (${g.size}${g.lr?' '+g.lr:''})</span>`:''}</div>
-              <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?sizeTag:''}${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
+              <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?(sizeTag+lrTag):''}${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
             </div>
             <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
             ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">▾</span>`:''}
