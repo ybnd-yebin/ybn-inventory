@@ -9229,7 +9229,7 @@ function buildDelivBrief(ymd, mode){
   if(!docs.length) return null;
   const oido={ '450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0 };
   const G={ glass:{'450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0}, 빌트인:0,
-    EURO700:{total:0,hpm:0,grace:0,t73:0,non73:0,bigyu:0},
+    EURO700:{total:0,hpm:0,grace:0,t73:0,non73:0,bigyu:0,bigyuHPM:0,bigyuGrace:0},
     EURO500:{total:0,t73:0,non73:0,bigyu:0},
     유리장식장:{total:0,bigyu:0}, 에어힌지:{total:0,bigyu:0}, KB:{total:0,bigyu:0} };
   const AS={ '글래스도어':0,'빌트인':0,'EURO500':0,'EURO700':0,'유리장식장':0,'에어힌지':0,'KB':0 };
@@ -9258,7 +9258,7 @@ function buildDelivBrief(ymd, mode){
         else { if(c.sz==='450')G.glass['450']+=q; else if(c.sz==='500')G.glass['500']+=q; }
       }
       else if(c.cat==='빌트인') G.빌트인+=q;
-      else if(c.cat==='EURO700'){ const e=G.EURO700; e.total+=q; if(c.isHPM)e.hpm+=q; if(c.isGrace)e.grace+=q; if(c.is73)e.t73+=q; else e.non73+=q; if(c.isBigyu)e.bigyu+=q; }
+      else if(c.cat==='EURO700'){ const e=G.EURO700; e.total+=q; if(c.isHPM)e.hpm+=q; if(c.isGrace)e.grace+=q; if(c.is73)e.t73+=q; else e.non73+=q; if(c.isBigyu){ e.bigyu+=q; if(c.isHPM)e.bigyuHPM+=q; else e.bigyuGrace+=q; } }
       else if(c.cat==='EURO500'){ const e=G.EURO500; e.total+=q; if(c.is73)e.t73+=q; else e.non73+=q; if(c.isBigyu)e.bigyu+=q; }
       else if(c.cat==='유리장식장'){ G.유리장식장.total+=q; if(c.isBigyu)G.유리장식장.bigyu+=q; }
       else if(c.cat==='에어힌지'){ G.에어힌지.total+=q; if(c.isBigyu)G.에어힌지.bigyu+=q; }
@@ -9277,7 +9277,7 @@ function buildDelivBrief(ymd, mode){
   t+=`-글래스도어 : ${G.glass.total}EA (연장 : ${G.glass.ext}EA)\n`;
   t+=` 450 : ${G.glass['450']}EA\n 500 : ${G.glass['500']}EA\n 450 연장 : ${G.glass['450연장']}EA\n 500 연장 : ${G.glass['500연장']}EA\n\n`;
   t+=`-빌트인 : ${G.빌트인}EA\n\n`;
-  t+=`-EURO700 : ${G.EURO700.total}EA\n(HPM : ${G.EURO700.hpm}EA / 유리 : ${G.EURO700.grace}EA)\n73 : ${G.EURO700.t73}EA\n73 외 : ${G.EURO700.non73}EA\n(비규격 : ${G.EURO700.bigyu}EA)\n\n`;
+  t+=`-EURO700 : ${G.EURO700.total}EA\n(HPM : ${G.EURO700.hpm}EA / 유리 : ${G.EURO700.grace}EA)\n73 : ${G.EURO700.t73}EA\n73 외 : ${G.EURO700.non73}EA\n(비규격 HPM : ${G.EURO700.bigyuHPM}EA / 비규격 유리 : ${G.EURO700.bigyuGrace}EA)\n\n`;
   t+=`-EURO500 : ${G.EURO500.total}EA\n73 : ${G.EURO500.t73}EA\n73 외 : ${G.EURO500.non73}EA\n(비규격 : ${G.EURO500.bigyu}EA)\n\n`;
   t+=`-유리장식장 : ${G.유리장식장.total}EA (비규격 : ${G.유리장식장.bigyu}EA)\n`;
   t+=`-에어힌지 : ${G.에어힌지.total}EA (비규격 : ${G.에어힌지.bigyu}EA)\n`;
@@ -9661,16 +9661,10 @@ function renderDelivery(){
     `<button class="f-btn ${delivViewMode==='order'?'on':''}" onclick="setDelivView('order',this)">🧾 발주일 기준</button>`+
     `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`;
 
-  // 비규격 좌우 구분 토글 (인쇄실=사이즈만 / 조립실=사이즈+L/R)
-  let lrHost=document.getElementById('deliv-lr-toggle');
-  if(!lrHost){
-    lrHost=document.createElement('div');
-    lrHost.id='deliv-lr-toggle'; lrHost.className='filter-row'; lrHost.style.marginBottom='10px';
-    toggleHost.parentNode.insertBefore(lrHost, toggleHost.nextSibling);
-  }
-  lrHost.innerHTML=
-    `<button class="f-btn ${delivLrMode==='print'?'on':''}" onclick="setDelivLr('print')">🖨 인쇄실 (사이즈별)</button>`+
-    `<button class="f-btn ${delivLrMode==='assy'?'on':''}" onclick="setDelivLr('assy')">🔧 조립실 (좌우 구분)</button>`;
+  // (인쇄실/조립실 좌우구분 토글은 납품서 탭에서 제거 — 작업일지 연결 시 의미가 생김)
+  // 혹시 이전에 생성된 토글 잔재가 있으면 정리
+  const _oldLr=document.getElementById('deliv-lr-toggle');
+  if(_oldLr) _oldLr.remove();
 
   const keyOf = d => delivViewMode==='req' ? (d.delivReqDate||d.orderDate)
                   : (d.orderDate||d.delivReqDate);
