@@ -6251,9 +6251,10 @@ function renderWlRecommend(){
   // 납품서에서 오늘 또는 가장 최근 납품일 찾기
   let targetDelivItems = [];
   if(delivLog && delivLog.length){
-    const sorted = [...delivLog].sort((a,b)=>b.delivDate.localeCompare(a.delivDate));
+    const _dkey = d => d.delivDate || (typeof _shipOf==='function'?_shipOf(d):'') || d.delivReqDate || d.orderDate || '';
+    const sorted = [...delivLog].sort((a,b)=>String(_dkey(b)).localeCompare(String(_dkey(a))));
     // 오늘 납품일이 있으면 오늘 것, 없으면 가장 최근
-    const target = sorted.find(d=>d.delivDate===td) || sorted[0];
+    const target = sorted.find(d=>_dkey(d)===td) || sorted[0];
     if(target){
       targetDelivItems = target.items.filter(i=>{
         // Grace 모델만 (DB에 있는 것)
