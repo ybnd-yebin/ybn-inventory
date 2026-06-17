@@ -9788,13 +9788,109 @@ function renderDelivery(){
     </div>`;
   }
 
-  // 날짜별 그룹 헤더(합계) + 카드 렌더링
+  // 납품처 → 짧은 태그 (오이도/그레이박스)
+  function _destTag(dest){
+    const g = (typeof delivDestGroup==='function') ? delivDestGroup(dest) : (dest||'');
+    if(g==='오이도') return `<span style="display:inline-block;font-size:9px;font-weight:800;background:rgba(46,160,67,.15);color:var(--acc3);padding:1px 6px;border-radius:6px;margin-right:4px">📦 오이도</span>`;
+    if(g==='그레이박스') return `<span style="display:inline-block;font-size:9px;font-weight:800;background:rgba(56,139,253,.12);color:var(--acc);padding:1px 6px;border-radius:6px;margin-right:4px">🏠 그레이박스</span>`;
+    return '';
+  }
+
+  // 같은 날짜의 납품서 여러 장을 하나의 카드로 합쳐서 렌더
+  function mergedCard(ds, dim){
+    if(!ds || !ds.length) return '';
+    if(ds.length===1) return card(ds[0], dim); // 1장이면 기존 카드 그대로
+    const k = keyOf(ds[0]);
+    const isTodayKey = k===today, isPast = k<today;
+    const totalQty = ds.reduce((a,d)=>a+d.items.reduce((s,i)=>s+(i.qty||0),0),0);
+    const anyAS = ds.some(d=>(d.refNo||'').startsWith('54'));
+    const idSafe = 'dvc-merged-'+(k||'x').replace(/[^0-9]/g,'');
+    const badge = isTodayKey?'<span style="font-size:10px;background:var(--acc4);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">🔴 오늘</span>'
+      :isPast?'<span style="font-size:10px;background:var(--tx3);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">지난</span>'
+      :'<span style="font-size:10px;background:var(--acc);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">예정</span>';
+    const hdrLabel = delivViewMode==='req' ? '📅 한샘납품' : '🧾 발주';
+
+    // 모든 납품서의 품목을 (코드+사이즈+좌우+납품처) 단위로 합산
+    const groups={};
+    ds.forEach(d=>{
+      const dgrp = (typeof delivDestGroup==='function') ? delivDestGroup(d.dest) : (d.dest||'');
+      d.items.forEach(it=>{
+        const big=!!it.isBig || /비규격|\(비\)/.test((it.name||'')+' '+(it.short||''));
+        let sz=it.size||'', lrv=it.lr||'';
+        if(big && (!sz || !lrv)){
+          const r1=delivSizeLR(it.name||''); const r2=delivSizeLR(it.short||'');
+          if(!sz) sz=r1.size||r2.size;
+          if(!lrv) lrv=r1.lr||r2.lr;
+        }
+        const useLr = big && delivLrMode==='assy' && lrv;
+        const key = (big ? (it.code+'|'+(sz||'')+(useLr?'|'+lrv:'')) : it.code) + '|' + dgrp;
+        if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:sz,lr:(useLr?lrv:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,dest:dgrp,qty:0,orders:[]};
+        groups[key].qty+=(it.qty||0);
+        groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
+      });
+    });
+
+    const itemRows = Object.values(groups)
+      .sort((a,b)=> (a.dest===b.dest? b.qty-a.qty : (a.dest==='오이도'?1:-1)) ) // 그레이박스 먼저, 오이도 나중
+      .map((g,gi)=>{
+        const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
+        const hasOrders=g.orders.some(o=>o.orderNo);
+        const multiline=g.orders.length>1||hasOrders;
+        const gid=idSafe+'-g-'+gi;
+        const sizeTag = g.isBig&&g.size?`<span style="display:inline-block;background:var(--s3);color:var(--tx1);font-size:10px;padding:1px 6px;border-radius:6px;margin-right:4px">📐 ${g.size}</span>`:'';
+        const orderRows=g.orders.map(o=>
+          `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);padding:2px 0 2px 18px">
+            <span>${o.orderNo?'오더 '+o.orderNo:'(오더번호 없음)'}</span><span>${o.qty}장</span></div>`).join('');
+        return `<div style="border-bottom:1px solid var(--b1)">
+          <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();var e=document.getElementById('${gid}');var a=this.querySelector('.grp-arrow');if(e){var open=e.style.display==='none';e.style.display=open?'block':'none';if(a)a.textContent=open?'▴':'▾';}"`:''}>
+            <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_destTag(g.dest)}${g.short||g.code}${g.isBig&&g.size?`<span style="color:var(--acc2);font-weight:700"> (${g.size}${g.lr?' '+g.lr:''})</span>`:''}</div>
+              <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?sizeTag:''}${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+            ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">▾</span>`:''}
+          </div>
+          ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
+        </div>`;
+      }).join('');
+
+    // 카드 하단: 합쳐진 납품서별 출고차감/삭제 액션
+    const docActions = ds.map(d=>{
+      const dGrp=(typeof delivDestGroup==='function')?delivDestGroup(d.dest):(d.dest||'');
+      const dedBtn=d.deducted
+        ? `<button onclick="event.stopPropagation();delivUndoDeduct(delivLog.find(x=>x.id==='${d.id}'))" style="padding:4px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx2);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">↩ 차감취소</button>`
+        : `<button onclick="event.stopPropagation();delivDeductStock(delivLog.find(x=>x.id==='${d.id}'))" style="padding:4px 9px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📤 출고차감</button>`;
+      return `<div style="display:flex;align-items:center;gap:6px;justify-content:space-between;padding:5px 0;border-top:1px solid var(--b1)">
+        <span style="font-size:10px;color:var(--tx2)">${_destTag(dGrp)}No.${d.delivNo}${d.deducted?' <span style="color:var(--acc3)">✓차감</span>':''}</span>
+        <span style="display:flex;gap:5px">${dedBtn}<button onclick="event.stopPropagation();deleteDeliv('${d.id}')" style="padding:4px 9px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:7px;color:var(--acc4);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑</button></span>
+      </div>`;
+    }).join('');
+
+    return `<div class="card" style="margin-bottom:10px;${dim?'opacity:.7;':''}${isTodayKey?'border-color:var(--acc4);box-shadow:0 0 0 1px var(--acc4)':''}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer" onclick="toggleDelivDetail('${idSafe}',this)">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">${badge}${anyAS?'<span style="font-size:10px;background:#ff6b35;color:#fff;padding:2px 9px;border-radius:10px;font-weight:800">🔧 AS포함</span>':''}
+            <span style="font-size:14px;font-weight:800">${hdrLabel} ${k?fmtDateSafe(k):'-'}</span></div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:2px">총 ${totalQty}장 · 납품서 ${ds.length}건 합본</div>
+        </div>
+        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">${dim?'▼':'▲'}</span>
+      </div>
+      <div id="${idSafe}" style="${dim?'display:none':''}">
+        <div style="height:1px;background:var(--b1);margin:8px 0"></div>
+        ${itemRows}
+        <div style="margin-top:8px">${docActions}</div>
+      </div>
+    </div>`;
+  }
+
+  // 날짜별 그룹 헤더(합계) + 합본 카드 렌더링
   function renderGrouped(list,dim){
     if(!list.length) return '';
     const groups={};
     list.forEach(d=>{ const k=keyOf(d)||'-'; (groups[k]=groups[k]||[]).push(d); });
     const keys=Object.keys(groups).sort((a,b)=>dim?b.localeCompare(a):a.localeCompare(b));
-    const dateLabel = delivViewMode==='order'?'발주':delivViewMode==='req'?'한샘납품':'출고';
+    const dateLabel = delivViewMode==='order'?'발주':'한샘납품';
     return keys.map(k=>{
       const ds=groups[k];
       const qSum=ds.reduce((a,d)=>a+d.items.reduce((s,i)=>s+(i.qty||0),0),0);
@@ -9803,9 +9899,13 @@ function renderDelivery(){
         <span style="font-size:13px;font-weight:800;color:var(--tx1)">📅 ${dateLabel} ${k!=='-'?fmtDateSafe(k):'미지정'}${asN?` <span style="font-size:10px;background:#ff6b35;color:#fff;padding:1px 7px;border-radius:8px;font-weight:700">AS ${asN}건</span>`:''}</span>
         <span style="font-size:13px;font-weight:900;color:var(--acc2);font-family:'JetBrains Mono',monospace">${qSum}장 <span style="font-size:10px;color:var(--tx3);font-weight:400">· ${ds.length}건</span></span>
       </div>`;
-      return hdr+ds.map(d=>card(d,dim)).join('');
+      // 검색 모드(dim 아님 + delivSearchKey)에서는 납품서별로, 평소엔 날짜별 합본 카드
+      const body = delivSearchKey ? ds.map(d=>card(d,dim)).join('') : mergedCard(ds, dim);
+      return hdr+body;
     }).join('');
   }
+
+  function _renderGrouped_OLD_UNUSED(list,dim){ return ''; }
 
   activeEl.innerHTML=summaryHtml+(activeList.length
     ? renderGrouped(activeList,false)
