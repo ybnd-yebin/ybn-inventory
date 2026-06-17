@@ -9856,16 +9856,12 @@ function renderDelivery(){
         </div>`;
       }).join('');
 
-    // 카드 하단: 합쳐진 납품서별 출고차감/삭제 액션
+    // 카드 하단: 합쳐진 납품서별 출고차감/삭제 액션 (참조번호는 표시 안 함 — 검색으로만 접근)
     const docActions = ds.map(d=>{
-      const dGrp=(typeof delivDestGroup==='function')?delivDestGroup(d.dest):(d.dest||'');
       const dedBtn=d.deducted
         ? `<button onclick="event.stopPropagation();delivUndoDeduct(delivLog.find(x=>x.id==='${d.id}'))" style="padding:4px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx2);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">↩ 차감취소</button>`
-        : `<button onclick="event.stopPropagation();delivDeductStock(delivLog.find(x=>x.id==='${d.id}'))" style="padding:4px 9px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📤 출고차감</button>`;
-      return `<div style="display:flex;align-items:center;gap:6px;justify-content:space-between;padding:5px 0;border-top:1px solid var(--b1)">
-        <span style="font-size:10px;color:var(--tx2)">${_destTag(dGrp)}No.${d.delivNo}${d.deducted?' <span style="color:var(--acc3)">✓차감</span>':''}</span>
-        <span style="display:flex;gap:5px">${dedBtn}<button onclick="event.stopPropagation();deleteDeliv('${d.id}')" style="padding:4px 9px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:7px;color:var(--acc4);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑</button></span>
-      </div>`;
+        : `<button onclick="event.stopPropagation();delivDeductStock(delivLog.find(x=>x.id==='${d.id}'))" style="padding:4px 9px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📤 출고차감${ds.length>1?' '+_destTag(delivDestGroup(d.dest)).replace(/<[^>]+>/g,'').trim():''}</button>`;
+      return `${dedBtn}<button onclick="event.stopPropagation();deleteDeliv('${d.id}')" style="padding:4px 9px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:7px;color:var(--acc4);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑</button>`;
     }).join('');
 
     return `<div class="card" style="margin-bottom:10px;${dim?'opacity:.7;':''}${isTodayKey?'border-color:var(--acc4);box-shadow:0 0 0 1px var(--acc4)':''}">
@@ -9880,7 +9876,7 @@ function renderDelivery(){
       <div id="${idSafe}" style="${dim?'display:none':''}">
         <div style="height:1px;background:var(--b1);margin:8px 0"></div>
         ${itemRows}
-        <div style="margin-top:8px">${docActions}</div>
+        <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;margin-top:10px">${docActions}</div>
       </div>
     </div>`;
   }
