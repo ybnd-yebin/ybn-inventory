@@ -9575,6 +9575,8 @@ let delivViewMode='order'; // 'order'=발주일(기본), 'req'=납품요청일
 if(delivViewMode==='ship') delivViewMode='order'; // 출고일 모드 폐지 — 안전 폴백
 let delivSearchKey='';    // 납품번호/참조문서번호/오더번호/제품 검색어
 let delivLrMode='print';  // 'print'=인쇄실(사이즈만,좌우합산) / 'assy'=조립실(사이즈+L/R 분리)
+let delivPerDoc=false;    // true=납품서 한 장씩 펼쳐보기(확인용) / false=날짜별 합본
+function setDelivPerDoc(on){ delivPerDoc=!!on; renderDelivery(); }
 function setDelivLr(mode){ delivLrMode=mode; renderDelivery(); }
 function setDelivView(mode,btn){
   delivViewMode=mode;
@@ -9715,7 +9717,8 @@ function renderDelivery(){
   }
   toggleHost.innerHTML=
     `<button class="f-btn ${delivViewMode==='order'?'on':''}" onclick="setDelivView('order',this)">🧾 발주일 기준</button>`+
-    `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`;
+    `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`+
+    `<button class="f-btn ${delivPerDoc?'on':''}" onclick="setDelivPerDoc(${delivPerDoc?'false':'true'})" style="margin-left:auto">${delivPerDoc?'📄 납품서별 ✓':'📄 납품서별로 보기'}</button>`;
 
   // (인쇄실/조립실 좌우구분 토글은 납품서 탭에서 제거 — 작업일지 연결 시 의미가 생김)
   // 혹시 이전에 생성된 토글 잔재가 있으면 정리
@@ -9794,6 +9797,24 @@ function renderDelivery(){
       </div>
       <div id="${idSafe}" style="${dim?'display:none':''}">
         <div style="height:1px;background:var(--b1);margin:8px 0"></div>
+        ${(()=>{
+          // ── 확인용: 이 납품서가 카톡 브리핑에서 어느 카테고리로 집계되는지 요약 ──
+          // (납품서별 보기일 때만 노출 — 수량 추적용)
+          if(!delivPerDoc) return '';
+          const catSum={};
+          d.items.forEach(it=>{
+            const info=delivLookup(it.code);
+            const c=classifyDelivItem(info.short||'', info.daegubun||it.daegubun||'');
+            const cat=c.cat||'기타';
+            catSum[cat]=(catSum[cat]||0)+(it.qty||0);
+          });
+          const chips=Object.entries(catSum).sort((a,b)=>b[1]-a[1])
+            .map(([cat,q])=>`<span style="display:inline-block;font-size:10px;font-weight:700;background:${isAS?'rgba(255,107,53,.12)':'var(--s3)'};color:${isAS?'#ff6b35':'var(--tx1)'};padding:2px 8px;border-radius:7px;margin:2px 4px 2px 0">${cat} ${q}장</span>`).join('');
+          return `<div style="margin-bottom:8px;padding:6px 8px;background:var(--s2);border-radius:8px;border:1px dashed ${isAS?'rgba(255,107,53,.4)':'var(--b2)'}">
+            <div style="font-size:10px;font-weight:800;color:${isAS?'#ff6b35':'var(--tx2)'};margin-bottom:3px">${isAS?'🔧 이 납품서는 AS로 집계됩니다':'📋 브리핑 집계 분류'}</div>
+            <div>${chips}</div>
+          </div>`;
+        })()}
         ${(()=>{
           // 그룹핑: 비규격은 사이즈별(조립실 모드면 +L/R)로 분리, 정규격은 코드 단위.
           // 인쇄실(print): 좌우 합산(사이즈만) / 조립실(assy): 좌우 구분
@@ -9953,7 +9974,7 @@ function renderDelivery(){
         <span style="font-size:13px;font-weight:900;color:var(--acc2);font-family:'JetBrains Mono',monospace">${qSum}장 <span style="font-size:10px;color:var(--tx3);font-weight:400">· ${ds.length}건</span></span>
       </div>`;
       // 검색 모드(dim 아님 + delivSearchKey)에서는 납품서별로, 평소엔 날짜별 합본 카드
-      const body = delivSearchKey ? ds.map(d=>card(d,dim)).join('') : mergedCard(ds, dim);
+      const body = (delivSearchKey || delivPerDoc) ? ds.map(d=>card(d,dim)).join('') : mergedCard(ds, dim);
       return hdr+body;
     }).join('');
   }
