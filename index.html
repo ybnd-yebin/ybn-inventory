@@ -9669,6 +9669,37 @@ function confirmDelivDateDelete(){
   showToast(`✅ ${targets.length}건 삭제 완료`);
 }
 
+// 카테고리(대구분 daegubun)별로 품목 그룹을 묶어 소제목과 함께 렌더한다.
+// groupsArr: card/mergedCard에서 만든 품목 그룹 배열 (각 항목에 daegubun, qty 보유)
+// rowFn(g, gi): 품목 한 줄 HTML을 만드는 콜백 (카드별로 다름)
+// 발주일·납품요청일 기준 어느 모드에서도 동일하게 동작한다.
+const DELIV_CAT_ORDER=['EURO700','EURO500','EURO','빌트인','시그니처','에어힌지','빗각'];
+function _delivCatLabel(cat){ return cat && String(cat).trim() ? String(cat).trim() : '기타/미분류'; }
+function renderDelivGroupsByCat(groupsArr, rowFn, sortFn){
+  const buckets={};
+  groupsArr.forEach(g=>{ const cat=_delivCatLabel(g.daegubun); (buckets[cat]=buckets[cat]||[]).push(g); });
+  const cats=Object.keys(buckets).sort((a,b)=>{
+    if(a==='기타/미분류') return 1;
+    if(b==='기타/미분류') return -1;
+    const ia=DELIV_CAT_ORDER.indexOf(a), ib=DELIV_CAT_ORDER.indexOf(b);
+    if(ia>=0&&ib>=0) return ia-ib;
+    if(ia>=0) return -1;
+    if(ib>=0) return 1;
+    return a.localeCompare(b);
+  });
+  const _sort = sortFn || ((a,b)=>b.qty-a.qty);
+  let gi=0;
+  return cats.map(cat=>{
+    const arr=buckets[cat].sort(_sort);
+    const catQty=arr.reduce((s,g)=>s+(g.qty||0),0);
+    const hdr=`<div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 2px;padding:3px 8px;background:var(--s2);border-radius:7px">
+      <span style="font-size:11px;font-weight:800;color:var(--tx1)">📁 ${cat}</span>
+      <span style="font-size:11px;font-weight:800;color:var(--acc2);font-family:'JetBrains Mono',monospace">${catQty}장 <span style="font-size:9px;color:var(--tx3);font-weight:400">· ${arr.length}품목</span></span>
+    </div>`;
+    return hdr + arr.map(g=>rowFn(g, gi++)).join('');
+  }).join('');
+}
+
 function renderDelivery(){
   const activeEl=document.getElementById('deliv-active');
   const archiveEl=document.getElementById('deliv-archive');
@@ -9782,7 +9813,7 @@ function renderDelivery(){
             groups[key].qty+=(it.qty||0);
             groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
           });
-          return Object.values(groups).sort((a,b)=>b.qty-a.qty).map((g,gi)=>{
+          return renderDelivGroupsByCat(Object.values(groups), (g,gi)=>{
             const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
             const hasOrders=g.orders.some(o=>o.orderNo);
             const multiline=g.orders.length>1||hasOrders;
@@ -9805,7 +9836,7 @@ function renderDelivery(){
               </div>
               ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
             </div>`;
-          }).join('');
+          });
         })()}
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:10px">${dedBtn}
           <button onclick="event.stopPropagation();deleteDeliv('${d.id}')" style="padding:5px 10px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:7px;color:var(--acc4);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑 삭제</button></div>
@@ -9855,9 +9886,8 @@ function renderDelivery(){
       });
     });
 
-    const itemRows = Object.values(groups)
-      .sort((a,b)=> (a.dest===b.dest? b.qty-a.qty : (a.dest==='오이도'?1:-1)) ) // 그레이박스 먼저, 오이도 나중
-      .map((g,gi)=>{
+    const itemRows = renderDelivGroupsByCat(Object.values(groups),
+      (g,gi)=>{
         const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
         const hasOrders=g.orders.some(o=>o.orderNo);
         const multiline=g.orders.length>1||hasOrders;
@@ -9879,7 +9909,8 @@ function renderDelivery(){
           </div>
           ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
         </div>`;
-      }).join('');
+      },
+      (a,b)=> (a.dest===b.dest? b.qty-a.qty : (a.dest==='오이도'?1:-1)) ); // 카테고리 안: 그레이박스 먼저, 오이도 나중
 
     // 카드 하단: 합쳐진 납품서별 출고차감/삭제 액션 (참조번호는 표시 안 함 — 검색으로만 접근)
     const docActions = ds.map(d=>{
