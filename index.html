@@ -1716,6 +1716,8 @@ const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycby2fhWdU5Uc39vMDOb
 let gsUrl=localStorage.getItem(LS.gsUrl)||DEFAULT_GS_URL;
 let actor=localStorage.getItem(LS.actor)||'';
 let delivLog=J(localStorage.getItem(LS.delivLog))||[];
+// 과거 동기화로 같은 납품번호가 중복 누적된 경우를 로드 시 1회 정리한다.
+try{ if(Array.isArray(delivLog)&&delivLog.length){ const _dd=dedupeDelivByNo(delivLog); if(_dd.length!==delivLog.length){ delivLog=_dd; localStorage.setItem(LS.delivLog, JSON.stringify(delivLog)); } } }catch(e){}
 let delivDeleted=J(localStorage.getItem('ybn-deliv-del-v1'))||{}; // {id: 삭제시각} 삭제된 납품서 묘비(병합 시 부활 방지)
 let ledgerLog=J(localStorage.getItem('ybn-ledger-v1'))||[];
 let vendorBook=J(localStorage.getItem('ybn-vendors-v1'))||[];
@@ -4484,6 +4486,27 @@ function mergeById(localArr, remoteArr, idKey){
   localArr.forEach(take); remoteArr.forEach(take);
   return order.map(id=>map.get(id)).concat(noId);
 }
+// 납품서 중복 제거: 같은 납품번호(delivNo)는 1건만 남긴다.
+// 동기화 시 기기마다 id가 새로 생겨 같은 납품번호가 여러 벌 쌓이는 문제를 막는다.
+// deducted(출고차감 완료)된 건과 최신 업로드 건을 우선 보존한다.
+function dedupeDelivByNo(arr){
+  if(!Array.isArray(arr)) return [];
+  const map=new Map(), order=[], noNo=[];
+  function better(a,b){
+    // 차감된 건 우선, 그다음 업로드 시각이 최신인 건 우선
+    if((a&&a.deducted)&&!(b&&b.deducted)) return a;
+    if((b&&b.deducted)&&!(a&&a.deducted)) return b;
+    const ta=String((a&&a.uploadedAt)||''), tb=String((b&&b.uploadedAt)||'');
+    return ta>=tb?a:b;
+  }
+  arr.forEach(d=>{
+    const no=d&&d.delivNo;
+    if(no==null||no===''){ noNo.push(d); return; }
+    if(!map.has(no)){ order.push(no); map.set(no,d); }
+    else map.set(no, better(map.get(no), d));
+  });
+  return order.map(no=>map.get(no)).concat(noNo);
+}
 function mergeStockEventsLocal(localObj, remoteObj){
   localObj=(localObj&&typeof localObj==='object')?localObj:{};
   remoteObj=(remoteObj&&typeof remoteObj==='object')?remoteObj:{};
@@ -4531,6 +4554,7 @@ function applyMergedFromSheet(data){
   if(data.delivLog!==undefined){
     delivLog=mergeById(delivLog, data.delivLog, 'id');
     delivLog=delivLog.filter(d=>!delivDeleted[d && d.id]); // 삭제된 납품서는 부활 금지
+    delivLog=dedupeDelivByNo(delivLog); // 같은 납품번호 중복 제거
   }
   if(data.notices!==undefined) notices=mergeById(notices, data.notices, 'id');
   if(data.schedules!==undefined) schedules=mergeById(schedules, data.schedules, 'id');
