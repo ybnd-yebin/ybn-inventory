@@ -936,6 +936,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <datalist id="fin-color-list"></datalist>
     <span class="lbl">입고 수량</span>
     <input type="number" class="inp" id="fin-qty" value="1" min="1" inputmode="numeric">
+    <span class="lbl">입고 날짜 <span style="color:var(--tx3);font-weight:400">(선입선출 기준)</span></span>
+    <input type="date" class="inp" id="fin-indate">
     <span class="lbl">메모 (선택)</span>
     <input class="inp" id="fin-memo" placeholder="예: 6/12 조립분">
     <button class="act-btn" style="background:var(--acc5);color:#fff" onclick="finAddConfirm()">✓ 완제품 입고</button>
@@ -955,6 +957,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <span class="lbl" id="fin-edit-qty-lbl">입고 수량</span>
     <input type="number" class="inp" id="fin-edit-qty" value="1" min="0" inputmode="numeric">
+    <div id="fin-edit-date-wrap"><span class="lbl">입고 날짜 <span style="color:var(--tx3);font-weight:400">(선입선출 기준)</span></span>
+    <input type="date" class="inp" id="fin-edit-indate"></div>
     <span class="lbl">메모 (선택)</span>
     <input class="inp" id="fin-edit-memo" placeholder="예: 단가확인, 손상 등">
     <button class="act-btn" id="fin-edit-confirm" style="background:var(--acc5);color:#fff" onclick="finEditConfirm()">✓ 적용</button>
@@ -1009,7 +1013,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button onclick="openWkExampleModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">＋ 예시 입력</button>
     </div>
     <div class="info-note" style="margin-bottom:10px;font-size:10.5px">
-      "우리가 파악한 예상치"(예: 6월 2주 200장)를 넣으면, <b>실제 납품서 집계와 얼마나 맞았는지</b> 오차율로 분석해줘요.
+      엑셀 예시표를 붙여넣으면, 그 품목들이 <b>실제 납품서로 확정되는지</b> 품목별로 대조해 <b>적중률·헛예측률</b>을 분석해요. (미리 만들어 놓고 안 나가는 낭비 방지)
     </div>
     <div id="wk-example-body"><div style="font-size:11px;color:var(--tx3)">＋ 예시 입력으로 우리가 예상했던 수량을 넣어보세요.</div></div>
   </div>
@@ -1094,23 +1098,29 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <button class="fab" id="fab-btn" style="background:var(--acc3)" onclick="onFab()">＋</button>
 
 <!-- TODO MODAL -->
-<!-- 주차 예시 입력 모달 -->
+<!-- 주차 예시 입력 모달 (엑셀 붙여넣기) -->
 <div class="modal-bg" id="wk-example-modal">
-  <div class="modal-sheet">
+  <div class="modal-sheet" style="max-width:560px;margin:0 auto">
     <button class="close-btn" onclick="closeM('wk-example-modal')">×</button>
-    <div class="modal-ttl">🎯 예상수량 예시 입력</div>
+    <div class="modal-ttl">🎯 예시표 붙여넣기 (엑셀)</div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:12px">
-      "우리가 이 주에 이 정도 나갈 거다"라고 <b>예상했던 수량</b>을 넣으면, 실제 납품서 집계와 비교해 얼마나 맞았는지 분석해요.
+      엑셀 예시표를 <b>그대로 복사해서 아래에 붙여넣기</b> 하세요. 모델명(또는 코드)과 수량 열을 자동으로 찾아 정리합니다.<br>
+      저장하면 이후 올라오는 <b>실제 납품서와 대조</b>해서 적중/헛예측(false alarm)을 분석해요.
     </div>
     <div class="f-row">
       <div><span class="lbl">연·월</span><input type="month" id="wke-ym" class="inp"></div>
-      <div><span class="lbl">주차</span><select id="wke-week" class="sel"><option value="1">1주(1~7)</option><option value="2">2주(8~14)</option><option value="3">3주(15~21)</option><option value="4">4주(22~28)</option><option value="5">5주(29~31)</option><option value="0">월 전체</option></select></div>
+      <div><span class="lbl">주차</span><select id="wke-week" class="sel"><option value="0">월 전체</option><option value="1">1주(1~7)</option><option value="2">2주(8~14)</option><option value="3">3주(15~21)</option><option value="4">4주(22~28)</option><option value="5">5주(29~31)</option></select></div>
     </div>
-    <span class="lbl">예상수량 (장)</span>
-    <input type="number" id="wke-qty" class="inp" placeholder="예: 200" min="0">
+    <span class="lbl">예시표 붙여넣기 <span style="color:var(--tx3);font-weight:400">(코드/모델 + 수량 · 탭/스페이스 구분)</span></span>
+    <textarea id="wke-paste" class="inp" style="height:130px;resize:vertical;font-family:'JetBrains Mono',monospace;font-size:11px" placeholder="예)
+BUIF6091	에토프	12
+6073	웜코튼	8
+Euro700 Grace W/Cotton	6
+..." oninput="previewWkPaste()"></textarea>
+    <div id="wke-paste-preview" style="font-size:11px;color:var(--tx3);margin:6px 0 10px"></div>
     <span class="lbl">메모 (선택)</span>
     <input id="wke-note" class="inp" placeholder="예: 명절 직후라 많을 듯">
-    <button class="act-btn blue" onclick="confirmWkExample()">✓ 예시 저장</button>
+    <button class="act-btn blue" onclick="confirmWkExample()">✓ 예시표 저장</button>
   </div>
 </div>
 
@@ -1699,6 +1709,42 @@ function findModel(key){
   return null;
 }
 
+// ── 납품서(delivLog) 기반 모델별 출고 집계 (라이브) ──
+// 업로드되는 납품서가 쌓일수록 TOP10/긴급부족 리스트가 자동 갱신됨.
+// 반환: Map(model.code -> {total, recent, lastDate, months:Set})
+let _delivAggCache=null, _delivAggSig='';
+function delivModelAgg(months){
+  months = months || 6;
+  const sig=(delivLog?delivLog.length:0)+'|'+months;
+  if(_delivAggCache && _delivAggSig===sig) return _delivAggCache;
+  const agg=new Map();
+  if(typeof delivLog==='undefined' || !delivLog.length){ _delivAggCache=agg; _delivAggSig=sig; return agg; }
+  const now=new Date();
+  const cutoff=new Date(now.getFullYear(), now.getMonth()-months, now.getDate()).toISOString().slice(0,10);
+  // 최근 14일을 '오늘 필요분(긴급)' 가중 윈도우로 사용
+  const recentCut=new Date(now.getTime()-14*86400000).toISOString().slice(0,10);
+  delivLog.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return; // AS 제외
+    const dt=d.delivReqDate||d.orderDate||'';
+    if(!dt || dt<cutoff) return;
+    (d.items||[]).forEach(it=>{
+      const m=findModel(it.code);
+      if(!m) return;
+      let e=agg.get(m.code);
+      if(!e){ e={total:0, recent:0, lastDate:'', months:new Set()}; agg.set(m.code,e); }
+      const q=it.qty||0;
+      e.total+=q;
+      e.months.add(dt.slice(0,7));
+      if(dt>=recentCut) e.recent+=q;
+      if(dt>e.lastDate) e.lastDate=dt;
+    });
+  });
+  _delivAggCache=agg; _delivAggSig=sig;
+  return agg;
+}
+// 캐시 무효화 (납품서 변경 시 호출)
+function invalidateDelivAgg(){ _delivAggCache=null; _delivAggSig=''; }
+
 
 // ── STORAGE ──
 const LS={stock:'ybn-s5',meta:'ybn-m5',work:'ybn-w5',ink:'ybn-i5',inkRate:'ybn-ir2',notices:'ybn-n2',schedules:'ybn-sc2',todos:'ybn-t2',gsUrl:'ybn-gs2',delivLog:'ybn-deliv-v1',actor:'ybn-actor-v1',stockEvents:'ybn-sev-v1',finished:'ybn-fin-v1'};
@@ -1716,8 +1762,6 @@ const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycby2fhWdU5Uc39vMDOb
 let gsUrl=localStorage.getItem(LS.gsUrl)||DEFAULT_GS_URL;
 let actor=localStorage.getItem(LS.actor)||'';
 let delivLog=J(localStorage.getItem(LS.delivLog))||[];
-// 과거 동기화로 같은 납품번호가 중복 누적된 경우를 로드 시 1회 정리한다.
-try{ if(Array.isArray(delivLog)&&delivLog.length){ const _dd=dedupeDelivByNo(delivLog); if(_dd.length!==delivLog.length){ delivLog=_dd; localStorage.setItem(LS.delivLog, JSON.stringify(delivLog)); } } }catch(e){}
 let delivDeleted=J(localStorage.getItem('ybn-deliv-del-v1'))||{}; // {id: 삭제시각} 삭제된 납품서 묘비(병합 시 부활 방지)
 let ledgerLog=J(localStorage.getItem('ybn-ledger-v1'))||[];
 let vendorBook=J(localStorage.getItem('ybn-vendors-v1'))||[];
@@ -1764,8 +1808,14 @@ function finApply(model,color,opt){
     f.qty = Math.max(0, f.qty + delta);
   }
   f.updatedAt=now; f.by=getActor()||'';
+  const evInDate = (type==='in' && opt.inDate) ? opt.inDate : '';
   f.events.push({ id:'fe_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
-    type, delta, at:now, by:getActor()||'', memo:(opt.memo||'').trim() });
+    type, delta, at:now, by:getActor()||'', memo:(opt.memo||'').trim(), inDate:evInDate });
+  // 선입선출(FIFO) 추적: 재고가 0이 되면 입고이력 리셋, 입고 시 가장 오래된 입고날짜 유지
+  if(f.qty<=0){ f.firstInDate=''; }
+  else if(type==='in' && evInDate){
+    if(!f.firstInDate || evInDate < f.firstInDate) f.firstInDate = evInDate;
+  }
   saveFinished();
   return f;
 }
@@ -2133,6 +2183,7 @@ function _formatActorTime(iso){
 }
 
 function saveAll(){
+  if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
   // 로컬 변경 시각 기록 (시트→앱 받기 직전 경고용)
   // _skipLocalChange가 true면 외부(시트→앱)에서 받은 후 호출이므로 갱신 안 함
   if(!window._skipLocalChange && meta){
@@ -2375,8 +2426,8 @@ function confirmTodo(){
 // ── NOTICES ──
 let noticePri='normal',editNoticeId=null,noticeArchiveOpen=false;
 function toggleNoticeArchive(){ noticeArchiveOpen=!noticeArchiveOpen; renderNotices(); }
-function archiveNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=true; saveAll(); renderNotices(); renderHome(); autoSync(); showToast('🗂 보관함으로 이동'); }
-function restoreNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=false; saveAll(); renderNotices(); renderHome(); autoSync(); showToast('공지로 복원'); }
+function archiveNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=true; n.updatedAt=new Date().toISOString(); saveAll(); renderNotices(); renderHome(); autoSync(); showToast('🗂 보관함으로 이동'); }
+function restoreNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=false; n.updatedAt=new Date().toISOString(); saveAll(); renderNotices(); renderHome(); autoSync(); showToast('공지로 복원'); }
 function renderNotices(){
   const el=document.getElementById('notice-list');
   const PL={normal:'일반',important:'⚠️ 중요',urgent:'🔴 긴급'};
@@ -2605,22 +2656,69 @@ function renderDash(){
   const wc=calcInkStock('WC'),etp=calcInkStock('ETP');
   document.getElementById('d-ink-wc').textContent=wc.remaining;
   document.getElementById('d-ink-etp').textContent=etp.remaining;
-  const urg=MODELS.filter(m=>isUrgent(m)).slice(0,6);
-  document.getElementById('d-urgent').innerHTML=!urg.length
-    ?'<div class="empty-sm" style="color:var(--acc3)">✅ 긴급 부족 없음</div>'
-    :urg.map(m=>{const s=getStock(m.code);const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';return '<div class="alert-box" onclick="openSModal(\''+m.code+'\')">'
+  // ── 긴급 부족 모델 (라이브: 업로드된 납품서 기준 최근 수요 + 재고 부족) ──
+  const agg=delivModelAgg(6);
+  // 1) 최근 14일 납품서에 등장한 모델 중 재고(원유리)가 수요보다 부족한 것
+  const demandList=[];
+  agg.forEach((e,code)=>{
+    if(e.recent<=0) return;
+    const m=MODELS.find(x=>x.code===code);
+    if(!m) return;
+    const s=getStock(code);
+    const shortage=e.recent - s.raw; // 최근 필요분 대비 원유리 부족량
+    if(shortage>0) demandList.push({m, recent:e.recent, raw:s.raw, shortage, lastDate:e.lastDate});
+  });
+  demandList.sort((a,b)=>b.shortage-a.shortage || b.recent-a.recent);
+  // 2) 기존 min_stock 기반 긴급(납품서에 안 잡혔지만 재고 바닥)도 보조로
+  const demandCodes=new Set(demandList.map(d=>d.m.code));
+  const baseUrg=MODELS.filter(m=>isUrgent(m) && !demandCodes.has(m.code)).slice(0,4);
+
+  let urgentHtml='';
+  if(demandList.length){
+    urgentHtml=demandList.slice(0,8).map(d=>{
+      const m=d.m, sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';
+      const dm=d.lastDate?d.lastDate.slice(5).replace('-','/'):'';
+      return '<div class="alert-box" onclick="openSModal(\''+m.code+'\')">'
+        +'<div class="alert-inner"><div><div class="alert-name">'+hlName(m.short,m.color)+'</div>'
+        +'<div class="alert-meta">'+m.code+' | '+sz+' '+colorBadge(m.color)
+        +' <span style="color:var(--acc4);font-weight:700">📋 최근필요 '+d.recent+'</span>'+(dm?' ('+dm+')':'')+'</div></div>'
+        +'<div class="alert-qty" style="color:var(--acc4)">'+d.raw+'<span class="alert-unit">원유리·부족 '+d.shortage+'</span></div></div></div>';
+    }).join('');
+  }
+  if(baseUrg.length){
+    urgentHtml+=baseUrg.map(m=>{const s=getStock(m.code);const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';return '<div class="alert-box" onclick="openSModal(\''+m.code+'\')">'
       +'<div class="alert-inner"><div><div class="alert-name">'+hlName(m.short,m.color)+'</div><div class="alert-meta">'+m.code+' | '+sz+' '+colorBadge(m.color)+'</div></div>'
       +'<div class="alert-qty">'+s.raw+'<span class="alert-unit">원유리</span></div></div></div>';}).join('');
+  }
+  document.getElementById('d-urgent').innerHTML = urgentHtml ||
+    '<div class="empty-sm" style="color:var(--acc3)">✅ 긴급 부족 없음</div>';
   if(!tl||!tl.items.length){document.getElementById('d-work').innerHTML='<div class="empty-sm">오늘 작업 기록 없음</div>';}
   else{
     const wcQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
     const etpQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
     document.getElementById('d-work').innerHTML='<div class="work-stats"><div class="ws"><div class="ws-l">총계</div><div class="ws-v acc3">'+tw+'장</div></div><div class="ws"><div class="ws-l wc">웜코튼</div><div class="ws-v wc">'+wcQ+'</div></div><div class="ws"><div class="ws-l etp">에토프</div><div class="ws-v etp">'+etpQ+'</div></div></div>';
   }
-  document.getElementById('d-top10').innerHTML=MODELS.slice(0,10).map((m,i)=>{const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';return '<div class="top10-row" onclick="openSModal(\''+m.code+'\')">'
+  // ── 고빈도 TOP 10 (라이브: 업로드된 납품서 누적 기준, 데이터 없으면 기존 6개월값 폴백) ──
+  const aggT=delivModelAgg(6);
+  let top10;
+  if(aggT.size){
+    top10=MODELS.map(m=>{
+      const e=aggT.get(m.code);
+      return {m, qty: e?e.total:0, live: !!e};
+    }).filter(x=>x.qty>0).sort((a,b)=>b.qty-a.qty).slice(0,10);
+    // 라이브 데이터가 10개 미만이면 기존 값으로 채움
+    if(top10.length<10){
+      const have=new Set(top10.map(x=>x.m.code));
+      MODELS.filter(m=>!have.has(m.code)).sort((a,b)=>(b.total_6m||0)-(a.total_6m||0))
+        .slice(0,10-top10.length).forEach(m=>top10.push({m, qty:m.total_6m||0, live:false}));
+    }
+  } else {
+    top10=MODELS.slice(0,10).map(m=>({m, qty:m.total_6m||0, live:false}));
+  }
+  document.getElementById('d-top10').innerHTML=top10.map((x,i)=>{const m=x.m;const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';return '<div class="top10-row" onclick="openSModal(\''+m.code+'\')">'
     +'<div class="top10-rank">'+(i+1)+'</div>'
     +'<div class="top10-info"><div class="top10-name">'+hlName(m.short,m.color)+'</div><div class="top10-meta">'+sz+' '+colorBadge(m.color)+' '+doorBadge(m.door_type)+'</div></div>'
-    +'<div class="top10-right"><div class="top10-qty">'+m.total_6m+'<span class="top10-unit">장</span></div><div class="trend">'+miniTrend(m.monthly||{})+'</div></div></div>';}).join('');
+    +'<div class="top10-right"><div class="top10-qty">'+x.qty+'<span class="top10-unit">장</span></div><div class="trend">'+miniTrend(m.monthly||{})+'</div></div></div>';}).join('');
 }
 
 // ── WORK LOG ──
@@ -4486,27 +4584,6 @@ function mergeById(localArr, remoteArr, idKey){
   localArr.forEach(take); remoteArr.forEach(take);
   return order.map(id=>map.get(id)).concat(noId);
 }
-// 납품서 중복 제거: 같은 납품번호(delivNo)는 1건만 남긴다.
-// 동기화 시 기기마다 id가 새로 생겨 같은 납품번호가 여러 벌 쌓이는 문제를 막는다.
-// deducted(출고차감 완료)된 건과 최신 업로드 건을 우선 보존한다.
-function dedupeDelivByNo(arr){
-  if(!Array.isArray(arr)) return [];
-  const map=new Map(), order=[], noNo=[];
-  function better(a,b){
-    // 차감된 건 우선, 그다음 업로드 시각이 최신인 건 우선
-    if((a&&a.deducted)&&!(b&&b.deducted)) return a;
-    if((b&&b.deducted)&&!(a&&a.deducted)) return b;
-    const ta=String((a&&a.uploadedAt)||''), tb=String((b&&b.uploadedAt)||'');
-    return ta>=tb?a:b;
-  }
-  arr.forEach(d=>{
-    const no=d&&d.delivNo;
-    if(no==null||no===''){ noNo.push(d); return; }
-    if(!map.has(no)){ order.push(no); map.set(no,d); }
-    else map.set(no, better(map.get(no), d));
-  });
-  return order.map(no=>map.get(no)).concat(noNo);
-}
 function mergeStockEventsLocal(localObj, remoteObj){
   localObj=(localObj&&typeof localObj==='object')?localObj:{};
   remoteObj=(remoteObj&&typeof remoteObj==='object')?remoteObj:{};
@@ -4554,7 +4631,7 @@ function applyMergedFromSheet(data){
   if(data.delivLog!==undefined){
     delivLog=mergeById(delivLog, data.delivLog, 'id');
     delivLog=delivLog.filter(d=>!delivDeleted[d && d.id]); // 삭제된 납품서는 부활 금지
-    delivLog=dedupeDelivByNo(delivLog); // 같은 납품번호 중복 제거
+    if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
   }
   if(data.notices!==undefined) notices=mergeById(notices, data.notices, 'id');
   if(data.schedules!==undefined) schedules=mergeById(schedules, data.schedules, 'id');
@@ -6004,72 +6081,144 @@ function renderWeekPattern(){
   `;
 }
 
-// 🎯 예시 대조
+// 🎯 예시표 대조 (엑셀 붙여넣기 → 품목별 적중/헛예측 분석)
 function openWkExampleModal(){
   const now=new Date();
   document.getElementById('wke-ym').value=now.toISOString().slice(0,7);
   document.getElementById('wke-week').value='0';
-  document.getElementById('wke-qty').value='';
+  document.getElementById('wke-paste').value='';
   document.getElementById('wke-note').value='';
+  document.getElementById('wke-paste-preview').textContent='';
   document.getElementById('wk-example-modal').classList.add('on');
+}
+// 붙여넣은 엑셀 텍스트 → [{raw, code, short, qty}]
+// 각 줄에서 마지막 숫자를 수량으로, 코드(영문+숫자 토큰 또는 4자리 숫자)를 추출
+function parseWkPaste(text){
+  const out=[];
+  (text||'').split(/\r?\n/).forEach(line=>{
+    const t=line.trim();
+    if(!t) return;
+    // 헤더로 보이는 줄 스킵
+    if(/^(모델|코드|품목|수량|색상|구분|no\.?)/i.test(t) && !/\d{3,}/.test(t)) return;
+    const cells=t.split(/\t|\s{2,}|,|\|/).map(s=>s.trim()).filter(Boolean);
+    const flat=cells.length>1?cells:t.split(/\s+/);
+    // 수량: 줄에서 마지막으로 나오는 정수
+    let qty=0;
+    for(let i=flat.length-1;i>=0;i--){ const n=flat[i].replace(/[^0-9]/g,''); if(/^\d{1,3}$/.test(flat[i].replace(/,/g,'')) && parseInt(n)>0 && parseInt(n)<1000){ qty=parseInt(n); break; } }
+    // 코드: BUIF/영문+숫자 혼합 토큰 우선, 없으면 4자리 숫자 모델
+    let code='';
+    for(const c of flat){ if(/[A-Za-z]/.test(c) && /\d/.test(c)){ code=c.toUpperCase(); break; } }
+    if(!code){ const fd=flat.find(c=>/^\d{4}$/.test(c)); if(fd) code=fd; }
+    // 표시용 이름: 코드 외 한글/영문 토큰
+    const nameTok=flat.filter(c=>c!==code && !/^\d+$/.test(c)).join(' ').trim();
+    const lk=(typeof delivLookup==='function'&&code)?delivLookup(code):{short:'',color:''};
+    const short=lk.short||nameTok||code;
+    if(!code && !qty) return;
+    out.push({raw:t, code, short, color:lk.color||'', qty});
+  });
+  return out;
+}
+function previewWkPaste(){
+  const items=parseWkPaste(document.getElementById('wke-paste').value);
+  const el=document.getElementById('wke-paste-preview');
+  if(!items.length){ el.textContent=''; return; }
+  const tot=items.reduce((a,i)=>a+i.qty,0);
+  const known=items.filter(i=>i.code).length;
+  el.innerHTML=`✓ ${items.length}개 품목 인식 · 총 ${tot}장 · 코드매칭 ${known}/${items.length}`;
 }
 function confirmWkExample(){
   const ym=document.getElementById('wke-ym').value;
   const week=parseInt(document.getElementById('wke-week').value,10);
-  const qty=parseInt(document.getElementById('wke-qty').value,10);
   const note=document.getElementById('wke-note').value.trim();
-  if(!ym||isNaN(qty)){ showToast('연·월과 예상수량을 입력하세요'); return; }
-  wkExamples.push({id:'wke_'+Date.now(), ym, week, qty, note});
+  const items=parseWkPaste(document.getElementById('wke-paste').value);
+  if(!ym){ showToast('연·월을 입력하세요'); return; }
+  if(!items.length){ showToast('예시표를 붙여넣어 주세요'); return; }
+  const qty=items.reduce((a,i)=>a+i.qty,0);
+  wkExamples.push({id:'wke_'+Date.now(), ym, week, qty, note, items});
   localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples));
   closeM('wk-example-modal');
   renderWkExample();
-  showToast('🎯 예시 저장됨');
+  showToast('🎯 예시표 저장됨 ('+items.length+'품목)');
   if(typeof autoSync==='function') autoSync();
 }
 function delWkExample(id){
+  if(!confirm('이 예시표를 삭제할까요?')) return;
   wkExamples=wkExamples.filter(e=>e.id!==id);
   localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples));
   renderWkExample();
+  if(typeof autoSync==='function') autoSync();
+}
+// 특정 ym/week에서 실제 납품된 코드별 수량 맵
+function _actualMapFor(ym,week){
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  const map={}; let total=0;
+  log.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return;
+    const dt=d.orderDate||d.delivReqDate; if(!dt||dt.length<10) return;
+    if(dt.slice(0,7)!==ym) return;
+    if(week!==0 && _weekOfMonth(dt)!==week) return;
+    (d.items||[]).forEach(it=>{ const c=(it.code||'').toUpperCase(); map[c]=(map[c]||0)+(it.qty||0); total+=(it.qty||0); });
+  });
+  return {map,total};
 }
 function renderWkExample(){
   const host=document.getElementById('wk-example-body'); if(!host) return;
-  if(!wkExamples.length){ host.innerHTML='<div style="font-size:11px;color:var(--tx3)">＋ 예시 입력으로 우리가 예상했던 수량을 넣어보세요.</div>'; return; }
-  // 실제 집계 (기간 무관 전체에서 찾도록 별도 집계)
-  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
-  function actualFor(ym,week){
-    let t=0;
-    log.forEach(d=>{
-      if((d.refNo||'').startsWith('54')) return;
-      const dt=d.orderDate||d.delivReqDate; if(!dt||dt.length<10) return;
-      if(dt.slice(0,7)!==ym) return;
-      if(week!==0 && _weekOfMonth(dt)!==week) return;
-      (d.items||[]).forEach(it=>{ t+=(it.qty||0); });
-    });
-    return t;
-  }
-  const rows=[...wkExamples].sort((a,b)=> (b.ym+ (''+(9-b.week))).localeCompare(a.ym+(''+(9-a.week))) );
+  if(!wkExamples.length){ host.innerHTML='<div style="font-size:11px;color:var(--tx3)">＋ 예시 입력으로 엑셀 예시표를 붙여넣어 보세요.</div>'; return; }
+  const rows=[...wkExamples].sort((a,b)=> (b.ym+(''+(9-b.week))).localeCompare(a.ym+(''+(9-a.week))) );
   host.innerHTML=rows.map(e=>{
-    const actual=actualFor(e.ym,e.week);
-    const diff=actual-e.qty;
-    const errPct = e.qty? Math.round(Math.abs(diff)/e.qty*100) : (actual?100:0);
-    const hasData=actual>0;
-    const accColor = !hasData?'var(--tx3)': errPct<=10?'var(--acc3)': errPct<=25?'var(--acc2)':'var(--acc4)';
-    const accLabel = !hasData?'실측 없음': errPct<=10?'정확':'오차 '+errPct+'%';
     const wkTxt = e.week===0?'월 전체':e.week+'주';
-    return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:9px;padding:10px 12px;margin-bottom:8px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div style="font-size:12px;font-weight:700">${_ymKor(e.ym)} · ${wkTxt}</div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="badge" style="background:${accColor}22;color:${accColor}">${accLabel}</span>
-          <button onclick="delWkExample('${e.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px">🗑</button>
+    const hasItems = Array.isArray(e.items) && e.items.length;
+    // 구버전(단일 수량) 호환
+    if(!hasItems){
+      const {total:actual}=_actualMapFor(e.ym,e.week);
+      const diff=actual-e.qty; const errPct=e.qty?Math.round(Math.abs(diff)/e.qty*100):(actual?100:0);
+      const hasData=actual>0;
+      const accColor=!hasData?'var(--tx3)':errPct<=10?'var(--acc3)':errPct<=25?'var(--acc2)':'var(--acc4)';
+      const accLabel=!hasData?'실측 없음':errPct<=10?'정확':'오차 '+errPct+'%';
+      return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:9px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:12px;font-weight:700">${_ymKor(e.ym)} · ${wkTxt}</div>
+          <div style="display:flex;align-items:center;gap:8px"><span class="badge" style="background:${accColor}22;color:${accColor}">${accLabel}</span>
+          <button onclick="delWkExample('${e.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px">🗑</button></div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">예상</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700">${e.qty}</div></div>
+          <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">실제</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc5)">${hasData?actual:'-'}</div></div>
+          <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">차이</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700">${hasData?(diff>0?'+':'')+diff:'-'}</div></div>
+        </div>${e.note?`<div style="font-size:10px;color:var(--tx3);margin-top:6px">📝 ${e.note}</div>`:''}</div>`;
+    }
+    // 신버전: 품목별 적중 분석
+    const {map:actMap}=_actualMapFor(e.ym,e.week);
+    let hit=0, miss=0, hitQty=0, falseQty=0;
+    const detail=e.items.map(it=>{
+      const code=(it.code||'').toUpperCase();
+      const act = code && actMap[code]!==undefined ? actMap[code] : 0;
+      const isHit = act>0;
+      if(isHit){ hit++; hitQty+=Math.min(it.qty,act); }
+      else { miss++; falseQty+=it.qty; }
+      return {it, act, isHit};
+    });
+    const n=e.items.length;
+    const hitRate=n?Math.round(hit/n*100):0;
+    const faRate=n?Math.round(miss/n*100):0;
+    const rateColor=hitRate>=70?'var(--acc3)':hitRate>=40?'var(--acc2)':'var(--acc4)';
+    const detailRows=detail.map(d=>`<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:4px 0;border-top:1px solid var(--b1)">
+      <span style="color:${d.isHit?'var(--tx2)':'var(--tx3)'}">${d.isHit?'✅':'⬜'} ${d.it.short||d.it.code||'?'}${d.it.code?` <span style="color:var(--tx3)">(${d.it.code})</span>`:''}</span>
+      <span style="font-family:'JetBrains Mono',monospace;color:${d.isHit?'var(--acc3)':'var(--acc4)'}">예${d.it.qty}${d.isHit?` · 실${d.act}`:' · 헛예측'}</span></div>`).join('');
+    return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:9px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:700">${_ymKor(e.ym)} · ${wkTxt} <span style="color:var(--tx3);font-weight:400">· ${n}품목</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><span class="badge" style="background:${rateColor}22;color:${rateColor}">적중 ${hitRate}%</span>
+        <button onclick="delWkExample('${e.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px">🗑</button></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">예상</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700">${e.qty}</div></div>
-        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">실제</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc5)">${hasData?actual:'-'}</div></div>
-        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">차이</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${diff>0?'var(--acc4)':diff<0?'var(--acc3)':'var(--tx2)'}">${hasData?(diff>0?'+':'')+diff:'-'}</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">적중 품목</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc3)">${hit}</div></div>
+        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">헛예측</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc4)">${miss}</div></div>
+        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">헛예측 수량</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc4)">${falseQty}</div></div>
       </div>
+      <details style="margin-top:4px"><summary style="font-size:10px;color:var(--acc);cursor:pointer">품목별 상세 보기</summary><div style="margin-top:4px">${detailRows}</div></details>
       ${e.note?`<div style="font-size:10px;color:var(--tx3);margin-top:6px">📝 ${e.note}</div>`:''}
+      <div style="font-size:9.5px;color:var(--tx3);margin-top:6px;line-height:1.4">💡 헛예측 품목은 미리 만들지 말고 확정 후 생산하면 재고 적체·변색 폐기를 줄일 수 있어요.</div>
     </div>`;
   }).join('');
 }
@@ -7979,8 +8128,15 @@ function renderFinished(){
   else if(finFilter==='HD') list=list.filter(f=>finBrand(f.model)==='HD');
   else if(finFilter==='OB') list=list.filter(f=>finBrand(f.model)==='OB');
   if(q) list=list.filter(f=>((f.model||'')+' '+(f.color||'')+' '+(f.note||'')).toLowerCase().includes(q));
-  // 정렬: 재고 많은 순 → 모델명
-  list.sort((a,b)=>(b.qty-a.qty)||String(a.model).localeCompare(String(b.model)));
+  // 정렬: 선입선출 — 가장 오래된 입고일이 먼저(위)로. 입고일 없으면 뒤로, 재고0은 맨 뒤
+  list.sort((a,b)=>{
+    if((a.qty>0)!==(b.qty>0)) return (b.qty>0)-(a.qty>0); // 재고 있는 것 먼저
+    const ad=a.firstInDate||'', bd=b.firstInDate||'';
+    if(ad&&bd&&ad!==bd) return ad.localeCompare(bd); // 오래된 입고일 먼저
+    if(ad&&!bd) return -1;
+    if(!ad&&bd) return 1;
+    return String(a.model).localeCompare(String(b.model));
+  });
 
   const totQty=finishedStock.reduce((s,f)=>s+(f.qty||0),0);
   const kinds=finishedStock.filter(f=>f.qty>0).length;
@@ -7995,9 +8151,16 @@ function renderFinished(){
     const br=finBrand(f.model);
     const brTag=br?`<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:${br==='HD'?'rgba(59,130,246,.15)':'rgba(16,185,129,.15)'};color:${br==='HD'?'#3b82f6':'#10b981'};font-weight:700;margin-right:5px">${br}</span>`:'';
     const low=f.qty===0;
+    let ageBadge='';
+    if(f.qty>0 && f.firstInDate){
+      const days=Math.floor((new Date(todayStr())-new Date(f.firstInDate))/86400000);
+      const dm=f.firstInDate.slice(5).replace('-','/');
+      const warn=days>=90;
+      ageBadge=`<span style="font-size:9px;padding:1px 6px;border-radius:8px;margin-left:5px;background:${warn?'rgba(248,81,73,.15)':'rgba(255,166,87,.12)'};color:${warn?'var(--acc4)':'var(--etp)'};font-weight:700">📥 ${dm} 입고${days>=1?` ·${days}일`:''}${warn?' ⚠️':''}</span>`;
+    }
     return `<div onclick="openFinEdit('${f.id}')" style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--b2);border-radius:10px;margin-bottom:8px;cursor:pointer;background:${low?'var(--s3)':'var(--s2)'}">
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700;color:var(--tx1);word-break:break-all">${brTag}${f.model}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--tx1);word-break:break-all">${brTag}${f.model}${ageBadge}</div>
         <div style="font-size:11px;color:var(--tx3);margin-top:2px">${f.color||'<span style=\"color:var(--tx3)\">색상 미지정</span>'}${f.note?` · ${f.note}`:''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
@@ -8012,6 +8175,7 @@ function openFinAdd(){
   document.getElementById('fin-model').value='';
   document.getElementById('fin-color').value='';
   document.getElementById('fin-qty').value='1';
+  document.getElementById('fin-indate').value=todayStr();
   document.getElementById('fin-memo').value='';
   renderFinished(); // datalist 채우기
   document.getElementById('fin-add-modal').classList.add('on');
@@ -8025,7 +8189,8 @@ function finAddConfirm(){
   const memo=(document.getElementById('fin-memo').value||'').trim();
   if(!model){ showToast('모델명을 입력하세요'); return; }
   if(qty<=0){ showToast('수량을 1 이상 입력하세요'); return; }
-  finApply(model,color,{type:'in', delta:qty, memo:memo||'완제품 입고'});
+  const inDate=(document.getElementById('fin-indate').value||'').trim();
+  finApply(model,color,{type:'in', delta:qty, memo:memo||'완제품 입고', inDate});
   closeM('fin-add-modal');
   renderFinished();
   showToast(`🚪 ${model} ${qty}개 입고`);
@@ -8039,6 +8204,7 @@ function openFinEdit(id){
   document.getElementById('fin-edit-cur').innerHTML=
     `${f.color||'색상 미지정'} · 현재 <b style="color:var(--acc5);font-size:16px">${f.qty}</b>개`;
   document.getElementById('fin-edit-qty').value='1';
+  document.getElementById('fin-edit-indate').value=todayStr();
   document.getElementById('fin-edit-memo').value='';
   setFinEditMode('in');
   renderFinEditLog(f);
@@ -8052,6 +8218,8 @@ function setFinEditMode(m){
   document.getElementById('fet-count').classList.toggle('on',m==='count');
   const lbl=document.getElementById('fin-edit-qty-lbl');
   const f=finishedStock.find(x=>x.id===finEditId);
+  const dw=document.getElementById('fin-edit-date-wrap');
+  if(dw) dw.style.display = (m==='in') ? '' : 'none';
   if(m==='in'){ lbl.textContent='입고 수량'; document.getElementById('fin-edit-qty').value='1'; }
   else if(m==='out'){ lbl.textContent='출고 수량'; document.getElementById('fin-edit-qty').value='1'; }
   else { lbl.textContent='실측 수량 (현재 실제 개수)'; document.getElementById('fin-edit-qty').value=f?f.qty:0; }
@@ -8070,7 +8238,8 @@ function finEditConfirm(){
     finApply(f.model,f.color,{type:'out', delta:-n, memo:memo||'출고'});
   } else {
     if(n<=0){ showToast('수량을 입력하세요'); return; }
-    finApply(f.model,f.color,{type:'in', delta:n, memo:memo||'입고'});
+    const inDate=(document.getElementById('fin-edit-indate').value||'').trim();
+    finApply(f.model,f.color,{type:'in', delta:n, memo:memo||'입고', inDate});
   }
   closeM('fin-edit-modal');
   renderFinished();
@@ -8096,8 +8265,9 @@ function renderFinEditLog(f){
     const dstr=`${d.getMonth()+1}/${d.getDate()} ${('0'+d.getHours()).slice(-2)}:${('0'+d.getMinutes()).slice(-2)}`;
     const sign=e.delta>0?`+${e.delta}`:`${e.delta}`;
     const col=e.delta>0?'var(--acc5)':(e.delta<0?'var(--acc4)':'var(--tx3)');
+    const inD=(e.type==='in'&&e.inDate)?` · 📥${e.inDate.slice(5).replace('-','/')}`:'';
     return `<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:5px 0;border-top:1px solid var(--b1)">
-      <span style="color:var(--tx2)">${dstr} · ${TY[e.type]||e.type}${e.memo?` · ${e.memo}`:''}${e.by?` · ${e.by}`:''}</span>
+      <span style="color:var(--tx2)">${dstr} · ${TY[e.type]||e.type}${inD}${e.memo?` · ${e.memo}`:''}${e.by?` · ${e.by}`:''}</span>
       <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${col}">${sign}</span>
     </div>`;
   }).join('');
@@ -9575,8 +9745,6 @@ let delivViewMode='order'; // 'order'=발주일(기본), 'req'=납품요청일
 if(delivViewMode==='ship') delivViewMode='order'; // 출고일 모드 폐지 — 안전 폴백
 let delivSearchKey='';    // 납품번호/참조문서번호/오더번호/제품 검색어
 let delivLrMode='print';  // 'print'=인쇄실(사이즈만,좌우합산) / 'assy'=조립실(사이즈+L/R 분리)
-let delivPerDoc=false;    // true=납품서 한 장씩 펼쳐보기(확인용) / false=날짜별 합본
-function setDelivPerDoc(on){ delivPerDoc=!!on; renderDelivery(); }
 function setDelivLr(mode){ delivLrMode=mode; renderDelivery(); }
 function setDelivView(mode,btn){
   delivViewMode=mode;
@@ -9671,37 +9839,6 @@ function confirmDelivDateDelete(){
   showToast(`✅ ${targets.length}건 삭제 완료`);
 }
 
-// 카테고리(대구분 daegubun)별로 품목 그룹을 묶어 소제목과 함께 렌더한다.
-// groupsArr: card/mergedCard에서 만든 품목 그룹 배열 (각 항목에 daegubun, qty 보유)
-// rowFn(g, gi): 품목 한 줄 HTML을 만드는 콜백 (카드별로 다름)
-// 발주일·납품요청일 기준 어느 모드에서도 동일하게 동작한다.
-const DELIV_CAT_ORDER=['EURO700','EURO500','EURO','빌트인','시그니처','에어힌지','빗각'];
-function _delivCatLabel(cat){ return cat && String(cat).trim() ? String(cat).trim() : '기타/미분류'; }
-function renderDelivGroupsByCat(groupsArr, rowFn, sortFn){
-  const buckets={};
-  groupsArr.forEach(g=>{ const cat=_delivCatLabel(g.daegubun); (buckets[cat]=buckets[cat]||[]).push(g); });
-  const cats=Object.keys(buckets).sort((a,b)=>{
-    if(a==='기타/미분류') return 1;
-    if(b==='기타/미분류') return -1;
-    const ia=DELIV_CAT_ORDER.indexOf(a), ib=DELIV_CAT_ORDER.indexOf(b);
-    if(ia>=0&&ib>=0) return ia-ib;
-    if(ia>=0) return -1;
-    if(ib>=0) return 1;
-    return a.localeCompare(b);
-  });
-  const _sort = sortFn || ((a,b)=>b.qty-a.qty);
-  let gi=0;
-  return cats.map(cat=>{
-    const arr=buckets[cat].sort(_sort);
-    const catQty=arr.reduce((s,g)=>s+(g.qty||0),0);
-    const hdr=`<div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 2px;padding:3px 8px;background:var(--s2);border-radius:7px">
-      <span style="font-size:11px;font-weight:800;color:var(--tx1)">📁 ${cat}</span>
-      <span style="font-size:11px;font-weight:800;color:var(--acc2);font-family:'JetBrains Mono',monospace">${catQty}장 <span style="font-size:9px;color:var(--tx3);font-weight:400">· ${arr.length}품목</span></span>
-    </div>`;
-    return hdr + arr.map(g=>rowFn(g, gi++)).join('');
-  }).join('');
-}
-
 function renderDelivery(){
   const activeEl=document.getElementById('deliv-active');
   const archiveEl=document.getElementById('deliv-archive');
@@ -9717,8 +9854,7 @@ function renderDelivery(){
   }
   toggleHost.innerHTML=
     `<button class="f-btn ${delivViewMode==='order'?'on':''}" onclick="setDelivView('order',this)">🧾 발주일 기준</button>`+
-    `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`+
-    `<button class="f-btn ${delivPerDoc?'on':''}" onclick="setDelivPerDoc(${delivPerDoc?'false':'true'})" style="margin-left:auto">${delivPerDoc?'📄 납품서별 ✓':'📄 납품서별로 보기'}</button>`;
+    `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`;
 
   // (인쇄실/조립실 좌우구분 토글은 납품서 탭에서 제거 — 작업일지 연결 시 의미가 생김)
   // 혹시 이전에 생성된 토글 잔재가 있으면 정리
@@ -9798,24 +9934,6 @@ function renderDelivery(){
       <div id="${idSafe}" style="${dim?'display:none':''}">
         <div style="height:1px;background:var(--b1);margin:8px 0"></div>
         ${(()=>{
-          // ── 확인용: 이 납품서가 카톡 브리핑에서 어느 카테고리로 집계되는지 요약 ──
-          // (납품서별 보기일 때만 노출 — 수량 추적용)
-          if(!delivPerDoc) return '';
-          const catSum={};
-          d.items.forEach(it=>{
-            const info=delivLookup(it.code);
-            const c=classifyDelivItem(info.short||'', info.daegubun||it.daegubun||'');
-            const cat=c.cat||'기타';
-            catSum[cat]=(catSum[cat]||0)+(it.qty||0);
-          });
-          const chips=Object.entries(catSum).sort((a,b)=>b[1]-a[1])
-            .map(([cat,q])=>`<span style="display:inline-block;font-size:10px;font-weight:700;background:${isAS?'rgba(255,107,53,.12)':'var(--s3)'};color:${isAS?'#ff6b35':'var(--tx1)'};padding:2px 8px;border-radius:7px;margin:2px 4px 2px 0">${cat} ${q}장</span>`).join('');
-          return `<div style="margin-bottom:8px;padding:6px 8px;background:var(--s2);border-radius:8px;border:1px dashed ${isAS?'rgba(255,107,53,.4)':'var(--b2)'}">
-            <div style="font-size:10px;font-weight:800;color:${isAS?'#ff6b35':'var(--tx2)'};margin-bottom:3px">${isAS?'🔧 이 납품서는 AS로 집계됩니다':'📋 브리핑 집계 분류'}</div>
-            <div>${chips}</div>
-          </div>`;
-        })()}
-        ${(()=>{
           // 그룹핑: 비규격은 사이즈별(조립실 모드면 +L/R)로 분리, 정규격은 코드 단위.
           // 인쇄실(print): 좌우 합산(사이즈만) / 조립실(assy): 좌우 구분
           const groups={};
@@ -9834,7 +9952,7 @@ function renderDelivery(){
             groups[key].qty+=(it.qty||0);
             groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
           });
-          return renderDelivGroupsByCat(Object.values(groups), (g,gi)=>{
+          return Object.values(groups).sort((a,b)=>b.qty-a.qty).map((g,gi)=>{
             const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
             const hasOrders=g.orders.some(o=>o.orderNo);
             const multiline=g.orders.length>1||hasOrders;
@@ -9857,7 +9975,7 @@ function renderDelivery(){
               </div>
               ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
             </div>`;
-          });
+          }).join('');
         })()}
         <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:10px">${dedBtn}
           <button onclick="event.stopPropagation();deleteDeliv('${d.id}')" style="padding:5px 10px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:7px;color:var(--acc4);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑 삭제</button></div>
@@ -9907,8 +10025,9 @@ function renderDelivery(){
       });
     });
 
-    const itemRows = renderDelivGroupsByCat(Object.values(groups),
-      (g,gi)=>{
+    const itemRows = Object.values(groups)
+      .sort((a,b)=> (a.dest===b.dest? b.qty-a.qty : (a.dest==='오이도'?1:-1)) ) // 그레이박스 먼저, 오이도 나중
+      .map((g,gi)=>{
         const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
         const hasOrders=g.orders.some(o=>o.orderNo);
         const multiline=g.orders.length>1||hasOrders;
@@ -9930,8 +10049,7 @@ function renderDelivery(){
           </div>
           ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
         </div>`;
-      },
-      (a,b)=> (a.dest===b.dest? b.qty-a.qty : (a.dest==='오이도'?1:-1)) ); // 카테고리 안: 그레이박스 먼저, 오이도 나중
+      }).join('');
 
     // 카드 하단: 합쳐진 납품서별 출고차감/삭제 액션 (참조번호는 표시 안 함 — 검색으로만 접근)
     const docActions = ds.map(d=>{
@@ -9974,7 +10092,7 @@ function renderDelivery(){
         <span style="font-size:13px;font-weight:900;color:var(--acc2);font-family:'JetBrains Mono',monospace">${qSum}장 <span style="font-size:10px;color:var(--tx3);font-weight:400">· ${ds.length}건</span></span>
       </div>`;
       // 검색 모드(dim 아님 + delivSearchKey)에서는 납품서별로, 평소엔 날짜별 합본 카드
-      const body = (delivSearchKey || delivPerDoc) ? ds.map(d=>card(d,dim)).join('') : mergedCard(ds, dim);
+      const body = delivSearchKey ? ds.map(d=>card(d,dim)).join('') : mergedCard(ds, dim);
       return hdr+body;
     }).join('');
   }
