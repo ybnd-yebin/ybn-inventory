@@ -544,6 +544,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="sub-nav-btn" onclick="showSub('activity')"><span class="ico">🕓</span>변경이력</button>
     <button class="sub-nav-btn" onclick="showSub('dashboard')"><span class="ico">📊</span>현황</button>
     <button class="sub-nav-btn" onclick="showSub('trend')"><span class="ico">📈</span>추이</button>
+    <button class="sub-nav-btn" onclick="showSub('spec')"><span class="ico">📐</span>규격</button>
     <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
     <button class="sub-nav-btn" onclick="showSub('nonspec')"><span class="ico">🔲</span>비규격</button>
     <button class="sub-nav-btn" onclick="showSub('mat')"><span class="ico">📒</span>원장재고</button>
@@ -677,6 +678,20 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="trend-list"></div>
   </div>
   <!-- 재고 편집 -->
+  <!-- 제품규격 (한샘 AL 발주 규격 마스터) -->
+  <div id="sp-spec" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="info-note">📐 한샘 AL 발주 규격표. <b>프레임 W×H</b>와 <b>유리 W×H</b>를 함께 봅니다. 납품서(발주) 빈도가 자동 연결됩니다.</div>
+    <input class="inp" id="spec-search" placeholder="🔍 제품군 / 모델명 / 사이즈 (예: 시그니처, 595, 441×2165)..." oninput="renderSpec()">
+    <div class="filter-row" id="spec-cat-row" style="flex-wrap:wrap">
+      <button class="f-btn on" onclick="setSpecCat('all',this)">전체</button>
+      <button class="f-btn" onclick="setSpecCat('EURO700',this)">EURO700</button>
+      <button class="f-btn" onclick="setSpecCat('SIG',this)">시그니처</button>
+      <button class="f-btn" onclick="setSpecCat('TWOWAY',this)">투웨이</button>
+      <button class="f-btn" onclick="setSpecCat('KB_AIR',this)">키친·에어힌지</button>
+      <button class="f-btn" onclick="setSpecCat('KB_MIR',this)">키친·미러</button>
+    </div>
+    <div id="spec-list"></div>
+  </div>
   <!-- 비규격 -->
   <div id="sp-nonspec" class="sub-pg" style="display:none;padding:14px 14px 80px">
     <div class="card"><div class="card-ttl">📐 비규격 사이즈 분석</div><div id="nonspec-list"></div></div>
@@ -2356,7 +2371,7 @@ function calcDday(due){
 
 // ── NAV ──
 const MAINS=['home','todo','board','stock','settings'];
-const SUBS=['stocklist','finished','activity','dashboard','trend','ink','nonspec','mat'];
+const SUBS=['stocklist','finished','activity','dashboard','trend','spec','ink','nonspec','mat'];
 let curMain='home', curSub='stocklist';
 // 달력 상태 (renderHome가 renderCal을 호출하므로 미리 선언)
 let calYear=new Date().getFullYear();
@@ -2394,6 +2409,7 @@ function renderSub(id){
   if(id==='finished')renderFinished();
   if(id==='activity')renderActivityFeed();
   if(id==='trend')renderTrend();
+  if(id==='spec')renderSpec();
   if(id==='nonspec')renderNonspec();
   if(id==='mat')renderMat();
 }
@@ -4718,6 +4734,213 @@ function renderTrendNone(el, orderedShorts, q){
 }
 
 // ── NONSPEC ──
+// ════════════════════════════════════════════════════════════════
+//  📐 제품규격 (SPEC) 탭 — 한샘 AL 발주 규격 마스터
+//  엑셀 「한샘_AL_발주_현황」 기반. 프레임 W×H + 유리 W×H.
+//  납품서(delivLog) 연결: 유리사이즈 매칭으로 최근 발주빈도 표시.
+// ════════════════════════════════════════════════════════════════
+
+// 제품군(series) → 모델 목록. fw/fh=프레임, gw/gh=유리.
+// match: 납품서 연결 기준 (대구분 daegubun 우선, 없으면 유리사이즈)
+const SPEC_SERIES = [
+  {
+    key:'EURO700', name:'EURO700', sub:'유리장식장 도어', vendor:'',
+    glass:'5T', color:'그레이스 / 베일', offset:'',
+    cat:'EURO700',           // classifyDelivItem 카테고리와 동일 → 발주빈도 연결
+    note:'세부 집계(HPM/유리/73/비규격)는 일일 브리핑·추이 탭에서 확인',
+    models:[]                 // 사이즈 마스터는 추이 탭(delivLog)에서 자동 집계
+  },
+  {
+    key:'SIG', name:'시그니처', sub:'글래스 도어', vendor:'아름유리',
+    glass:'5T 투명/반강화', color:'', offset:'-5 × -5',
+    cat:'글래스도어',
+    note:'시그니처 정규격 프레임 발주시 H 2270mm',
+    models:[
+      {name:'글래스 도어 450', fw:446, fh:2170, gw:441, gh:2165},
+      {name:'글래스 도어 500', fw:496, fh:2170, gw:491, gh:2165},
+    ]
+  },
+  {
+    key:'TWOWAY', name:'투웨이', sub:'유리장식장 도어', vendor:'현성유리',
+    glass:'5T 백유리 투명/반강화', color:'', offset:'-24 × -24',
+    cat:'유리장식장',
+    note:'',
+    models:[
+      {name:'60222 (ME1TM0001)', fw:595, fh:2113, gw:571, gh:2089},
+      {name:'60235 (ME1TM0002)', fw:595, fh:2241, gw:571, gh:2217},
+      {name:'45222 (ME1TM0003)', fw:445, fh:2113, gw:421, gh:2089},
+      {name:'45235 (ME1TM0004)', fw:445, fh:2241, gw:421, gh:2217},
+      {name:'4586 (ME1WM0001)',  fw:445, fh:860,  gw:421, gh:836},
+      {name:'5086 (ME1WM0002)',  fw:495, fh:860,  gw:471, gh:836},
+      {name:'6086 (ME1WM0003)',  fw:595, fh:860,  gw:571, gh:836},
+    ]
+  },
+  {
+    key:'KB_AIR', name:'키친바흐 · 에어힌지', sub:'AL 프레임 에어힌지', vendor:'아름유리',
+    glass:'5T 투명/강화', color:'비산방지필름', offset:'-41 × -40',
+    cat:'에어힌지',
+    note:'',
+    models:[
+      {name:'벽장 유리도어',   fw:495, fh:738,  gw:455, gh:698},
+      {name:'벽장 유리도어',   fw:445, fh:738,  gw:405, gh:698},
+      {name:'분리장 유리도어', fw:595, fh:1345, gw:555, gh:1305},
+      {name:'키큰장 유리도어', fw:545, fh:2113, gw:505, gh:2073},
+    ]
+  },
+  {
+    key:'KB_MIR', name:'키친바흐 · 미러장식장', sub:'KB 미러장식장', vendor:'아름유리',
+    glass:'5T 브론즈/강화', color:'비산방지필름', offset:'-95 × -10 (빗면)',
+    cat:'KB',
+    note:'빗면 가공 — 좌우 구분 있는 모델 주의',
+    models:[
+      {name:'키큰장용 빗면 60211', fw:595, fh:2113, gw:500, gh:2103, lr:'좌우 있음'},
+      {name:'벽장용 빗면 4574',    fw:445, fh:738,  gw:350, gh:728},
+      {name:'벽장용 빗면 5074',    fw:495, fh:738,  gw:400, gh:728},
+      {name:'플랩장용 빗면 10054', fw:995, fh:538,  gw:900, gh:528},
+      {name:'플랩장용 빗면 12054', fw:1195, fh:538, gw:1100, gh:528},
+    ]
+  },
+];
+
+// 필터 순서: 메인 EURO700부터. '전체'는 연달아 보기.
+const SPEC_ORDER = ['all','EURO700','SIG','TWOWAY','KB_AIR','KB_MIR'];
+let specCat = 'all';
+
+function setSpecCat(c, btn){
+  specCat = c;
+  if(btn && btn.parentElement){
+    btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+  }
+  renderSpec();
+}
+
+// 납품서(delivLog) 기반: 유리사이즈 "gw×gh" → 최근집계 월평균 발주량.
+// 추이 탭의 trendAgg()를 재사용해 동일 기준으로 연결.
+function specBuildShipMap(){
+  const map = {}; // "gw×gh" -> {total, avg, byColor:{WC,ETP}}
+  try{
+    if(typeof trendAgg !== 'function') return map;
+    const {rows, nMonths} = trendAgg();
+    rows.forEach(g=>{
+      if(!g.glass_w) return;
+      const k = g.glass_w+'×'+g.glass_h;
+      if(!map[k]) map[k]={total:0, avg:0, wc:0, etp:0};
+      map[k].total += g.total||0;
+      map[k].avg   += g.avg||0;
+      const wc=g.byColor && g.byColor.WC, etp=g.byColor && g.byColor.ETP;
+      if(wc) map[k].wc += wc.total||0;
+      if(etp) map[k].etp += etp.total||0;
+    });
+  }catch(e){}
+  return map;
+}
+
+// 카테고리(cat) 기반 6개월 총 발주 — EURO700처럼 사이즈 마스터가 비어있는 시리즈용
+function specCatTotal(cat){
+  try{
+    if(typeof trendAgg !== 'function') return null;
+    const {rows} = trendAgg();
+    let t=0, found=false;
+    rows.forEach(g=>{ if(g.cat===cat){ t+=g.total||0; found=true; } });
+    return found ? t : null;
+  }catch(e){ return null; }
+}
+
+function specFreqBadge(avg){
+  if(avg==null) return '';
+  if(avg>=10) return '<span class="cat-tag" style="background:rgba(220,38,38,.12);color:var(--acc4)">🔥 고빈도</span>';
+  if(avg>=5)  return '<span class="cat-tag" style="background:rgba(234,108,0,.12);color:var(--acc2)">⚡ 중빈도</span>';
+  if(avg>0)   return '<span class="cat-tag">· 저빈도</span>';
+  return '<span class="cat-tag" style="color:var(--tx3)">집계 0</span>';
+}
+
+function specModelRow(m, shipMap){
+  const gk = m.gw+'×'+m.gh;
+  const ship = shipMap[gk];
+  const avg = ship ? Math.round(ship.avg*10)/10 : null;
+  const freqTag = specFreqBadge(avg);
+  const shipTxt = ship
+    ? `<span style="font-size:10px;color:var(--tx2)">📦 6개월 ${ship.total}장 · 월평균 ${avg}장</span>`
+    : `<span style="font-size:10px;color:var(--tx3)">납품서 연결 대기</span>`;
+  const lrTag = m.lr ? `<span style="font-size:9px;color:var(--acc4);font-weight:700;margin-left:4px">${m.lr}</span>` : '';
+  return `
+  <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:10px 12px;margin-bottom:6px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div style="font-size:13px;font-weight:700;color:var(--tx1)">${m.name}${lrTag}</div>
+      <div>${freqTag}</div>
+    </div>
+    <div style="display:flex;gap:14px;margin-top:6px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;color:var(--tx3);font-weight:700">프레임</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;color:var(--tx1)">${m.fw}<span style="color:var(--tx3);font-weight:400">×</span>${m.fh}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;color:var(--wc);font-weight:700">유리</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;color:var(--wc)">${m.gw}<span style="color:var(--tx3);font-weight:400">×</span>${m.gh}</span>
+      </div>
+    </div>
+    <div style="margin-top:5px">${shipTxt}</div>
+  </div>`;
+}
+
+function specSeriesCard(s, shipMap){
+  let body='';
+  if(s.models && s.models.length){
+    body = s.models.map(m=>specModelRow(m, shipMap)).join('');
+  } else {
+    // EURO700: 사이즈 마스터 비어있음 → 카테고리 총량만 표시 + 안내
+    const ct = specCatTotal(s.cat);
+    body = `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:12px">
+      <div style="font-size:12px;color:var(--tx1);font-weight:700;margin-bottom:4px">📦 최근 6개월 발주 ${ct!=null?ct+'장':'집계 없음'}</div>
+      <div style="font-size:11px;color:var(--tx2)">사이즈별 규격은 추이 탭에서 EURO700 분류로 확인하세요.</div>
+    </div>`;
+  }
+  const meta = [s.vendor, s.glass, s.color, s.offset?('offset '+s.offset):''].filter(Boolean).join(' · ');
+  return `
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:2px">
+      <div style="font-size:16px;font-weight:800;color:var(--tx1)">📐 ${s.name}</div>
+      <div style="font-size:12px;color:var(--tx2)">${s.sub}</div>
+    </div>
+    ${meta?`<div style="font-size:10px;color:var(--tx3);margin-bottom:10px">${meta}</div>`:''}
+    ${body}
+    ${s.note?`<div style="font-size:10px;color:var(--acc2);margin-top:8px;background:rgba(234,108,0,.07);padding:6px 9px;border-radius:6px">💡 ${s.note}</div>`:''}
+  </div>`;
+}
+
+function renderSpec(){
+  const el=document.getElementById('spec-list');
+  if(!el) return;
+  const shipMap = specBuildShipMap();
+  const q=(document.getElementById('spec-search')?.value||'').toLowerCase().trim();
+  const qd = q.replace(/[^0-9]/g,'');
+
+  let series = SPEC_ORDER.filter(k=>k!=='all').map(k=>SPEC_SERIES.find(s=>s.key===k)).filter(Boolean);
+  if(specCat!=='all') series = series.filter(s=>s.key===specCat);
+
+  // 검색: 시리즈명/모델명/사이즈
+  if(q){
+    series = series.map(s=>{
+      if(s.name.toLowerCase().includes(q) || s.sub.toLowerCase().includes(q)) return s;
+      const ms=(s.models||[]).filter(m=>{
+        if(m.name.toLowerCase().includes(q)) return true;
+        if(qd.length>=3){
+          const f=String(m.fw)+String(m.fh), g=String(m.gw)+String(m.gh);
+          if(f.includes(qd)||g.includes(qd)||String(m.fw).includes(qd)||String(m.gw).includes(qd)) return true;
+        }
+        return false;
+      });
+      if(ms.length) return {...s, models:ms};
+      return null;
+    }).filter(Boolean);
+  }
+
+  if(!series.length){ el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>검색 결과 없음</div>'; return; }
+  el.innerHTML = series.map(s=>specSeriesCard(s, shipMap)).join('');
+}
+
+
 function renderNonspec(){
   document.getElementById('nonspec-list').innerHTML=NONSPEC_GROUPS.map(g=>{
     const mx=Math.max(...g.sizes.map(s=>s.qty));
