@@ -5061,6 +5061,7 @@ function euroItemFromCode(code){
   if(a[1]!=='EURO700') return null;
   const name=a[0]||'';
   if(/비규격/.test(name)) return null;       // 정규격만
+  if(/Veil/i.test(name)) return null;        // 베일(HPM)은 조립실 제외 — 원장관리에서 관리. 그레이스만.
   const color=euroColorOf(code, name, a[2]);
   const sz=euroGlassSize(code);
   // 표시 이름: 'OB M 6073(공용) M' 등 핵심부만 (Euro700 Grace ... 접두 제거)
@@ -5229,9 +5230,20 @@ function asmItemCard(it, needMap){
   const short=Math.max(0, need-done);
   const isEuro=it.series==='EURO700';
   const spec=asmGlassSpec(it.series);
-  const colorTag = isEuro && it.color
-    ? `<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;margin-left:6px;background:${it.color==='WC'?'rgba(29,111,181,.12)':it.color==='ETP'?'rgba(180,83,9,.12)':'rgba(120,80,60,.12)'};color:${it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'#7a5a3a'}">${ASM_COLOR_LABEL[it.color]||it.color}</span>`
+  // 색상 형광펜 박스 스타일 (웜코튼=흰색솔리드 / 에토프=황색 / 셰이드=초록 / 브론즈=검정)
+  // ※ 베일(BRZ/SHD)은 현재 조립실 제외라 안 쓰이지만, 나중에 대비해 정의는 유지
+  const COLOR_STYLE = {
+    WC:  {bg:'#ffffff', fg:'#1a1a1a', bd:'#d0d0d0', bar:'#e8e8e8'},
+    ETP: {bg:'#f0b429', fg:'#3a2a00', bd:'#d99a10', bar:'#f0b429'},
+    SHD: {bg:'#2e9e5b', fg:'#ffffff', bd:'#247a47', bar:'#2e9e5b'},
+    BRZ: {bg:'#1a1a1a', fg:'#ffffff', bd:'#000000', bar:'#1a1a1a'},
+  };
+  const cs = (isEuro && it.color && COLOR_STYLE[it.color]) ? COLOR_STYLE[it.color] : null;
+  // 제품명 위 형광펜 띠 (색상 박스)
+  const colorBand = cs
+    ? `<div style="display:inline-block;background:${cs.bg};color:${cs.fg};border:1.5px solid ${cs.bd};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:800;margin-bottom:6px;letter-spacing:.3px">${ASM_COLOR_LABEL[it.color]||it.color}</div>`
     : '';
+  const colorTag = '';  // 띠로 대체
   const lrTag = it.lr ? `<span style="font-size:9px;color:var(--acc4);font-weight:700;margin-left:4px">${it.lr}</span>` : '';
   const unconfTag = (!isEuro && !it.confirmed) ? `<span style="font-size:9px;color:var(--acc2);font-weight:700;margin-left:4px;background:rgba(234,108,0,.1);padding:1px 5px;border-radius:6px">코드 확인필요</span>` : '';
   const glassLabel = isEuro ? '인쇄유리' : '일반유리';
@@ -5296,7 +5308,8 @@ function asmItemCard(it, needMap){
   }
 
   return `
-  <div class="card" style="margin-bottom:10px;padding:12px 14px">
+  <div class="card" style="margin-bottom:10px;padding:12px 14px${cs?`;border-left:5px solid ${cs.bar}`:''}">
+    ${colorBand?`<div>${colorBand}</div>`:''}
     <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:2px">
       <span style="font-size:15px;font-weight:800;color:var(--tx1)">${it.name}${lrTag}</span>${colorTag}${unconfTag}
     </div>
