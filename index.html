@@ -1044,6 +1044,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="fin-edit-log" style="margin-top:14px"></div>
   </div>
 </div>
+
+<!-- 조립실 품목 이력 모달 (이벤트 개별 삭제) -->
+<div class="modal-bg" id="asm-hist-modal">
+  <div class="modal-sheet" style="max-width:480px;margin:0 auto">
+    <button class="close-btn" onclick="closeM('asm-hist-modal')">×</button>
+    <div class="modal-ttl" id="asm-hist-ttl">📜 입력 이력</div>
+    <div id="asm-hist-body" style="max-height:60vh;overflow-y:auto"></div>
+  </div>
+</div>
+
   <!-- 내가 넣은 발주 통계 (orderLog 기반) -->
   <div class="card" style="border-left:3px solid var(--acc3)">
     <div class="card-ttl">📈 내 발주 통계 <span style="font-weight:400;color:var(--tx3);font-size:11px">(앱에서 기록한 발주 기준)</span></div>
@@ -5127,6 +5137,51 @@ function asmApply(itemId, opt){
   return a;
 }
 
+// ── 이벤트 1건의 재고 영향을 역산(원복) ──
+// 되돌리기/삭제 공통. 이벤트 type별로 glass·done에 줬던 영향을 반대로 적용.
+function asmReverseImpact(a, ev){
+  if(!a||!ev) return;
+  const d=ev.delta||0;
+  switch(ev.type){
+    case 'glass_in':
+    case 'print_in':   a.glass = Math.max(0, a.glass - d); break;          // 입고 취소: glass -d
+    case 'defect':     a.glass = a.glass - d; break;                        // defect는 d<0 → glass +|d| 복원
+    case 'assemble':   a.glass = a.glass + d; a.done = Math.max(0, a.done - d); break; // 유리+d복원, 완제품-d
+    case 'ship':       a.done = a.done - d; break;                          // ship은 d<0 → done +|d| 복원
+    case 'glass_count':a.glass = Math.max(0, a.glass - d); break;           // 실측: 직전값으로 복원(차이 d만큼 되돌림)
+    case 'done_count': a.done = Math.max(0, a.done - d); break;
+  }
+  if(a.glass<0) a.glass=0; if(a.done<0) a.done=0;
+}
+
+// 마지막 이벤트 1건 되돌리기
+function asmUndoLast(itemId){
+  const a=asmFind(itemId);
+  if(!a || !a.events || !a.events.length){ showToast('되돌릴 입력이 없어요'); return; }
+  const ev=a.events[a.events.length-1];
+  asmReverseImpact(a, ev);
+  a.events.pop();
+  a.updatedAt=new Date().toISOString();
+  saveAssembly();
+  renderAssembly();
+  showToast('↩️ 마지막 입력을 되돌렸어요');
+}
+
+// 특정 이벤트 삭제 (이력 모달에서)
+function asmDeleteEvent(itemId, evId){
+  const a=asmFind(itemId);
+  if(!a || !a.events) return;
+  const i=a.events.findIndex(e=>e.id===evId);
+  if(i<0){ showToast('이벤트를 찾을 수 없어요'); return; }
+  asmReverseImpact(a, a.events[i]);
+  a.events.splice(i,1);
+  a.updatedAt=new Date().toISOString();
+  saveAssembly();
+  asmOpenHistory(itemId); // 모달 갱신
+  renderAssembly();
+  showToast('🗑 입력을 삭제했어요');
+}
+
 // 거래처 불량 누적
 function asmDefectStats(){
   let us=0, vendor=0;
@@ -5307,6 +5362,13 @@ function asmItemCard(it, needMap){
     </div>`;
   }
 
+  const hasEv = !!(a && a.events && a.events.length);
+  const histRow = hasEv ? `
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button onclick="event.stopPropagation();asmUndoLast('${it.id}')" style="flex:1;padding:6px;background:transparent;border:1px dashed var(--b2);border-radius:6px;color:var(--tx2);font-size:10.5px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">↩️ 마지막 입력 되돌리기</button>
+      <button onclick="event.stopPropagation();asmOpenHistory('${it.id}')" style="flex:1;padding:6px;background:transparent;border:1px dashed var(--b2);border-radius:6px;color:var(--tx2);font-size:10.5px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📜 이력 보기 / 삭제</button>
+    </div>` : '';
+
   return `
   <div class="card" style="margin-bottom:10px;padding:12px 14px${cs?`;border-left:5px solid ${cs.bar}`:''}">
     ${colorBand?`<div>${colorBand}</div>`:''}
@@ -5321,6 +5383,7 @@ function asmItemCard(it, needMap){
     ${misBox}
     ${needBox}
     ${btns}
+    ${histRow}
   </div>`;
 }
 
@@ -5453,6 +5516,42 @@ function asmOnPrint(code, qty){
   if(!e) return false; // EURO700 정규격 아님 → 무시
   asmApply(e.id, {type:'print_in', qty:parseInt(qty)||0, memo:'인쇄실 인쇄분 자동입고', source:'print'});
   return true;
+}
+
+// ── 입력 이력 모달 (이벤트 개별 삭제) ──
+const ASM_EV_LABEL = {
+  glass_in:'＋ 유리 입고', print_in:'🖨 인쇄 자동입고', assemble:'🔧 조립',
+  defect:'⚠️ 불량', ship:'🚚 출고', glass_count:'🔢 유리 실측', done_count:'🔢 완제품 실측'
+};
+function asmOpenHistory(itemId){
+  const a=asmFind(itemId);
+  const ttl=document.getElementById('asm-hist-ttl');
+  const body=document.getElementById('asm-hist-body');
+  if(!ttl||!body) return;
+  ttl.textContent=`📜 ${asmItemName(itemId)} 이력`;
+  const evs=(a&&a.events?a.events:[]).slice().reverse(); // 최신 먼저
+  if(!evs.length){
+    body.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:24px">아직 입력 이력이 없어요</div>';
+  } else {
+    body.innerHTML=evs.map(ev=>{
+      const lbl=ASM_EV_LABEL[ev.type]||ev.type;
+      const d=ev.delta||0;
+      const sign=d>0?`+${d}`:`${d}`;
+      const which = (ev.type==='ship'||ev.type==='done_count') ? '완제품'
+                  : (ev.type==='assemble') ? '유리↓완제품↑' : '유리';
+      const dt=(ev.at||'').replace('T',' ').slice(5,16); // MM-DD HH:MM
+      const causeTxt = ev.cause==='vendor'?' · 거래처불량':ev.cause==='us'?' · 우리실수':'';
+      const memoTxt = ev.memo?` · ${ev.memo}`:'';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--b1)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--tx1)">${lbl} <span style="font-family:'JetBrains Mono',monospace;color:${d>0?'var(--acc3)':'var(--acc4)'};font-weight:800">${sign}</span> <span style="font-size:10px;color:var(--tx3);font-weight:400">${which}</span></div>
+          <div style="font-size:10.5px;color:var(--tx3);margin-top:2px">${dt}${ev.by?' · '+ev.by:''}${causeTxt}${memoTxt}</div>
+        </div>
+        <button onclick="asmDeleteEvent('${itemId}','${ev.id}')" style="flex-shrink:0;padding:7px 11px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:7px;color:var(--acc4);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑 삭제</button>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('asm-hist-modal').classList.add('on');
 }
 
 
