@@ -199,6 +199,26 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 .m-bar.zero{background:var(--b2)}
 .m-lbl{font-size:9px;color:var(--tx3);font-family:'JetBrains Mono',monospace}
 .m-val{font-size:9px;color:var(--tx2);font-family:'JetBrains Mono',monospace}
+.trend-range{font-size:11px;color:var(--tx2);margin:2px 2px 10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px}
+.trend-range .rg-period{font-family:'JetBrains Mono',monospace;color:var(--tx1);font-weight:600}
+.trend-sec-hdr{font-size:12px;font-weight:700;color:var(--tx1);margin:14px 2px 6px;display:flex;align-items:center;gap:6px}
+.trend-sec-hdr .cnt{font-size:10px;color:var(--tx3);font-weight:500}
+.crow{display:flex;align-items:center;gap:8px;margin:5px 0}
+.crow-lbl{flex:0 0 52px;font-size:10px;font-weight:700;text-align:right}
+.crow-lbl.wc{color:var(--acc)}
+.crow-lbl.etp{color:var(--acc2,#fb923c)}
+.crow-bars{flex:1;display:flex;gap:4px;align-items:flex-end;height:34px}
+.crow-avg{flex:0 0 auto;text-align:right;min-width:62px}
+.crow-avg .num{font-size:16px;font-weight:800;font-family:'JetBrains Mono',monospace;line-height:1}
+.crow-avg .un{font-size:9px;color:var(--tx3)}
+.cbar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0}
+.cbar{width:100%;border-radius:2px 2px 0 0;min-height:2px}
+.cbar.wc{background:var(--acc)}
+.cbar.etp{background:var(--acc2,#fb923c)}
+.cbar.zero{background:var(--b2)}
+.cbar-mv{font-size:8px;color:var(--tx2);font-family:'JetBrains Mono',monospace;height:10px}
+.trend-mlabels{display:flex;gap:4px;padding-left:60px;margin-top:1px}
+.trend-mlabels .ml{flex:1;text-align:center;font-size:8px;color:var(--tx3);font-family:'JetBrains Mono',monospace}
 .filter-hint{text-align:center;padding:12px;color:var(--tx3);font-size:12px}
 /* NONSPEC */
 .nonspec-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px}
@@ -635,9 +655,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="f-btn on" onclick="setTrendFilter('all',this)">전체</button>
       <button class="f-btn" onclick="setTrendFilter('high',this)">고빈도</button>
       <button class="f-btn" onclick="setTrendFilter('mid',this)">중빈도</button>
+      <button class="f-btn" onclick="setTrendFilter('none',this)">아예없음</button>
       <button class="f-btn" onclick="setTrendFilter('WC',this)">웜코튼</button>
       <button class="f-btn" onclick="setTrendFilter('ETP',this)">에토프</button>
     </div>
+    <div id="trend-range" class="trend-range"></div>
     <div id="trend-list"></div>
   </div>
   <!-- 재고 편집 -->
@@ -1745,6 +1767,68 @@ function delivModelAgg(months){
 // 캐시 무효화 (납품서 변경 시 호출)
 function invalidateDelivAgg(){ _delivAggCache=null; _delivAggSig=''; }
 
+// ── 추이 탭 전용 집계: 납품서(delivLog) → 제품명(short)별 · 색상(WC/ETP)별 · 월별 ──
+// 하드코딩 monthly 스냅샷을 대체. 납품서가 쌓일 때마다 자동 갱신.
+// 반환: {rows:[{short, code, glass_w, glass_h, door_type, byColor:{WC:{months,total,avg}, ETP:{...}}, total}], monthKeys:[...], minDate, maxDate}
+let _trendAggCache=null, _trendAggSig='';
+function trendAgg(){
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  const sig=log.length+'|'+log.reduce((a,d)=>a+((d.items||[]).length),0);
+  if(_trendAggCache && _trendAggSig===sig) return _trendAggCache;
+
+  const _date=d=>d.delivDate||d.delivReqDate||d.orderDate||'';
+  let minDate='', maxDate='';
+  const monthSet=new Set();
+  // short -> {meta, byColor:{COL:{months:{ym:qty}, total}}}
+  const groups=new Map();
+
+  log.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return; // AS 제외
+    const dt=_date(d); if(!dt) return;
+    const ym=dt.slice(0,7);
+    monthSet.add(ym);
+    if(!minDate||dt<minDate) minDate=dt;
+    if(!maxDate||dt>maxDate) maxDate=dt;
+    (d.items||[]).forEach(it=>{
+      const m=findModel(it.code);
+      // 제품명: 모델 매칭 우선, 없으면 항목에 저장된 short
+      const short=(m&&m.short)||it.short||it.code||'(미상)';
+      const color=(it.color||(m&&m.color)||'').toUpperCase();
+      let g=groups.get(short);
+      if(!g){
+        g={short, code:(m&&m.code)||it.code||'', glass_w:m&&m.glass_w, glass_h:m&&m.glass_h, door_type:m&&m.door_type, byColor:{}};
+        groups.set(short,g);
+      }
+      // 모델 메타는 처음 잡힌 값 유지하되, 비어있으면 채움
+      if(!g.glass_w && m&&m.glass_w){ g.glass_w=m.glass_w; g.glass_h=m.glass_h; }
+      if(!g.door_type && m&&m.door_type) g.door_type=m.door_type;
+      const ck=color||'-';
+      let c=g.byColor[ck];
+      if(!c){ c={months:{}, total:0}; g.byColor[ck]=c; }
+      const q=it.qty||0;
+      c.months[ym]=(c.months[ym]||0)+q;
+      c.total+=q;
+    });
+  });
+
+  const monthKeys=[...monthSet].sort();
+  const nMonths=Math.max(monthKeys.length,1);
+  const rows=[];
+  groups.forEach(g=>{
+    let total=0;
+    Object.values(g.byColor).forEach(c=>{ c.avg=c.total/nMonths; total+=c.total; });
+    g.total=total;
+    g.avg=total/nMonths;
+    rows.push(g);
+  });
+  rows.sort((a,b)=>b.total-a.total);
+
+  _trendAggCache={rows, monthKeys, minDate, maxDate, nMonths};
+  _trendAggSig=sig;
+  return _trendAggCache;
+}
+function invalidateTrendAgg(){ _trendAggCache=null; _trendAggSig=''; }
+
 
 // ── STORAGE ──
 const LS={stock:'ybn-s5',meta:'ybn-m5',work:'ybn-w5',ink:'ybn-i5',inkRate:'ybn-ir2',notices:'ybn-n2',schedules:'ybn-sc2',todos:'ybn-t2',gsUrl:'ybn-gs2',delivLog:'ybn-deliv-v1',actor:'ybn-actor-v1',stockEvents:'ybn-sev-v1',finished:'ybn-fin-v1'};
@@ -2184,6 +2268,7 @@ function _formatActorTime(iso){
 
 function saveAll(){
   if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
+  if(typeof invalidateTrendAgg==="function") invalidateTrendAgg();
   // 로컬 변경 시각 기록 (시트→앱 받기 직전 경고용)
   // _skipLocalChange가 true면 외부(시트→앱)에서 받은 후 호출이므로 갱신 안 함
   if(!window._skipLocalChange && meta){
@@ -4456,24 +4541,128 @@ function confirmWork(){
 
 let trendFilter='all';
 function setTrendFilter(f,btn){trendFilter=f;if(btn&&btn.parentElement){btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}renderTrend();}
+
+// "YYYY-MM" -> "26.5월"
+function trendMonthLabel(ym){const[y,m]=ym.split('-');return y.slice(2)+'.'+parseInt(m,10)+'월';}
+// 월평균 → 빈도 등급
+function trendTier(avg){ if(avg>=10) return 'high'; if(avg>=5) return 'mid'; if(avg>0) return 'low'; return 'none'; }
+
 function renderTrend(){
+  const el=document.getElementById('trend-list');
+  const rgEl=document.getElementById('trend-range');
+  if(!el)return;
   const q=(document.getElementById('trend-search')?.value||'').toLowerCase();
-  let ms=[...MODELS];
-  if(q)ms=ms.filter(m=>m.code.toLowerCase().includes(q)||m.short.toLowerCase().includes(q));
-  if(trendFilter==='high')ms=ms.filter(m=>m.freq==='high');
-  else if(trendFilter==='mid')ms=ms.filter(m=>m.freq==='mid');
-  else if(trendFilter==='WC')ms=ms.filter(m=>m.color==='WC');
-  else if(trendFilter==='ETP')ms=ms.filter(m=>m.color==='ETP');
-  const el=document.getElementById('trend-list');if(!el)return;
-  if(!ms.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>없음</div>';return;}
-  const max=Math.min(ms.length,80);
-  el.innerHTML=ms.slice(0,max).map(m=>{
-    const vals=MONTHS.map(mo=>(m.monthly||{})[mo]||0),mx=Math.max(...vals,1);
-    const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';
-    const bars=MONTHS.map((mo,i)=>{const v=vals[i],h=Math.max(Math.round(v/mx*48),v>0?4:2);return '<div class="m-bar-wrap"><div class="m-bar'+(v===0?' zero':'')+'" style="height:'+h+'px"></div><div class="m-lbl">'+MONTH_LABELS[mo].slice(0,4)+'</div><div class="m-val">'+(v||'')+'</div></div>';}).join('');
-    return '<div class="trend-card"><div class="trend-hdr"><div><div class="trend-name">'+hlName(m.short,m.color)+'</div><div class="trend-meta">'+m.code+' | '+sz+' '+colorBadge(m.color)+' '+doorBadge(m.door_type)+'</div></div><div>'+freqBadge(m.freq,m.avg_monthly)+'</div></div><div class="month-bars">'+bars+'</div></div>';
+  const {rows, monthKeys, minDate, maxDate, nMonths}=trendAgg();
+
+  // 날짜 범위 헤더
+  if(rgEl){
+    if(monthKeys.length){
+      rgEl.innerHTML='<span>집계 기간 <span class="rg-period">'+(minDate||'')+' ~ '+(maxDate||'')+'</span> · '+nMonths+'개월</span><span style="color:var(--tx3)">납품서 '+ (delivLog?delivLog.length:0) +'건 기준</span>';
+    } else {
+      rgEl.innerHTML='<span style="color:var(--tx3)">아직 집계할 납품서가 없습니다</span>';
+    }
+  }
+
+  // 검색 필터
+  let list=rows.filter(g=>!q || g.short.toLowerCase().includes(q) || (g.code||'').toLowerCase().includes(q));
+
+  // 색상 필터 (해당 색상이 있는 제품만, 그리고 그 색상만 표시)
+  let colorOnly=null;
+  if(trendFilter==='WC') colorOnly='WC';
+  else if(trendFilter==='ETP') colorOnly='ETP';
+  if(colorOnly) list=list.filter(g=>g.byColor[colorOnly]);
+
+  // 빈도 필터
+  if(trendFilter==='high') list=list.filter(g=>trendTier(g.avg)==='high');
+  else if(trendFilter==='mid') list=list.filter(g=>trendTier(g.avg)==='mid');
+  else if(trendFilter==='none'){
+    // 아예없음 = 마스터에는 있으나 집계 기간 출고 0인 제품명
+    renderTrendNone(el, list.map(g=>g.short), q);
+    return;
+  }
+
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>해당 제품 없음</div>';return;}
+
+  // 빈도 등급별 섹션 정렬 (고→중→저)
+  const tierOrder={high:0,mid:1,low:2};
+  const tierLabel={high:'🔥 고빈도 (월평균 10장↑)',mid:'⚡ 중빈도 (월평균 5~10장)',low:'· 저빈도 (월평균 5장 미만)'};
+  const buckets={high:[],mid:[],low:[]};
+  list.forEach(g=>{const t=trendTier(g.avg); if(t!=='none') buckets[t].push(g);});
+
+  let html='';
+  ['high','mid','low'].forEach(t=>{
+    const arr=buckets[t]; if(!arr.length) return;
+    html+='<div class="trend-sec-hdr">'+tierLabel[t]+'<span class="cnt">'+arr.length+'종</span></div>';
+    // 월 라벨 (섹션 첫 카드 위 한 번)
+    html+='<div class="trend-mlabels">'+monthKeys.map(ym=>'<span class="ml">'+trendMonthLabel(ym)+'</span>').join('')+'</div>';
+    html+=arr.map(g=>trendCardHtml(g, monthKeys, colorOnly)).join('');
+  });
+  el.innerHTML=html||'<div class="empty"><div class="empty-ico">📭</div>해당 제품 없음</div>';
+}
+
+// 색상 한 줄 (WC 또는 ETP) — 월별 막대 + 월평균 숫자
+function trendColorRow(label,cls,monthsObj,monthKeys,avg){
+  // 막대 높이는 그 줄 내부 최대 기준 (모델 간 비교용 아님)
+  const vals=monthKeys.map(ym=>monthsObj[ym]||0);
+  const mx=Math.max(...vals,1);
+  const bars=vals.map(v=>{
+    const h=v>0?Math.max(Math.round(v/mx*30),4):2;
+    return '<div class="cbar-wrap"><div class="cbar-mv">'+(v||'')+'</div><div class="cbar '+cls+(v===0?' zero':'')+'" style="height:'+h+'px"></div></div>';
   }).join('');
-  if(ms.length>max)el.innerHTML+='<div class="filter-hint">필터로 범위를 좁혀보세요 (총 '+ms.length+'종)</div>';
+  return '<div class="crow"><div class="crow-lbl '+cls+'">'+label+'</div>'
+    +'<div class="crow-bars">'+bars+'</div>'
+    +'<div class="crow-avg"><div class="num">'+ (Math.round(avg*10)/10) +'</div><div class="un">월평균 장</div></div></div>';
+}
+
+function trendCardHtml(g, monthKeys, colorOnly){
+  const sz=g.glass_w?g.glass_w+'×'+g.glass_h:'';
+  let rowsHtml='';
+  const order=['WC','ETP'];
+  order.forEach(col=>{
+    if(colorOnly && col!==colorOnly) return;
+    const c=g.byColor[col];
+    if(!c) return;
+    rowsHtml+=trendColorRow(col==='WC'?'웜코튼':'에토프', col==='WC'?'wc':'etp', c.months, monthKeys, c.avg);
+  });
+  // WC/ETP 외 색상도 있으면 표시 (희귀 케이스)
+  if(!colorOnly){
+    Object.keys(g.byColor).forEach(col=>{
+      if(col==='WC'||col==='ETP'||col==='-') return;
+      const c=g.byColor[col];
+      rowsHtml+=trendColorRow(col, '', c.months, monthKeys, c.avg);
+    });
+  }
+  if(!rowsHtml){
+    const c=g.byColor['-']; if(c) rowsHtml=trendColorRow('전체','',c.months,monthKeys,c.avg);
+  }
+  return '<div class="trend-card"><div class="trend-hdr"><div><div class="trend-name">'+g.short+'</div>'
+    +'<div class="trend-meta">'+(g.code||'')+(sz?' | '+sz:'')+' '+(g.door_type?doorBadge(g.door_type):'')+'</div></div>'
+    +'<div style="text-align:right"><div style="font-size:11px;color:var(--tx2)">총 '+g.total+'장</div></div></div>'
+    +rowsHtml+'</div>';
+}
+
+// 아예없음 리스트: 마스터(MODELS)에는 있으나 집계 기간 출고가 0인 제품명
+function renderTrendNone(el, orderedShorts, q){
+  const shipped=new Set(orderedShorts);
+  // MODELS의 제품명 중 출고 기록이 전혀 없는 것
+  const seen=new Set();
+  const none=[];
+  (typeof MODELS!=='undefined'?MODELS:[]).forEach(m=>{
+    if(!m.short) return;
+    if(q && !(m.short.toLowerCase().includes(q)||(m.code||'').toLowerCase().includes(q))) return;
+    if(shipped.has(m.short)) return;
+    if(seen.has(m.short)) return;
+    seen.add(m.short);
+    none.push(m);
+  });
+  if(!none.length){el.innerHTML='<div class="empty"><div class="empty-ico">✅</div>집계 기간 내 모든 제품이 한 번 이상 출고됐습니다</div>';return;}
+  el.innerHTML='<div class="trend-sec-hdr">🚫 아예없음 (집계 기간 출고 0)<span class="cnt">'+none.length+'종</span></div>'
+    +'<div class="filter-hint" style="margin-top:0">미리 만들면 색 변해 폐기될 위험이 큰 후보들입니다.</div>'
+    +none.map(m=>{
+      const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';
+      return '<div class="trend-card" style="opacity:.75"><div class="trend-name">'+m.short+'</div>'
+        +'<div class="trend-meta">'+(m.code||'')+(sz?' | '+sz:'')+' '+colorBadge(m.color)+' '+(m.door_type?doorBadge(m.door_type):'')+'</div></div>';
+    }).join('');
 }
 
 // ── NONSPEC ──
@@ -4632,6 +4821,7 @@ function applyMergedFromSheet(data){
     delivLog=mergeById(delivLog, data.delivLog, 'id');
     delivLog=delivLog.filter(d=>!delivDeleted[d && d.id]); // 삭제된 납품서는 부활 금지
     if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
+  if(typeof invalidateTrendAgg==="function") invalidateTrendAgg();
   }
   if(data.notices!==undefined) notices=mergeById(notices, data.notices, 'id');
   if(data.schedules!==undefined) schedules=mergeById(schedules, data.schedules, 'id');
