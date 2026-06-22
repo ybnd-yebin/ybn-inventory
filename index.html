@@ -10443,9 +10443,9 @@ function classifyDelivItem(name, daegubun){
     o.cat='글래스도어'; o.ext=/연장/.test(n);
     o.sz=/450/.test(n)?'450':/500/.test(n)?'500':'기타';
   }
-  else if(/^\(?B\/I|BUIF/.test(n)) o.cat='빌트인';
+  else if(/(^|\s)\(?B\/I|BUIF/.test(n)) o.cat='빌트인';
   else if(/에어힌지/.test(n)) o.cat='에어힌지';
-  else if(/^KB|빗각/.test(n)) o.cat='KB';
+  else if(/(^|\s)KB|빗각/.test(n)) o.cat='KB';
   else if(/AL도어/.test(n) && /장식|키큰장|벽장|분리장/.test(n)) o.cat='유리장식장';
   else if(/Euro700/.test(n)) o.cat='EURO700';
   else if(/Euro500/.test(n)) o.cat='EURO500';
