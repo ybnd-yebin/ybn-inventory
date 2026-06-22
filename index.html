@@ -681,14 +681,27 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <!-- 재고 편집 -->
   <!-- 조립실 재고 (인쇄 안 하는 제품: 시그니처/투웨이/키친) -->
   <div id="sp-assembly" class="sub-pg" style="display:none;padding:14px 14px 80px">
-    <div class="info-note">🔧 인쇄 안 하는 제품의 <b>조립실 유리재고</b>와 <b>완제품 재고</b>를 함께 관리합니다. 흐름: 유리입고 → 조립 → 납품. 납품서 PDF를 올리면 작업할 수량이 자동으로 뜹니다.</div>
-    <input class="inp" id="asm-search" placeholder="🔍 제품명 / 사이즈 / 코드 (예: 시그니처, 4574, CAIB13894)..." oninput="renderAssembly()">
-    <div class="filter-row" id="asm-series-row" style="flex-wrap:wrap">
-      <button class="f-btn on" onclick="setAsmSeries('전체',this)">전체</button>
-      <button class="f-btn" onclick="setAsmSeries('시그니처',this)">시그니처</button>
-      <button class="f-btn" onclick="setAsmSeries('투웨이',this)">투웨이</button>
-      <button class="f-btn" onclick="setAsmSeries('키친·에어힌지',this)">키친·에어힌지</button>
-      <button class="f-btn" onclick="setAsmSeries('키친·미러',this)">키친·미러</button>
+    <div class="info-note">🔧 <b>유리</b>(일반/인쇄)와 <b>완제품</b> 재고를 관리합니다. 흐름: 인쇄실 원유리→인쇄→조립실 인쇄유리 / 일반유리 입고 → 조립 → 납품. 납품서 PDF를 올리면 작업할 수량이 자동으로 뜹니다.</div>
+    <input class="inp" id="asm-search" placeholder="🔍 제품명 / 사이즈 / 코드 / 색상 (예: 시그니처, 6073, 웜코튼)..." oninput="renderAssembly()">
+    <!-- 대분류: 유리 / 완제품 -->
+    <div class="filter-row" id="asm-maincat-row" style="margin-bottom:6px">
+      <button class="f-btn on" onclick="setAsmMainCat('glass',this)">📦 유리</button>
+      <button class="f-btn" onclick="setAsmMainCat('done',this)">🚪 완제품</button>
+    </div>
+    <!-- 유리 소분류: 일반/인쇄 (대분류=유리일 때만) -->
+    <div class="filter-row" id="asm-glasssub-row" style="margin-bottom:6px">
+      <button class="f-btn on" onclick="setAsmGlassSub('all',this)">전체유리</button>
+      <button class="f-btn" onclick="setAsmGlassSub('plain',this)">일반유리</button>
+      <button class="f-btn" onclick="setAsmGlassSub('printed',this)">인쇄유리</button>
+    </div>
+    <!-- 창고(제품군) -->
+    <div class="filter-row" id="asm-wh-row" style="flex-wrap:wrap">
+      <button class="f-btn on" onclick="setAsmWarehouse('전체',this)">전체</button>
+      <button class="f-btn" onclick="setAsmWarehouse('EURO700',this)">EURO700</button>
+      <button class="f-btn" onclick="setAsmWarehouse('시그니처',this)">시그니처</button>
+      <button class="f-btn" onclick="setAsmWarehouse('투웨이',this)">투웨이</button>
+      <button class="f-btn" onclick="setAsmWarehouse('키친·에어힌지',this)">키친·에어힌지</button>
+      <button class="f-btn" onclick="setAsmWarehouse('키친·미러',this)">키친·미러</button>
     </div>
     <div id="asm-list"></div>
   </div>
@@ -4582,6 +4595,8 @@ function confirmWork(){
       const exCode=dl.items.find(i=>i.code===wSelCode&&i.color===wScColor&&i.type==='work');
       if(exCode){ exCode.qty+=wQty; Object.assign(exCode, actorTag()); }
       else dl.items.push({code:wSelCode,color:wScColor,qty:wQty,type:'work',...actorTag()});
+      // 인쇄실→조립실 자동연결: EURO700 정규격이면 조립실 인쇄유리 +wQty
+      if(typeof asmOnPrint==='function') asmOnPrint(wSelCode, wQty);
     }
     showToast('✓ '+wQty+'장 기록');
   }
@@ -4958,67 +4973,101 @@ function renderSpec(){
 
 
 // ════════════════════════════════════════════════════════════════
-//  🔧 조립실 재고 (ASSEMBLY) — 인쇄 안 하는 제품 전용
-//  유리 입고 → 수량확인 → 조립(유리−/완제품+) → 납품(완제품−)
-//  품목: 시그니처 / 투웨이 / 키친 에어힌지 / 키친 미러 (색상 구분 없음, 모델 단위)
-//  납품서(delivLog) 연결: 제품코드로 매칭.
-//  ⚠️ 기존 finishedStock(인쇄도어 완제품)과 완전히 별개로 관리.
+//  🔧 조립실 재고 (ASSEMBLY) v2 — 인쇄 안 하는 제품 + EURO700 인쇄유리
+//  흐름: (인쇄실 원유리 −) → 인쇄 → 조립실 인쇄유리(+) → 조립(유리−/완제품+) → 납품(완제품−)
+//  대분류: [유리]/[완제품]   유리 소분류: [일반유리]/[인쇄유리]
+//  창고: EURO700(인쇄,색상별) / 시그니처·투웨이·키친(일반,색상없음)
+//  ⚠️ 규격은 ASM_ITEMS(일반유리) + HANSAEM_CATALOG(EURO700) 단일출처 참조. 복붙 없음.
 // ════════════════════════════════════════════════════════════════
 
-// ── 품목 마스터: 규격표 + 납품서 제품코드 매칭 ──
-// code: 정확매칭 제품코드. codePrefix: 접두 매칭(비규격 변형 포함).
-// 한 모델이 여러 코드로 들어올 수 있어 codes 배열 허용.
-// ⚠️ 코드는 "납품서에 실제 찍히는 제품코드" 기준 (엑셀 내부번호와 다를 수 있음).
-//    confirmed:true = 납품서로 확인된 코드. 나머지는 codeGuess(추정) — 들어오면 확인 후 codes로 승격.
+// ── 일반유리 품목 마스터 (시그니처/투웨이/키친) — 색상 없음 ──
+// glassType:'plain'. 코드는 납품서 실제 표기 기준.
 const ASM_ITEMS = [
-  // 시그니처 글래스도어 (납품서 확인됨: CAIB13894/13895)
+  // 시그니처 글래스도어 (납품서 확인: CAIB13894/13895)
   { id:'sig450', series:'시그니처', name:'글래스 도어 450', fw:446, fh:2170, gw:441, gh:2165, codes:['CAIB13894'], confirmed:true },
   { id:'sig500', series:'시그니처', name:'글래스 도어 500', fw:496, fh:2170, gw:491, gh:2165, codes:['CAIB13895'], confirmed:true },
-  // 투웨이 유리장식장 — 납품서 기준: ME1TM0001=45222, ME1TM0004=60235 (확인됨)
+  // 투웨이 유리장식장 — 납품서: ME1TM0001=45222, ME1TM0004=60235 (확인)
   { id:'tw45222', series:'투웨이', name:'유리장식 45222', fw:445, fh:2113, gw:421, gh:2089, codes:['ME1TM0001'], confirmed:true },
   { id:'tw60235', series:'투웨이', name:'유리장식 60235', fw:595, fh:2241, gw:571, gh:2217, codes:['ME1TM0004'], confirmed:true },
-  // 아래 투웨이는 납품서 코드 미확인 (엑셀 추정코드). 들어오면 확인 후 확정.
   { id:'tw45235', series:'투웨이', name:'유리장식 45235', fw:445, fh:2241, gw:421, gh:2217, codeGuess:['ME1TM0002'] },
   { id:'tw60222', series:'투웨이', name:'유리장식 60222', fw:595, fh:2113, gw:571, gh:2089, codeGuess:['ME1TM0003'] },
-  { id:'tw4586',  series:'투웨이', name:'유리장식 4586',  fw:445, fh:860,  gw:421, gh:836,  codeGuess:['ME1WM0001'] },
-  { id:'tw5086',  series:'투웨이', name:'유리장식 5086',  fw:495, fh:860,  gw:471, gh:836,  codeGuess:['ME1WM0002'] },
-  { id:'tw6086',  series:'투웨이', name:'유리장식 6086',  fw:595, fh:860,  gw:571, gh:836,  codeGuess:['ME1WM0003'] },
-  // 키친 에어힌지 — 납품서 확인: MK1MM0001=분리장. 나머지 사이즈 코드 미확인.
+  { id:'tw4586',  series:'투웨이', name:'유리장식 4586',  fw:445, fh:860,  gw:421, gh:836,  codes:['ME1WM0001'], confirmed:true },
+  { id:'tw5086',  series:'투웨이', name:'유리장식 5086',  fw:495, fh:860,  gw:471, gh:836,  codes:['ME1WM0002'], confirmed:true },
+  { id:'tw6086',  series:'투웨이', name:'유리장식 6086',  fw:595, fh:860,  gw:571, gh:836,  codes:['ME1WM0003'], confirmed:true },
+  // 키친 에어힌지 — 납품서: MK1MM0001=분리장. 벽장/키큰장 코드 카탈로그 확인.
   { id:'kbair_bunli',   series:'키친·에어힌지', name:'분리장 유리도어', fw:595, fh:1345, gw:555, gh:1305, codes:['MK1MM0001'], confirmed:true },
-  { id:'kbair_byeokr5', series:'키친·에어힌지', name:'벽장 유리도어 (495)', fw:495, fh:738,  gw:455, gh:698, codeGuess:[] },
-  { id:'kbair_byeokr4', series:'키친·에어힌지', name:'벽장 유리도어 (445)', fw:445, fh:738,  gw:405, gh:698, codeGuess:[] },
-  { id:'kbair_kikun',   series:'키친·에어힌지', name:'키큰장 유리도어', fw:545, fh:2113, gw:505, gh:2073, codeGuess:[] },
-  // 키친 미러 (KB 빗면) — 납품서 확인: MK1WM0004=벽장4574, MK1WM0006=플랩10054
+  { id:'kbair_byeokr4', series:'키친·에어힌지', name:'벽장 유리도어 (445)', fw:445, fh:738,  gw:405, gh:698, codes:['MK1WM0001'], confirmed:true },
+  { id:'kbair_byeokr5', series:'키친·에어힌지', name:'벽장 유리도어 (495)', fw:495, fh:738,  gw:455, gh:698, codes:['MK1WM0002'], confirmed:true },
+  { id:'kbair_kikun',   series:'키친·에어힌지', name:'키큰장 유리도어', fw:545, fh:2113, gw:505, gh:2073, codes:['MK1TM0005'], confirmed:true },
+  // 키친 미러 (KB 빗면) — 납품서: 4574/10054 확인. 5074/60211/12054 카탈로그 확인.
   { id:'kbmir_4574',  series:'키친·미러', name:'벽장 빗면 4574',    fw:445, fh:738,  gw:350, gh:728,  codes:['MK1WM0004'], confirmed:true },
+  { id:'kbmir_5074',  series:'키친·미러', name:'벽장 빗면 5074',    fw:495, fh:738,  gw:400, gh:728,  codes:['MK1WM0005'], confirmed:true },
   { id:'kbmir_10054', series:'키친·미러', name:'플랩장 빗면 10054', fw:995, fh:538,  gw:900, gh:528,  codes:['MK1WM0006'], confirmed:true },
-  // 미러 미확인 사이즈
-  { id:'kbmir_60211', series:'키친·미러', name:'키큰장 빗면 60211', fw:595, fh:2113, gw:500, gh:2103, codeGuess:[], lr:'좌우' },
-  { id:'kbmir_5074',  series:'키친·미러', name:'벽장 빗면 5074',    fw:495, fh:738,  gw:400, gh:728,  codeGuess:[] },
-  { id:'kbmir_12054', series:'키친·미러', name:'플랩장 빗면 12054', fw:1195, fh:538, gw:1100, gh:528,  codeGuess:[] },
+  { id:'kbmir_12054', series:'키친·미러', name:'플랩장 빗면 12054', fw:1195, fh:538, gw:1100, gh:528,  codes:['MK1WM0007'], confirmed:true },
+  { id:'kbmir_60211', series:'키친·미러', name:'키큰장 빗면 60211', fw:595, fh:2113, gw:500, gh:2103, codes:['MK1TM0006','MK1TM0007'], confirmed:true, lr:'좌우' },
 ];
 
-const ASM_SERIES_ORDER = ['전체','시그니처','투웨이','키친·에어힌지','키친·미러'];
-let asmSeries = '전체';
-
-// 납품서 제품코드 → 품목 id 매칭. 확정 코드(codes) 정확매칭만 사용.
-// 비규격 변형도 같은 코드로 들어오므로 정확매칭으로 충분.
-// (접두 매칭은 사이즈를 잘못 잡을 수 있어 사용 안 함)
-function asmMatchItem(code){
-  if(!code) return null;
-  const c=String(code).trim().toUpperCase();
-  for(const it of ASM_ITEMS){
-    if(it.codes && it.codes.some(x=>x.toUpperCase()===c)) return it;
-  }
-  return null;
+// 유리 종류/거래처 표기. ybn-data.js에 GLASS_SPEC가 있으면 그걸 우선 사용,
+// 없으면 아래 기본값 사용. (발주현황 엑셀 기준)
+const ASM_GLASS_SPEC_FALLBACK = {
+  '시그니처':      {glass:'5T 투명/반강화', vendor:'아름유리'},
+  '투웨이':        {glass:'5T 백유리 투명/반강화', vendor:'현성유리'},
+  '키친·에어힌지': {glass:'5T 투명/강화·비산방지필름', vendor:'아름유리'},
+  '키친·미러':     {glass:'5T 브론즈/강화·비산방지필름', vendor:'아름유리'},
+  'EURO700':       {glass:'인쇄유리(실크인쇄)', vendor:''},
+};
+function asmGlassSpec(series){
+  if(typeof GLASS_SPEC!=='undefined' && GLASS_SPEC[series]) return GLASS_SPEC[series];
+  return ASM_GLASS_SPEC_FALLBACK[series] || {glass:'', vendor:''};
 }
-// 이 코드가 조립실 관리 대상인지 (EURO700 등 인쇄품목 제외 판정용)
-function asmIsManaged(code){ return !!asmMatchItem(code); }
+
+// 창고(시리즈) 표시 순서: EURO700 먼저
+const ASM_WH_ORDER = ['전체','EURO700','시그니처','투웨이','키친·에어힌지','키친·미러'];
+let asmWarehouse = '전체';      // 창고 필터
+let asmMainCat = 'glass';       // 'glass' | 'done'  대분류
+let asmGlassSub = 'all';        // 'all' | 'plain' | 'printed'  유리 소분류
+
+// 색상 라벨
+const ASM_COLOR_LABEL = {WC:'웜코튼', ETP:'에토프', BRZ:'베일브론즈', SHD:'베일셰이드'};
+
+// ── EURO700 인쇄유리 품목: HANSAEM_CATALOG에서 실시간 생성 (복붙 없음) ──
+// 정규격만 (비규격 '비규격' 제외). 색상은 카탈로그 [2](WC/ETP) + 제품명(Veil BRZ/Shade) 판별.
+// id: 'euro|<코드>'  → 코드 자체가 색상·모델 유니크키.
+function euroColorOf(code, name, catColor){
+  if(catColor==='WC') return 'WC';
+  if(catColor==='ETP') return 'ETP';
+  if(/Veil\s*BRZ/i.test(name)) return 'BRZ';
+  if(/Veil\s*Shade/i.test(name)) return 'SHD';
+  return '';
+}
+// 코드 → 유리사이즈 (MODELS/SIZE_GROUPS 통해). 없으면 빈값.
+function euroGlassSize(code){
+  if(typeof findModel==='function'){
+    const m=findModel(code);
+    if(m && m.glass_w) return {gw:m.glass_w, gh:m.glass_h};
+  }
+  return {gw:null, gh:null};
+}
+// EURO700 정규격 1개 품목 메타 생성
+function euroItemFromCode(code){
+  if(typeof HANSAEM_CATALOG==='undefined' || !HANSAEM_CATALOG[code]) return null;
+  const a=HANSAEM_CATALOG[code];
+  if(a[1]!=='EURO700') return null;
+  const name=a[0]||'';
+  if(/비규격/.test(name)) return null;       // 정규격만
+  const color=euroColorOf(code, name, a[2]);
+  const sz=euroGlassSize(code);
+  // 표시 이름: 'OB M 6073(공용) M' 등 핵심부만 (Euro700 Grace ... 접두 제거)
+  let shortName = name.replace(/^Euro700\s+(Grace\s+(W\/Cotton|ETP)|Veil\s+(BRZ|Shade|DW|LW)|Grace\s+\S+)\s*/i,'').trim();
+  if(!shortName) shortName=name;
+  return { id:'euro|'+code, series:'EURO700', glassType:'printed',
+           code, name:shortName, fullName:name, color,
+           gw:sz.gw, gh:sz.gh };
+}
 
 // ── 데이터: assemblyStock 배열 ──
-// {id(품목id), glass(조립실 유리재고), done(완제품재고),
-//  events:[{id,type,delta,at,by,memo,cause}], updatedAt, by}
-// type: 'glass_in'(유리입고) | 'assemble'(조립) | 'defect'(유리불량) | 'ship'(납품출고) | 'glass_count'(유리실측) | 'done_count'(완제품실측) | 'done_adjust'
-// cause(불량만): 'us'(우리실수) | 'vendor'(거래처불량)
+// {id, glass, done, events:[...], updatedAt, by}
+// glass=조립실 유리재고, done=완제품재고
 let assemblyStock = (typeof J==='function' ? J(localStorage.getItem('ybn-asm-v1')) : null) || [];
 function saveAssembly(){
   try{ localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock)); }catch(e){}
@@ -5034,32 +5083,44 @@ function asmGet(itemId){
   return a;
 }
 
+// 품목 메타 조회 (일반유리=ASM_ITEMS, 인쇄유리=euro|코드)
+function asmItemMeta(itemId){
+  if(itemId && itemId.startsWith('euro|')){
+    return euroItemFromCode(itemId.slice(5));
+  }
+  const it=ASM_ITEMS.find(x=>x.id===itemId);
+  if(it) return {...it, glassType:'plain', color:''};
+  return null;
+}
+function asmItemName(itemId){
+  const m=asmItemMeta(itemId);
+  if(!m) return itemId;
+  if(m.series==='EURO700') return (ASM_COLOR_LABEL[m.color]||m.color||'')+' '+m.name;
+  return m.name;
+}
+
 // 핵심 적용 함수
 function asmApply(itemId, opt){
-  // opt: {type, qty, memo, cause, absGlass, absDone}
   const a=asmGet(itemId);
   const now=new Date().toISOString();
   const by=(typeof getActor==='function'?getActor():'')||'';
   const t=opt.type; let delta=0;
   const q=Math.max(0, parseInt(opt.qty)||0);
   if(t==='glass_in'){ a.glass += q; delta=q; }
-  else if(t==='assemble'){ // 유리 → 완제품 (1:1)
-    const n=Math.min(q, a.glass); // 유리 부족분은 막음
-    a.glass -= n; a.done += n; delta=n;
-  }
+  else if(t==='assemble'){ a.glass = Math.max(0, a.glass - q); a.done += q; delta=q; } // 권장량 표시만, 입력 자유
   else if(t==='defect'){ a.glass = Math.max(0, a.glass - q); delta=-q; }
   else if(t==='ship'){ a.done = Math.max(0, a.done - q); delta=-q; }
   else if(t==='glass_count'){ const target=Math.max(0, parseInt(opt.absGlass)||0); delta=target-a.glass; a.glass=target; }
   else if(t==='done_count'){ const target=Math.max(0, parseInt(opt.absDone)||0); delta=target-a.done; a.done=target; }
-  else if(t==='done_adjust'){ a.done=Math.max(0, a.done + (parseInt(opt.qty)||0)); delta=parseInt(opt.qty)||0; }
+  else if(t==='print_in'){ a.glass += q; delta=q; } // 인쇄실→조립실 자동 입고 (인쇄유리)
   a.updatedAt=now; a.by=by;
   a.events.push({ id:'ae_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
-    type:t, delta, at:now, by, memo:(opt.memo||'').trim(), cause:opt.cause||'' });
+    type:t, delta, at:now, by, memo:(opt.memo||'').trim(), cause:opt.cause||'', source:opt.source||'manual' });
   saveAssembly();
   return a;
 }
 
-// 거래처 불량 누적 (클레임 근거)
+// 거래처 불량 누적
 function asmDefectStats(){
   let us=0, vendor=0;
   assemblyStock.forEach(a=>(a.events||[]).forEach(e=>{
@@ -5068,38 +5129,47 @@ function asmDefectStats(){
   return {us, vendor, total:us+vendor};
 }
 
-// ── 납품서 연결: 특정 품목의 미납(필요) 수량 집계 ──
-// delivLog 전체에서 이 품목 코드가 들어간 항목 수량 합. AS(54) 제외.
-// 날짜 필터 옵션(ymd) 주면 그날 발주/납품요청만.
-function asmNeedFromDeliv(itemId, ymd){
-  let need=0; const docs=[];
-  (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
-    if((d.refNo||'').startsWith('54')) return; // AS 제외
-    if(ymd){
-      const k=d.orderDate||d.delivReqDate||'';
-      const k2=d.delivReqDate||d.orderDate||'';
-      if(k.slice(0,10)!==ymd && k2.slice(0,10)!==ymd && (k!==ymd) && (k2!==ymd)) {
-        // ymd가 8자리(YYYYMMDD)거나 10자리(YYYY-MM-DD) 모두 허용
-        const ymd8=ymd.replace(/-/g,'');
-        if((k||'').replace(/-/g,'')!==ymd8 && (k2||'').replace(/-/g,'')!==ymd8) return;
-      }
-    }
-    (d.items||[]).forEach(it=>{
-      const m=asmMatchItem(it.code);
-      if(m && m.id===itemId){ need+=it.qty||0; docs.push({deliv:d.delivNo||d.id, qty:it.qty||0}); }
-    });
-  });
-  return {need, docs};
+// ── 빵꾸 분석: 마지막 실측 이후 미기록 손실 (유리/완제품 각각) ──
+function asmMismatch(itemId, which){ // which:'glass'|'done'
+  const a=asmFind(itemId); if(!a) return null;
+  const evs=(a.events||[]).slice().sort((x,y)=>String(x.at).localeCompare(String(y.at)));
+  const countType = which==='glass'?'glass_count':'done_count';
+  let lastCountIdx=-1;
+  for(let i=evs.length-1;i>=0;i--){ if(evs[i].type===countType){ lastCountIdx=i; break; } }
+  if(lastCountIdx<0) return null;
+  // 실측 이후 auto-adjust(자동보정)만 미기록으로 간주 (현재 수동 흐름엔 거의 없음 — 자리 확보)
+  let auto=0;
+  for(let i=lastCountIdx+1;i<evs.length;i++){ if(evs[i].source==='auto-adjust') auto+=evs[i].delta||0; }
+  return auto!==0?auto:null;
 }
 
-// 전체 납품서에서 조립실 품목별 미납 합계 (한 번에)
+// ── 납품서 연결 (코드 매칭) ──
+// 일반유리: asmMatchItem(code) → ASM_ITEMS id
+// 인쇄유리(EURO700): code가 카탈로그 EURO700 정규격이면 'euro|코드'
+function asmMatchItem(code){
+  if(!code) return null;
+  const c=String(code).trim().toUpperCase();
+  for(const it of ASM_ITEMS){ if(it.codes && it.codes.some(x=>x.toUpperCase()===c)) return it; }
+  return null;
+}
+function asmMatchAnyId(code){
+  if(!code) return null;
+  const it=asmMatchItem(code);
+  if(it) return it.id;
+  const e=euroItemFromCode(String(code).trim()); // EURO700 정규격이면
+  if(e) return e.id;
+  return null;
+}
+function asmIsManaged(code){ return !!asmMatchAnyId(code); }
+
+// 전체 납품서에서 품목별 미납 합계
 function asmNeedMap(){
   const map={};
   (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
-    if((d.refNo||'').startsWith('54')) return;
+    if((d.refNo||'').startsWith('54')) return; // AS 제외
     (d.items||[]).forEach(it=>{
-      const m=asmMatchItem(it.code);
-      if(m){ map[m.id]=(map[m.id]||0)+(it.qty||0); }
+      const id=asmMatchAnyId(it.code);
+      if(id) map[id]=(map[id]||0)+(it.qty||0);
     });
   });
   return map;
@@ -5108,10 +5178,41 @@ function asmNeedMap(){
 // ════════════════════════════════════════════════════════════════
 //  렌더
 // ════════════════════════════════════════════════════════════════
-function setAsmSeries(s, btn){
-  asmSeries=s;
-  if(btn&&btn.parentElement){ btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
+function setAsmMainCat(cat, btn){
+  asmMainCat=cat;
+  document.querySelectorAll('#asm-maincat-row .f-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  // 유리 소분류 행 표시/숨김
+  const sub=document.getElementById('asm-glasssub-row');
+  if(sub) sub.style.display = cat==='glass' ? 'flex' : 'none';
   renderAssembly();
+}
+function setAsmGlassSub(sub, btn){
+  asmGlassSub=sub;
+  document.querySelectorAll('#asm-glasssub-row .f-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderAssembly();
+}
+function setAsmWarehouse(w, btn){
+  asmWarehouse=w;
+  document.querySelectorAll('#asm-wh-row .f-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderAssembly();
+}
+
+// 화면에 보일 품목 목록 구성
+// - 일반유리: ASM_ITEMS 전부
+// - 인쇄유리(EURO700): assemblyStock에 실재고가 있거나, 납품서에 잡힌 것만 (A안)
+function asmVisibleItems(needMap){
+  const items=[];
+  // 일반유리
+  ASM_ITEMS.forEach(it=>items.push({...it, glassType:'plain', color:''}));
+  // EURO700 인쇄유리 — 재고 있거나 납품요청 있는 코드만
+  const euroCodes=new Set();
+  assemblyStock.forEach(a=>{ if(a.id.startsWith('euro|')) euroCodes.add(a.id.slice(5)); });
+  Object.keys(needMap).forEach(id=>{ if(id.startsWith('euro|')) euroCodes.add(id.slice(5)); });
+  euroCodes.forEach(code=>{ const e=euroItemFromCode(code); if(e) items.push(e); });
+  return items;
 }
 
 function asmItemCard(it, needMap){
@@ -5119,54 +5220,88 @@ function asmItemCard(it, needMap){
   const glass=a?a.glass:0;
   const done=a?a.done:0;
   const need=needMap[it.id]||0;
-  const short=Math.max(0, need-done); // 완제품 기준 부족분
+  const short=Math.max(0, need-done);
+  const isEuro=it.series==='EURO700';
+  const spec=asmGlassSpec(it.series);
+  const colorTag = isEuro && it.color
+    ? `<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;margin-left:6px;background:${it.color==='WC'?'rgba(29,111,181,.12)':it.color==='ETP'?'rgba(180,83,9,.12)':'rgba(120,80,60,.12)'};color:${it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'#7a5a3a'}">${ASM_COLOR_LABEL[it.color]||it.color}</span>`
+    : '';
   const lrTag = it.lr ? `<span style="font-size:9px;color:var(--acc4);font-weight:700;margin-left:4px">${it.lr}</span>` : '';
-  const unconfTag = !it.confirmed ? `<span style="font-size:9px;color:var(--acc2);font-weight:700;margin-left:4px;background:rgba(234,108,0,.1);padding:1px 5px;border-radius:6px">코드 확인필요</span>` : '';
+  const unconfTag = (!isEuro && !it.confirmed) ? `<span style="font-size:9px;color:var(--acc2);font-weight:700;margin-left:4px;background:rgba(234,108,0,.1);padding:1px 5px;border-radius:6px">코드 확인필요</span>` : '';
+  const glassLabel = isEuro ? '인쇄유리' : '일반유리';
+  const sizeStr = it.gw ? `${it.gw}×${it.gh}` : '';
+  const specStr = spec.glass ? `${spec.glass}${spec.vendor?' · '+spec.vendor:''}` : '';
 
-  // 납품 알림 색상
+  // 납품 알림
   let needBox='';
   if(need>0){
-    const ok = done>=need;
+    const ok=done>=need;
     needBox=`<div style="margin-top:8px;background:${ok?'rgba(22,163,74,.08)':'rgba(220,38,38,.08)'};border:1px solid ${ok?'rgba(22,163,74,.3)':'rgba(220,38,38,.3)'};border-radius:8px;padding:8px 10px">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:12px;font-weight:700;color:${ok?'var(--acc3)':'var(--acc4)'}">${ok?'✅ 납품 준비됨':'🔴 작업 필요'}</span>
-        <span style="font-size:11px;color:var(--tx2)">납품서 ${need}개 · 완제품 ${done}개</span>
+        <span style="font-size:11px;color:var(--tx2)">납품서 ${need} · 완제품 ${done}</span>
       </div>
-      ${short>0?`<div style="font-size:12px;font-weight:800;color:var(--acc4);margin-top:4px">조립해야 할 수량: ${short}개${glass<short?` <span style="font-weight:600;color:var(--acc2)">(유리 ${short-glass}장 더 필요)</span>`:''}</div>`:''}
+      ${short>0?`<div style="font-size:12px;font-weight:800;color:var(--acc4);margin-top:4px">조립 필요(권장): ${short}개${glass<short?` <span style="font-weight:600;color:var(--acc2)">(유리 ${short-glass}장 부족)</span>`:''}</div>`:''}
       <button onclick="event.stopPropagation();asmOpenShip('${it.id}',${need})" style="width:100%;margin-top:6px;padding:7px;background:${ok?'var(--acc3)':'var(--s2)'};border:none;border-radius:6px;color:${ok?'#fff':'var(--tx2)'};font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🚚 납품 처리 (완제품 −)</button>
+    </div>`;
+  }
+
+  // 빵꾸 표시
+  const gMis=asmMismatch(it.id,'glass'), dMis=asmMismatch(it.id,'done');
+  let misBox='';
+  if(gMis||dMis){
+    const msgs=[];
+    if(gMis) msgs.push(`유리 ${gMis>0?'+':''}${gMis}`);
+    if(dMis) msgs.push(`완제품 ${dMis>0?'+':''}${dMis}`);
+    misBox=`<div style="font-size:10px;color:#a371f7;margin-top:4px;background:rgba(163,113,247,.08);padding:4px 8px;border-radius:6px">⚠️ 미기록 차이: ${msgs.join(' / ')}</div>`;
+  }
+
+  // 대분류에 따라 유리칸/완제품칸 강조
+  const showGlass = asmMainCat==='glass';
+  const stockBoxes = `
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <div style="flex:1;background:${showGlass?'var(--s2)':'transparent'};border:1px solid ${showGlass?'transparent':'var(--b1)'};border-radius:8px;padding:8px 10px;text-align:center;opacity:${showGlass?1:.55}">
+        <div style="font-size:10px;color:var(--tx2);font-weight:600">📦 조립실 ${glassLabel}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:${isEuro?(it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'#7a5a3a'):'var(--wc)'}">${glass}<span style="font-size:10px;color:var(--tx3);font-weight:400">장</span></div>
+      </div>
+      <div style="flex:1;background:${!showGlass?'var(--s2)':'transparent'};border:1px solid ${!showGlass?'transparent':'var(--b1)'};border-radius:8px;padding:8px 10px;text-align:center;opacity:${!showGlass?1:.55}">
+        <div style="font-size:10px;color:var(--tx2);font-weight:600">🚪 완제품</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:var(--acc3)">${done}<span style="font-size:10px;color:var(--tx3);font-weight:400">개</span></div>
+      </div>
+    </div>`;
+
+  // 버튼: 대분류에 맞춰
+  let btns='';
+  if(showGlass){
+    btns=`
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button onclick="event.stopPropagation();asmOpenGlassIn('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:rgba(29,111,181,.1);border:1px solid rgba(29,111,181,.3);border-radius:6px;color:var(--wc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">＋ 입고</button>
+      <button onclick="event.stopPropagation();asmOpenGlassCount('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔢 실측</button>
+      <button onclick="event.stopPropagation();asmOpenAssemble('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);border-radius:6px;color:var(--acc3);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔧 조립</button>
+      <button onclick="event.stopPropagation();asmOpenDefect('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:rgba(163,113,247,.1);border:1px solid rgba(163,113,247,.3);border-radius:6px;color:#a371f7;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⚠️ 불량</button>
+    </div>`;
+  } else {
+    btns=`
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button onclick="event.stopPropagation();asmOpenAssemble('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);border-radius:6px;color:var(--acc3);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔧 조립(완제품+)</button>
+      <button onclick="event.stopPropagation();asmOpenDoneCount('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔢 실측</button>
+      <button onclick="event.stopPropagation();asmOpenShip('${it.id}',${need})" style="flex:1;min-width:64px;padding:8px;background:rgba(234,108,0,.1);border:1px solid rgba(234,108,0,.3);border-radius:6px;color:var(--acc2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🚚 출고</button>
     </div>`;
   }
 
   return `
   <div class="card" style="margin-bottom:10px;padding:12px 14px">
-    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap">
-      <div>
-        <span style="font-size:15px;font-weight:800;color:var(--tx1)">${it.name}${lrTag}</span>${unconfTag}
-        <span style="font-size:10px;color:var(--tx3);margin-left:6px">프레임 ${it.fw}×${it.fh} · 유리 ${it.gw}×${it.gh}</span>
-      </div>
+    <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:2px">
+      <span style="font-size:15px;font-weight:800;color:var(--tx1)">${it.name}${lrTag}</span>${colorTag}${unconfTag}
     </div>
-
-    <!-- 재고 2칸 -->
-    <div style="display:flex;gap:8px;margin-top:10px">
-      <div style="flex:1;background:var(--s2);border-radius:8px;padding:8px 10px;text-align:center">
-        <div style="font-size:10px;color:var(--tx2);font-weight:600">📦 조립실 유리</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:var(--wc)">${glass}<span style="font-size:10px;color:var(--tx3);font-weight:400">장</span></div>
-      </div>
-      <div style="flex:1;background:var(--s2);border-radius:8px;padding:8px 10px;text-align:center">
-        <div style="font-size:10px;color:var(--tx2);font-weight:600">🚪 완제품</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:var(--acc3)">${done}<span style="font-size:10px;color:var(--tx3);font-weight:400">개</span></div>
-      </div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:3px">
+      ${sizeStr?`프레임 ${it.fw?it.fw+'×'+it.fh:'-'} · 유리 ${sizeStr}`:(it.fw?`프레임 ${it.fw}×${it.fh} · 유리 ${it.gw}×${it.gh}`:'')}
+      ${specStr?` <span style="color:var(--tx2)">| ${specStr}</span>`:''}
     </div>
-
+    ${stockBoxes}
+    ${misBox}
     ${needBox}
-
-    <!-- 버튼 -->
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button onclick="event.stopPropagation();asmOpenGlassIn('${it.id}')" style="flex:1;min-width:70px;padding:8px;background:rgba(29,111,181,.1);border:1px solid rgba(29,111,181,.3);border-radius:6px;color:var(--wc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">＋ 유리입고</button>
-      <button onclick="event.stopPropagation();asmOpenAssemble('${it.id}')" style="flex:1;min-width:70px;padding:8px;background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);border-radius:6px;color:var(--acc3);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔧 조립</button>
-      <button onclick="event.stopPropagation();asmOpenDefect('${it.id}')" style="flex:1;min-width:70px;padding:8px;background:rgba(163,113,247,.1);border:1px solid rgba(163,113,247,.3);border-radius:6px;color:#a371f7;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⚠️ 유리불량</button>
-      <button onclick="event.stopPropagation();asmOpenAdjust('${it.id}')" style="flex:1;min-width:70px;padding:8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">✏️ 수정</button>
-    </div>
+    ${btns}
   </div>`;
 }
 
@@ -5176,22 +5311,30 @@ function renderAssembly(){
   const q=(document.getElementById('asm-search')?.value||'').toLowerCase().trim();
   const qd=q.replace(/[^0-9]/g,'');
   const needMap=asmNeedMap();
+  let items=asmVisibleItems(needMap);
 
-  let items=ASM_ITEMS.slice();
-  if(asmSeries!=='전체') items=items.filter(it=>it.series===asmSeries);
+  // 창고 필터
+  if(asmWarehouse!=='전체') items=items.filter(it=>it.series===asmWarehouse);
+  // 유리 소분류 (대분류가 유리일 때만)
+  if(asmMainCat==='glass' && asmGlassSub!=='all'){
+    items=items.filter(it=> asmGlassSub==='printed' ? it.glassType==='printed' : it.glassType==='plain');
+  }
+  // 검색
   if(q){
     items=items.filter(it=>{
-      if(it.name.toLowerCase().includes(q)||it.series.toLowerCase().includes(q)) return true;
-      if(qd.length>=3){
-        const f=String(it.fw)+String(it.fh), g=String(it.gw)+String(it.gh);
-        if(f.includes(qd)||g.includes(qd)||String(it.fw).includes(qd)||String(it.gw).includes(qd)) return true;
+      if((it.name||'').toLowerCase().includes(q)||(it.series||'').toLowerCase().includes(q)) return true;
+      if((it.code||'').toLowerCase().includes(q)) return true;
+      if((it.color&&(ASM_COLOR_LABEL[it.color]||'').toLowerCase().includes(q))) return true;
+      if(qd.length>=3 && it.gw){
+        const g=String(it.gw)+String(it.gh);
+        if(g.includes(qd)||String(it.gw).includes(qd)) return true;
       }
       if((it.codes||[]).some(c=>c.toLowerCase().includes(q))) return true;
       return false;
     });
   }
 
-  // 상단 요약: 납품 대기 / 거래처 불량 누적
+  // 상단 요약
   const totalNeed=Object.values(needMap).reduce((a,b)=>a+b,0);
   const totalDone=assemblyStock.reduce((s,a)=>s+(a.done||0),0);
   const totalGlass=assemblyStock.reduce((s,a)=>s+(a.glass||0),0);
@@ -5202,49 +5345,66 @@ function renderAssembly(){
     <div class="stat"><div class="stat-l">조립실 유리</div><div class="stat-v" style="color:var(--wc)">${totalGlass}</div><div class="stat-s">장</div></div>
   </div>`;
   if(def.total>0){
-    summary+=`<div style="font-size:11px;color:var(--tx2);margin-bottom:10px;background:var(--s2);border-radius:7px;padding:7px 10px">
-      ⚠️ 유리불량 누적 — 거래처 불량 <b style="color:var(--acc4)">${def.vendor}</b>장 · 우리 실수 <b>${def.us}</b>장</div>`;
+    summary+=`<div style="font-size:11px;color:var(--tx2);margin-bottom:10px;background:var(--s2);border-radius:7px;padding:7px 10px">⚠️ 유리불량 누적 — 거래처 <b style="color:var(--acc4)">${def.vendor}</b>장 · 우리 <b>${def.us}</b>장</div>`;
   }
 
-  // 시리즈별 그룹 헤더
-  let html=summary;
-  if(!items.length){ el.innerHTML=summary+'<div class="empty"><div class="empty-ico">📭</div>해당 품목 없음</div>'; return; }
+  if(!items.length){ el.innerHTML=summary+'<div class="empty"><div class="empty-ico">📭</div>해당 품목 없음<div style="font-size:11px;color:var(--tx3);margin-top:6px">EURO700 인쇄유리는 입고/인쇄하면 여기 나타나요</div></div>'; return; }
+
+  // 창고(시리즈)별 그룹
   const bySeries={};
   items.forEach(it=>{ (bySeries[it.series]=bySeries[it.series]||[]).push(it); });
-  ASM_SERIES_ORDER.filter(s=>s!=='전체').forEach(s=>{
+  let html=summary;
+  ASM_WH_ORDER.filter(s=>s!=='전체').forEach(s=>{
     const arr=bySeries[s]; if(!arr||!arr.length) return;
-    // 작업 필요한 품목 먼저
     arr.sort((x,y)=>{
       const nx=Math.max(0,(needMap[x.id]||0)-((asmFind(x.id)||{}).done||0));
       const ny=Math.max(0,(needMap[y.id]||0)-((asmFind(y.id)||{}).done||0));
-      return ny-nx;
+      if(ny!==nx) return ny-nx;
+      return (x.name||'').localeCompare(y.name||'');
     });
-    html+=`<div style="font-size:13px;font-weight:800;color:var(--tx1);margin:14px 0 8px">📐 ${s} <span style="font-size:10px;color:var(--tx3);font-weight:400">${arr.length}종</span></div>`;
+    const spec=asmGlassSpec(s);
+    html+=`<div style="font-size:13px;font-weight:800;color:var(--tx1);margin:14px 0 8px">📐 ${s} <span style="font-size:10px;color:var(--tx3);font-weight:400">${arr.length}종${spec.glass?' · '+spec.glass:''}</span></div>`;
     html+=arr.map(it=>asmItemCard(it, needMap)).join('');
   });
   el.innerHTML=html;
 }
 
 // ════════════════════════════════════════════════════════════════
-//  모달 (간단 prompt 방식 — 모바일 친화)
+//  모달 (prompt 방식)
 // ════════════════════════════════════════════════════════════════
-function asmItemName(itemId){ const it=ASM_ITEMS.find(x=>x.id===itemId); return it?it.name:itemId; }
-
 function asmOpenGlassIn(itemId){
-  const n=prompt(`📦 ${asmItemName(itemId)}\n유리 입고 수량을 입력하세요 (장):`, '');
+  const n=prompt(`📦 ${asmItemName(itemId)}\n유리 입고 수량 (장):`, '');
   if(n===null) return;
   const q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
   asmApply(itemId,{type:'glass_in', qty:q, memo:'유리 입고'});
   renderAssembly();
 }
+function asmOpenGlassCount(itemId){
+  const a=asmGet(itemId);
+  const g=prompt(`🔢 ${asmItemName(itemId)}\n조립실 유리 실측값 (현재 ${a.glass}장):`, String(a.glass));
+  if(g===null) return;
+  const gv=parseInt(g); if(isNaN(gv)){ alert('숫자를 입력하세요'); return; }
+  asmApply(itemId,{type:'glass_count', absGlass:gv, memo:'유리 실측'});
+  renderAssembly();
+}
 function asmOpenAssemble(itemId){
-  const a=asmFind(itemId); const have=a?a.glass:0;
-  if(have<=0){ alert('조립실 유리 재고가 없습니다. 먼저 유리를 입고하세요.'); return; }
-  const n=prompt(`🔧 ${asmItemName(itemId)}\n조립 수량 (유리 ${have}장 보유 → 완제품으로):`, String(have));
+  const a=asmGet(itemId); const have=a.glass;
+  const need=asmNeedMap()[itemId]||0;
+  const rec = need>0 ? Math.max(0, need-a.done) : have; // 권장량(납품 부족분)
+  const msg=`🔧 ${asmItemName(itemId)}\n조립 수량 (유리 ${have}장 보유${need>0?` · 권장 ${rec}개`:''}):\n※ 권장보다 많이 찍어도 됩니다`;
+  const n=prompt(msg, String(rec||have||0));
   if(n===null) return;
-  let q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
-  if(q>have){ if(!confirm(`보유 유리(${have})보다 많습니다. ${have}개만 조립할까요?`)) return; q=have; }
+  const q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
+  if(q>have){ if(!confirm(`보유 유리(${have})보다 많이 조립합니다. 유리는 0이 되고 완제품 ${q}개로 기록할까요?\n(유리 재고 음수는 0으로 처리)`)) return; }
   asmApply(itemId,{type:'assemble', qty:q, memo:'조립 완료'});
+  renderAssembly();
+}
+function asmOpenDoneCount(itemId){
+  const a=asmGet(itemId);
+  const d=prompt(`🔢 ${asmItemName(itemId)}\n완제품 실측값 (현재 ${a.done}개):`, String(a.done));
+  if(d===null) return;
+  const dv=parseInt(d); if(isNaN(dv)){ alert('숫자를 입력하세요'); return; }
+  asmApply(itemId,{type:'done_count', absDone:dv, memo:'완제품 실측'});
   renderAssembly();
 }
 function asmOpenDefect(itemId){
@@ -5252,27 +5412,28 @@ function asmOpenDefect(itemId){
   const n=prompt(`⚠️ ${asmItemName(itemId)}\n불량으로 뺄 유리 수량 (현재 ${have}장):`, '1');
   if(n===null) return;
   const q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
-  const cause=confirm(`불량 원인을 선택하세요:\n\n[확인] = 거래처 불량\n[취소] = 우리 실수`) ? 'vendor' : 'us';
-  const memo=prompt('메모 (선택 — 어느 부위/상태 등):','')||'';
+  const cause=confirm(`불량 원인:\n\n[확인] = 거래처 불량\n[취소] = 우리 실수`) ? 'vendor' : 'us';
+  const memo=prompt('메모 (선택):','')||'';
   asmApply(itemId,{type:'defect', qty:q, cause, memo});
-  renderAssembly();
-}
-function asmOpenAdjust(itemId){
-  const a=asmGet(itemId);
-  const g=prompt(`✏️ ${asmItemName(itemId)}\n조립실 유리 재고 실측값 (현재 ${a.glass}장):`, String(a.glass));
-  if(g!==null){ const gv=parseInt(g); if(!isNaN(gv)) asmApply(itemId,{type:'glass_count', absGlass:gv, memo:'유리 실측'}); }
-  const d=prompt(`완제품 재고 실측값 (현재 ${a.done}개):`, String(a.done));
-  if(d!==null){ const dv=parseInt(d); if(!isNaN(dv)) asmApply(itemId,{type:'done_count', absDone:dv, memo:'완제품 실측'}); }
   renderAssembly();
 }
 function asmOpenShip(itemId, need){
   const a=asmFind(itemId); const have=a?a.done:0;
-  const n=prompt(`🚚 ${asmItemName(itemId)}\n납품 출고 수량 (납품서 요청 ${need}개 · 완제품 ${have}개 보유):`, String(Math.min(need,have)));
+  const n=prompt(`🚚 ${asmItemName(itemId)}\n납품 출고 수량 (요청 ${need}개 · 완제품 ${have}개 보유):`, String(Math.min(need||have,have)));
   if(n===null) return;
   let q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
   if(q>have){ if(!confirm(`완제품 보유(${have})보다 많습니다. ${have}개만 출고할까요?`)) return; q=have; }
   asmApply(itemId,{type:'ship', qty:q, memo:'납품 출고'});
   renderAssembly();
+}
+
+// ── 인쇄실→조립실 자동 연결 (작업일지 인쇄 시 호출) ──
+// code=인쇄한 모델코드, qty=인쇄 장수. EURO700 정규격이면 해당 인쇄유리 +qty.
+function asmOnPrint(code, qty){
+  const e=euroItemFromCode(String(code||'').trim());
+  if(!e) return false; // EURO700 정규격 아님 → 무시
+  asmApply(e.id, {type:'print_in', qty:parseInt(qty)||0, memo:'인쇄실 인쇄분 자동입고', source:'print'});
+  return true;
 }
 
 
