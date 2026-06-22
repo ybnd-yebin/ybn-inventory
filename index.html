@@ -203,22 +203,26 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 .trend-range .rg-period{font-family:'JetBrains Mono',monospace;color:var(--tx1);font-weight:600}
 .trend-sec-hdr{font-size:12px;font-weight:700;color:var(--tx1);margin:14px 2px 6px;display:flex;align-items:center;gap:6px}
 .trend-sec-hdr .cnt{font-size:10px;color:var(--tx3);font-weight:500}
-.crow{display:flex;align-items:center;gap:8px;margin:5px 0}
-.crow-lbl{flex:0 0 52px;font-size:10px;font-weight:700;text-align:right}
-.crow-lbl.wc{color:var(--acc)}
-.crow-lbl.etp{color:var(--acc2,#fb923c)}
-.crow-bars{flex:1;display:flex;gap:4px;align-items:flex-end;height:34px}
-.crow-avg{flex:0 0 auto;text-align:right;min-width:62px}
-.crow-avg .num{font-size:16px;font-weight:800;font-family:'JetBrains Mono',monospace;line-height:1}
-.crow-avg .un{font-size:9px;color:var(--tx3)}
-.cbar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0}
-.cbar{width:100%;border-radius:2px 2px 0 0;min-height:2px}
-.cbar.wc{background:var(--acc)}
-.cbar.etp{background:var(--acc2,#fb923c)}
-.cbar.zero{background:var(--b2)}
-.cbar-mv{font-size:8px;color:var(--tx2);font-family:'JetBrains Mono',monospace;height:10px}
-.trend-mlabels{display:flex;gap:4px;padding-left:60px;margin-top:1px}
-.trend-mlabels .ml{flex:1;text-align:center;font-size:8px;color:var(--tx3);font-family:'JetBrains Mono',monospace}
+.cat-tag{display:inline-block;background:var(--s3);color:var(--tx2);font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-right:5px}
+.rank-tag{display:inline-block;min-width:16px;height:16px;line-height:16px;text-align:center;background:var(--acc);color:#fff;font-size:9px;font-weight:800;border-radius:5px;margin-right:5px;font-family:'JetBrains Mono',monospace}
+/* 월 라벨 헤더 (숫자 테이블식) */
+.num-mhead{display:flex;align-items:center;font-size:8px;color:var(--tx3);font-family:'JetBrains Mono',monospace;padding:0 2px;margin-bottom:2px}
+.num-mhead .nh-name{flex:0 0 50px}
+.num-mhead .nh-m{flex:1;text-align:center}
+.num-mhead .nh-avg{flex:0 0 54px;text-align:right;font-weight:700;color:var(--tx2)}
+/* 숫자 한 줄 (색상별) */
+.nrow{display:flex;align-items:center;margin:4px 0;font-family:'JetBrains Mono',monospace}
+.nr-lbl{flex:0 0 50px;font-size:10px;font-weight:700}
+.nr-lbl.wc{color:var(--acc)} .nr-lbl.etp{color:var(--acc2)}
+.nv-cell{flex:1;display:flex;flex-direction:column;align-items:center;line-height:1.1;min-width:0}
+.nv-q{font-size:13px;font-weight:700;color:var(--tx1)}
+.nv-q.z{color:var(--tx3);font-weight:400}
+.nv-up{font-size:8px;color:var(--acc3)}
+.nv-dn{font-size:8px;color:var(--acc4)}
+.nv-eq{font-size:8px;color:var(--tx3)}
+.nr-avg{flex:0 0 54px;text-align:right;font-size:16px;font-weight:800}
+.nr-avg.wc{color:var(--acc)} .nr-avg.etp{color:var(--acc2)}
+.nr-avg-un{font-size:8px;color:var(--tx3);font-weight:500;margin-left:1px}
 .filter-hint{text-align:center;padding:12px;color:var(--tx3);font-size:12px}
 /* NONSPEC */
 .nonspec-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px}
@@ -658,6 +662,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="f-btn" onclick="setTrendFilter('none',this)">아예없음</button>
       <button class="f-btn" onclick="setTrendFilter('WC',this)">웜코튼</button>
       <button class="f-btn" onclick="setTrendFilter('ETP',this)">에토프</button>
+    </div>
+    <div class="filter-row" id="trend-cat-row" style="margin-top:6px;flex-wrap:wrap">
+      <button class="f-btn on" onclick="setTrendCat('all',this)">전체분류</button>
+      <button class="f-btn" onclick="setTrendCat('글래스도어',this)">시그니처</button>
+      <button class="f-btn" onclick="setTrendCat('EURO700',this)">EURO700</button>
+      <button class="f-btn" onclick="setTrendCat('EURO500',this)">EURO500</button>
+      <button class="f-btn" onclick="setTrendCat('빌트인',this)">빌트인</button>
+      <button class="f-btn" onclick="setTrendCat('유리장식장',this)">유리장식장</button>
+      <button class="f-btn" onclick="setTrendCat('에어힌지',this)">에어힌지</button>
+      <button class="f-btn" onclick="setTrendCat('KB',this)">KB</button>
     </div>
     <div id="trend-range" class="trend-range"></div>
     <div id="trend-list"></div>
@@ -1796,7 +1810,13 @@ function trendAgg(){
       const color=(it.color||(m&&m.color)||'').toUpperCase();
       let g=groups.get(short);
       if(!g){
-        g={short, code:(m&&m.code)||it.code||'', glass_w:m&&m.glass_w, glass_h:m&&m.glass_h, door_type:m&&m.door_type, byColor:{}};
+        // 카테고리: 기존 브리핑 분류기 재사용 (daegubun 우선, 제품명 폴백)
+        let cat='기타';
+        try{
+          const dg=(typeof delivLookup==='function'?(delivLookup(it.code).daegubun||it.daegubun||''):'')||'';
+          if(typeof classifyDelivItem==='function') cat=classifyDelivItem(short, dg).cat||'기타';
+        }catch(e){}
+        g={short, code:(m&&m.code)||it.code||'', glass_w:m&&m.glass_w, glass_h:m&&m.glass_h, door_type:m&&m.door_type, cat, byColor:{}};
         groups.set(short,g);
       }
       // 모델 메타는 처음 잡힌 값 유지하되, 비어있으면 채움
@@ -4540,17 +4560,39 @@ function confirmWork(){
 }
 
 let trendFilter='all';
+let trendCat='all';
 function setTrendFilter(f,btn){trendFilter=f;if(btn&&btn.parentElement){btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}renderTrend();}
+function setTrendCat(c,btn){trendCat=c;if(btn&&btn.parentElement){btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}renderTrend();}
 
 // "YYYY-MM" -> "26.5월"
 function trendMonthLabel(ym){const[y,m]=ym.split('-');return y.slice(2)+'.'+parseInt(m,10)+'월';}
 // 월평균 → 빈도 등급
 function trendTier(avg){ if(avg>=10) return 'high'; if(avg>=5) return 'mid'; if(avg>0) return 'low'; return 'none'; }
 
+// ── FLIP 애니메이션: 재렌더 전 카드 위치 기록 → 후 위치와 비교해 부드럽게 이동 ──
+function trendCapturePositions(el){
+  const map=new Map();
+  el.querySelectorAll('[data-tk]').forEach(c=>{ map.set(c.getAttribute('data-tk'), c.getBoundingClientRect().top); });
+  return map;
+}
+function trendPlayFlip(el, prev){
+  if(!prev||!prev.size) return;
+  el.querySelectorAll('[data-tk]').forEach(c=>{
+    const k=c.getAttribute('data-tk');
+    if(!prev.has(k)) return;
+    const dy=prev.get(k)-c.getBoundingClientRect().top;
+    if(!dy) return;
+    c.style.transform='translateY('+dy+'px)';
+    c.style.transition='none';
+    requestAnimationFrame(()=>{ c.style.transition='transform .42s cubic-bezier(.22,.61,.36,1)'; c.style.transform=''; });
+  });
+}
+
 function renderTrend(){
   const el=document.getElementById('trend-list');
   const rgEl=document.getElementById('trend-range');
   if(!el)return;
+  const prevPos=trendCapturePositions(el); // FLIP: 이전 위치 기록
   const q=(document.getElementById('trend-search')?.value||'').toLowerCase();
   const {rows, monthKeys, minDate, maxDate, nMonths}=trendAgg();
 
@@ -4566,6 +4608,9 @@ function renderTrend(){
   // 검색 필터
   let list=rows.filter(g=>!q || g.short.toLowerCase().includes(q) || (g.code||'').toLowerCase().includes(q));
 
+  // 카테고리 필터
+  if(trendCat!=='all') list=list.filter(g=>g.cat===trendCat);
+
   // 색상 필터 (해당 색상이 있는 제품만, 그리고 그 색상만 표시)
   let colorOnly=null;
   if(trendFilter==='WC') colorOnly='WC';
@@ -4576,75 +4621,76 @@ function renderTrend(){
   if(trendFilter==='high') list=list.filter(g=>trendTier(g.avg)==='high');
   else if(trendFilter==='mid') list=list.filter(g=>trendTier(g.avg)==='mid');
   else if(trendFilter==='none'){
-    // 아예없음 = 마스터에는 있으나 집계 기간 출고 0인 제품명
-    renderTrendNone(el, list.map(g=>g.short), q);
+    renderTrendNone(el, rows.map(g=>g.short), q);
     return;
   }
 
   if(!list.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>해당 제품 없음</div>';return;}
 
-  // 빈도 등급별 섹션 정렬 (고→중→저)
-  const tierOrder={high:0,mid:1,low:2};
+  // 빈도 등급별 섹션 (고→중→저). 각 섹션 내부는 출고량(total) 많은 순.
   const tierLabel={high:'🔥 고빈도 (월평균 10장↑)',mid:'⚡ 중빈도 (월평균 5~10장)',low:'· 저빈도 (월평균 5장 미만)'};
   const buckets={high:[],mid:[],low:[]};
   list.forEach(g=>{const t=trendTier(g.avg); if(t!=='none') buckets[t].push(g);});
+  // 각 버킷 많은 순 정렬 보장
+  ['high','mid','low'].forEach(t=>buckets[t].sort((a,b)=>b.total-a.total));
 
   let html='';
   ['high','mid','low'].forEach(t=>{
     const arr=buckets[t]; if(!arr.length) return;
     html+='<div class="trend-sec-hdr">'+tierLabel[t]+'<span class="cnt">'+arr.length+'종</span></div>';
-    // 월 라벨 (섹션 첫 카드 위 한 번)
-    html+='<div class="trend-mlabels">'+monthKeys.map(ym=>'<span class="ml">'+trendMonthLabel(ym)+'</span>').join('')+'</div>';
-    html+=arr.map(g=>trendCardHtml(g, monthKeys, colorOnly)).join('');
+    // 월 라벨 헤더 (이름폭 비워두고 월 칸만)
+    html+='<div class="num-mhead"><span class="nh-name"></span>'+monthKeys.map(ym=>'<span class="nh-m">'+trendMonthLabel(ym)+'</span>').join('')+'<span class="nh-avg">월평균</span></div>';
+    html+=arr.map((g,i)=>trendCardHtml(g, monthKeys, colorOnly, i+1)).join('');
   });
   el.innerHTML=html||'<div class="empty"><div class="empty-ico">📭</div>해당 제품 없음</div>';
+  trendPlayFlip(el, prevPos); // FLIP: 새 위치로 부드럽게
 }
 
-// 색상 한 줄 (WC 또는 ETP) — 월별 막대 + 월평균 숫자
+// 색상 한 줄 (WC / ETP) — 월별 숫자 + 직전월 대비 ↑↓ + 월평균(본체)
 function trendColorRow(label,cls,monthsObj,monthKeys,avg){
-  // 막대 높이는 그 줄 내부 최대 기준 (모델 간 비교용 아님)
   const vals=monthKeys.map(ym=>monthsObj[ym]||0);
-  const mx=Math.max(...vals,1);
-  const bars=vals.map(v=>{
-    const h=v>0?Math.max(Math.round(v/mx*30),4):2;
-    return '<div class="cbar-wrap"><div class="cbar-mv">'+(v||'')+'</div><div class="cbar '+cls+(v===0?' zero':'')+'" style="height:'+h+'px"></div></div>';
+  const cells=vals.map((v,i)=>{
+    let arrow='';
+    if(i>0){
+      const prev=vals[i-1], diff=v-prev;
+      if(prev===0&&v===0) arrow='';
+      else if(diff>0) arrow='<span class="nv-up">▲'+diff+'</span>';
+      else if(diff<0) arrow='<span class="nv-dn">▼'+(-diff)+'</span>';
+      else arrow='<span class="nv-eq">–</span>';
+    }
+    return '<span class="nv-cell"><span class="nv-q'+(v===0?' z':'')+'">'+(v||'·')+'</span>'+arrow+'</span>';
   }).join('');
-  return '<div class="crow"><div class="crow-lbl '+cls+'">'+label+'</div>'
-    +'<div class="crow-bars">'+bars+'</div>'
-    +'<div class="crow-avg"><div class="num">'+ (Math.round(avg*10)/10) +'</div><div class="un">월평균 장</div></div></div>';
+  return '<div class="nrow"><span class="nr-lbl '+cls+'">'+label+'</span>'
+    +cells
+    +'<span class="nr-avg '+cls+'">'+(Math.round(avg*10)/10)+'<span class="nr-avg-un">장/월</span></span></div>';
 }
 
-function trendCardHtml(g, monthKeys, colorOnly){
+function trendCardHtml(g, monthKeys, colorOnly, rank){
   const sz=g.glass_w?g.glass_w+'×'+g.glass_h:'';
   let rowsHtml='';
-  const order=['WC','ETP'];
-  order.forEach(col=>{
+  ['WC','ETP'].forEach(col=>{
     if(colorOnly && col!==colorOnly) return;
-    const c=g.byColor[col];
-    if(!c) return;
+    const c=g.byColor[col]; if(!c) return;
     rowsHtml+=trendColorRow(col==='WC'?'웜코튼':'에토프', col==='WC'?'wc':'etp', c.months, monthKeys, c.avg);
   });
-  // WC/ETP 외 색상도 있으면 표시 (희귀 케이스)
   if(!colorOnly){
     Object.keys(g.byColor).forEach(col=>{
       if(col==='WC'||col==='ETP'||col==='-') return;
-      const c=g.byColor[col];
-      rowsHtml+=trendColorRow(col, '', c.months, monthKeys, c.avg);
+      rowsHtml+=trendColorRow(col, '', g.byColor[col].months, monthKeys, g.byColor[col].avg);
     });
   }
-  if(!rowsHtml){
-    const c=g.byColor['-']; if(c) rowsHtml=trendColorRow('전체','',c.months,monthKeys,c.avg);
-  }
-  return '<div class="trend-card"><div class="trend-hdr"><div><div class="trend-name">'+g.short+'</div>'
-    +'<div class="trend-meta">'+(g.code||'')+(sz?' | '+sz:'')+' '+(g.door_type?doorBadge(g.door_type):'')+'</div></div>'
-    +'<div style="text-align:right"><div style="font-size:11px;color:var(--tx2)">총 '+g.total+'장</div></div></div>'
+  if(!rowsHtml){ const c=g.byColor['-']; if(c) rowsHtml=trendColorRow('전체','',c.months,monthKeys,c.avg); }
+  const catTag=g.cat&&g.cat!=='기타'?'<span class="cat-tag">'+(g.cat==='글래스도어'?'시그니처':g.cat)+'</span>':'';
+  const rankTag=rank?'<span class="rank-tag">'+rank+'</span>':'';
+  return '<div class="trend-card" data-tk="'+(g.short||g.code)+'"><div class="trend-hdr"><div style="min-width:0"><div class="trend-name">'+rankTag+g.short+'</div>'
+    +'<div class="trend-meta">'+catTag+(g.code||'')+(sz?' | '+sz:'')+' '+(g.door_type?doorBadge(g.door_type):'')+'</div></div>'
+    +'<div style="text-align:right;flex:0 0 auto"><div style="font-size:11px;color:var(--tx2)">총 '+g.total+'장</div></div></div>'
     +rowsHtml+'</div>';
 }
 
 // 아예없음 리스트: 마스터(MODELS)에는 있으나 집계 기간 출고가 0인 제품명
 function renderTrendNone(el, orderedShorts, q){
   const shipped=new Set(orderedShorts);
-  // MODELS의 제품명 중 출고 기록이 전혀 없는 것
   const seen=new Set();
   const none=[];
   (typeof MODELS!=='undefined'?MODELS:[]).forEach(m=>{
@@ -4652,6 +4698,12 @@ function renderTrendNone(el, orderedShorts, q){
     if(q && !(m.short.toLowerCase().includes(q)||(m.code||'').toLowerCase().includes(q))) return;
     if(shipped.has(m.short)) return;
     if(seen.has(m.short)) return;
+    // 카테고리 필터도 적용 (모델 코드로 분류)
+    if(trendCat!=='all'){
+      let cat='기타';
+      try{ const dg=(typeof delivLookup==='function'?(delivLookup(m.code).daegubun||''):'')||''; if(typeof classifyDelivItem==='function') cat=classifyDelivItem(m.short,dg).cat||'기타'; }catch(e){}
+      if(cat!==trendCat) return;
+    }
     seen.add(m.short);
     none.push(m);
   });
@@ -4660,7 +4712,7 @@ function renderTrendNone(el, orderedShorts, q){
     +'<div class="filter-hint" style="margin-top:0">미리 만들면 색 변해 폐기될 위험이 큰 후보들입니다.</div>'
     +none.map(m=>{
       const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';
-      return '<div class="trend-card" style="opacity:.75"><div class="trend-name">'+m.short+'</div>'
+      return '<div class="trend-card" style="opacity:.7" data-tk="'+(m.short||m.code)+'"><div class="trend-name">'+m.short+'</div>'
         +'<div class="trend-meta">'+(m.code||'')+(sz?' | '+sz:'')+' '+colorBadge(m.color)+' '+(m.door_type?doorBadge(m.door_type):'')+'</div></div>';
     }).join('');
 }
