@@ -1417,14 +1417,14 @@ Euro700 Grace W/Cotton	6
 
     <!-- 액션 모드 4가지 -->
     <span class="lbl" style="font-size:10px">동작 선택</span>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:12px">
       <button class="q-btn szm-mode-btn on" id="szm-mode-in" onclick="setSzmMode('in')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
         📦 입고<br><span style="font-size:9px;color:var(--tx3)">발주서</span>
       </button>
       <button class="q-btn szm-mode-btn" id="szm-mode-count" onclick="setSzmMode('count')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
         🔢 실측<br><span style="font-size:9px;color:var(--tx3)">눈으로 셈</span>
       </button>
-      <button class="q-btn szm-mode-btn" id="szm-mode-print" onclick="setSzmMode('print')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+      <button class="q-btn szm-mode-btn" id="szm-mode-print" onclick="setSzmMode('print')" style="display:none;padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
         🖨 인쇄<br><span style="font-size:9px;color:var(--tx3)">원→인쇄</span>
       </button>
       <button class="q-btn szm-mode-btn" id="szm-mode-out" onclick="setSzmMode('out')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
@@ -1435,10 +1435,10 @@ Euro700 Grace W/Cotton	6
     <!-- 실측 대상 (실측 모드에서만) -->
     <div id="szm-target-row" style="display:none">
       <span class="lbl" style="font-size:10px">실측 대상</span>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:10px">
         <button class="q-btn szm-target-btn on" id="szm-target-raw" onclick="setSzmTarget('raw')" style="padding:9px 4px;font-size:11px;line-height:1.2;font-family:'Noto Sans KR',sans-serif">📦 원유리</button>
-        <button class="q-btn szm-target-btn" id="szm-target-WC" onclick="setSzmTarget('WC')" style="padding:9px 4px;font-size:11px;line-height:1.2;font-family:'Noto Sans KR',sans-serif">🔵 WC인쇄</button>
-        <button class="q-btn szm-target-btn" id="szm-target-ETP" onclick="setSzmTarget('ETP')" style="padding:9px 4px;font-size:11px;line-height:1.2;font-family:'Noto Sans KR',sans-serif">🟠 ETP인쇄</button>
+        <button class="q-btn szm-target-btn" id="szm-target-WC" onclick="setSzmTarget('WC')" style="display:none;padding:9px 4px;font-size:11px;line-height:1.2;font-family:'Noto Sans KR',sans-serif">🔵 WC인쇄</button>
+        <button class="q-btn szm-target-btn" id="szm-target-ETP" onclick="setSzmTarget('ETP')" style="display:none;padding:9px 4px;font-size:11px;line-height:1.2;font-family:'Noto Sans KR',sans-serif">🟠 ETP인쇄</button>
       </div>
     </div>
 
@@ -3649,6 +3649,8 @@ function setSzmMode(mode){
   // 입고: 둘 다 숨김
   document.getElementById('szm-target-row').style.display = (mode==='count') ? 'block' : 'none';
   document.getElementById('szm-color-row').style.display = (mode==='print' || mode==='out') ? 'block' : 'none';
+  // 인쇄실 = 원유리만 관리. 실측대상은 항상 원유리로 고정(색상 선택지 노출 안 함).
+  if(mode==='count'){ szmTarget='raw'; }
   _refreshSzmInput();
 }
 
@@ -3668,21 +3670,12 @@ function _refreshSzmSummary(){
   const pwcCol = pwc < 0 ? '#f85149' : pwc === 0 ? 'var(--tx3)' : 'var(--acc3)';
   const petpCol = petp < 0 ? '#f85149' : petp === 0 ? 'var(--tx3)' : 'var(--acc3)';
 
+  // 인쇄실 = 원유리만 표시. (인쇄유리 WC/ETP는 조립실/작업일지에서 관리)
   document.getElementById('szm-summary').innerHTML = `
-    <div style="display:flex;justify-content:space-around;align-items:center;gap:8px">
-      <div style="text-align:center;flex:1">
-        <div style="color:var(--tx3);font-size:10px">📦 원유리</div>
-        <div style="font-weight:700;color:var(--acc);font-family:'JetBrains Mono',monospace;font-size:20px">${raw}</div>
-      </div>
-      <div style="width:1px;background:var(--b2);align-self:stretch"></div>
-      <div style="text-align:center;flex:1">
-        <div style="color:var(--tx3);font-size:10px">🔵 WC 인쇄</div>
-        <div style="font-weight:700;color:${pwcCol};font-family:'JetBrains Mono',monospace;font-size:20px">${pwc}</div>
-      </div>
-      <div style="width:1px;background:var(--b2);align-self:stretch"></div>
-      <div style="text-align:center;flex:1">
-        <div style="color:var(--tx3);font-size:10px">🟠 ETP 인쇄</div>
-        <div style="font-weight:700;color:${petpCol};font-family:'JetBrains Mono',monospace;font-size:20px">${petp}</div>
+    <div style="display:flex;justify-content:center;align-items:center">
+      <div style="text-align:center">
+        <div style="color:var(--tx3);font-size:11px;margin-bottom:2px">📦 원유리 재고</div>
+        <div style="font-weight:700;color:var(--acc);font-family:'JetBrains Mono',monospace;font-size:24px">${raw}<span style="font-size:12px;color:var(--tx3);font-weight:400"> 장</span></div>
       </div>
     </div>`;
 }
