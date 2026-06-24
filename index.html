@@ -182,9 +182,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 .sv{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700}
 .sv.zero{color:var(--tx3)}.sv.low{color:var(--acc4)}.sv.ok{color:var(--acc3)}
 .mr{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
-.mr-qty{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc2)}
-.mr-unit{font-size:10px;color:var(--tx3)}
-.mr-sub{font-size:9px;color:var(--tx3)}
+.mr-qty{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:800;color:var(--acc2);line-height:1.05}
+.mr-unit{font-size:11px;color:var(--tx3)}
+.mr-sub{font-size:11px;color:var(--tx2);font-weight:700}
+.mr-src{font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-top:3px;white-space:nowrap}
+.mr-src.live{background:rgba(22,163,74,.14);color:var(--acc3)}
+.mr-src.hist{background:var(--s2);color:var(--tx3)}
 .trend{display:flex;align-items:flex-end;gap:2px;height:26px}
 .trend-bar{flex:1;background:var(--acc);border-radius:2px 2px 0 0;opacity:.7;min-height:2px}
 .trend-bar.z{background:var(--b2)}
@@ -617,6 +620,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="f-btn" onclick="setStockFilter('HD',this)">HD</button>
       <button class="f-btn" onclick="setStockFilter('OB',this)">OB</button>
       <button class="f-btn" onclick="setStockFilter('high',this)">고빈도</button>
+    </div>
+    <div id="stock-period-note" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--tx2);background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:8px 11px;margin:2px 0 12px">
+      <span style="font-weight:700;color:var(--tx1)">📊 월평균 집계 기준</span>
+      <span id="stock-period-range" style="color:var(--tx3)">계산 중…</span>
+      <span style="margin-left:auto;color:var(--tx3)">🟢 최근 6개월=납품서 실데이터 · 회색=과거 분석 폴백</span>
     </div>
     <div id="stock-list"></div>
     <!-- 비규격 섹션 (사이즈 매핑 안 된 모델들) -->
@@ -3243,6 +3251,17 @@ function renderStockList(){
     return;
   }
 
+  // 집계 기간 안내 배너 갱신
+  (function(){
+    const pn=document.getElementById('stock-period-range');
+    if(!pn) return;
+    const now=new Date();
+    const cut=new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
+    const fmt=d=>`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+    const histTxt = '폴백: 2025.11~2026.04';
+    pn.textContent = `🟢 최근 6개월 ${fmt(cut)} ~ ${fmt(now)} (납품서 ${typeof delivLog!=='undefined'&&delivLog?delivLog.length:0}건) · ${histTxt}`;
+  })();
+
   el.innerHTML = filtered.map(sg=>{
     const raw = getRawTotal(sg);
     const pwc = getPrintedWC(sg);
@@ -3401,9 +3420,9 @@ function renderStockList(){
         ${am>=0.1
           ? `<div class="mr-qty" style="color:var(--acc)">${am.toFixed(1)}<span class="mr-unit">장</span></div>
              <div class="mr-sub">월평균</div>
-             <div style="font-size:8px;color:${amSource==='live'?'var(--acc3)':'var(--tx3)'};margin-top:2px">${amSource==='live'?'🟢 최근 6개월':'과거 분석'}</div>`
+             <div class="mr-src ${amSource==='live'?'live':'hist'}">${amSource==='live'?'🟢 최근 6개월':'과거 분석'}</div>`
           : `<div class="mr-qty" style="color:var(--tx3)">${sg.total_6m||0}<span class="mr-unit">장</span></div>
-             <div class="mr-sub">6개월</div>`}
+             <div class="mr-sub">6개월 합계</div>`}
       </div>
     </div>`;
   }).join('');
@@ -10800,6 +10819,11 @@ async function handleDelivPdf(ev){
   statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${fail?` · 실패 ${fail}건`:''}`;
   ev.target.value='';
   renderDelivery();
+  // 납품서가 추가되면 인쇄실 카드 월평균(6개월 롤링)도 즉시 반영
+  if(added && typeof renderStockList==='function'){
+    const sp=document.getElementById('sp-stocklist');
+    if(sp && sp.style.display!=='none') renderStockList();
+  }
 }
 
 // 출고 → 인쇄유리 차감 (사이즈 매핑된 Grace 모델만)
