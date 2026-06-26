@@ -1927,6 +1927,8 @@ let gsUrl=localStorage.getItem(LS.gsUrl)||DEFAULT_GS_URL;
 let actor=localStorage.getItem(LS.actor)||'';
 let delivLog=J(localStorage.getItem(LS.delivLog))||[];
 let delivDeleted=J(localStorage.getItem('ybn-deliv-del-v1'))||{}; // {id: 삭제시각} 삭제된 납품서 묘비(병합 시 부활 방지)
+let orderDeleted=J(localStorage.getItem('ybn-order-del-v1'))||{}; // {id: 삭제시각} 삭제된 발주 묘비(병합 시 부활 방지)
+let noticeState=J(localStorage.getItem('ybn-notice-state-v1'))||{}; // {id:{archived,deleted,at}} 공지 보관/삭제 묘비(병합 후 강제 적용)
 let ledgerLog=J(localStorage.getItem('ybn-ledger-v1'))||[];
 let vendorBook=J(localStorage.getItem('ybn-vendors-v1'))||[];
 let odCustomVendors=J(localStorage.getItem('ybn-od-vendors-v1'))||{}; // {대분류: [발주처명,...]}
@@ -2388,6 +2390,9 @@ function saveAll(){
   localStorage.setItem(LS.delivLog,JSON.stringify(delivLog));
   localStorage.setItem('ybn-deliv-del-v1',JSON.stringify(delivDeleted));
   localStorage.setItem('ybn-ledger-v1',JSON.stringify(ledgerLog));
+  if(typeof orderLog!=='undefined') localStorage.setItem('ybn-order-v1',JSON.stringify(orderLog));
+  localStorage.setItem('ybn-order-del-v1',JSON.stringify(orderDeleted));
+  localStorage.setItem('ybn-notice-state-v1',JSON.stringify(noticeState));
   localStorage.setItem('ybn-vendors-v1',JSON.stringify(vendorBook));
   localStorage.setItem('ybn-od-vendors-v1',JSON.stringify(odCustomVendors));
   localStorage.setItem(LS.stockEvents,JSON.stringify(stockEvents));
@@ -2616,8 +2621,8 @@ function confirmTodo(){
 // ── NOTICES ──
 let noticePri='normal',editNoticeId=null,noticeArchiveOpen=false;
 function toggleNoticeArchive(){ noticeArchiveOpen=!noticeArchiveOpen; renderNotices(); }
-function archiveNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=true; n.updatedAt=new Date().toISOString(); saveAll(); renderNotices(); renderHome(); autoSync(); showToast('🗂 보관함으로 이동'); }
-function restoreNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=false; n.updatedAt=new Date().toISOString(); saveAll(); renderNotices(); renderHome(); autoSync(); showToast('공지로 복원'); }
+function archiveNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=true; n.updatedAt=new Date().toISOString(); noticeState[id]={archived:true,deleted:false,at:n.updatedAt}; saveAll(); renderNotices(); renderHome(); autoSync(); showToast('🗂 보관함으로 이동'); }
+function restoreNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=false; n.updatedAt=new Date().toISOString(); noticeState[id]={archived:false,deleted:false,at:n.updatedAt}; saveAll(); renderNotices(); renderHome(); autoSync(); showToast('공지로 복원'); }
 function renderNotices(){
   const el=document.getElementById('notice-list');
   const PL={normal:'일반',important:'⚠️ 중요',urgent:'🔴 긴급'};
@@ -2692,7 +2697,7 @@ function openNoticeModal(id=null){
   document.getElementById('notice-modal').classList.add('on');
 }
 function editNotice(id){openNoticeModal(id);}
-function deleteNotice(id){if(!confirm('공지를 삭제합니까?'))return;notices=notices.filter(n=>n.id!==id);saveAll();renderNotices();renderHome();autoSync();showToast('삭제됨');}
+function deleteNotice(id){if(!confirm('공지를 삭제합니까?'))return;noticeState[id]={archived:true,deleted:true,at:new Date().toISOString()};notices=notices.filter(n=>n.id!==id);saveAll();renderNotices();renderHome();autoSync();showToast('삭제됨');}
 function setNoticePri(pri,btn){
   noticePri=pri;
   document.querySelectorAll('#notice-modal .q-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
@@ -2955,7 +2960,7 @@ function renderInk(){
   document.getElementById('ink-rate-wc').value=inkRates.WC;
   document.getElementById('ink-rate-etp').value=inkRates.ETP;
 }
-function saveInkRates(){inkRates.WC=parseFloat(document.getElementById('ink-rate-wc').value)||1.5;inkRates.ETP=parseFloat(document.getElementById('ink-rate-etp').value)||1.5;saveAll();renderInk();showToast('설정 저장됨');}
+function saveInkRates(){inkRates.WC=parseFloat(document.getElementById('ink-rate-wc').value)||1.5;inkRates.ETP=parseFloat(document.getElementById('ink-rate-etp').value)||1.5;saveAll();renderInk();if(typeof autoSync==='function')autoSync();showToast('설정 저장됨');}
 let inkColor='WC',inkTab='in',inkQty=1;
 function openInkModal(color){
   inkColor=color; inkTab='in'; inkQty=0;
@@ -5724,7 +5729,20 @@ function applyMergedFromSheet(data){
     if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
   if(typeof invalidateTrendAgg==="function") invalidateTrendAgg();
   }
+  if(data.noticeState!==undefined && data.noticeState && typeof data.noticeState==='object'){
+    for(const k in data.noticeState){
+      const r=data.noticeState[k], l=noticeState[k];
+      if(!l || _mTs({at:r.at}) >= _mTs({at:l.at})) noticeState[k]=r; // 더 최근 상태 채택
+    }
+  }
   if(data.notices!==undefined) notices=mergeById(notices, data.notices, 'id');
+  // 공지 묘비 강제 적용: 보관/삭제 상태는 타임스탬프 충돌과 무관하게 항상 이김
+  for(const id in noticeState){
+    const st=noticeState[id];
+    if(st.deleted){ notices=notices.filter(n=>n.id!==id); continue; }
+    const n=notices.find(x=>x.id===id);
+    if(n) n.archived=!!st.archived;
+  }
   if(data.schedules!==undefined) schedules=mergeById(schedules, data.schedules, 'id');
   if(data.todos!==undefined) todos=mergeById(todos, data.todos, 'id');
   if(data.matLog!==undefined) matLog=mergeById(matLog, data.matLog, 'id');
@@ -5735,6 +5753,29 @@ function applyMergedFromSheet(data){
   if(data.wkExamples!==undefined && Array.isArray(data.wkExamples)){ wkExamples=mergeById(wkExamples, data.wkExamples, 'id'); localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples)); }
   if(data.assemblyStock!==undefined && Array.isArray(data.assemblyStock)){ assemblyStock=mergeById(assemblyStock, data.assemblyStock, 'id'); localStorage.setItem('ybn-asm-v1',JSON.stringify(assemblyStock)); }
   if(data.ledgerLog!==undefined) mergeLedgerFromSheet(data.ledgerLog);
+  // ── 완제품 재고 병합 (id 기준 최신 우선) ──
+  if(data.finishedStock!==undefined && Array.isArray(data.finishedStock) && typeof finishedStock!=='undefined'){
+    finishedStock=mergeById(finishedStock, data.finishedStock, 'id');
+    if(typeof saveFinished==='function') saveFinished();
+  }
+  // ── 인쇄 단가: 받은 값 채택 (비어있지 않을 때만) ──
+  if(data.inkRates!==undefined && data.inkRates && typeof data.inkRates==='object' && typeof inkRates!=='undefined'){
+    Object.assign(inkRates, data.inkRates);
+  }
+  // ── 작업 미룬 항목 병합 ──
+  if(data.wlPostponed!==undefined && Array.isArray(data.wlPostponed) && typeof wlPostponed!=='undefined'){
+    wlPostponed=mergeById(wlPostponed, data.wlPostponed, 'id');
+    localStorage.setItem('ybn-wl-postponed',JSON.stringify(wlPostponed));
+  }
+  // ── 발주(orderLog) 병합: id 기준 최신 우선, 삭제 묘비로 부활 방지 ──
+  if(data.orderDeleted!==undefined && data.orderDeleted && typeof data.orderDeleted==='object'){
+    for(const k in data.orderDeleted){ if(!orderDeleted[k]) orderDeleted[k]=data.orderDeleted[k]; }
+  }
+  if(data.orderLog!==undefined && typeof orderLog!=='undefined'){
+    orderLog=mergeById(orderLog, data.orderLog, 'id');
+    orderLog=orderLog.filter(o=>!orderDeleted[o && o.id]); // 삭제된 발주는 부활 금지
+    saveOrderLog();
+  }
   // 스냅샷 값: 받은 쪽 채택 (서버가 이미 병합본을 보내줌)
   if(data.stock!==undefined) stock=data.stock;
   if(data.matStock!==undefined) matStock=data.matStock;
@@ -5786,6 +5827,7 @@ function _localDataSize(){
   n+=(matLog||[]).length;
   n+=(sheetLog||[]).length;
   n+=(delivLog||[]).length;
+  n+=(typeof orderLog!=='undefined'?(orderLog||[]).length:0);
   return n;
 }
 function _isLocalEmpty(){ return _localDataSize() === 0; }
@@ -5819,7 +5861,7 @@ async function autoSync(){
       clientLastSync: meta.lastGsSync || null,
       clientTs: ts,
       actor: getActor(),
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock}
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[])}
     });
     // 서버가 충돌을 알려주면 result.conflict === true (서버 가드 추가 시)
     if(result && result.conflict){
@@ -5865,7 +5907,7 @@ async function syncToSheet(){
       clientTs: new Date().toISOString(),
       actor: getActor(),
       force: true, // 사용자가 직접 누른 경우 force 플래그
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock}
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[])}
     });
     if(result && result.conflict && !result.forced){
       updateGsStatus('error');
@@ -5888,6 +5930,9 @@ function rerenderAfterSync(){
   try{ if(typeof renderLedger==='function') renderLedger(); }catch(e){}
   try{ if(typeof renderVendors==='function') renderVendors(); }catch(e){}
   try{ if(typeof renderOrderHistory==='function') renderOrderHistory(); }catch(e){}
+  try{ if(typeof renderOrderList==='function') renderOrderList(); }catch(e){}
+  try{ if(typeof renderFinished==='function') renderFinished(); }catch(e){}
+  try{ if(typeof renderInk==='function') renderInk(); }catch(e){}
   try{ if(typeof renderStorageBar==='function') renderStorageBar(); }catch(e){}
 }
 
@@ -7642,6 +7687,7 @@ function postponeCheckedWork(){
 
   checked.forEach(item=>{
     wlPostponed.push({
+      id: 'wp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
       code: item.code,
       short: item.short,
       size: item.size,
@@ -9007,6 +9053,7 @@ function odSaveOrder(){
   document.getElementById('od-due').value='';
   renderOdLines();
   renderOrderList();
+  if(typeof autoSync==='function') autoSync();
   showToast('💾 발주 기록됨');
 }
 
@@ -9150,6 +9197,7 @@ function odImportApply(){
   const last=picks[picks.length-1];
   odFillFormFromImport(last);
   closeM('od-import-modal');
+  if(typeof autoSync==='function') autoSync();
   showToast(`📥 ${added}개 발주 기록됨`);
 }
 
@@ -9285,6 +9333,7 @@ function finAddConfirm(){
   finApply(model,color,{type:'in', delta:qty, memo:memo||'완제품 입고', inDate});
   closeM('fin-add-modal');
   renderFinished();
+  if(typeof autoSync==='function') autoSync();
   showToast(`🚪 ${model} ${qty}개 입고`);
 }
 
@@ -9335,6 +9384,7 @@ function finEditConfirm(){
   }
   closeM('fin-edit-modal');
   renderFinished();
+  if(typeof autoSync==='function') autoSync();
   showToast('✓ 수량 변경됨');
 }
 
@@ -9345,6 +9395,7 @@ function finDeleteCurrent(){
   deleteFinished(finEditId);
   closeM('fin-edit-modal');
   renderFinished();
+  if(typeof autoSync==='function') autoSync();
   showToast('🗑 삭제됨');
 }
 
@@ -9530,6 +9581,7 @@ function odToggleRecv(orderId, idx){
     const atIso=`${today}T00:00:00.000Z`;
     const ev=addStockEvent(`${it.w}x${it.h}`,{at:atIso,type:'in',qty:it.qty,note:`발주입고 ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`,source:'order'});
     it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=today; it.eventId=ev.id;
+    o.updatedAt=new Date().toISOString();
     if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
     saveAll();
     showToast(`📦 ${it.w}×${it.h} ${it.qty}장 입고 (${today.slice(5).replace('-','/')})`);
@@ -9537,6 +9589,7 @@ function odToggleRecv(orderId, idx){
     // 입고 취소 → 이벤트 제거
     if(it.eventId) removeStockEventsByIds([it.eventId]);
     it.received=false; it.recvAt=null; it.recvDate=null; it.eventId=null;
+    o.updatedAt=new Date().toISOString();
     if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
     saveAll();
     showToast('입고 취소됨');
@@ -9552,6 +9605,7 @@ function odSetRecvDate(orderId, idx, newDate){
   const o=orderLog.find(x=>x.id===orderId); if(!o)return;
   const it=o.items[idx]; if(!it||!it.received||!newDate)return;
   it.recvDate=newDate;
+  o.updatedAt=new Date().toISOString();
   // 기존 입고 이벤트 날짜도 갱신
   if(it.eventId){
     const key=`${it.w}x${it.h}`;
@@ -9571,9 +9625,12 @@ function odSetRecvDate(orderId, idx, newDate){
 function odDeleteOrder(orderId){
   const o=orderLog.find(x=>x.id===orderId); if(!o)return;
   if(!confirm('이 발주 기록을 삭제할까요? (이미 입고 처리한 항목의 재고는 그대로 유지됩니다)')) return;
+  orderDeleted[orderId]=new Date().toISOString(); // 묘비: 다른 기기 병합 시 부활 방지
+  localStorage.setItem('ybn-order-del-v1',JSON.stringify(orderDeleted));
   orderLog=orderLog.filter(x=>x.id!==orderId);
   saveOrderLog();
   renderOrderList();
+  if(typeof autoSync==='function') autoSync();
 }
 
 // ════════════════════════════════════════════
@@ -11303,7 +11360,7 @@ window.addEventListener('beforeunload', function(){
         clientTs: new Date().toISOString(),
         actor: (typeof getActor==='function'?getActor():'') || '',
         force: true,
-        data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock}
+        data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[])}
       });
       // sendBeacon: 창이 닫혀도 백그라운드로 전송 보장
       if(navigator.sendBeacon){
