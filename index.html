@@ -3425,11 +3425,11 @@ function renderStockList(){
         ${am>=0.1
           ? `<div class="mr-qty" style="color:var(--acc)">${am.toFixed(1)}<span class="mr-unit">장</span></div>
              <div class="mr-sub">월평균</div>
-             ${(sg.recent_6m!=null||sg.total_11m!=null)?`<div style="font-size:10px;color:var(--tx3);font-weight:500;margin-top:3px;line-height:1.4">${sg.recent_6m!=null?`최근6 ${sg.recent_6m}장`:''}${(sg.recent_6m!=null&&sg.total_11m!=null)?'<br>':''}${sg.total_11m!=null?`누적 ${sg.total_11m}장`:''}</div>`:''}
+             ${(sg.recent_6m!=null||sg.total_11m!=null)?`<div style="font-size:10px;color:var(--tx3);font-weight:500;margin-top:3px;line-height:1.4">${sg.recent_6m!=null?`최근 6개월 ${sg.recent_6m}장`:''}${(sg.recent_6m!=null&&sg.total_11m!=null)?'<br>':''}${sg.total_11m!=null?`누적 ${sg.total_11m}장`:''}</div>`:''}
              <div class="mr-src ${amSource==='live'?'live':'hist'}">${amSource==='live'?'🟢 최근 6개월':'과거 분석'}</div>`
           : `<div class="mr-qty" style="color:var(--tx3)">${sg.total_6m||0}<span class="mr-unit">장</span></div>
              <div class="mr-sub">6개월 합계</div>
-             ${(sg.recent_6m!=null||sg.total_11m!=null)?`<div style="font-size:10px;color:var(--tx3);font-weight:500;margin-top:3px;line-height:1.4">${sg.recent_6m!=null?`최근6 ${sg.recent_6m}장`:''}${(sg.recent_6m!=null&&sg.total_11m!=null)?'<br>':''}${sg.total_11m!=null?`누적 ${sg.total_11m}장`:''}</div>`:''}`}
+             ${(sg.recent_6m!=null||sg.total_11m!=null)?`<div style="font-size:10px;color:var(--tx3);font-weight:500;margin-top:3px;line-height:1.4">${sg.recent_6m!=null?`최근 6개월 ${sg.recent_6m}장`:''}${(sg.recent_6m!=null&&sg.total_11m!=null)?'<br>':''}${sg.total_11m!=null?`누적 ${sg.total_11m}장`:''}</div>`:''}`}
       </div>
     </div>`;
   }).join('');
