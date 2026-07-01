@@ -4311,6 +4311,60 @@ function openWorkModal(){
   document.getElementById('work-modal').classList.add('on');
   wlCart=[]; renderCart();
 }
+// ── 검색어에 가장 잘 맞는 대표 모델명 선택 ──
+// 예) 445×729 그룹 [BDI1R 4591, M 4573(공용), WMLDT 4573] 에서
+//     "4573" 검색 → "OB M 4573(공용) M" 선택 (models[0] 강제선택 버그 수정)
+function pickBestModel(models, raw){
+  if(!models||!models.length) return '';
+  if(models.length===1) return models[0];
+  const r=(raw||'').trim().toLowerCase();
+  const rDigits=r.replace(/\D/g,'');
+  // 검색어의 "번호" 토큰 (4573, 6073 등 3자리 이상 숫자)
+  const rNumTokens=(r.match(/\d{3,}/g)||[]);
+  let best=null, bestScore=-1;
+  models.forEach((m,idx)=>{
+    const ml=m.toLowerCase();
+    const mDigits=ml.replace(/\D/g,'');
+    let score=0;
+    // 1) 모델명 전체가 검색어를 그대로 포함 (가장 강함)
+    if(r && ml.includes(r)) score+=100;
+    // 2) 검색어의 번호 토큰이 모델명 번호에 포함 (4573 → "4573(공용)")
+    rNumTokens.forEach(tok=>{ if(mDigits.includes(tok)) score+=60; });
+    // 3) 숫자만 입력한 경우도 위와 동일 처리
+    if(!rNumTokens.length && rDigits.length>=3 && mDigits.includes(rDigits)) score+=60;
+    // 4) 동점 시 배열 앞 순서 유지 (미세 가중치)
+    score-=idx*0.01;
+    if(score>bestScore){ bestScore=score; best=m; }
+  });
+  // 아무 번호도 안 맞으면(사이즈만 검색 등) 첫 모델 유지
+  return bestScore>0 ? best : models[0];
+}
+
+// ── 사이즈 그룹의 검색 정확도 점수 (정렬용) ──
+function sizeMatchScore(sg, raw, q, qDigits){
+  const szKey=`${sg.w}x${sg.h}`;
+  const szDigits=`${sg.w}${sg.h}`;
+  let s=0;
+  // 사이즈 자체 완전일치 (445x729 == 445x729)
+  if(szKey===q) s+=1000;
+  // 숫자연결 완전일치 (445729)
+  if(szDigits===qDigits && qDigits.length>=5) s+=900;
+  // 숫자연결 앞부분 일치
+  if(qDigits.length>=4 && szDigits.startsWith(qDigits)) s+=500;
+  // 모델 번호 토큰 일치 (4573 → 445×729 그룹의 M 4573)
+  const rNumTokens=(raw.toLowerCase().match(/\d{3,}/g)||[]);
+  if(sg.models){
+    sg.models.forEach(m=>{
+      const md=m.toLowerCase().replace(/\D/g,'');
+      rNumTokens.forEach(tok=>{ if(md.includes(tok)) s+=300; });
+      if(m.toLowerCase().includes(raw.toLowerCase()) && raw.length>=2) s+=250;
+    });
+  }
+  // 가로 또는 세로 부분일치 (약함)
+  if(String(sg.w).includes(q)||String(sg.h).includes(q)) s+=10;
+  return s;
+}
+
 function renderWorkSearch(){
   const raw=(document.getElementById('wm-search').value||'').trim();
   // 정규화: *, ×, 공백 → x
@@ -4335,7 +4389,10 @@ function renderWorkSearch(){
       if(sg.models&&sg.models.some(m=>m.toLowerCase().replace(/\s+/g,'').includes(q.replace(/x/g,''))||m.toLowerCase().includes(raw.toLowerCase()))) return true;
       if(sg.tags&&sg.tags.some(t=>t.replace(/[*×\s]/g,'x').includes(q)||t.includes(raw.toLowerCase()))) return true;
       return false;
-    }).slice(0,6);
+    })
+    // 검색 정확도순 정렬 (검색한 사이즈/번호가 맨 위로)
+    .sort((a,b)=>sizeMatchScore(b,raw,q,qDigits)-sizeMatchScore(a,raw,q,qDigits))
+    .slice(0,6);
 
     if(!sizeResults.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
 
@@ -4344,9 +4401,9 @@ function renderWorkSearch(){
       const wcS=getSzStock(sg.w,sg.h,'WC');
       const etpS=getSzStock(sg.w,sg.h,'ETP');
       const modelTags=sg.models.map(mn=>`<span style="display:inline-block;font-size:10px;background:var(--s2);border:1px solid var(--b2);border-radius:4px;padding:2px 7px;margin:2px 2px 0 0;color:var(--tx2)">${mn}</span>`).join('');
-      // 대표 모델명: 첫 번째 (재고에 저장될 short)
-      // 색상 버튼 클릭 시 해당 색상으로 selectWorkModel 호출 - short는 첫 모델명 사용
-      const firstModel=sg.models[0]||`${sg.w}×${sg.h}`;
+      // 대표 모델명: 검색어에 가장 잘 맞는 모델 (models[0] 강제선택 버그 수정)
+      // 색상 버튼 클릭 시 해당 색상으로 selectWorkModel 호출
+      const firstModel=pickBestModel(sg.models, raw)||`${sg.w}×${sg.h}`;
       const safeFirst=firstModel.replace(/'/g,"\\'");
       return `<div style="padding:12px 14px;border-bottom:1px solid var(--b1)">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
