@@ -1356,8 +1356,19 @@ Euro700 Grace W/Cotton	6
         </div>
       </div>
 
-      <button class="act-btn green" id="wm-confirm-btn" onclick="confirmWork()">✓ 작업 기록 & 재고 반영</button>
-      <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px" id="wm-confirm-desc">원유리 차감 → 인쇄유리 증가 자동 반영</div>
+      <button class="act-btn green" id="wm-confirm-btn" onclick="addToCart()">➕ 목록에 담기</button>
+      <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px" id="wm-confirm-desc">담은 뒤 아래에서 계속 추가 → 마지막에 한 번에 올리기</div>
+    </div>
+
+    <!-- ── 담긴 목록 (장바구니) ── -->
+    <div id="wm-cart-box" style="display:none;margin-top:16px;border-top:2px solid var(--b2);padding-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:800;color:var(--acc3)">🧺 담은 작업 <span id="wm-cart-count" style="color:var(--acc)">0</span>건</div>
+        <button onclick="clearCart()" style="font-size:11px;padding:4px 10px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--tx2);cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체비우기</button>
+      </div>
+      <div id="wm-cart-list"></div>
+      <button class="act-btn green" id="wm-submit-all-btn" onclick="submitCart()" style="margin-top:12px;background:var(--acc);font-size:15px">✅ 전체 올리기 (재고 반영)</button>
+      <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px">담은 <span class="wm-cart-count2">0</span>건을 선택한 날짜에 한 번에 기록합니다</div>
     </div>
   </div>
 </div>
@@ -2328,6 +2339,8 @@ function getSzStockTotal(w,h){
 let wSelSize=null;
 let wSelModel=null; // {short, color, w, h}
 let wlColor='WC';
+// ── 작업 담기(장바구니): 여러 항목을 담아뒀다 한 번에 올리기 ──
+let wlCart=[];
 // ── 작성자 (Actor) 관리 ──
 // 여러 명이 동시 작업 시 누가 무엇을 등록했는지 추적
 function getActor(){ return (actor || '').trim(); }
@@ -4196,8 +4209,8 @@ function setWorkTab(mode){
     const btn=document.getElementById('wm-confirm-btn');
     const desc=document.getElementById('wm-confirm-desc');
     const lbl=document.getElementById('wm-qty-label');
-    if(btn){btn.style.background='var(--acc3)';btn.textContent='✓ 작업 기록 & 재고 반영';}
-    if(desc) desc.textContent='원유리 차감 → 인쇄유리 증가 자동 반영';
+    if(btn){btn.style.background='var(--acc3)';btn.textContent='➕ 목록에 담기';}
+    if(desc) desc.textContent='담은 뒤 아래에서 계속 추가 → 마지막에 한 번에 올리기';
     if(lbl) lbl.textContent='작업 수량';
   }
   updateDefectUI();
@@ -4216,11 +4229,11 @@ function updateDefectUI(){
   const desc=document.getElementById('wm-confirm-desc');
   const lbl=document.getElementById('wm-qty-label');
   if(wDefectLoc==='print'){
-    if(btn){btn.style.background='var(--acc4)';btn.textContent='🚫 인쇄실 불량 차감';}
+    if(btn){btn.style.background='var(--acc4)';btn.textContent='➕ 인쇄실 불량 담기';}
     if(desc) desc.innerHTML='<span style="color:var(--acc4)">원유리</span>에서 차감 (인쇄 전/후 불량)';
     if(lbl) lbl.textContent='불량 수량 (원유리)';
   } else {
-    if(btn){btn.style.background='var(--acc4)';btn.textContent='🚫 조립실 불량 차감';}
+    if(btn){btn.style.background='var(--acc4)';btn.textContent='➕ 조립실 불량 담기';}
     if(desc) desc.innerHTML='<span style="color:var(--acc4)">인쇄유리</span>에서 차감 (조립 중 불량)';
     if(lbl) lbl.textContent='불량 수량 (인쇄유리)';
   }
@@ -4296,6 +4309,7 @@ function openWorkModal(){
   const firstBtn=document.getElementById('dr-crack');
   if(firstBtn){firstBtn.style.background='var(--acc4)';firstBtn.style.color='#fff';firstBtn.style.borderColor='var(--acc4)';}
   document.getElementById('work-modal').classList.add('on');
+  wlCart=[]; renderCart();
 }
 function renderWorkSearch(){
   const raw=(document.getElementById('wm-search').value||'').trim();
@@ -4562,7 +4576,182 @@ function wQtyD(d){
   if(el) el.value=wQty;
 }
 function setWQ(n){wQty=n;const el=document.getElementById('wm-qty');if(el)el.value=n;}
+
+// ══════════════════════════════════════════════════
+//  작업 담기(장바구니) 방식
+//  선택 → 담기 → 담기 → … → 전체 올리기
+// ══════════════════════════════════════════════════
+
+// 현재 모달에서 선택된 항목을 장바구니에 담는다 (재고는 아직 안 건드림)
+function addToCart(){
+  if(!wSelModel&&!wSelSize&&!wSelCode){showToast('먼저 모델을 선택하세요');return;}
+  const qtyEl=document.getElementById('wm-qty');
+  wQty=qtyEl?Math.max(1,parseInt(qtyEl.value)||wQty):wQty;
+  if(wQty<=0){showToast('수량을 입력하세요');return;}
+
+  const mdl=wSelModel||null;
+  const w=mdl?mdl.w:(wSelSize?wSelSize.w:0);
+  const h=mdl?mdl.h:(wSelSize?wSelSize.h:0);
+  const lr=(mdl&&mdl.lr)||(wSelSize&&wSelSize.lr)||'';
+  const hk=`${h}${lr}`;
+  const color=wlColor||(mdl?mdl.color:'WC');
+  const shortName=mdl?mdl.short:`${w}×${h}`;
+
+  // 장바구니 항목 (재고 반영은 submitCart에서)
+  const cartItem={
+    cid:'c_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    w, h, hk, lr, color, shortName,
+    qty:wQty,
+    mode:wMode,                    // 'normal' | 'defect'
+    defectLoc:wMode==='defect'?wDefectLoc:null,
+    defectReason:wMode==='defect'?wDefectReason:null,
+    code:(!w||!h)?wSelCode:null,   // 사이즈 없는 코드 기반 항목
+  };
+
+  // 같은 항목이면 수량 합치기 (정상: 같은 사이즈+색상 / 불량: 같은 위치+사유까지)
+  const ex=wlCart.find(c=>{
+    if(c.mode!==cartItem.mode) return false;
+    if(c.code||cartItem.code) return c.code===cartItem.code && c.color===cartItem.color;
+    const same=c.w===cartItem.w && c.hk===cartItem.hk && c.color===cartItem.color;
+    if(cartItem.mode==='defect') return same && c.defectLoc===cartItem.defectLoc && c.defectReason===cartItem.defectReason;
+    return same;
+  });
+  if(ex) ex.qty+=cartItem.qty;
+  else wlCart.push(cartItem);
+
+  renderCart();
+  showToast(`🧺 담김 — ${shortName} ${color==='WC'?'웜코튼':'에토프'} ${wQty}장`);
+
+  // 검색화면으로 복귀 (모달은 유지)
+  clearWlSelection();
+}
+
+// 장바구니 목록 렌더
+function renderCart(){
+  const box=document.getElementById('wm-cart-box');
+  const listEl=document.getElementById('wm-cart-list');
+  const cntEl=document.getElementById('wm-cart-count');
+  document.querySelectorAll('.wm-cart-count2').forEach(e=>e.textContent=wlCart.length);
+  if(cntEl) cntEl.textContent=wlCart.length;
+  if(!box||!listEl) return;
+  if(!wlCart.length){ box.style.display='none'; listEl.innerHTML=''; return; }
+  box.style.display='block';
+
+  listEl.innerHTML=wlCart.map((c,i)=>{
+    const isDefect=c.mode==='defect';
+    const dot=isDefect?'var(--acc4)':c.color==='WC'?'var(--wc)':c.color==='ETP'?'var(--etp)':'var(--tx2)';
+    const colorLbl=c.color==='WC'?'웜코튼':c.color==='ETP'?'에토프':'';
+    const sz=(c.w&&c.h)?`${c.w}×${c.h}${c.lr||''}`:'';
+    const defBadge=isDefect?`<span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:4px">🚫 ${c.defectLoc==='assembly'?'조립실':'인쇄실'}·${c.defectReason||''}</span>`:'';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--b1)">
+      <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.shortName}${defBadge}</div>
+        <div style="font-size:10px;color:var(--tx2);margin-top:2px">${sz?'📐 '+sz+'  ':''}${colorLbl&&!isDefect?colorLbl:''}</div>
+      </div>
+      <div class="qty-ctrl" style="width:120px;flex-shrink:0;margin:0">
+        <button class="qty-btn" style="width:30px;height:30px;font-size:16px" onclick="cartQty(${i},-1)">−</button>
+        <input type="number" value="${c.qty}" min="1" onchange="cartSetQty(${i},this.value)"
+          style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;color:${isDefect?'var(--acc4)':'var(--acc)'};background:var(--s2)">
+        <button class="qty-btn" style="width:30px;height:30px;font-size:16px" onclick="cartQty(${i},1)">＋</button>
+      </div>
+      <button onclick="cartRemove(${i})" style="width:30px;height:30px;flex-shrink:0;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:6px;color:var(--acc4);font-size:14px;cursor:pointer">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function cartQty(i,d){
+  if(!wlCart[i]) return;
+  wlCart[i].qty=Math.max(1,wlCart[i].qty+d);
+  renderCart();
+}
+function cartSetQty(i,v){
+  if(!wlCart[i]) return;
+  wlCart[i].qty=Math.max(1,parseInt(v)||1);
+  renderCart();
+}
+function cartRemove(i){
+  wlCart.splice(i,1);
+  renderCart();
+}
+function clearCart(){
+  if(wlCart.length && !confirm('담은 목록을 전부 비울까요?')) return;
+  wlCart=[]; renderCart();
+}
+
+// 장바구니 항목 1건을 실제 재고/작업일지에 반영 (기존 confirmWork 로직 재사용)
+function applyCartItem(c, td, dl){
+  const w=c.w, h=c.h, hk=c.hk, color=c.color, shortName=c.shortName;
+  const colorLabel=color==='WC'?'웜코튼':color==='ETP'?'에토프':'';
+  const workAtIso=`${td}T14:00:00.000Z`;
+
+  if(w&&h){
+    const s=getSzStock(w,hk,color);
+    const itemKey=`sz_${w}x${hk}`;
+    if(c.mode==='defect'){
+      if(c.defectLoc==='print'){
+        setSzStock(w,hk,color,s.raw-c.qty,s.printed);
+        const ev1=addStockEvent(`${w}x${hk}`, {at:workAtIso, type:'defect', qty:c.qty, note:`인쇄실 불량 (${c.defectReason}) ${shortName} ${colorLabel}`, source:'worklog'});
+        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='print'&&i.reason===c.defectReason&&i.short===shortName);
+        if(ex){ ex.qty+=c.qty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
+        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:c.qty,type:'defect',loc:'print',reason:c.defectReason,eventIds:[ev1.id],...actorTag()});
+      } else {
+        setSzStock(w,hk,color,s.raw,s.printed-c.qty);
+        const ev1=addStockEvent(`${w}x${hk}_${color}`, {at:workAtIso, type:'defect', qty:c.qty, note:`조립실 불량 (${c.defectReason}) ${shortName}`, source:'worklog'});
+        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='assembly'&&i.reason===c.defectReason&&i.short===shortName);
+        if(ex){ ex.qty+=c.qty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
+        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:c.qty,type:'defect',loc:'assembly',reason:c.defectReason,eventIds:[ev1.id],...actorTag()});
+      }
+    } else {
+      setSzStock(w,hk,color,s.raw-c.qty,s.printed+c.qty);
+      const ev1=addStockEvent(`${w}x${hk}`, {at:workAtIso, type:'print', qty:c.qty, note:`인쇄작업 ${shortName} → ${colorLabel}`, source:'worklog'});
+      const ev2=addStockEvent(`${w}x${hk}_${color}`, {at:workAtIso, type:'in', qty:c.qty, note:`인쇄완료 ${shortName}`, source:'worklog'});
+      const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='work'&&i.short===shortName);
+      if(ex){ ex.qty+=c.qty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id, ev2.id]); Object.assign(ex, actorTag()); }
+      else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:c.qty,type:'work',eventIds:[ev1.id, ev2.id],...actorTag()});
+    }
+  } else if(c.code){
+    const s=getStock(c.code);
+    if(c.mode==='defect'){
+      if(c.defectLoc==='print') stock[c.code]={raw:Math.max(0,s.raw-c.qty),printed:s.printed};
+      else stock[c.code]={raw:s.raw,printed:Math.max(0,s.printed-c.qty)};
+      dl.items.push({code:c.code,qty:c.qty,type:'defect',loc:c.defectLoc,reason:c.defectReason,...actorTag()});
+    } else {
+      stock[c.code]={raw:Math.max(0,s.raw-c.qty),printed:s.printed+c.qty};
+      const wScMdl=MODELS.find(x=>x.code===c.code)||CODE_MODEL_MAP[c.code]||{};
+      const wScColor=color||wScMdl.color||'WC';
+      const exCode=dl.items.find(i=>i.code===c.code&&i.color===wScColor&&i.type==='work');
+      if(exCode){ exCode.qty+=c.qty; Object.assign(exCode, actorTag()); }
+      else dl.items.push({code:c.code,color:wScColor,qty:c.qty,type:'work',...actorTag()});
+      if(typeof asmOnPrint==='function') asmOnPrint(c.code, c.qty);
+    }
+  }
+}
+
+// 담은 목록 전체를 선택한 날짜에 한 번에 반영
+function submitCart(){
+  if(!wlCart.length){showToast('담은 항목이 없습니다');return;}
+  const td=document.getElementById('wm-date')?.value||todayStr();
+  let dl=workLog.find(d=>d.date===td);
+  if(!dl){dl={date:td,items:[]};workLog.push(dl);}
+
+  const totalQty=wlCart.reduce((a,c)=>a+c.qty,0);
+  const cnt=wlCart.length;
+  wlCart.forEach(c=>applyCartItem(c, td, dl));
+
+  meta.lastWork=meta.lastStock=new Date().toISOString();
+  wlCart=[];
+  saveAll(); closeM('work-modal');
+  renderWorklogMain(); renderDash(); renderHome(); autoSync();
+  showToast(`✅ ${cnt}건 · 총 ${totalQty}장 기록됨`);
+}
+
+// (구) confirmWork — 단건 즉시 기록. 담기 방식으로 대체되었으나 호환 위해 유지
 function confirmWork(){
+  addToCart();
+  if(wlCart.length){ submitCart(); }
+}
+function _confirmWork_legacy(){
   if(!wSelModel&&!wSelSize&&!wSelCode){showToast('먼저 모델을 선택하세요');return;}
   const qtyEl=document.getElementById('wm-qty');
   wQty=qtyEl?Math.max(1,parseInt(qtyEl.value)||wQty):wQty;
