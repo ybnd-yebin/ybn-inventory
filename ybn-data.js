@@ -1,274 +1,11778 @@
-/* ============================================================
- * ybn-data.js  —  한샘/제품 마스터 데이터 (로직과 분리)
- * 이 파일은 '제품 정보' 전용입니다.
- * 신제품 추가 / 제품군 교체 시 이 파일만 교체하면 됩니다.
- * 로직(index)에서는 아래 8개 상수를 그대로 참조합니다.
- *   MODELS, ASSEMBLY_MODELS, NONSPEC_GROUPS, ANALYSIS,
- *   SIZE_GROUPS, CODE_MODEL_MAP, DAEGUBUN, HANSAEM_CATALOG
- * ⚠ 이 파일은 index보다 먼저 로드되어야 합니다.
- * ============================================================ */
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>와이비앤디 업무</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600;700&family=Hi+Melody&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script> 
+<script src="ybn-data.js"></script> <!-- 한샘/제품 마스터 데이터 (로직보다 먼저 로드) -->
+<style>
+:root{--bg:#f5f6fa;--s1:#ffffff;--s2:#f0f2f7;--s3:#e4e7f0;--b1:#e0e4ee;--b2:#cdd1df;--acc:#2563eb;--acc2:#ea6c00;--acc3:#16a34a;--acc4:#dc2626;--acc5:#7c3aed;--tx1:#1a1d2e;--tx2:#5a6282;--tx3:#9aa0b8;--wc:#1d6fb5;--etp:#b45309;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1);min-height:100vh;font-size:13px;overflow-x:hidden}
+/* HEADER */
+.hdr{position:sticky;top:0;z-index:300;background:rgba(245,246,250,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--b1)}
+.hdr-top{padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+.hdr-title{font-size:15px;font-weight:900;letter-spacing:-.5px}
+.hdr-title em{color:var(--acc);font-style:normal}
+.hdr-title small{font-size:10px;font-weight:400;color:var(--tx3);margin-left:6px}
+.hdr-meta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);text-align:right}
+/* NAV */
+.main-nav{display:flex;background:var(--s1);border-bottom:2px solid var(--b1);overflow-x:auto;scrollbar-width:none}
+.main-nav::-webkit-scrollbar{display:none}
+.main-nav-btn{flex-shrink:0;padding:11px 18px;background:none;border:none;border-bottom:3px solid transparent;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap;margin-bottom:-2px}
+.main-nav-btn.on{color:var(--acc);border-bottom-color:var(--acc);background:rgba(88,166,255,.06)}
+.sub-nav{display:flex;background:var(--bg);border-bottom:1px solid var(--b1);overflow-x:auto;scrollbar-width:none;position:sticky;top:93px;z-index:199}
+.sub-nav::-webkit-scrollbar{display:none}
+.sub-nav-btn{flex:1;min-width:52px;padding:7px 4px;background:none;border:none;border-bottom:2px solid transparent;color:var(--tx3);font-size:10px;font-weight:500;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap}
+.sub-nav-btn .ico{font-size:13px;display:block;margin-bottom:1px}
+.sub-nav-btn.on{color:var(--acc);border-bottom-color:var(--acc)}
+/* PAGES */
+.sec-pg{display:none;padding:14px 14px 80px}
+.sec-pg.on{display:block}
+/* CARDS */
+.card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px;margin-bottom:12px}
+.card-ttl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--tx2);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+/* GRID */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.stat{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:12px}
+.stat-l{font-size:10px;color:var(--tx2);margin-bottom:4px}
+.stat-v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700}
+.stat-s{font-size:10px;color:var(--tx3);margin-top:2px}
+/* BADGES */
+.badge{display:inline-block;padding:1px 7px;border-radius:12px;font-size:10px;font-weight:700}
+.b-wc{background:rgba(121,192,255,.15);color:var(--wc)}.b-etp{background:rgba(255,166,87,.15);color:var(--etp)}
+.b-white{background:rgba(230,237,243,.12);color:#e6edf3}.b-forest{background:rgba(63,185,80,.15);color:var(--acc3)}
+.b-sahara{background:rgba(210,160,80,.2);color:#d4a855}.b-hd{background:rgba(210,168,255,.12);color:var(--acc5)}
+.b-ob{background:rgba(88,166,255,.12);color:var(--acc)}.b-ch{background:rgba(72,79,88,.3);color:var(--tx2)}
+.b-high{background:rgba(248,81,73,.15);color:var(--acc4)}.b-mid{background:rgba(240,136,62,.15);color:var(--acc2)}
+.b-low{background:rgba(88,166,255,.12);color:var(--acc)}.b-rare{background:rgba(72,79,88,.4);color:var(--tx2)}
+.freq-avg{font-size:10px;color:var(--tx3);margin-left:4px}
+/* FORMS */
+.inp{width:100%;padding:11px 14px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:14px;font-family:'Noto Sans KR',sans-serif;outline:none;margin-bottom:10px}
+.inp:focus{border-color:var(--acc)}
+.inp::placeholder{color:var(--tx3)}
+.sel{width:100%;padding:11px 14px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:14px;font-family:'Noto Sans KR',sans-serif;outline:none;margin-bottom:10px;appearance:none}
+.lbl{font-size:11px;font-weight:600;color:var(--tx2);letter-spacing:.5px;margin-bottom:6px;display:block}
+.f-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.f-btn{padding:5px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:20px;font-size:11px;color:var(--tx2);cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap}
+.f-btn.on{background:var(--acc);border-color:var(--acc);color:#0d1117;font-weight:700}
+/* HOME */
+.urgent-banner{background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.4);border-radius:10px;padding:10px 14px;margin-top:14px}
+.urgent-label{font-size:10px;color:var(--acc4);font-weight:700;margin-bottom:3px}
+.urgent-title{font-size:13px;font-weight:700}
+.urgent-body{font-size:11px;color:var(--tx2);margin-top:3px}
+.sch-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--b1)}
+.sch-row:last-child{border-bottom:none}
+.sch-bar{width:3px;height:28px;border-radius:2px;flex-shrink:0}
+.sch-txt{font-size:12px;font-weight:600}
+.work-stats{display:flex;gap:16px;margin-bottom:10px}
+.ws{text-align:center}
+.ws-l{font-size:10px;color:var(--tx2);margin-bottom:2px}
+.ws-l.wc{color:var(--wc)}.ws-l.etp{color:var(--etp)}
+.ws-v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700}
+.ws-v.acc3{color:var(--acc3)}.ws-v.wc{color:var(--wc)}.ws-v.etp{color:var(--etp)}
+.wsum-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b1)}
+.wsum-row:last-child{border-bottom:none}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.wsum-name{flex:1;min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wsum-qty{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--acc3)}
+/* TODO */
+.todo-item{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;background:var(--s2);border:1px solid var(--b1);border-radius:10px;margin-bottom:7px}
+.todo-item.done{opacity:.45}
+.todo-item.done .todo-content{text-decoration:line-through;color:var(--tx3)}
+.todo-check{width:20px;height:20px;border-radius:50%;border:2px solid var(--b2);background:none;cursor:pointer;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:11px}
+.todo-check.done{background:var(--acc3);border-color:var(--acc3);color:#0d1117}
+.todo-left{flex:1;min-width:0}
+.todo-content{font-size:13px;font-weight:500;margin-bottom:4px;line-height:1.4}
+.todo-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.assignee-tag{font-size:10px;background:rgba(88,166,255,.1);color:var(--acc);padding:1px 7px;border-radius:10px;font-weight:600}
+.company-tag{font-size:10px;color:var(--tx3)}
+.status-tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600}
+.st-시작전{background:rgba(72,79,88,.3);color:var(--tx2)}.st-진행중{background:rgba(240,136,62,.15);color:var(--acc2)}.st-완료{background:rgba(63,185,80,.15);color:var(--acc3)}
+.pri-tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700}
+.pri-긴급{background:rgba(248,81,73,.2);color:var(--acc4)}.pri-보통{background:rgba(88,166,255,.12);color:var(--acc)}.pri-여유{background:rgba(72,79,88,.3);color:var(--tx2)}
+.dday{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700}
+.dday.over{color:var(--acc4)}.dday.ok{color:var(--acc3)}.dday.none{color:var(--tx3)}
+.due-txt{font-size:10px;color:var(--tx3)}
+.todo-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.icon-btn{background:none;border:none;font-size:14px;cursor:pointer;padding:2px}
+.icon-btn.del{color:var(--acc4)}
+/* NOTICES */
+.notice-item{background:var(--s2);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:3px solid var(--acc)}
+.notice-item.important{border-left-color:var(--acc2)}.notice-item.urgent{border-left-color:var(--acc4);background:rgba(248,81,73,.05)}
+.notice-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.notice-hdr-left{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.notice-pri{font-size:10px;font-weight:700;white-space:nowrap}
+.notice-title{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notice-btns{display:flex;gap:6px;flex-shrink:0}
+.notice-body{font-size:12px;color:var(--tx2);line-height:1.7;white-space:pre-wrap}
+.notice-date{font-size:10px;color:var(--tx3);margin-top:6px;font-family:'JetBrains Mono',monospace}
+/* SCHEDULE */
+.sch-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--b1)}
+.sch-item:last-child{border-bottom:none}
+.sch-date{min-width:54px;text-align:center;font-size:11px;color:var(--tx2);font-family:'JetBrains Mono',monospace}
+.sch-date.today{color:var(--acc3);font-weight:700}.sch-date.past{color:var(--tx3)}
+.today-label{font-size:9px;color:var(--acc3);font-weight:700}
+.sch-bar2{width:3px;height:34px;border-radius:2px;flex-shrink:0}
+.sch-info{flex:1;min-width:0}
+.sch-content{font-size:12px;font-weight:600;margin-bottom:2px}
+.sch-cat{font-size:10px;color:var(--tx3)}
+/* STOCK DASHBOARD */
+.alert-box{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.alert-inner{display:flex;justify-content:space-between;align-items:center}
+.alert-name{font-size:12px;font-weight:700;margin-bottom:3px}
+.alert-meta{font-size:10px;color:var(--tx2)}
+.alert-qty{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--acc4);text-align:right}
+.alert-unit{display:block;font-size:9px;color:var(--tx3)}
+.top10-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1);cursor:pointer}
+.top10-rank{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3);min-width:18px}
+.top10-info{flex:1;min-width:0}
+.top10-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px}
+.top10-meta{font-size:10px;color:var(--tx2)}
+.top10-right{text-align:right;flex-shrink:0}
+.top10-qty{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--acc2)}
+.top10-unit{font-size:10px;color:var(--tx3)}
+/* WORK LOG */
+.day-card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.day-hdr{padding:12px 14px;border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center}
+.day-date{font-weight:700;font-size:13px;margin-bottom:2px}
+.day-color-sum{font-size:10px;color:var(--tx2)}
+.day-color-sum .wc{color:var(--wc)}.day-color-sum .etp{color:var(--etp)}
+.day-total{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;color:var(--acc3)}
+.day-unit{font-size:10px;color:var(--tx3)}
+.day-item{display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--b1)}
+.day-item:last-child{border-bottom:none}
+.day-item-info{flex:1;min-width:0;margin-left:8px}
+.day-item-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px}
+.day-item-meta{font-size:10px;color:var(--tx2)}
+.day-item-qty{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--acc3);flex-shrink:0}
+/* INK */
+.ink-card{border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid}
+.ink-card.wc{background:rgba(121,192,255,.06);border-color:rgba(121,192,255,.25)}
+.ink-card.etp{background:rgba(255,166,87,.06);border-color:rgba(255,166,87,.25)}
+.ink-gauge{height:12px;background:var(--b2);border-radius:6px;overflow:hidden;margin:8px 0}
+.ink-bar{height:100%;border-radius:6px;transition:width .4s}
+.ink-bar.wc{background:linear-gradient(90deg,var(--wc),#a0d8ff)}
+.ink-bar.etp{background:linear-gradient(90deg,var(--etp),#ffd199)}
+.ink-bar.low{background:var(--acc4)}
+.ink-log-row{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--b1)}
+.ink-log-row:last-child{border-bottom:none}
+.ink-log-date{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3);min-width:54px}
+.ink-log-type{font-size:11px;font-weight:600;flex:1}
+.ink-log-qty{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;min-width:50px;text-align:right}
+/* STOCK LIST */
+.model-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.model-card.urgent{border-color:var(--acc4);background:rgba(248,81,73,.05)}
+.model-card.warn{border-color:var(--acc2);background:rgba(240,136,62,.04)}
+.ml{flex:1;min-width:0}
+.mc{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);margin-bottom:3px}
+.mn{font-size:12px;font-weight:600;margin-bottom:5px;word-break:keep-all;line-height:1.4}
+.mt{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px}
+.ms{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2)}
+.stock-row{display:flex;gap:6px;margin-top:6px}
+.stock-box{flex:1;background:var(--s3);border-radius:6px;padding:6px 8px;text-align:center;border:1px solid transparent}
+.stock-box.urgent-box{border-color:var(--acc4);background:rgba(248,81,73,.1)}
+.sl{font-size:9px;color:var(--tx2);margin-bottom:2px}
+.sv{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700}
+.sv.zero{color:var(--tx3)}.sv.low{color:var(--acc4)}.sv.ok{color:var(--acc3)}
+.mr{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.mr-qty{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:800;color:var(--acc2);line-height:1.05}
+.mr-unit{font-size:11px;color:var(--tx3)}
+.mr-sub{font-size:11px;color:var(--tx2);font-weight:700}
+.mr-src{font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-top:3px;white-space:nowrap}
+.mr-src.live{background:rgba(22,163,74,.14);color:var(--acc3)}
+.mr-src.hist{background:var(--s2);color:var(--tx3)}
+.trend{display:flex;align-items:flex-end;gap:2px;height:26px}
+.trend-bar{flex:1;background:var(--acc);border-radius:2px 2px 0 0;opacity:.7;min-height:2px}
+.trend-bar.z{background:var(--b2)}
+/* TREND */
+.trend-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.trend-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.trend-name{font-size:12px;font-weight:600;margin-bottom:2px}
+.trend-meta{font-size:10px;color:var(--tx2)}
+.month-bars{display:flex;gap:6px;align-items:flex-end;height:50px;margin-bottom:4px}
+.m-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.m-bar{width:100%;background:var(--acc);border-radius:3px 3px 0 0;min-height:2px}
+.m-bar.zero{background:var(--b2)}
+.m-lbl{font-size:9px;color:var(--tx3);font-family:'JetBrains Mono',monospace}
+.m-val{font-size:9px;color:var(--tx2);font-family:'JetBrains Mono',monospace}
+.trend-range{font-size:11px;color:var(--tx2);margin:2px 2px 10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px}
+.trend-range .rg-period{font-family:'JetBrains Mono',monospace;color:var(--tx1);font-weight:600}
+.trend-sec-hdr{font-size:12px;font-weight:700;color:var(--tx1);margin:14px 2px 6px;display:flex;align-items:center;gap:6px}
+.trend-sec-hdr .cnt{font-size:10px;color:var(--tx3);font-weight:500}
+.cat-tag{display:inline-block;background:var(--s3);color:var(--tx2);font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-right:5px}
+.rank-tag{display:inline-block;min-width:16px;height:16px;line-height:16px;text-align:center;background:var(--acc);color:#fff;font-size:9px;font-weight:800;border-radius:5px;margin-right:5px;font-family:'JetBrains Mono',monospace}
+/* 월 라벨 헤더 (숫자 테이블식) */
+.num-mhead{display:flex;align-items:center;font-size:8px;color:var(--tx3);font-family:'JetBrains Mono',monospace;padding:0 2px;margin-bottom:2px}
+.num-mhead .nh-name{flex:0 0 50px}
+.num-mhead .nh-m{flex:1;text-align:center}
+.num-mhead .nh-avg{flex:0 0 54px;text-align:right;font-weight:700;color:var(--tx2)}
+/* 숫자 한 줄 (색상별) */
+.nrow{display:flex;align-items:center;margin:4px 0;font-family:'JetBrains Mono',monospace}
+.nr-lbl{flex:0 0 50px;font-size:10px;font-weight:700}
+.nr-lbl.wc{color:var(--acc)} .nr-lbl.etp{color:var(--acc2)}
+.nv-cell{flex:1;display:flex;flex-direction:column;align-items:center;line-height:1.1;min-width:0}
+.nv-q{font-size:13px;font-weight:700;color:var(--tx1)}
+.nv-q.z{color:var(--tx3);font-weight:400}
+.nv-up{font-size:8px;color:var(--acc3)}
+.nv-dn{font-size:8px;color:var(--acc4)}
+.nv-eq{font-size:8px;color:var(--tx3)}
+.nr-avg{flex:0 0 54px;text-align:right;font-size:16px;font-weight:800}
+.nr-avg.wc{color:var(--acc)} .nr-avg.etp{color:var(--acc2)}
+.nr-avg-un{font-size:8px;color:var(--tx3);font-weight:500;margin-left:1px}
+.filter-hint{text-align:center;padding:12px;color:var(--tx3);font-size:12px}
+/* NONSPEC */
+.nonspec-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.nonspec-name{font-size:13px;font-weight:700;margin-bottom:2px}
+.nonspec-total{font-size:11px;color:var(--tx2);margin-bottom:8px}
+.size-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--b1)}
+.size-row:last-child{border-bottom:none}
+.size-dim{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600}
+.size-bar-wrap{flex:1;margin:0 10px;height:6px;background:var(--b2);border-radius:3px;overflow:hidden}
+.size-bar{height:100%;background:var(--acc2);border-radius:3px}
+.size-qty{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--acc2);font-weight:700;min-width:30px;text-align:right}
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:500;display:none;align-items:flex-end;backdrop-filter:blur(4px)}
+.modal-bg.on{display:flex}
+.modal-sheet{background:var(--s1);border:1px solid var(--b2);border-radius:16px 16px 0 0;padding:18px 18px calc(36px + env(safe-area-inset-bottom,0px));width:100%;animation:slideUp .22s ease;max-height:82vh;overflow-y:auto}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-ttl{font-size:15px;font-weight:700;margin-bottom:12px}
+.modal-tabs{display:flex;margin-bottom:14px;border:1px solid var(--b2);border-radius:8px;overflow:hidden}
+.m-tab{flex:1;padding:10px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:500;color:var(--tx2);cursor:pointer}
+.m-tab.on{background:var(--acc);color:#0d1117;font-weight:700}
+.act-btn{width:100%;padding:14px;border:none;border-radius:10px;color:#0d1117;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px}
+.act-btn.green{background:var(--acc3)}.act-btn.blue{background:var(--acc)}.act-btn.orange{background:var(--acc2)}
+.act-btn:active{opacity:.85}
+.close-btn{position:sticky;top:-18px;float:right;background:var(--s1);border:1px solid var(--b2);color:var(--tx1);font-size:24px;cursor:pointer;line-height:1;z-index:20;width:44px;height:44px;border-radius:12px;margin:-4px -4px 4px 0;box-shadow:0 2px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center}
+.qty-ctrl{display:flex;align-items:center;margin-bottom:10px}
+.qty-btn{width:52px;height:52px;background:var(--s2);border:1px solid var(--b2);color:var(--tx1);font-size:24px;cursor:pointer}
+.qty-btn:first-child{border-radius:8px 0 0 8px}.qty-btn:last-child{border-radius:0 8px 8px 0}
+.qty-num{flex:1;height:52px;background:var(--s2);border:1px solid var(--b2);border-left:none;border-right:none;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc)}
+.quick-btns{display:flex;gap:6px;margin-bottom:14px}
+.q-btn{flex:1;padding:8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+.wresult-item{padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;margin-bottom:6px;cursor:pointer}
+.wresult-item.selected{border-color:var(--acc3);background:rgba(63,185,80,.07)}
+.wr-name{font-size:12px;font-weight:600;margin-bottom:3px}
+.wr-meta{font-size:10px;color:var(--tx2);margin-bottom:2px}
+.wr-stock{font-size:10px;color:var(--tx2)}
+.sel-box{background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:10px 14px;margin-bottom:14px}
+.sel-label{font-size:10px;color:var(--acc3);margin-bottom:3px}
+/* GS */
+.upd-badge{display:inline-flex;align-items:center;padding:3px 10px;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.2);border-radius:20px;font-size:10px;color:var(--acc3)}
+.info-note{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.2);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--tx2);line-height:1.7;margin-bottom:12px}
+.mat-item{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.mat-item-info{margin-bottom:8px}
+.mat-stocks{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.mat-stock-box{background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:all .15s}
+.mat-stock-box:active{transform:scale(.97)}
+.mat-stock-lbl{font-size:9px;font-weight:600;margin-bottom:3px}
+.mat-stock-val{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700}
+.mat-log-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--b1)}
+.mat-log-row:last-child{border-bottom:none}
+.mat-log-date{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);min-width:40px}
+.mat-log-info{flex:1;min-width:0;font-size:11px}
+.mat-log-qty{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;min-width:44px;text-align:right}
+.cal-day{min-height:52px;border-radius:6px;padding:4px;cursor:pointer;transition:background .15s;position:relative;border:1px solid transparent}
+.cal-day:hover{background:var(--s2)}
+.cal-day.today{background:rgba(37,99,235,.08);border-color:var(--acc)}
+.cal-day.selected{background:rgba(37,99,235,.15);border-color:var(--acc)}
+.cal-day.other-month{opacity:.3}
+.cal-day.has-event{}
+.cal-day-num{font-size:12px;font-weight:600;margin-bottom:3px;line-height:1}
+.cal-day-num.sun{color:var(--acc4)}
+.cal-day-num.sat{color:var(--acc)}
+.cal-day-num.today-num{background:var(--acc);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px}
+.cal-dot-wrap{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
+.cal-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.cal-event-chip{font-size:9px;padding:1px 4px;border-radius:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;margin-top:1px;font-weight:600}
+/* MISC */
+.empty{text-align:center;padding:36px 20px;color:var(--tx3);font-size:12px}
+.empty-ico{font-size:28px;margin-bottom:8px}
+.empty-sm{font-size:12px;color:var(--tx3);padding:8px 0}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--s1);border:1px solid var(--acc3);color:var(--acc3);padding:9px 20px;border-radius:20px;font-size:12px;font-weight:600;opacity:0;transition:all .25s;z-index:999;white-space:nowrap;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.fab{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;border:none;color:#0d1117;font-size:26px;cursor:pointer;z-index:300;display:none;align-items:center;justify-content:center;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.fab:active{transform:scale(.93)}
+.divider{height:1px;background:var(--b1);margin:10px 0}
+</style>
+</head>
+<body>
 
-// ---- MODELS ----
-const MODELS=[{"id": "M0001", "short": "OB BTAO1U 6014 M", "door_type": "OB", "glass_w": 595, "glass_h": 139, "color": "WC", "total_6m": 38, "avg_monthly": 6.3}, {"id": "M0002", "short": "HD BTAO1U 6014 M", "door_type": "HD", "glass_w": 595, "glass_h": 139, "color": "WC", "total_6m": 38, "avg_monthly": 6.3}, {"id": "M0003", "short": "OB BD3U 4591 M", "door_type": "OB", "glass_w": 445, "glass_h": 170, "color": "WC", "total_6m": 2, "avg_monthly": 0.3, "codes": ["ME1BD0078"]}, {"id": "M0004", "short": "OB BD3U 6091 M", "door_type": "OB", "glass_w": 595, "glass_h": 170, "color": "ETP", "total_6m": 17, "avg_monthly": 2.8}, {"id": "M0005", "short": "HD BD3U 4591 M", "door_type": "HD", "glass_w": 445, "glass_h": 185, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0006", "short": "HD BD3U 6091 M", "door_type": "HD", "glass_w": 595, "glass_h": 185, "color": "WC", "total_6m": 10, "avg_monthly": 1.7}, {"id": "M0007", "short": "OB BLD1R 4591 M", "door_type": "OB", "glass_w": 445, "glass_h": 247, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0008", "short": "OB BLD1UA 4591 M", "door_type": "OB", "glass_w": 445, "glass_h": 247, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0009", "short": "OB BLD1R 6091 M", "door_type": "OB", "glass_w": 595, "glass_h": 247, "color": "ETP", "total_6m": 27, "avg_monthly": 4.5}, {"id": "M0010", "short": "OB BLD1UA 6091 M", "door_type": "OB", "glass_w": 595, "glass_h": 247, "color": "ETP", "total_6m": 27, "avg_monthly": 4.5}, {"id": "M0011", "short": "OB BRO1R 6091 M", "door_type": "OB", "glass_w": 595, "glass_h": 247, "color": "ETP", "total_6m": 27, "avg_monthly": 4.5}, {"id": "M0012", "short": "OB WHFM 6027 M", "door_type": "OB", "glass_w": 595, "glass_h": 271, "color": "WC", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WH0006"]}, {"id": "M0013", "short": "OB WHFM 9027 M", "door_type": "OB", "glass_w": 895, "glass_h": 271, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0014", "short": "OB WF 6030 M", "door_type": "OB", "glass_w": 595, "glass_h": 304, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0015", "short": "OB WFUP 8032 M", "door_type": "OB", "glass_w": 795, "glass_h": 315, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0016", "short": "OB WFUP 9032 M", "door_type": "OB", "glass_w": 895, "glass_h": 315, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0017", "short": "OB WFUP 10032 M", "door_type": "OB", "glass_w": 995, "glass_h": 315, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0018", "short": "OB WRMB 8033 M", "door_type": "OB", "glass_w": 795, "glass_h": 326, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0019", "short": "OB WRMB 9533 M", "door_type": "OB", "glass_w": 945, "glass_h": 326, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0020", "short": "OB WRMB 10033 M", "door_type": "OB", "glass_w": 995, "glass_h": 326, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0021", "short": "OB WF 9033 M", "door_type": "OB", "glass_w": 895, "glass_h": 331, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WF0058"]}, {"id": "M0022", "short": "OB BUIF 3034", "door_type": "OB", "glass_w": 295, "glass_h": 345, "color": "ETP", "total_6m": 77, "avg_monthly": 12.8}, {"id": "M0023", "short": "HD BUIF 3034", "door_type": "HD", "glass_w": 295, "glass_h": 345, "color": "ETP", "total_6m": 77, "avg_monthly": 12.8}, {"id": "M0024", "short": "OB BD2R 6091 M", "door_type": "OB", "glass_w": 595, "glass_h": 347, "color": "WC", "total_6m": 74, "avg_monthly": 12.3}, {"id": "M0025", "short": "OB BLD2R 6062 M", "door_type": "OB", "glass_w": 595, "glass_h": 347, "color": "WC", "total_6m": 74, "avg_monthly": 12.3}, {"id": "M0026", "short": "OB BD2R 9091 M", "door_type": "OB", "glass_w": 895, "glass_h": 347, "color": "WC", "total_6m": 131, "avg_monthly": 21.8}, {"id": "M0027", "short": "OB BD2R 12091 M", "door_type": "OB", "glass_w": 1195, "glass_h": 347, "color": "ETP", "total_6m": 3, "avg_monthly": 0.5, "codes": ["ME1BD0093"]}, {"id": "M0028", "short": "OB WRMB 4735 M", "door_type": "OB", "glass_w": 465, "glass_h": 351, "color": "WC", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WR0023"]}, {"id": "M0029", "short": "OB WFMD 6035 M", "door_type": "OB", "glass_w": 595, "glass_h": 351, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WF0066"]}, {"id": "M0030", "short": "OB WRMB 6135 M", "door_type": "OB", "glass_w": 605, "glass_h": 351, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0031", "short": "OB WRMB 7135 M", "door_type": "OB", "glass_w": 710, "glass_h": 351, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0032", "short": "OB WRMBS 8035 M", "door_type": "OB", "glass_w": 795, "glass_h": 351, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0033", "short": "OB WFMD 9035 M", "door_type": "OB", "glass_w": 895, "glass_h": 351, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0034", "short": "OB WRMBS 9035 M", "door_type": "OB", "glass_w": 895, "glass_h": 351, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WR0059"]}, {"id": "M0035", "short": "OB WRMB 9335 M", "door_type": "OB", "glass_w": 925, "glass_h": 351, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0036", "short": "OB WRMBS 10035 M", "door_type": "OB", "glass_w": 995, "glass_h": 351, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0037", "short": "OB WFUP 8036 M", "door_type": "OB", "glass_w": 795, "glass_h": 355, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0038", "short": "OB WFUP 9036 M", "door_type": "OB", "glass_w": 895, "glass_h": 355, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0039", "short": "OB WFUP 10036 M", "door_type": "OB", "glass_w": 995, "glass_h": 355, "color": "WC", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WF0046"]}, {"id": "M0040", "short": "OB WF 8037 M", "door_type": "OB", "glass_w": 795, "glass_h": 371, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0041", "short": "OB WF 9037 M", "door_type": "OB", "glass_w": 895, "glass_h": 371, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0042", "short": "OB WF 10037 M", "door_type": "OB", "glass_w": 995, "glass_h": 371, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0043", "short": "HD BD2R 6091 M", "door_type": "HD", "glass_w": 595, "glass_h": 377, "color": "ETP", "total_6m": 49, "avg_monthly": 8.2}, {"id": "M0044", "short": "HD BLD2R 6062 M", "door_type": "HD", "glass_w": 595, "glass_h": 377, "color": "ETP", "total_6m": 49, "avg_monthly": 8.2}, {"id": "M0045", "short": "HD BD2R 9091 M", "door_type": "HD", "glass_w": 895, "glass_h": 377, "color": "ETP", "total_6m": 84, "avg_monthly": 14.0}, {"id": "M0046", "short": "HD BD2R 12091 M", "door_type": "HD", "glass_w": 1195, "glass_h": 377, "color": "ETP", "total_6m": 10, "avg_monthly": 1.7}, {"id": "M0047", "short": "OB W2U 4042 M", "door_type": "OB", "glass_w": 395, "glass_h": 417, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0048", "short": "OB W2U 4542 M", "door_type": "OB", "glass_w": 445, "glass_h": 417, "color": "WC", "total_6m": 4, "avg_monthly": 0.7, "codes": ["ME1WF0027"]}, {"id": "M0049", "short": "OB WF 6043 M", "door_type": "OB", "glass_w": 595, "glass_h": 432, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0050", "short": "OB WF 8044 M", "door_type": "OB", "glass_w": 795, "glass_h": 435, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0051", "short": "OB WF 9044 M", "door_type": "OB", "glass_w": 895, "glass_h": 435, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WF0060"]}, {"id": "M0052", "short": "OB WRMB 8045 M", "door_type": "OB", "glass_w": 795, "glass_h": 454, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0053", "short": "OB WRMB 9545 M", "door_type": "OB", "glass_w": 945, "glass_h": 454, "color": "WC", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WR0034"]}, {"id": "M0054", "short": "OB WRMB 10045 M", "door_type": "OB", "glass_w": 995, "glass_h": 454, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WR0042"]}, {"id": "M0055", "short": "OB WRMB 4748 M", "door_type": "OB", "glass_w": 465, "glass_h": 479, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0056", "short": "OB WFMD 6048 M", "door_type": "OB", "glass_w": 595, "glass_h": 479, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0057", "short": "OB WRMB 6148 M", "door_type": "OB", "glass_w": 605, "glass_h": 479, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0058", "short": "OB WRMB 7148 M", "door_type": "OB", "glass_w": 710, "glass_h": 479, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0059", "short": "OB WRMBS 8048 M", "door_type": "OB", "glass_w": 795, "glass_h": 479, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0060", "short": "OB WFMD 9048 M", "door_type": "OB", "glass_w": 895, "glass_h": 479, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WF0069"]}, {"id": "M0061", "short": "OB WRMBS 9048 M", "door_type": "OB", "glass_w": 895, "glass_h": 479, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0062", "short": "OB WRMB 9348 M", "door_type": "OB", "glass_w": 925, "glass_h": 479, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WR0052"]}, {"id": "M0063", "short": "OB WRMBS 10048 M", "door_type": "OB", "glass_w": 995, "glass_h": 479, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0064", "short": "OB WLDL 6051 M", "door_type": "OB", "glass_w": 595, "glass_h": 507, "color": "WC", "total_6m": 45, "avg_monthly": 7.5}, {"id": "M0065", "short": "OB WLDL 9051 M", "door_type": "OB", "glass_w": 895, "glass_h": 507, "color": "WC", "total_6m": 6, "avg_monthly": 1.0}, {"id": "M0066", "short": "OB M 6052 M", "door_type": "OB", "glass_w": 595, "glass_h": 513, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0067", "short": "OB WFED 6053 M", "door_type": "OB", "glass_w": 595, "glass_h": 531, "color": "WC", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WF0037"]}, {"id": "M0068", "short": "OB WFED 7053 M", "door_type": "OB", "glass_w": 695, "glass_h": 531, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0069", "short": "OB WFED 8053 M", "door_type": "OB", "glass_w": 795, "glass_h": 531, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0070", "short": "OB WFED 9053 M", "door_type": "OB", "glass_w": 895, "glass_h": 531, "color": "WC", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WF0040"]}, {"id": "M0071", "short": "OB WFED 10053 M", "door_type": "OB", "glass_w": 995, "glass_h": 531, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0072", "short": "OB BAD 6091", "door_type": "OB", "glass_w": 595, "glass_h": 583, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0073", "short": "OB WHM 6061 M", "door_type": "OB", "glass_w": 595, "glass_h": 605, "color": "WC", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1WH0008"]}, {"id": "M0074", "short": "OB TND2 30149 M", "door_type": "OB", "glass_w": 295, "glass_h": 606, "color": "WC", "total_6m": 30, "avg_monthly": 5.0}, {"id": "M0075", "short": "HD TND2 30149 M", "door_type": "HD", "glass_w": 295, "glass_h": 606, "color": "ETP", "total_6m": 30, "avg_monthly": 5.0}, {"id": "M0076", "short": "OB M 3065 M", "door_type": "OB", "glass_w": 295, "glass_h": 649, "color": "ETP", "total_6m": 5, "avg_monthly": 0.8}, {"id": "M0077", "short": "OB M 3565 M", "door_type": "OB", "glass_w": 345, "glass_h": 649, "color": "ETP", "total_6m": 27, "avg_monthly": 4.5}, {"id": "M0078", "short": "OB M 4065 M", "door_type": "OB", "glass_w": 395, "glass_h": 649, "color": "WC", "total_6m": 26, "avg_monthly": 4.3}, {"id": "M0079", "short": "OB M 4565 M", "door_type": "OB", "glass_w": 445, "glass_h": 649, "color": "ETP", "total_6m": 18, "avg_monthly": 3.0}, {"id": "M0080", "short": "OB M 5065 M", "door_type": "OB", "glass_w": 495, "glass_h": 649, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0081", "short": "OB WHMH 6065 M", "door_type": "OB", "glass_w": 595, "glass_h": 651, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0082", "short": "OB BTARG 6070 L", "door_type": "OB", "glass_w": 592, "glass_h": 693, "color": "ETP", "total_6m": 1, "avg_monthly": 0.2, "codes": ["ME1BA0025"]}, {"id": "M0083", "short": "OB BTARG 6070 R", "door_type": "OB", "glass_w": 592, "glass_h": 693, "color": "ETP", "total_6m": 1, "avg_monthly": 0.2, "codes": ["ME1BA0025"]}, {"id": "M0084", "short": "OB BNDB2N 2091 M", "door_type": "OB", "glass_w": 195, "glass_h": 729, "color": "WC", "total_6m": 44, "avg_monthly": 7.3}, {"id": "M0085", "short": "OB M 2073(공용) M", "door_type": "OB", "glass_w": 195, "glass_h": 729, "color": "WC", "total_6m": 44, "avg_monthly": 7.3}, {"id": "M0086", "short": "OB M 2573(공용) M", "door_type": "OB", "glass_w": 245, "glass_h": 729, "color": "WC", "total_6m": 14, "avg_monthly": 2.3}, {"id": "M0087", "short": "OB BNDC2N 3091 M", "door_type": "OB", "glass_w": 295, "glass_h": 729, "color": "WC", "total_6m": 154, "avg_monthly": 25.7}, {"id": "M0088", "short": "OB M 3073(공용) M", "door_type": "OB", "glass_w": 295, "glass_h": 729, "color": "WC", "total_6m": 154, "avg_monthly": 25.7}, {"id": "M0089", "short": "OB WMLDT 3073 M", "door_type": "OB", "glass_w": 295, "glass_h": 729, "color": "ETP", "total_6m": 154, "avg_monthly": 25.7}, {"id": "M0090", "short": "OB M 3573(공용) M", "door_type": "OB", "glass_w": 345, "glass_h": 729, "color": "WC", "total_6m": 161, "avg_monthly": 26.8}, {"id": "M0091", "short": "OB M 4073(공용) M", "door_type": "OB", "glass_w": 395, "glass_h": 729, "color": "WC", "total_6m": 323, "avg_monthly": 53.8}, {"id": "M0092", "short": "OB BC1B 4091 M", "door_type": "OB", "glass_w": 402, "glass_h": 729, "color": "WC", "total_6m": 3, "avg_monthly": 0.5}, {"id": "M0093", "short": "OB BC1A 4291 M", "door_type": "OB", "glass_w": 422, "glass_h": 729, "color": "WC", "total_6m": 2, "avg_monthly": 0.3, "codes": ["ME1BC0031"]}, {"id": "M0094", "short": "OB BDI1R 4591 M", "door_type": "OB", "glass_w": 445, "glass_h": 729, "color": "WC", "total_6m": 585, "avg_monthly": 97.5, "codes": ["ME1BD0080"]}, {"id": "M0095", "short": "OB M 4573(공용) M", "door_type": "OB", "glass_w": 445, "glass_h": 729, "color": "WC", "total_6m": 585, "avg_monthly": 97.5}, {"id": "M0096", "short": "OB WMLDT 4573 M", "door_type": "OB", "glass_w": 445, "glass_h": 729, "color": "", "total_6m": 585, "avg_monthly": 97.5}, {"id": "M0097", "short": "OB M 5073(공용) M", "door_type": "OB", "glass_w": 495, "glass_h": 729, "color": "WC", "total_6m": 333, "avg_monthly": 55.5}, {"id": "M0098", "short": "OB M 5573(공용) M", "door_type": "OB", "glass_w": 545, "glass_h": 729, "color": "WC", "total_6m": 70, "avg_monthly": 11.7}, {"id": "M0099", "short": "OB BADMIL 6091", "door_type": "OB", "glass_w": 595, "glass_h": 729, "color": "WC", "total_6m": 316, "avg_monthly": 52.7}, {"id": "M0100", "short": "OB M 6073(공용) M", "door_type": "OB", "glass_w": 595, "glass_h": 729, "color": "WC", "total_6m": 316, "avg_monthly": 52.7}, {"id": "M0101", "short": "OB WMLDT 6073 M", "door_type": "OB", "glass_w": 595, "glass_h": 729, "color": "ETP", "total_6m": 316, "avg_monthly": 52.7}, {"id": "M0102", "short": "OB WHMH 6073 M", "door_type": "OB", "glass_w": 595, "glass_h": 731, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0103", "short": "HD BNDB2N 2091 M", "door_type": "HD", "glass_w": 195, "glass_h": 761, "color": "ETP", "total_6m": 19, "avg_monthly": 3.2}, {"id": "M0104", "short": "HD B 2091 L", "door_type": "HD", "glass_w": 195, "glass_h": 761, "color": "", "total_6m": 19, "avg_monthly": 3.2}, {"id": "M0105", "short": "HD B 2091 R", "door_type": "HD", "glass_w": 195, "glass_h": 761, "color": "", "total_6m": 19, "avg_monthly": 3.2}, {"id": "M0106", "short": "HD B 2591 L", "door_type": "HD", "glass_w": 245, "glass_h": 761, "color": "", "total_6m": 2, "avg_monthly": 0.3}, {"id": "M0107", "short": "HD B 2591 R", "door_type": "HD", "glass_w": 245, "glass_h": 761, "color": "", "total_6m": 2, "avg_monthly": 0.3}, {"id": "M0108", "short": "HD BNDC2N 3091 M", "door_type": "HD", "glass_w": 295, "glass_h": 761, "color": "ETP", "total_6m": 50, "avg_monthly": 8.3}, {"id": "M0109", "short": "HD B 3091 L", "door_type": "HD", "glass_w": 295, "glass_h": 761, "color": "", "total_6m": 50, "avg_monthly": 8.3}, {"id": "M0110", "short": "HD B 3091 R", "door_type": "HD", "glass_w": 295, "glass_h": 761, "color": "", "total_6m": 50, "avg_monthly": 8.3}, {"id": "M0111", "short": "HD B 3591 L", "door_type": "HD", "glass_w": 345, "glass_h": 761, "color": "", "total_6m": 17, "avg_monthly": 2.8}, {"id": "M0112", "short": "HD B 3591 R", "door_type": "HD", "glass_w": 345, "glass_h": 761, "color": "", "total_6m": 17, "avg_monthly": 2.8}, {"id": "M0113", "short": "HD B 4091 L", "door_type": "HD", "glass_w": 395, "glass_h": 761, "color": "", "total_6m": 46, "avg_monthly": 7.7}, {"id": "M0114", "short": "HD B 4091 R", "door_type": "HD", "glass_w": 395, "glass_h": 761, "color": "", "total_6m": 46, "avg_monthly": 7.7}, {"id": "M0115", "short": "HD BC1B 4091 R", "door_type": "HD", "glass_w": 402, "glass_h": 761, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0116", "short": "HD BC1A 4291 L", "door_type": "HD", "glass_w": 422, "glass_h": 761, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0117", "short": "HD BDI1R 4591 M", "door_type": "HD", "glass_w": 445, "glass_h": 761, "color": "ETP", "total_6m": 124, "avg_monthly": 20.7, "codes": ["ME1BD0110"]}, {"id": "M0118", "short": "HD B 4591 L", "door_type": "HD", "glass_w": 445, "glass_h": 761, "color": "", "total_6m": 124, "avg_monthly": 20.7}, {"id": "M0119", "short": "HD B 4591 R", "door_type": "HD", "glass_w": 445, "glass_h": 761, "color": "", "total_6m": 124, "avg_monthly": 20.7}, {"id": "M0120", "short": "HD B 5091 L", "door_type": "HD", "glass_w": 495, "glass_h": 761, "color": "", "total_6m": 145, "avg_monthly": 24.2}, {"id": "M0121", "short": "HD B 5091 R", "door_type": "HD", "glass_w": 495, "glass_h": 761, "color": "", "total_6m": 145, "avg_monthly": 24.2}, {"id": "M0122", "short": "HD B 5591 L", "door_type": "HD", "glass_w": 545, "glass_h": 761, "color": "", "total_6m": 25, "avg_monthly": 4.2}, {"id": "M0123", "short": "HD B 5591 R", "door_type": "HD", "glass_w": 545, "glass_h": 761, "color": "", "total_6m": 25, "avg_monthly": 4.2}, {"id": "M0124", "short": "HD BADMIL 6091", "door_type": "HD", "glass_w": 595, "glass_h": 761, "color": "WC", "total_6m": 116, "avg_monthly": 19.3}, {"id": "M0125", "short": "HD B 6091 L", "door_type": "HD", "glass_w": 595, "glass_h": 761, "color": "", "total_6m": 116, "avg_monthly": 19.3}, {"id": "M0126", "short": "HD B 6091 R", "door_type": "HD", "glass_w": 595, "glass_h": 761, "color": "", "total_6m": 116, "avg_monthly": 19.3}, {"id": "M0127", "short": "OB WMLDT 6083 M", "door_type": "OB", "glass_w": 595, "glass_h": 827, "color": "WC", "total_6m": 12, "avg_monthly": 2.0}, {"id": "M0128", "short": "OB M 2086 M", "door_type": "OB", "glass_w": 195, "glass_h": 857, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0129", "short": "OB M 2586 M", "door_type": "OB", "glass_w": 245, "glass_h": 857, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0130", "short": "OB M 3086 M", "door_type": "OB", "glass_w": 295, "glass_h": 857, "color": "WC", "total_6m": 13, "avg_monthly": 2.2}, {"id": "M0131", "short": "OB WMLDT 3086 M", "door_type": "OB", "glass_w": 295, "glass_h": 857, "color": "", "total_6m": 13, "avg_monthly": 2.2}, {"id": "M0132", "short": "OB M 3586 M", "door_type": "OB", "glass_w": 345, "glass_h": 857, "color": "WC", "total_6m": 13, "avg_monthly": 2.2}, {"id": "M0133", "short": "OB M 4086 M", "door_type": "OB", "glass_w": 395, "glass_h": 857, "color": "ETP", "total_6m": 49, "avg_monthly": 8.2}, {"id": "M0134", "short": "OB M 4586 M", "door_type": "OB", "glass_w": 445, "glass_h": 857, "color": "ETP", "total_6m": 34, "avg_monthly": 5.7}, {"id": "M0135", "short": "OB WMLDT 4586 M", "door_type": "OB", "glass_w": 445, "glass_h": 857, "color": "", "total_6m": 34, "avg_monthly": 5.7}, {"id": "M0136", "short": "OB M 5086 M", "door_type": "OB", "glass_w": 495, "glass_h": 857, "color": "ETP", "total_6m": 4, "avg_monthly": 0.7}, {"id": "M0137", "short": "OB M 5586 M", "door_type": "OB", "glass_w": 545, "glass_h": 857, "color": "ETP", "total_6m": 2, "avg_monthly": 0.3, "codes": ["ME1WU0069"]}, {"id": "M0138", "short": "OB M 6086 M", "door_type": "OB", "glass_w": 595, "glass_h": 857, "color": "WC", "total_6m": 16, "avg_monthly": 2.7}, {"id": "M0139", "short": "OB WMLDT 6086 M", "door_type": "OB", "glass_w": 595, "glass_h": 857, "color": "ETP", "total_6m": 16, "avg_monthly": 2.7}, {"id": "M0140", "short": "OB WMLDT 6096 M", "door_type": "OB", "glass_w": 595, "glass_h": 955, "color": "ETP", "total_6m": 14, "avg_monthly": 2.3, "codes": ["ME1WT0158"]}, {"id": "M0141", "short": "OB WT 30134 M", "door_type": "OB", "glass_w": 295, "glass_h": 1342, "color": "WC", "total_6m": 6, "avg_monthly": 1.0}, {"id": "M0142", "short": "OB WT 40134 M", "door_type": "OB", "glass_w": 395, "glass_h": 1342, "color": "WC", "total_6m": 10, "avg_monthly": 1.7}, {"id": "M0143", "short": "OB WT 45134 M", "door_type": "OB", "glass_w": 445, "glass_h": 1342, "color": "ETP", "total_6m": 54, "avg_monthly": 9.0}, {"id": "M0144", "short": "OB WTA 45134 L", "door_type": "OB", "glass_w": 445, "glass_h": 1342, "color": "ETP", "total_6m": 54, "avg_monthly": 9.0, "codes": ["ME1WT0167", "ME1WT0168"]}, {"id": "M0145", "short": "OB WTA 45134 R", "door_type": "OB", "glass_w": 445, "glass_h": 1342, "color": "ETP", "total_6m": 54, "avg_monthly": 9.0, "codes": ["ME1WT0167", "ME1WT0168"]}, {"id": "M0146", "short": "OB WT 60134 M", "door_type": "OB", "glass_w": 595, "glass_h": 1342, "color": "ETP", "total_6m": 37, "avg_monthly": 6.2}, {"id": "M0147", "short": "OB WTA 60134 L", "door_type": "OB", "glass_w": 595, "glass_h": 1342, "color": "", "total_6m": 37, "avg_monthly": 6.2}, {"id": "M0148", "short": "OB WTA 60134 R", "door_type": "OB", "glass_w": 595, "glass_h": 1342, "color": "", "total_6m": 37, "avg_monthly": 6.2}, {"id": "M0149", "short": "HD TCP1D 40222", "door_type": "HD", "glass_w": 402, "glass_h": 1347, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1TC0012"]}, {"id": "M0150", "short": "HD TCP1D 42222", "door_type": "HD", "glass_w": 422, "glass_h": 1347, "color": "ETP", "total_6m": 0, "avg_monthly": 0.0, "codes": ["ME1TC0011"]}, {"id": "M0151", "short": "HD TH 45220", "door_type": "HD", "glass_w": 445, "glass_h": 1347, "color": "WC", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0152", "short": "OB WTARG 60141 L", "door_type": "OB", "glass_w": 592, "glass_h": 1410, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0153", "short": "OB WTARG 60141 R", "door_type": "OB", "glass_w": 592, "glass_h": 1410, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0154", "short": "OB WT 30147 M", "door_type": "OB", "glass_w": 295, "glass_h": 1470, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0155", "short": "OB WT 40147 M", "door_type": "OB", "glass_w": 395, "glass_h": 1470, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0156", "short": "OB WT 45147 M", "door_type": "OB", "glass_w": 445, "glass_h": 1470, "color": "WC", "total_6m": 14, "avg_monthly": 2.3}, {"id": "M0157", "short": "OB WTA 45147 L", "door_type": "OB", "glass_w": 445, "glass_h": 1470, "color": "", "total_6m": 14, "avg_monthly": 2.3}, {"id": "M0158", "short": "OB WTA 45147 R", "door_type": "OB", "glass_w": 445, "glass_h": 1470, "color": "", "total_6m": 14, "avg_monthly": 2.3}, {"id": "M0159", "short": "OB WT 60147 M", "door_type": "OB", "glass_w": 595, "glass_h": 1470, "color": "ETP", "total_6m": 20, "avg_monthly": 3.3}, {"id": "M0160", "short": "OB WTA 60147 L", "door_type": "OB", "glass_w": 595, "glass_h": 1470, "color": "ETP", "total_6m": 20, "avg_monthly": 3.3, "codes": ["ME1WT0173", "ME1WT0174"]}, {"id": "M0161", "short": "OB WTA 60147 R", "door_type": "OB", "glass_w": 595, "glass_h": 1470, "color": "ETP", "total_6m": 20, "avg_monthly": 3.3, "codes": ["ME1WT0173", "ME1WT0174"]}, {"id": "M0162", "short": "HD TCP1D 40235", "door_type": "HD", "glass_w": 402, "glass_h": 1475, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0163", "short": "HD TCP1D 42235", "door_type": "HD", "glass_w": 422, "glass_h": 1475, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0164", "short": "HD TH 45233", "door_type": "HD", "glass_w": 445, "glass_h": 1475, "color": "", "total_6m": 0, "avg_monthly": 0.0}, {"id": "M0165", "short": "OB WTARG 60154 L", "door_type": "OB", "glass_w": 592, "glass_h": 1538, "color": "ETP", "total_6m": 1, "avg_monthly": 0.2, "codes": ["ME1WT0178"]}, {"id": "M0166", "short": "OB WTARG 60154 R", "door_type": "OB", "glass_w": 592, "glass_h": 1538, "color": "ETP", "total_6m": 1, "avg_monthly": 0.2, "codes": ["ME1WT0178"]}];
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="hdr-title"><em>와이비앤디</em> 업무<small>YBN Work Hub</small></div>
+    <div class="hdr-meta"><span id="hdr-now"></span> <span id="hdr-gs"></span></div>
+  </div>
+  <nav class="main-nav">
+    <button class="main-nav-btn on" onclick="showMain('home')">🏠 홈</button>
+    <button class="main-nav-btn" onclick="showMain('worklog')">✏️ 작업일지</button>
+    <button class="main-nav-btn" onclick="showMain('stock')">📋 재고관리</button>
+    <button class="main-nav-btn" onclick="showMain('order')">🧾 발주</button>
+    <button class="main-nav-btn" onclick="showMain('order-analysis')">📊 발주분석</button>
+    <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
+    <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
+    <button class="main-nav-btn" onclick="showMain('delivery')">📦 납품서</button>
+    <button class="main-nav-btn" onclick="showMain('glassneed')">🖨️ 인쇄유리소요</button>
+    <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
+  </nav>
+</div>
 
-// ---- ASSEMBLY_MODELS ----
-const ASSEMBLY_MODELS=[{"short": "HD BADMIL 6091", "brand": "HD", "asm_w": 595, "asm_h": 764, "glass_w": 595, "glass_h": 761, "note": "후면사전펀치 확인"}, {"short": "HD BC1A 4291 L", "brand": "HD", "asm_w": 422, "asm_h": 764, "glass_w": 422, "glass_h": 761, "note": "155도 힌지 / 보링 상부 142"}, {"short": "HD BC1B 4091 R", "brand": "HD", "asm_w": 402, "asm_h": 764, "glass_w": 402, "glass_h": 761, "note": "155도 힌지 / 보링 상부 142"}, {"short": "HD BD2R 12091 M", "brand": "HD", "asm_w": 1195, "asm_h": 380, "glass_w": 1195, "glass_h": 377, "note": "2도어 합적/\n보링위치다름(상하 확인)"}, {"short": "HD BD2R 6091 M", "brand": "HD", "asm_w": 595, "asm_h": 380, "glass_w": 595, "glass_h": 377, "note": "2도어 합적/\n보링위치다름(상하 확인)"}, {"short": "HD BD2R 9091 M", "brand": "HD", "asm_w": 895, "asm_h": 380, "glass_w": 895, "glass_h": 377, "note": "2도어 합적/\n보링위치다름(상하 확인)"}, {"short": "HD BD3U 4591 M", "brand": "HD", "asm_w": 445, "asm_h": 188, "glass_w": 445, "glass_h": 185, "is_bd3u": true, "note": "대마이다1/소마이다2 합적\n보링위치(상하)확인"}, {"short": "HD BD3U 4591 M", "brand": "HD", "asm_w": 445, "asm_h": 380, "glass_w": 445, "glass_h": 377, "is_bd3u": true}, {"short": "HD BD3U 6091 M", "brand": "HD", "asm_w": 595, "asm_h": 188, "glass_w": 595, "glass_h": 185, "is_bd3u": true, "note": "대마이다1/소마이다2 합적\n보링위치(상하)확인"}, {"short": "HD BD3U 6091 M", "brand": "HD", "asm_w": 595, "asm_h": 380, "glass_w": 595, "glass_h": 377, "is_bd3u": true}, {"short": "HD BDI1R 4591 M", "brand": "HD", "asm_w": 445, "asm_h": 764, "glass_w": 445, "glass_h": 761, "note": "마이다/  보링위치(상하) 확인"}, {"short": "HD BLD2R 6062 M", "brand": "HD", "asm_w": 595, "asm_h": 380, "glass_w": 595, "glass_h": 377, "note": "1마이다 2목대 합적"}, {"short": "HD BNDB2N 2091 M", "brand": "HD", "asm_w": 195, "asm_h": 764, "glass_w": 195, "glass_h": 761, "note": "마이다/후면사전펀치,상하확인"}, {"short": "HD BNDC2N 3091 M", "brand": "HD", "asm_w": 295, "asm_h": 764, "glass_w": 295, "glass_h": 761, "note": "마이다/후면사전펀치,상하확인"}, {"short": "HD BTAO1U 6014 M", "brand": "HD", "asm_w": 595, "asm_h": 142, "glass_w": 595, "glass_h": 139, "note": "케이싱마이다/M4*24 피스 합적\n보링위치 (상하) 확인"}, {"short": "HD BUIF 3034", "brand": "HD", "asm_w": 295, "asm_h": 348, "glass_w": 295, "glass_h": 345, "note": "샘플"}, {"short": "HD B 2091 L", "brand": "HD", "asm_w": 195, "asm_h": 764, "glass_w": 195, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 2091 R", "brand": "HD", "asm_w": 195, "asm_h": 764, "glass_w": 195, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 2591 L", "brand": "HD", "asm_w": 245, "asm_h": 764, "glass_w": 245, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 2591 R", "brand": "HD", "asm_w": 245, "asm_h": 764, "glass_w": 245, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 3091 L", "brand": "HD", "asm_w": 295, "asm_h": 764, "glass_w": 295, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 3091 R", "brand": "HD", "asm_w": 295, "asm_h": 764, "glass_w": 295, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 3591 L", "brand": "HD", "asm_w": 345, "asm_h": 764, "glass_w": 345, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 3591 R", "brand": "HD", "asm_w": 345, "asm_h": 764, "glass_w": 345, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 4091 L", "brand": "HD", "asm_w": 395, "asm_h": 764, "glass_w": 395, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 4091 R", "brand": "HD", "asm_w": 395, "asm_h": 764, "glass_w": 395, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 4591 L", "brand": "HD", "asm_w": 445, "asm_h": 764, "glass_w": 445, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 4591 R", "brand": "HD", "asm_w": 445, "asm_h": 764, "glass_w": 445, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 5091 L", "brand": "HD", "asm_w": 495, "asm_h": 764, "glass_w": 495, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 5091 R", "brand": "HD", "asm_w": 495, "asm_h": 764, "glass_w": 495, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 5591 L", "brand": "HD", "asm_w": 545, "asm_h": 764, "glass_w": 545, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 5591 R", "brand": "HD", "asm_w": 545, "asm_h": 764, "glass_w": 545, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 6091 L", "brand": "HD", "asm_w": 595, "asm_h": 764, "glass_w": 595, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD B 6091 R", "brand": "HD", "asm_w": 595, "asm_h": 764, "glass_w": 595, "glass_h": 761, "note": "보링위치확인 / 상부142"}, {"short": "HD TND2 30149 M", "brand": "HD", "asm_w": 295, "asm_h": 609, "glass_w": 295, "glass_h": 606, "note": "2마이다 합적/\n 2마이다 사전 펀치 확인"}, {"short": "HD TCP1D 42222 L", "brand": "HD", "asm_w": 422, "asm_h": 2113, "glass_w": 422, "glass_h": 1349, "glass_h_bot": 761, "is_longdoor": true, "note": "롱도어 / 유리 사이즈 확인 /\n155 도 힌지"}, {"short": "HD TCP1D 40222 R", "brand": "HD", "asm_w": 402, "asm_h": 2113, "glass_w": 402, "glass_h": 1349, "glass_h_bot": 761, "is_longdoor": true, "note": "롱도어 / 유리 사이즈 확인 /\n155 도 힌지"}, {"short": "HD TCP1D 42235 L", "brand": "HD", "asm_w": 422, "asm_h": 2241, "glass_w": 422, "glass_h": 1477, "glass_h_bot": 761, "is_longdoor": true, "note": "롱도어 / 유리 사이즈 확인 /\n155 도 힌지"}, {"short": "HD TCP1D 40235 R", "brand": "HD", "asm_w": 402, "asm_h": 2241, "glass_w": 402, "glass_h": 1477, "glass_h_bot": 761, "is_longdoor": true, "note": "롱도어 / 유리 사이즈 확인 /\n155 도 힌지"}, {"short": "HD TH 45220 L", "brand": "HD", "asm_w": 445, "asm_h": 2203, "glass_w": 445, "glass_h": 1349, "note": "롱도어 / 유리 사이즈 확인"}, {"short": "HD TH 45233 L", "brand": "HD", "asm_w": 445, "asm_h": 2331, "glass_w": 445, "glass_h": 1477, "note": "롱도어 / 유리 사이즈 확인"}, {"short": "HD TH 45233 R", "brand": "HD", "asm_w": 445, "asm_h": 2331, "glass_w": 445, "glass_h": 1477, "note": "롱도어 / 유리 사이즈 확인"}, {"short": "OB BAD 6091", "brand": "OB", "asm_w": 595, "asm_h": 586, "glass_w": 595, "glass_h": 583, "note": "멍도어"}, {"short": "OB BADMIL 6091", "brand": "OB", "asm_w": 595, "asm_h": 732, "glass_w": 595, "glass_h": 729, "note": "후면 사전보링"}, {"short": "OB BC1A 4291 M", "brand": "OB", "asm_w": 422, "asm_h": 732, "glass_w": 422, "glass_h": 729, "note": "155도 힌지"}, {"short": "OB BC1B 4091 M", "brand": "OB", "asm_w": 402, "asm_h": 732, "glass_w": 402, "glass_h": 729, "note": "155도 힌지"}, {"short": "OB BD2R 12091 M", "brand": "OB", "asm_w": 1195, "asm_h": 350, "glass_w": 1195, "glass_h": 347, "note": "마이다/ 2도어 합적\n상/하 보링위치다름"}, {"short": "OB BD2R 6091 M", "brand": "OB", "asm_w": 595, "asm_h": 350, "glass_w": 595, "glass_h": 347, "note": "마이다/ 2도어 합적\n상/하 보링위치다름"}, {"short": "OB BD2R 9091 M", "brand": "OB", "asm_w": 895, "asm_h": 350, "glass_w": 895, "glass_h": 347, "note": "마이다/ 2도어 합적\n상/하 보링위치다름"}, {"short": "OB BD3U 4591 M", "brand": "OB", "asm_w": 445, "asm_h": 173, "glass_w": 445, "glass_h": 170, "is_bd3u": true, "note": "케이싱마이다\n대마이다1/소마이다2 합적"}, {"short": "OB BD3U 4591 M", "brand": "OB", "asm_w": 445, "asm_h": 350, "glass_w": 445, "glass_h": 347, "is_bd3u": true}, {"short": "OB BD3U 6091 M", "brand": "OB", "asm_w": 595, "asm_h": 173, "glass_w": 595, "glass_h": 170, "is_bd3u": true, "note": "케이싱마이다\n대마이다1/소마이다2 합적"}, {"short": "OB BD3U 6091 M", "brand": "OB", "asm_w": 595, "asm_h": 350, "glass_w": 595, "glass_h": 347, "is_bd3u": true}, {"short": "OB BDI1R 4591 M", "brand": "OB", "asm_w": 445, "asm_h": 732, "glass_w": 445, "glass_h": 729, "note": "마이다 / 보링8개확인"}, {"short": "OB BLD1R 4591 M", "brand": "OB", "asm_w": 445, "asm_h": 250, "glass_w": 445, "glass_h": 247, "note": "1마이다 1목대 합적"}, {"short": "OB BLD1R 6091 M", "brand": "OB", "asm_w": 595, "asm_h": 250, "glass_w": 595, "glass_h": 247, "note": "1마이다 1목대 합적"}, {"short": "OB BLD1UA 4591 M", "brand": "OB", "asm_w": 445, "asm_h": 250, "glass_w": 445, "glass_h": 247, "note": "1케이싱마이다 1목대 합적"}, {"short": "OB BLD1UA 6091 M", "brand": "OB", "asm_w": 595, "asm_h": 250, "glass_w": 595, "glass_h": 247, "note": "1케이싱마이다 1목대 합적"}, {"short": "OB BLD2R 6062 M", "brand": "OB", "asm_w": 595, "asm_h": 350, "glass_w": 595, "glass_h": 347, "note": "1마이다 2목대 합적"}, {"short": "OB BNDB2N 2091 M", "brand": "OB", "asm_w": 195, "asm_h": 732, "glass_w": 195, "glass_h": 729, "note": "마이다/사전펀치 하부확인"}, {"short": "OB BNDC2N 3091 M", "brand": "OB", "asm_w": 295, "asm_h": 732, "glass_w": 295, "glass_h": 729, "note": "마이다/사전펀치 하부확인"}, {"short": "OB BRO1R 6091 M", "brand": "OB", "asm_w": 595, "asm_h": 250, "glass_w": 595, "glass_h": 247, "note": "마이다"}, {"short": "OB BTAO1U 6014 M", "brand": "OB", "asm_w": 595, "asm_h": 142, "glass_w": 595, "glass_h": 139, "note": "케이싱마이다"}, {"short": "OB BTARG 6070 L", "brand": "OB", "asm_w": 592, "asm_h": 696, "glass_w": 592, "glass_h": 693, "note": "관통 손잡이 보링"}, {"short": "OB BTARG 6070 R", "brand": "OB", "asm_w": 592, "asm_h": 696, "glass_w": 592, "glass_h": 693, "note": "관통 손잡이 보링"}, {"short": "OB BUIF 3034", "brand": "OB", "asm_w": 295, "asm_h": 348, "glass_w": 295, "glass_h": 345, "note": "샘플"}, {"short": "OB M 2073(공용) M", "brand": "OB", "asm_w": 195, "asm_h": 732, "glass_w": 195, "glass_h": 729}, {"short": "OB M 2086 M", "brand": "OB", "asm_w": 195, "asm_h": 860, "glass_w": 195, "glass_h": 857}, {"short": "OB M 2573(공용) M", "brand": "OB", "asm_w": 245, "asm_h": 732, "glass_w": 245, "glass_h": 729}, {"short": "OB M 2586 M", "brand": "OB", "asm_w": 245, "asm_h": 860, "glass_w": 245, "glass_h": 857}, {"short": "OB M 3065 M", "brand": "OB", "asm_w": 295, "asm_h": 652, "glass_w": 295, "glass_h": 649}, {"short": "OB M 3073(공용) M", "brand": "OB", "asm_w": 295, "asm_h": 732, "glass_w": 295, "glass_h": 729}, {"short": "OB M 3086 M", "brand": "OB", "asm_w": 295, "asm_h": 860, "glass_w": 295, "glass_h": 857}, {"short": "OB M 3565 M", "brand": "OB", "asm_w": 345, "asm_h": 652, "glass_w": 345, "glass_h": 649}, {"short": "OB M 3573(공용) M", "brand": "OB", "asm_w": 345, "asm_h": 732, "glass_w": 345, "glass_h": 729}, {"short": "OB M 3586 M", "brand": "OB", "asm_w": 345, "asm_h": 860, "glass_w": 345, "glass_h": 857}, {"short": "OB M 4065 M", "brand": "OB", "asm_w": 395, "asm_h": 652, "glass_w": 395, "glass_h": 649}, {"short": "OB M 4073(공용) M", "brand": "OB", "asm_w": 395, "asm_h": 732, "glass_w": 395, "glass_h": 729}, {"short": "OB M 4086 M", "brand": "OB", "asm_w": 395, "asm_h": 860, "glass_w": 395, "glass_h": 857}, {"short": "OB M 4565 M", "brand": "OB", "asm_w": 445, "asm_h": 652, "glass_w": 445, "glass_h": 649}, {"short": "OB M 4573(공용) M", "brand": "OB", "asm_w": 445, "asm_h": 732, "glass_w": 445, "glass_h": 729}, {"short": "OB M 4586 M", "brand": "OB", "asm_w": 445, "asm_h": 860, "glass_w": 445, "glass_h": 857}, {"short": "OB M 5065 M", "brand": "OB", "asm_w": 495, "asm_h": 652, "glass_w": 495, "glass_h": 649}, {"short": "OB M 5073(공용) M", "brand": "OB", "asm_w": 495, "asm_h": 732, "glass_w": 495, "glass_h": 729, "note": "경첩보링 3"}, {"short": "OB M 5086 M", "brand": "OB", "asm_w": 495, "asm_h": 860, "glass_w": 495, "glass_h": 857, "note": "경첩보링 3"}, {"short": "OB M 5573(공용) M", "brand": "OB", "asm_w": 545, "asm_h": 732, "glass_w": 545, "glass_h": 729, "note": "경첩보링 3"}, {"short": "OB M 5586 M", "brand": "OB", "asm_w": 545, "asm_h": 860, "glass_w": 545, "glass_h": 857, "note": "경첩보링 3"}, {"short": "OB M 6052 M", "brand": "OB", "asm_w": 595, "asm_h": 516, "glass_w": 595, "glass_h": 513}, {"short": "OB M 6073(공용) M", "brand": "OB", "asm_w": 595, "asm_h": 732, "glass_w": 595, "glass_h": 729, "note": "경첩보링 3"}, {"short": "OB M 6086 M", "brand": "OB", "asm_w": 595, "asm_h": 860, "glass_w": 595, "glass_h": 857, "note": "경첩보링 3"}, {"short": "OB TND2 30149 M", "brand": "OB", "asm_w": 295, "asm_h": 609, "glass_w": 295, "glass_h": 606, "note": "마이다/사전펀치"}, {"short": "OB TND2 30149 M", "brand": "OB", "asm_w": 295, "asm_h": 732, "glass_w": 295, "glass_h": 729, "note": "마이다/사전펀치"}, {"short": "OB W2U 4042 M", "brand": "OB", "asm_w": 395, "asm_h": 420, "glass_w": 395, "glass_h": 417}, {"short": "OB W2U 4542 M", "brand": "OB", "asm_w": 445, "asm_h": 420, "glass_w": 445, "glass_h": 417}, {"short": "OB WF 10037 M", "brand": "OB", "asm_w": 995, "asm_h": 372, "glass_w": 995, "glass_h": 371, "note": "피스합적,후면사전펀치"}, {"short": "OB WF 6030 M", "brand": "OB", "asm_w": 595, "asm_h": 305, "glass_w": 595, "glass_h": 304, "note": "피스합적,사전펀치"}, {"short": "OB WF 6043 M", "brand": "OB", "asm_w": 595, "asm_h": 433, "glass_w": 595, "glass_h": 432, "note": "피스합적,사전펀치"}, {"short": "OB WF 8037 M", "brand": "OB", "asm_w": 795, "asm_h": 372, "glass_w": 795, "glass_h": 371, "note": "피스합적,사전펀치"}, {"short": "OB WF 8044 M", "brand": "OB", "asm_w": 795, "asm_h": 436, "glass_w": 795, "glass_h": 435, "note": "피스합적,사전펀치"}, {"short": "OB WF 9033 M", "brand": "OB", "asm_w": 895, "asm_h": 332, "glass_w": 895, "glass_h": 331, "note": "피스합적,사전펀치"}, {"short": "OB WF 9037 M", "brand": "OB", "asm_w": 895, "asm_h": 372, "glass_w": 895, "glass_h": 371, "note": "피스합적,사전펀치"}, {"short": "OB WF 9044 M", "brand": "OB", "asm_w": 895, "asm_h": 436, "glass_w": 895, "glass_h": 435, "note": "피스합적,사전펀치"}, {"short": "OB WFED 10053 M", "brand": "OB", "asm_w": 995, "asm_h": 532, "glass_w": 995, "glass_h": 531, "note": "피스합적,사전펀치"}, {"short": "OB WFED 6053 M", "brand": "OB", "asm_w": 595, "asm_h": 532, "glass_w": 595, "glass_h": 531, "note": "피스합적,사전펀치"}, {"short": "OB WFED 7053 M", "brand": "OB", "asm_w": 695, "asm_h": 532, "glass_w": 695, "glass_h": 531, "note": "피스합적,사전펀치"}, {"short": "OB WFED 8053 M", "brand": "OB", "asm_w": 795, "asm_h": 532, "glass_w": 795, "glass_h": 531, "note": "피스합적,사전펀치"}, {"short": "OB WFED 9053 M", "brand": "OB", "asm_w": 895, "asm_h": 532, "glass_w": 895, "glass_h": 531, "note": "피스합적,사전펀치"}, {"short": "OB WFMD 6035 M", "brand": "OB", "asm_w": 595, "asm_h": 352, "glass_w": 595, "glass_h": 351, "note": "피스합적,사전펀치"}, {"short": "OB WFMD 6048 M", "brand": "OB", "asm_w": 595, "asm_h": 480, "glass_w": 595, "glass_h": 479, "note": "피스합적,사전펀치"}, {"short": "OB WFMD 9035 M", "brand": "OB", "asm_w": 895, "asm_h": 352, "glass_w": 895, "glass_h": 351, "note": "피스합적,사전펀치"}, {"short": "OB WFMD 9048 M", "brand": "OB", "asm_w": 895, "asm_h": 480, "glass_w": 895, "glass_h": 479, "note": "피스합적,사전펀치"}, {"short": "OB WFUP 10032 M", "brand": "OB", "asm_w": 995, "asm_h": 316, "glass_w": 995, "glass_h": 315, "note": "피스합적,사전펀치"}, {"short": "OB WFUP 10036 M", "brand": "OB", "asm_w": 995, "asm_h": 356, "glass_w": 995, "glass_h": 355, "note": "피스합적,사전펀치"}, {"short": "OB WFUP 8032 M", "brand": "OB", "asm_w": 795, "asm_h": 316, "glass_w": 795, "glass_h": 315, "note": "피스합적,사전펀치"}, {"short": "OB WFUP 8036 M", "brand": "OB", "asm_w": 795, "asm_h": 356, "glass_w": 795, "glass_h": 355, "note": "피스합적,사전펀치"}, {"short": "OB WFUP 9032 M", "brand": "OB", "asm_w": 895, "asm_h": 316, "glass_w": 895, "glass_h": 315, "note": "피스합적,사전펀치"}, {"short": "OB WFUP 9036 M", "brand": "OB", "asm_w": 895, "asm_h": 356, "glass_w": 895, "glass_h": 355, "note": "피스합적,사전펀치"}, {"short": "OB WHFM 6027 M", "brand": "OB", "asm_w": 595, "asm_h": 272, "glass_w": 595, "glass_h": 271, "note": "피스합적,사전펀치"}, {"short": "OB WHFM 9027 M", "brand": "OB", "asm_w": 895, "asm_h": 272, "glass_w": 895, "glass_h": 271, "note": "피스합적,사전펀치"}, {"short": "OB WHM 6061 M", "brand": "OB", "asm_w": 595, "asm_h": 606, "glass_w": 595, "glass_h": 605, "note": "피스합적,사전펀치"}, {"short": "OB WHMH 6065 M", "brand": "OB", "asm_w": 595, "asm_h": 652, "glass_w": 595, "glass_h": 651, "warning": "사전펀치 위치 다름 — 조립 전 확인", "note": "피스합적,사전펀치 다름"}, {"short": "OB WHMH 6073 M", "brand": "OB", "asm_w": 595, "asm_h": 732, "glass_w": 595, "glass_h": 731, "warning": "사전펀치 위치 다름 — 조립 전 확인", "note": "피스합적,사전펀치 다름"}, {"short": "OB WLDL 6051 M", "brand": "OB", "asm_w": 595, "asm_h": 510, "glass_w": 595, "glass_h": 507, "note": "관통 손잡이 보링/사전펀치"}, {"short": "OB WLDL 9051 M", "brand": "OB", "asm_w": 895, "asm_h": 510, "glass_w": 895, "glass_h": 507, "note": "관통 손잡이 보링/사전펀치"}, {"short": "OB WMLDT 3073 M", "brand": "OB", "asm_w": 295, "asm_h": 732, "glass_w": 295, "glass_h": 729}, {"short": "OB WMLDT 3086 M", "brand": "OB", "asm_w": 295, "asm_h": 860, "glass_w": 295, "glass_h": 857}, {"short": "OB WMLDT 4573 M", "brand": "OB", "asm_w": 445, "asm_h": 732, "glass_w": 445, "glass_h": 729}, {"short": "OB WMLDT 4586 M", "brand": "OB", "asm_w": 445, "asm_h": 860, "glass_w": 445, "glass_h": 857}, {"short": "OB WMLDT 6073 M", "brand": "OB", "asm_w": 595, "asm_h": 732, "glass_w": 595, "glass_h": 729, "note": "경첩보링 3"}, {"short": "OB WMLDT 6083 M", "brand": "OB", "asm_w": 595, "asm_h": 830, "glass_w": 595, "glass_h": 827, "note": "경첩보링 3"}, {"short": "OB WMLDT 6086 M", "brand": "OB", "asm_w": 595, "asm_h": 860, "glass_w": 595, "glass_h": 857, "note": "경첩보링 3"}, {"short": "OB WMLDT 6096 M", "brand": "OB", "asm_w": 595, "asm_h": 958, "glass_w": 595, "glass_h": 955, "note": "경첩보링 3"}, {"short": "OB WRMB 10033 M", "brand": "OB", "asm_w": 995, "asm_h": 327, "glass_w": 995, "glass_h": 326, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 10045 M", "brand": "OB", "asm_w": 995, "asm_h": 455, "glass_w": 995, "glass_h": 454, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 4735 M", "brand": "OB", "asm_w": 465, "asm_h": 352, "glass_w": 465, "glass_h": 351, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 4748 M", "brand": "OB", "asm_w": 465, "asm_h": 480, "glass_w": 465, "glass_h": 479, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 6135 M", "brand": "OB", "asm_w": 605, "asm_h": 352, "glass_w": 605, "glass_h": 351, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 6148 M", "brand": "OB", "asm_w": 605, "asm_h": 480, "glass_w": 605, "glass_h": 479, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 7135 M", "brand": "OB", "asm_w": 710, "asm_h": 352, "glass_w": 710, "glass_h": 351, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 7148 M", "brand": "OB", "asm_w": 710, "asm_h": 480, "glass_w": 710, "glass_h": 479, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 8033 M", "brand": "OB", "asm_w": 795, "asm_h": 327, "glass_w": 795, "glass_h": 326, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 8045 M", "brand": "OB", "asm_w": 795, "asm_h": 455, "glass_w": 795, "glass_h": 454, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 9335 M", "brand": "OB", "asm_w": 925, "asm_h": 352, "glass_w": 925, "glass_h": 351, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 9348 M", "brand": "OB", "asm_w": 925, "asm_h": 480, "glass_w": 925, "glass_h": 479, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 9533 M", "brand": "OB", "asm_w": 945, "asm_h": 327, "glass_w": 945, "glass_h": 326, "note": "피스합적,사전펀치"}, {"short": "OB WRMB 9545 M", "brand": "OB", "asm_w": 945, "asm_h": 455, "glass_w": 945, "glass_h": 454, "note": "피스합적,사전펀치"}, {"short": "OB WRMBS 10035 M", "brand": "OB", "asm_w": 995, "asm_h": 352, "glass_w": 995, "glass_h": 351, "note": "피스합적,사전펀치"}, {"short": "OB WRMBS 10048 M", "brand": "OB", "asm_w": 995, "asm_h": 480, "glass_w": 995, "glass_h": 479, "note": "피스합적,사전펀치"}, {"short": "OB WRMBS 8035 M", "brand": "OB", "asm_w": 795, "asm_h": 352, "glass_w": 795, "glass_h": 351, "note": "피스합적,사전펀치"}, {"short": "OB WRMBS 8048 M", "brand": "OB", "asm_w": 795, "asm_h": 480, "glass_w": 795, "glass_h": 479, "note": "피스합적,사전펀치"}, {"short": "OB WRMBS 9035 M", "brand": "OB", "asm_w": 895, "asm_h": 352, "glass_w": 895, "glass_h": 351, "note": "피스합적,사전펀치"}, {"short": "OB WRMBS 9048 M", "brand": "OB", "asm_w": 895, "asm_h": 480, "glass_w": 895, "glass_h": 479, "note": "피스합적,사전펀치"}, {"short": "OB WT 30134 M", "brand": "OB", "asm_w": 295, "asm_h": 1345, "glass_w": 295, "glass_h": 1342}, {"short": "OB WT 30147 M", "brand": "OB", "asm_w": 295, "asm_h": 1473, "glass_w": 295, "glass_h": 1470}, {"short": "OB WT 40134 M", "brand": "OB", "asm_w": 395, "asm_h": 1345, "glass_w": 395, "glass_h": 1342}, {"short": "OB WT 40147 M", "brand": "OB", "asm_w": 395, "asm_h": 1473, "glass_w": 395, "glass_h": 1470}, {"short": "OB WT 45134 M", "brand": "OB", "asm_w": 445, "asm_h": 1345, "glass_w": 445, "glass_h": 1342}, {"short": "OB WT 45147 M", "brand": "OB", "asm_w": 445, "asm_h": 1473, "glass_w": 445, "glass_h": 1470}, {"short": "OB WT 60134 M", "brand": "OB", "asm_w": 595, "asm_h": 1345, "glass_w": 595, "glass_h": 1342}, {"short": "OB WT 60147 M", "brand": "OB", "asm_w": 595, "asm_h": 1473, "glass_w": 595, "glass_h": 1470}, {"short": "OB WTA 45134 L", "brand": "OB", "asm_w": 445, "asm_h": 1345, "glass_w": 445, "glass_h": 1342, "note": "손잡이 민짜,사전펀치,MDF"}, {"short": "OB WTA 45134 R", "brand": "OB", "asm_w": 445, "asm_h": 1345, "glass_w": 445, "glass_h": 1342, "note": "손잡이 민짜,사전펀치,MDF"}, {"short": "OB WTA 45147 L", "brand": "OB", "asm_w": 445, "asm_h": 1473, "glass_w": 445, "glass_h": 1470, "note": "손잡이 민짜,사전펀치,MDF"}, {"short": "OB WTA 45147 R", "brand": "OB", "asm_w": 445, "asm_h": 1473, "glass_w": 445, "glass_h": 1470, "note": "손잡이 민짜,사전펀치,MDF"}, {"short": "OB WTA 60134 L", "brand": "OB", "asm_w": 595, "asm_h": 1345, "glass_w": 595, "glass_h": 1342, "note": "손잡이 민짜,사전펀치,MDF"}, {"short": "OB WTA 60134 R", "brand": "OB", "asm_w": 595, "asm_h": 1345, "glass_w": 595, "glass_h": 1342, "note": "손잡이 민짜,사전펀치,MDF"}, {"short": "OB WTA 60147 L", "brand": "OB", "asm_w": 595, "asm_h": 1473, "glass_w": 595, "glass_h": 1470, "note": "손잡이 민짜,사전펀치,MDF"}, {"short": "OB WTA 60147 R", "brand": "OB", "asm_w": 595, "asm_h": 1473, "glass_w": 595, "glass_h": 1470, "note": "손잡이 민짜,사전펀치,MDF"}, {"short": "OB WTAP 비규격", "brand": "OB", "asm_w": 595, "asm_h": 1518, "glass_w": 595, "glass_h": 1515, "note": "손잡이 민짜,보링위치확인,허니콤"}, {"short": "OB WTARG 60141 L", "brand": "OB", "asm_w": 592, "asm_h": 1413, "glass_w": 592, "glass_h": 1410, "note": "관통 손잡이 보링"}, {"short": "OB WTARG 60141 R", "brand": "OB", "asm_w": 592, "asm_h": 1413, "glass_w": 592, "glass_h": 1410, "note": "관통 손잡이 보링"}, {"short": "OB WTARG 60154 L", "brand": "OB", "asm_w": 592, "asm_h": 1541, "glass_w": 592, "glass_h": 1538, "note": "관통 손잡이 보링"}, {"short": "OB WTARG 60154 R", "brand": "OB", "asm_w": 592, "asm_h": 1541, "glass_w": 592, "glass_h": 1538, "note": "관통 손잡이 보링"}];
+<!-- HOME -->
+<div class="sec-pg on" id="pg-home">
+  <div id="home-urgent"></div>
+  <div class="card" style="margin-top:14px">
+    <div class="card-ttl"><span>📊 오늘 현황</span><span id="home-date" style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0"></span></div>
+    <div class="g3">
+      <div class="stat"><div class="stat-l">진행중 할일</div><div class="stat-v" id="home-inprog" style="color:var(--acc2)">0</div></div>
+      <div class="stat"><div class="stat-l">오늘 작업량</div><div class="stat-v" id="home-tw" style="color:var(--acc3)">0</div></div>
+      <div class="stat"><div class="stat-l">긴급재고부족</div><div class="stat-v" id="home-us" style="color:var(--acc4)">0</div></div>
+    </div>
+  </div>
 
-// ---- NONSPEC_GROUPS ----
-const NONSPEC_GROUPS=[{"group": "OB M", "total": 747, "sizes": [{"w": 425, "h": 736, "qty": 51}, {"w": 375, "h": 736, "qty": 36}, {"w": 380, "h": 736, "qty": 18}, {"w": 480, "h": 736, "qty": 16}, {"w": 400, "h": 806, "qty": 15}, {"w": 437, "h": 736, "qty": 12}, {"w": 435, "h": 851, "qty": 12}, {"w": 333, "h": 876, "qty": 12}, {"w": 400, "h": 716, "qty": 12}, {"w": 525, "h": 736, "qty": 11}]}, {"group": "OB WRMB", "total": 245, "sizes": [{"w": 610, "h": 341, "qty": 9}, {"w": 612, "h": 356, "qty": 8}, {"w": 605, "h": 373, "qty": 8}, {"w": 625, "h": 359, "qty": 6}, {"w": 950, "h": 356, "qty": 6}, {"w": 620, "h": 386, "qty": 6}, {"w": 605, "h": 356, "qty": 5}, {"w": 610, "h": 479, "qty": 4}, {"w": 610, "h": 438, "qty": 4}, {"w": 930, "h": 351, "qty": 4}]}, {"group": "HD B", "total": 123, "sizes": [{"w": 500, "h": 1000, "qty": 30}, {"w": 525, "h": 910, "qty": 14}, {"w": 475, "h": 910, "qty": 8}, {"w": 420, "h": 910, "qty": 5}, {"w": 360, "h": 910, "qty": 4}, {"w": 410, "h": 1000, "qty": 4}, {"w": 387, "h": 910, "qty": 4}, {"w": 495, "h": 910, "qty": 4}, {"w": 425, "h": 910, "qty": 4}, {"w": 490, "h": 910, "qty": 4}]}, {"group": "OB WT", "total": 115, "sizes": [{"w": 500, "h": 1349, "qty": 23}, {"w": 480, "h": 1502, "qty": 10}, {"w": 550, "h": 1349, "qty": 8}, {"w": 450, "h": 1379, "qty": 8}, {"w": 350, "h": 1349, "qty": 5}, {"w": 470, "h": 1349, "qty": 5}, {"w": 400, "h": 1402, "qty": 4}, {"w": 500, "h": 1522, "qty": 4}, {"w": 580, "h": 1349, "qty": 3}, {"w": 467, "h": 1522, "qty": 3}]}, {"group": "OB BD2R", "total": 51, "sizes": [{"w": 500, "h": 910, "qty": 10}, {"w": 725, "h": 910, "qty": 6}, {"w": 700, "h": 910, "qty": 4}, {"w": 1000, "h": 910, "qty": 4}, {"w": 1190, "h": 910, "qty": 4}, {"w": 800, "h": 910, "qty": 3}, {"w": 400, "h": 910, "qty": 3}, {"w": 780, "h": 910, "qty": 3}, {"w": 850, "h": 910, "qty": 3}, {"w": 750, "h": 910, "qty": 2}]}, {"group": "OB BHBU", "total": 34, "sizes": [{"w": 500, "h": 826, "qty": 5}, {"w": 450, "h": 826, "qty": 4}, {"w": 500, "h": 825, "qty": 4}, {"w": 425, "h": 808, "qty": 4}, {"w": 387, "h": 780, "qty": 4}, {"w": 425, "h": 826, "qty": 2}, {"w": 450, "h": 798, "qty": 2}, {"w": 550, "h": 808, "qty": 2}, {"w": 350, "h": 815, "qty": 2}, {"w": 450, "h": 808, "qty": 1}]}, {"group": "OB WF", "total": 19, "sizes": [{"w": 850, "h": 376, "qty": 3}, {"w": 850, "h": 356, "qty": 2}, {"w": 950, "h": 416, "qty": 2}, {"w": 900, "h": 431, "qty": 2}, {"w": 880, "h": 431, "qty": 2}, {"w": 750, "h": 336, "qty": 1}, {"w": 700, "h": 336, "qty": 1}, {"w": 800, "h": 356, "qty": 1}, {"w": 900, "h": 316, "qty": 1}, {"w": 900, "h": 416, "qty": 1}]}, {"group": "HD BD2R", "total": 18, "sizes": [{"w": 725, "h": 910, "qty": 4}, {"w": 400, "h": 910, "qty": 3}, {"w": 1000, "h": 910, "qty": 2}, {"w": 660, "h": 910, "qty": 2}, {"w": 550, "h": 910, "qty": 2}, {"w": 830, "h": 910, "qty": 1}, {"w": 750, "h": 910, "qty": 1}, {"w": 800, "h": 910, "qty": 1}, {"w": 1150, "h": 910, "qty": 1}, {"w": 1100, "h": 910, "qty": 1}]}, {"group": "OB W2HBT", "total": 18, "sizes": [{"w": 770, "h": 780, "qty": 4}, {"w": 760, "h": 780, "qty": 4}, {"w": 800, "h": 742, "qty": 3}, {"w": 900, "h": 780, "qty": 2}, {"w": 835, "h": 926, "qty": 2}, {"w": 850, "h": 742, "qty": 1}, {"w": 850, "h": 770, "qty": 1}, {"w": 610, "h": 926, "qty": 1}]}, {"group": "HD BHBU", "total": 15, "sizes": [{"w": 470, "h": 808, "qty": 4}, {"w": 400, "h": 808, "qty": 4}, {"w": 450, "h": 855, "qty": 2}, {"w": 500, "h": 826, "qty": 2}, {"w": 600, "h": 808, "qty": 2}, {"w": 520, "h": 855, "qty": 1}]}, {"group": "OB WHBT", "total": 12, "sizes": [{"w": 395, "h": 780, "qty": 2}, {"w": 370, "h": 780, "qty": 2}, {"w": 350, "h": 780, "qty": 2}, {"w": 600, "h": 742, "qty": 1}, {"w": 380, "h": 742, "qty": 1}, {"w": 400, "h": 742, "qty": 1}, {"w": 410, "h": 770, "qty": 1}, {"w": 300, "h": 770, "qty": 1}, {"w": 400, "h": 770, "qty": 1}]}, {"group": "OB WTAP", "total": 11, "sizes": [{"w": 450, "h": 1347, "qty": 4}, {"w": 450, "h": 1522, "qty": 4}, {"w": 450, "h": 1397, "qty": 2}, {"w": 600, "h": 1407, "qty": 1}]}, {"group": "OB WMLDT", "total": 11, "sizes": [{"w": 600, "h": 784, "qty": 2}, {"w": 600, "h": 1007, "qty": 2}, {"w": 600, "h": 794, "qty": 2}, {"w": 600, "h": 717, "qty": 1}, {"w": 600, "h": 887, "qty": 1}, {"w": 600, "h": 799, "qty": 1}, {"w": 300, "h": 799, "qty": 1}, {"w": 600, "h": 776, "qty": 1}]}, {"group": "HD TH", "total": 6, "sizes": [{"w": 492, "h": 2350, "qty": 4}, {"w": 500, "h": 2207, "qty": 2}]}, {"group": "OB WFED", "total": 4, "sizes": [{"w": 770, "h": 536, "qty": 2}, {"w": 825, "h": 536, "qty": 2}]}, {"group": "OB BC1B", "total": 4, "sizes": [{"w": 450, "h": 910, "qty": 2}, {"w": 495, "h": 910, "qty": 1}, {"w": 472, "h": 910, "qty": 1}]}, {"group": "OB WFUP", "total": 4, "sizes": [{"w": 950, "h": 400, "qty": 2}, {"w": 900, "h": 400, "qty": 1}, {"w": 1100, "h": 390, "qty": 1}]}, {"group": "OB BC1A", "total": 3, "sizes": [{"w": 527, "h": 910, "qty": 2}, {"w": 492, "h": 910, "qty": 1}]}, {"group": "OB BD3U", "total": 3, "sizes": [{"w": 400, "h": 910, "qty": 2}, {"w": 500, "h": 910, "qty": 1}]}, {"group": "OB WFMD", "total": 2, "sizes": [{"w": 900, "h": 523, "qty": 1}, {"w": 600, "h": 391, "qty": 1}]}, {"group": "CH M", "total": 2, "sizes": [{"w": 600, "h": 688, "qty": 1}, {"w": 400, "h": 688, "qty": 1}]}, {"group": "OB WHMH", "total": 2, "sizes": [{"w": 600, "h": 666, "qty": 2}]}, {"group": "HD BD3U", "total": 1, "sizes": [{"w": 300, "h": 910, "qty": 1}]}];
+  <!-- 할일 (편집 가능) -->
+  <div class="card">
+    <div class="card-ttl"><span>✅ 할일</span>
+      <button onclick="openTodoModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 추가</button>
+    </div>
+    <div class="filter-row">
+      <button class="f-btn on" onclick="setTodoFilter('all',this)">전체</button>
+      <button class="f-btn" onclick="setTodoFilter('시작전',this)">시작전</button>
+      <button class="f-btn" onclick="setTodoFilter('진행중',this)">진행중</button>
+      <button class="f-btn" onclick="setTodoFilter('완료',this)">완료</button>
+      <button class="f-btn" onclick="setTodoFilter('긴급',this)">🔴 긴급</button>
+    </div>
+    <input class="inp" id="todo-search" placeholder="🔍 할일 검색..." oninput="renderTodo()" style="margin-bottom:10px">
+    <div id="todo-list"></div>
+  </div>
 
-// ---- ANALYSIS ----
-const ANALYSIS=[{"code": "ME1WU0039", "short": "OB M 4573(공용) M", "color": "WC", "glass_w": 445, "glass_h": 729, "total_6m": 370, "avg_monthly": 61.7, "min_monthly": 9, "max_monthly": 134, "active_months": 6, "monthly": {"2025-11": 40, "2025-12": 90, "2026-01": 34, "2026-02": 134, "2026-03": 9, "2026-04": 63}}, {"code": "ME1WU0063", "short": "OB M 4573(공용) M", "color": "ETP", "glass_w": 445, "glass_h": 729, "total_6m": 210, "avg_monthly": 35.0, "min_monthly": 10, "max_monthly": 44, "active_months": 6, "monthly": {"2025-11": 41, "2025-12": 34, "2026-01": 41, "2026-02": 44, "2026-03": 10, "2026-04": 40}}, {"code": "ME1WU0042", "short": "OB M 5073(공용) M", "color": "WC", "glass_w": 495, "glass_h": 729, "total_6m": 202, "avg_monthly": 33.7, "min_monthly": 1, "max_monthly": 62, "active_months": 6, "monthly": {"2025-11": 20, "2025-12": 58, "2026-01": 27, "2026-02": 62, "2026-03": 1, "2026-04": 34}}, {"code": "ME1WU0036", "short": "OB M 4073(공용) M", "color": "WC", "glass_w": 395, "glass_h": 729, "total_6m": 185, "avg_monthly": 30.8, "min_monthly": 3, "max_monthly": 86, "active_months": 6, "monthly": {"2025-11": 20, "2025-12": 26, "2026-01": 29, "2026-02": 86, "2026-03": 3, "2026-04": 21}}, {"code": "ME1WU0047", "short": "OB M 6073(공용) M", "color": "WC", "glass_w": 595, "glass_h": 729, "total_6m": 159, "avg_monthly": 26.5, "min_monthly": 0, "max_monthly": 66, "active_months": 5, "monthly": {"2025-11": 13, "2025-12": 38, "2026-01": 21, "2026-02": 66, "2026-03": 0, "2026-04": 21}}, {"code": "ME1WU0060", "short": "OB M 4073(공용) M", "color": "ETP", "glass_w": 395, "glass_h": 729, "total_6m": 138, "avg_monthly": 23.0, "min_monthly": 6, "max_monthly": 48, "active_months": 6, "monthly": {"2025-11": 31, "2025-12": 20, "2026-01": 21, "2026-02": 48, "2026-03": 6, "2026-04": 12}}, {"code": "ME1WU0066", "short": "OB M 5073(공용) M", "color": "ETP", "glass_w": 495, "glass_h": 729, "total_6m": 131, "avg_monthly": 21.8, "min_monthly": 13, "max_monthly": 32, "active_months": 6, "monthly": {"2025-11": 16, "2025-12": 22, "2026-01": 18, "2026-02": 32, "2026-03": 13, "2026-04": 30}}, {"code": "ME1WU0071", "short": "OB M 6073(공용) M", "color": "ETP", "glass_w": 595, "glass_h": 729, "total_6m": 109, "avg_monthly": 18.2, "min_monthly": 2, "max_monthly": 34, "active_months": 6, "monthly": {"2025-11": 10, "2025-12": 18, "2026-01": 18, "2026-02": 34, "2026-03": 2, "2026-04": 27}}, {"code": "ME1WU0033", "short": "OB M 3573(공용) M", "color": "WC", "glass_w": 345, "glass_h": 729, "total_6m": 100, "avg_monthly": 16.7, "min_monthly": 1, "max_monthly": 30, "active_months": 6, "monthly": {"2025-11": 6, "2025-12": 30, "2026-01": 27, "2026-02": 18, "2026-03": 1, "2026-04": 18}}, {"code": "ME1BD0077", "short": "OB BD2R 9091 M", "color": "WC", "glass_w": 895, "glass_h": 347, "total_6m": 75, "avg_monthly": 12.5, "min_monthly": 0, "max_monthly": 34, "active_months": 5, "monthly": {"2025-11": 10, "2025-12": 12, "2026-01": 6, "2026-02": 34, "2026-03": 0, "2026-04": 13}}, {"code": "ME1WU0057", "short": "OB M 3573(공용) M", "color": "ETP", "glass_w": 345, "glass_h": 729, "total_6m": 61, "avg_monthly": 10.2, "min_monthly": 0, "max_monthly": 19, "active_months": 5, "monthly": {"2025-11": 19, "2025-12": 18, "2026-01": 9, "2026-02": 4, "2026-03": 0, "2026-04": 11}}, {"code": "ME1BD0095", "short": "OB BD2R 9091 M", "color": "ETP", "glass_w": 895, "glass_h": 347, "total_6m": 56, "avg_monthly": 9.3, "min_monthly": 1, "max_monthly": 18, "active_months": 6, "monthly": {"2025-11": 6, "2025-12": 8, "2026-01": 8, "2026-02": 18, "2026-03": 1, "2026-04": 15}}, {"code": "ME1BN0022", "short": "OB BNDC2N 3091 M", "color": "WC", "glass_w": 295, "glass_h": 729, "total_6m": 51, "avg_monthly": 8.5, "min_monthly": 1, "max_monthly": 18, "active_months": 6, "monthly": {"2025-11": 6, "2025-12": 8, "2026-01": 4, "2026-02": 18, "2026-03": 1, "2026-04": 14}}, {"code": "ME1BU0248", "short": "HD B 5091 R", "color": "ETP", "glass_w": 495, "glass_h": 761, "total_6m": 47, "avg_monthly": 7.8, "min_monthly": 2, "max_monthly": 15, "active_months": 6, "monthly": {"2025-11": 15, "2025-12": 14, "2026-01": 4, "2026-02": 4, "2026-03": 2, "2026-04": 8}}, {"code": "ME1BU0247", "short": "HD B 5091 L", "color": "ETP", "glass_w": 495, "glass_h": 761, "total_6m": 46, "avg_monthly": 7.7, "min_monthly": 1, "max_monthly": 14, "active_months": 6, "monthly": {"2025-11": 14, "2025-12": 14, "2026-01": 6, "2026-02": 4, "2026-03": 1, "2026-04": 7}}, {"code": "ME1BD0076", "short": "OB BD2R 6091 M", "color": "WC", "glass_w": 595, "glass_h": 347, "total_6m": 46, "avg_monthly": 7.7, "min_monthly": 0, "max_monthly": 12, "active_months": 5, "monthly": {"2025-11": 7, "2025-12": 8, "2026-01": 8, "2026-02": 12, "2026-03": 0, "2026-04": 11}}, {"code": "ME1BD0107", "short": "HD BD2R 9091 M", "color": "ETP", "glass_w": 895, "glass_h": 377, "total_6m": 44, "avg_monthly": 7.3, "min_monthly": 1, "max_monthly": 15, "active_months": 6, "monthly": {"2025-11": 15, "2025-12": 8, "2026-01": 9, "2026-02": 4, "2026-03": 1, "2026-04": 7}}, {"code": "ME1WU0044", "short": "OB M 5573(공용) M", "color": "WC", "glass_w": 545, "glass_h": 729, "total_6m": 44, "avg_monthly": 7.3, "min_monthly": 2, "max_monthly": 20, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 20, "2026-01": 8, "2026-02": 6, "2026-03": 3, "2026-04": 5}}, {"code": "ME1WU0030", "short": "OB M 3073(공용) M", "color": "WC", "glass_w": 295, "glass_h": 729, "total_6m": 43, "avg_monthly": 7.2, "min_monthly": 0, "max_monthly": 18, "active_months": 4, "monthly": {"2025-11": 0, "2025-12": 18, "2026-01": 6, "2026-02": 10, "2026-03": 0, "2026-04": 9}}, {"code": "ME1BD0088", "short": "HD BD2R 9091 M", "color": "WC", "glass_w": 895, "glass_h": 377, "total_6m": 40, "avg_monthly": 6.7, "min_monthly": 1, "max_monthly": 10, "active_months": 6, "monthly": {"2025-11": 10, "2025-12": 6, "2026-01": 7, "2026-02": 10, "2026-03": 1, "2026-04": 6}}, {"code": "ME1WR0025", "short": "OB WRMB 6135 M", "color": "WC", "glass_w": 605, "glass_h": 349, "total_6m": 39, "avg_monthly": 6.5, "min_monthly": 0, "max_monthly": 10, "active_months": 5, "monthly": {"2025-11": 8, "2025-12": 10, "2026-01": 4, "2026-02": 8, "2026-03": 0, "2026-04": 9}}, {"code": "ME1BU0251", "short": "HD B 6091 L", "color": "ETP", "glass_w": 595, "glass_h": 761, "total_6m": 39, "avg_monthly": 6.5, "min_monthly": 1, "max_monthly": 12, "active_months": 6, "monthly": {"2025-11": 12, "2025-12": 10, "2026-01": 5, "2026-02": 10, "2026-03": 1, "2026-04": 1}}, {"code": "ME1BD0106", "short": "HD BD2R 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 377, "total_6m": 37, "avg_monthly": 6.2, "min_monthly": 0, "max_monthly": 26, "active_months": 5, "monthly": {"2025-11": 6, "2025-12": 26, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0226", "short": "HD B 4591 R", "color": "WC", "glass_w": 445, "glass_h": 761, "total_6m": 36, "avg_monthly": 6.0, "min_monthly": 1, "max_monthly": 13, "active_months": 6, "monthly": {"2025-11": 13, "2025-12": 10, "2026-01": 4, "2026-02": 2, "2026-03": 1, "2026-04": 6}}, {"code": "ME1BU0225", "short": "HD B 4591 L", "color": "WC", "glass_w": 445, "glass_h": 761, "total_6m": 33, "avg_monthly": 5.5, "min_monthly": 0, "max_monthly": 13, "active_months": 5, "monthly": {"2025-11": 13, "2025-12": 10, "2026-01": 4, "2026-02": 2, "2026-03": 0, "2026-04": 4}}, {"code": "ME1BN0026", "short": "OB BNDC2N 3091 M", "color": "ETP", "glass_w": 295, "glass_h": 729, "total_6m": 32, "avg_monthly": 5.3, "min_monthly": 3, "max_monthly": 8, "active_months": 6, "monthly": {"2025-11": 5, "2025-12": 4, "2026-01": 5, "2026-02": 8, "2026-03": 3, "2026-04": 7}}, {"code": "ME1BN0028", "short": "HD BNDC2N 3091 M", "color": "ETP", "glass_w": 295, "glass_h": 761, "total_6m": 31, "avg_monthly": 5.2, "min_monthly": 1, "max_monthly": 10, "active_months": 6, "monthly": {"2025-11": 8, "2025-12": 10, "2026-01": 2, "2026-02": 6, "2026-03": 1, "2026-04": 4}}, {"code": "ME1BU0227", "short": "HD B 5091 L", "color": "WC", "glass_w": 495, "glass_h": 761, "total_6m": 30, "avg_monthly": 5.0, "min_monthly": 2, "max_monthly": 7, "active_months": 6, "monthly": {"2025-11": 7, "2025-12": 4, "2026-01": 7, "2026-02": 4, "2026-03": 2, "2026-04": 6}}, {"code": "ME1BU0252", "short": "HD B 6091 R", "color": "ETP", "glass_w": 595, "glass_h": 761, "total_6m": 29, "avg_monthly": 4.8, "min_monthly": 0, "max_monthly": 10, "active_months": 5, "monthly": {"2025-11": 7, "2025-12": 10, "2026-01": 3, "2026-02": 8, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BD0094", "short": "OB BD2R 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 347, "total_6m": 28, "avg_monthly": 4.7, "min_monthly": 2, "max_monthly": 6, "active_months": 6, "monthly": {"2025-11": 6, "2025-12": 2, "2026-01": 5, "2026-02": 6, "2026-03": 5, "2026-04": 4}}, {"code": "ME1WU0061", "short": "OB M 4086 M", "color": "ETP", "glass_w": 395, "glass_h": 857, "total_6m": 28, "avg_monthly": 4.7, "min_monthly": 0, "max_monthly": 12, "active_months": 5, "monthly": {"2025-11": 5, "2025-12": 0, "2026-01": 12, "2026-02": 2, "2026-03": 1, "2026-04": 8}}, {"code": "ME1BU0245", "short": "HD B 4591 L", "color": "ETP", "glass_w": 445, "glass_h": 761, "total_6m": 26, "avg_monthly": 4.3, "min_monthly": 1, "max_monthly": 8, "active_months": 6, "monthly": {"2025-11": 7, "2025-12": 8, "2026-01": 6, "2026-02": 2, "2026-03": 2, "2026-04": 1}}, {"code": "ME1BU0246", "short": "HD B 4591 R", "color": "ETP", "glass_w": 445, "glass_h": 761, "total_6m": 26, "avg_monthly": 4.3, "min_monthly": 1, "max_monthly": 10, "active_months": 6, "monthly": {"2025-11": 10, "2025-12": 8, "2026-01": 3, "2026-02": 2, "2026-03": 1, "2026-04": 2}}, {"code": "ME1WU0068", "short": "OB M 5573(공용) M", "color": "ETP", "glass_w": 545, "glass_h": 729, "total_6m": 26, "avg_monthly": 4.3, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 5, "2025-12": 6, "2026-01": 5, "2026-02": 6, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WT0119", "short": "OB WLDL 6051 M", "color": "WC", "glass_w": 595, "glass_h": 507, "total_6m": 26, "avg_monthly": 4.3, "min_monthly": 0, "max_monthly": 12, "active_months": 5, "monthly": {"2025-11": 2, "2025-12": 12, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BN0021", "short": "OB BNDB2N 2091 M", "color": "WC", "glass_w": 195, "glass_h": 729, "total_6m": 24, "avg_monthly": 4.0, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 3, "2025-12": 8, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BU0231", "short": "HD B 6091 L", "color": "WC", "glass_w": 595, "glass_h": 761, "total_6m": 24, "avg_monthly": 4.0, "min_monthly": 1, "max_monthly": 10, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 10, "2026-01": 1, "2026-02": 4, "2026-03": 3, "2026-04": 4}}, {"code": "ME1BU0228", "short": "HD B 5091 R", "color": "WC", "glass_w": 495, "glass_h": 761, "total_6m": 22, "avg_monthly": 3.7, "min_monthly": 2, "max_monthly": 7, "active_months": 6, "monthly": {"2025-11": 7, "2025-12": 2, "2026-01": 3, "2026-02": 2, "2026-03": 2, "2026-04": 6}}, {"code": "ME1BU0233", "short": "OB BUIF 3034", "color": "ETP", "glass_w": 295, "glass_h": 345, "total_6m": 22, "avg_monthly": 3.7, "min_monthly": 2, "max_monthly": 6, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 6, "2026-01": 4, "2026-02": 2, "2026-03": 5, "2026-04": 3}}, {"code": "KITAS0075", "short": "MBD2R소마이다(멍)_555*80(Euro700 Grace W/Cott", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 2, "2026-02": 8, "2026-03": 1, "2026-04": 6}}, {"code": "ME1BD0102", "short": "OB BLD1UA 6091 M", "color": "ETP", "glass_w": 555, "glass_h": 57, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 4, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BU0213", "short": "OB BUIF 3034", "color": "WC", "glass_w": 295, "glass_h": 345, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 2, "max_monthly": 5, "active_months": 6, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 5, "2026-02": 4, "2026-03": 3, "2026-04": 3}}, {"code": "ME1BU0234", "short": "HD BUIF 3034", "color": "ETP", "glass_w": 295, "glass_h": 345, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 4, "2026-01": 4, "2026-02": 8, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0037", "short": "OB M 4086 M", "color": "WC", "glass_w": 395, "glass_h": 857, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 8, "active_months": 4, "monthly": {"2025-11": 0, "2025-12": 8, "2026-01": 1, "2026-02": 8, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WU0056", "short": "OB M 3565 M", "color": "ETP", "glass_w": 345, "glass_h": 649, "total_6m": 21, "avg_monthly": 3.5, "min_monthly": 0, "max_monthly": 20, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 20, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0232", "short": "HD B 6091 R", "color": "WC", "glass_w": 595, "glass_h": 761, "total_6m": 19, "avg_monthly": 3.2, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 6, "2026-01": 0, "2026-02": 2, "2026-03": 3, "2026-04": 4}}, {"code": "ME1WT0149", "short": "OB WLDL 6051 M", "color": "ETP", "glass_w": 595, "glass_h": 507, "total_6m": 19, "avg_monthly": 3.2, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 3, "2025-12": 4, "2026-01": 4, "2026-02": 0, "2026-03": 2, "2026-04": 6}}, {"code": "ME1WT0155", "short": "OB WMLDT 6073 M", "color": "ETP", "glass_w": 595, "glass_h": 729, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 7, "active_months": 5, "monthly": {"2025-11": 7, "2025-12": 4, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WT0163", "short": "OB WT 45134 M", "color": "ETP", "glass_w": 445, "glass_h": 1342, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 10, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 10, "2026-02": 4, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BD0084", "short": "OB BLD1UA 6091 M", "color": "WC", "glass_w": 555, "glass_h": 57, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 1, "max_monthly": 5, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 2, "2026-02": 4, "2026-03": 1, "2026-04": 5}}, {"code": "ME1WR0031", "short": "OB WRMB 9335 M", "color": "WC", "glass_w": 925, "glass_h": 349, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 4, "2026-02": 6, "2026-03": 0, "2026-04": 2}}, {"code": "ME1TD0011", "short": "OB BTAO1U 6014 M", "color": "WC", "glass_w": 595, "glass_h": 139, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 5, "2026-02": 6, "2026-03": 1, "2026-04": 2}}, {"code": "ME1BU0243", "short": "HD B 4091 L", "color": "ETP", "glass_w": 395, "glass_h": 761, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 5, "active_months": 5, "monthly": {"2025-11": 5, "2025-12": 4, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 3}}, {"code": "ME1WR0045", "short": "OB WRMB 6135 M", "color": "ETP", "glass_w": 605, "glass_h": 349, "total_6m": 18, "avg_monthly": 3.0, "min_monthly": 0, "max_monthly": 6, "active_months": 4, "monthly": {"2025-11": 5, "2025-12": 4, "2026-01": 3, "2026-02": 6, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0054", "short": "OB M 3073(공용) M", "color": "ETP", "glass_w": 295, "glass_h": 729, "total_6m": 17, "avg_monthly": 2.8, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 6, "2025-12": 0, "2026-01": 2, "2026-02": 2, "2026-03": 1, "2026-04": 6}}, {"code": "ME1BA0023", "short": "OB BRO1R 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 247, "total_6m": 17, "avg_monthly": 2.8, "min_monthly": 1, "max_monthly": 6, "active_months": 6, "monthly": {"2025-11": 2, "2025-12": 6, "2026-01": 2, "2026-02": 2, "2026-03": 1, "2026-04": 4}}, {"code": "ME1WU0064", "short": "OB M 4586 M", "color": "ETP", "glass_w": 445, "glass_h": 857, "total_6m": 17, "avg_monthly": 2.8, "min_monthly": 0, "max_monthly": 8, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 8, "2026-02": 6, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WU0040", "short": "OB M 4586 M", "color": "WC", "glass_w": 445, "glass_h": 857, "total_6m": 17, "avg_monthly": 2.8, "min_monthly": 0, "max_monthly": 8, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 8, "2026-03": 0, "2026-04": 7}}, {"code": "ME1WU0035", "short": "OB M 4065 M", "color": "WC", "glass_w": 395, "glass_h": 649, "total_6m": 16, "avg_monthly": 2.7, "min_monthly": 0, "max_monthly": 10, "active_months": 2, "monthly": {"2025-11": 6, "2025-12": 10, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0033", "short": "OB WRMB 9533 M", "color": "WC", "glass_w": 945, "glass_h": 324, "total_6m": 15, "avg_monthly": 2.5, "min_monthly": 0, "max_monthly": 8, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 0, "2026-02": 8, "2026-03": 2, "2026-04": 2}}, {"code": "ME1WU0062", "short": "OB M 4565 M", "color": "ETP", "glass_w": 445, "glass_h": 649, "total_6m": 15, "avg_monthly": 2.5, "min_monthly": 0, "max_monthly": 7, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 7}}, {"code": "ME1BD0085", "short": "OB BLD2R 6062 M", "color": "WC", "glass_w": 555, "glass_h": 77, "total_6m": 15, "avg_monthly": 2.5, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 6, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 5}}, {"code": "ME1WT0165", "short": "OB WT 60134 M", "color": "ETP", "glass_w": 595, "glass_h": 1342, "total_6m": 15, "avg_monthly": 2.5, "min_monthly": 0, "max_monthly": 8, "active_months": 4, "monthly": {"2025-11": 8, "2025-12": 2, "2026-01": 3, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0244", "short": "HD B 4091 R", "color": "ETP", "glass_w": 395, "glass_h": 761, "total_6m": 14, "avg_monthly": 2.3, "min_monthly": 0, "max_monthly": 6, "active_months": 3, "monthly": {"2025-11": 6, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WT0167", "short": "OB WTA 45134 L", "color": "ETP", "glass_w": 445, "glass_h": 1342, "total_6m": 14, "avg_monthly": 2.3, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 3, "2025-12": 6, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0027", "short": "OB M 2573(공용) M", "color": "WC", "glass_w": 245, "glass_h": 729, "total_6m": 14, "avg_monthly": 2.3, "min_monthly": 0, "max_monthly": 7, "active_months": 4, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 2, "2026-02": 0, "2026-03": 1, "2026-04": 7}}, {"code": "ME1WT0158", "short": "OB WMLDT 6096 M", "color": "ETP", "glass_w": 595, "glass_h": 955, "total_6m": 14, "avg_monthly": 2.3, "min_monthly": 0, "max_monthly": 8, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 8, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0125", "short": "OB WMLDT 6073 M", "color": "WC", "glass_w": 595, "glass_h": 729, "total_6m": 13, "avg_monthly": 2.2, "min_monthly": 0, "max_monthly": 5, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 5}}, {"code": "ME1BU0214", "short": "HD BUIF 3034", "color": "WC", "glass_w": 295, "glass_h": 345, "total_6m": 13, "avg_monthly": 2.2, "min_monthly": 0, "max_monthly": 6, "active_months": 5, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 2, "2026-02": 6, "2026-03": 1, "2026-04": 2}}, {"code": "ME1TN0011", "short": "OB TND2 30149 M", "color": "WC", "glass_w": 295, "glass_h": 606, "total_6m": 13, "avg_monthly": 2.2, "min_monthly": 0, "max_monthly": 8, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 8, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BN0024", "short": "HD BNDC2N 3091 M", "color": "WC", "glass_w": 295, "glass_h": 761, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 5, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 2, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 5}}, {"code": "ME1WT0168", "short": "OB WTA 45134 R", "color": "ETP", "glass_w": 445, "glass_h": 1342, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 3, "2025-12": 4, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0087", "short": "HD BD2R 6091 M", "color": "WC", "glass_w": 595, "glass_h": 377, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 4, "2026-04": 1}}, {"code": "ME1WF0034", "short": "OB WF 9037 M", "color": "WC", "glass_w": 895, "glass_h": 369, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 4, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0135", "short": "OB WT 60134 M", "color": "WC", "glass_w": 595, "glass_h": 1342, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 6, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 6, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 2}}, {"code": "MRTWU0015", "short": "Euro700 Grace Sahara CH M 4573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 12, "avg_monthly": 2.0, "min_monthly": 0, "max_monthly": 8, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 8, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0051", "short": "OB WRMB 9335 M", "color": "ETP", "glass_w": 925, "glass_h": 349, "total_6m": 11, "avg_monthly": 1.8, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 3}}, {"code": "ME1WU0031", "short": "OB M 3086 M", "color": "WC", "glass_w": 295, "glass_h": 857, "total_6m": 11, "avg_monthly": 1.8, "min_monthly": 0, "max_monthly": 5, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 5}}, {"code": "ME1BU0223", "short": "HD B 4091 L", "color": "WC", "glass_w": 395, "glass_h": 761, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BU0229", "short": "HD B 5591 L", "color": "WC", "glass_w": 545, "glass_h": 761, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0133", "short": "OB WT 45134 M", "color": "WC", "glass_w": 445, "glass_h": 1342, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0053", "short": "OB WRMB 9533 M", "color": "ETP", "glass_w": 945, "glass_h": 324, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 5, "active_months": 3, "monthly": {"2025-11": 5, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BA0017", "short": "OB BRO1R 6091 M", "color": "WC", "glass_w": 595, "glass_h": 247, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 4}}, {"code": "ME1WR0026", "short": "OB WRMB 6148 M", "color": "WC", "glass_w": 605, "glass_h": 477, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 6, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BN0027", "short": "HD BNDB2N 2091 M", "color": "ETP", "glass_w": 195, "glass_h": 761, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0042", "short": "OB WRMB 10045 M", "color": "ETP", "glass_w": 995, "glass_h": 452, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 6, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0050", "short": "OB WFUP 9036 M", "color": "WC", "glass_w": 895, "glass_h": 353, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0059", "short": "OB M 4065 M", "color": "ETP", "glass_w": 395, "glass_h": 649, "total_6m": 10, "avg_monthly": 1.7, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 4, "2025-12": 4, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BN0025", "short": "OB BNDB2N 2091 M", "color": "ETP", "glass_w": 195, "glass_h": 729, "total_6m": 9, "avg_monthly": 1.5, "min_monthly": 0, "max_monthly": 3, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 2, "2026-02": 0, "2026-03": 1, "2026-04": 3}}, {"code": "ME1WU0034", "short": "OB M 3586 M", "color": "WC", "glass_w": 345, "glass_h": 857, "total_6m": 9, "avg_monthly": 1.5, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 4, "2026-03": 4, "2026-04": 1}}, {"code": "ME1BD0097", "short": "OB BD3U 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 170, "total_6m": 9, "avg_monthly": 1.5, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 1, "2026-02": 2, "2026-03": 1, "2026-04": 0}}, {"code": "ME1TD0012", "short": "HD BTAO1U 6014 M", "color": "WC", "glass_w": 595, "glass_h": 139, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0174", "short": "OB WTA 60147 R", "color": "ETP", "glass_w": 595, "glass_h": 1470, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0079", "short": "OB BD3U 6091 M", "color": "WC", "glass_w": 595, "glass_h": 170, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1WU0025", "short": "OB M 2073(공용) M", "color": "WC", "glass_w": 195, "glass_h": 729, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 4, "2026-03": 1, "2026-04": 1}}, {"code": "ME1WT0126", "short": "OB WMLDT 6083 M", "color": "WC", "glass_w": 595, "glass_h": 827, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 4, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BD0083", "short": "OB BLD1UA 4591 M", "color": "WC", "glass_w": 405, "glass_h": 57, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 2, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BA0016", "short": "OB BADMIL 6091", "color": "WC", "glass_w": 595, "glass_h": 729, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0157", "short": "OB WMLDT 6086 M", "color": "ETP", "glass_w": 595, "glass_h": 857, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 3, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1TD0018", "short": "HD BTAO1U 6014 M", "color": "ETP", "glass_w": 595, "glass_h": 139, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 5, "active_months": 3, "monthly": {"2025-11": 5, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0103", "short": "OB BLD2R 6062 M", "color": "ETP", "glass_w": 555, "glass_h": 77, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BD0100", "short": "OB BLD1R 6091 M", "color": "ETP", "glass_w": 555, "glass_h": 57, "total_6m": 8, "avg_monthly": 1.3, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WR0041", "short": "OB WRMB 10033 M", "color": "ETP", "glass_w": 995, "glass_h": 324, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0101", "short": "OB BLD1UA 4591 M", "color": "ETP", "glass_w": 405, "glass_h": 57, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WF0028", "short": "OB WF 10037 M", "color": "WC", "glass_w": 995, "glass_h": 369, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 6, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 1}}, {"code": "ME1TN0013", "short": "OB TND2 30149 M", "color": "ETP", "glass_w": 295, "glass_h": 606, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 2, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 2, "2026-03": 1, "2026-04": 1}}, {"code": "ME1BD0090", "short": "HD BD3U 6091 M", "color": "WC", "glass_w": 595, "glass_h": 185, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 3, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0151", "short": "OB WMLDT 3073 M", "color": "ETP", "glass_w": 295, "glass_h": 729, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 4, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 4, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WH0014", "short": "OB WHMH 6065 M", "color": "ETP", "glass_w": 595, "glass_h": 649, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 2, "active_months": 5, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 1, "2026-02": 2, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WF0031", "short": "OB WF 8037 M", "color": "WC", "glass_w": 795, "glass_h": 369, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 5, "active_months": 2, "monthly": {"2025-11": 5, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0012", "short": "Euro700 Grace Sahara CH M 4073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 7, "avg_monthly": 1.2, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0230", "short": "HD B 5591 R", "color": "WC", "glass_w": 545, "glass_h": 761, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WR0046", "short": "OB WRMB 6148 M", "color": "ETP", "glass_w": 605, "glass_h": 477, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 6}}, {"code": "ME1TN0014", "short": "HD TND2 30149 M", "color": "ETP", "glass_w": 295, "glass_h": 606, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 4, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 4, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0221", "short": "HD B 3591 L", "color": "WC", "glass_w": 345, "glass_h": 761, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 3, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 3, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WF0046", "short": "OB WFUP 10036 M", "color": "WC", "glass_w": 995, "glass_h": 353, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0166", "short": "OB WT 60147 M", "color": "ETP", "glass_w": 595, "glass_h": 1470, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 6, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0105", "short": "HD BD2R 12091 M", "color": "ETP", "glass_w": 1195, "glass_h": 377, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0018", "short": "Euro700 Grace Sahara CH M 5073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0063", "short": "OB WFED 7053 M", "color": "ETP", "glass_w": 695, "glass_h": 529, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 6, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 6, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0032", "short": "OB M 3565 M", "color": "WC", "glass_w": 345, "glass_h": 649, "total_6m": 6, "avg_monthly": 1.0, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 4, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0131", "short": "OB WT 40134 M", "color": "WC", "glass_w": 395, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0111", "short": "HD BLD2R 6062 M", "color": "ETP", "glass_w": null, "glass_h": null, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0171", "short": "OB WTA 60134 L", "color": "ETP", "glass_w": 595, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WU0048", "short": "OB M 6086 M", "color": "WC", "glass_w": 595, "glass_h": 857, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0136", "short": "OB WT 60147 M", "color": "WC", "glass_w": 595, "glass_h": 1470, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 4, "2026-04": 1}}, {"code": "ME1WT0129", "short": "OB WT 30134 M", "color": "WC", "glass_w": 295, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0027", "short": "OB WRMB 7135 M", "color": "WC", "glass_w": 710, "glass_h": 349, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0080", "short": "OB BDI1R 4591 M", "color": "WC", "glass_w": 445, "glass_h": 729, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 4, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0120", "short": "OB WLDL 9051 M", "color": "WC", "glass_w": 895, "glass_h": 507, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 2, "active_months": 4, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0249", "short": "HD B 5591 L", "color": "ETP", "glass_w": 545, "glass_h": 761, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 3, "active_months": 3, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WF0048", "short": "OB WFUP 8036 M", "color": "WC", "glass_w": 795, "glass_h": 353, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0047", "short": "OB WRMB 7135 M", "color": "ETP", "glass_w": 710, "glass_h": 349, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 4, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0021", "short": "OB WRMB 10033 M", "color": "WC", "glass_w": 995, "glass_h": 324, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0161", "short": "OB WT 40134 M", "color": "ETP", "glass_w": 395, "glass_h": 1342, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0006", "short": "Euro700 Grace Sahara CH M 3073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0009", "short": "Euro700 Grace Sahara CH M 3573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 5, "avg_monthly": 0.8, "min_monthly": 0, "max_monthly": 4, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0086", "short": "HD BD2R 12091 M", "color": "WC", "glass_w": 1195, "glass_h": 377, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 4, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 4}}, {"code": "ME1BD0081", "short": "OB BLD1R 4591 M", "color": "WC", "glass_w": 405, "glass_h": 57, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BU0224", "short": "HD B 4091 R", "color": "WC", "glass_w": 395, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1TN0012", "short": "HD TND2 30149 M", "color": "WC", "glass_w": 295, "glass_h": 606, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0121", "short": "OB WMLDT 3073 M", "color": "WC", "glass_w": 295, "glass_h": 729, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1TD0017", "short": "OB BTAO1U 6014 M", "color": "ETP", "glass_w": 595, "glass_h": 139, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 2}}, {"code": "ME1BU0240", "short": "HD B 3091 R", "color": "ETP", "glass_w": 295, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BN0023", "short": "HD BNDB2N 2091 M", "color": "WC", "glass_w": 195, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0242", "short": "HD B 3591 R", "color": "ETP", "glass_w": 345, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WH0010", "short": "OB WHMH 6073 M", "color": "WC", "glass_w": 595, "glass_h": 729, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0250", "short": "HD B 5591 R", "color": "ETP", "glass_w": 545, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0222", "short": "HD B 3591 R", "color": "WC", "glass_w": 345, "glass_h": 761, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 3, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WT0156", "short": "OB WMLDT 6083 M", "color": "ETP", "glass_w": 595, "glass_h": 827, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0075", "short": "OB WFUP 9036 M", "color": "ETP", "glass_w": 895, "glass_h": 353, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 3, "active_months": 2, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WH0015", "short": "OB WHMH 6073 M", "color": "ETP", "glass_w": 595, "glass_h": 729, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0027", "short": "OB W2U 4542 M", "color": "WC", "glass_w": 445, "glass_h": 417, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 4, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0058", "short": "OB M 3586 M", "color": "ETP", "glass_w": 345, "glass_h": 857, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 4, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 4, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWF0017", "short": "Euro700 Grace Sahara CH WFUP 10036 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 4, "avg_monthly": 0.7, "min_monthly": 0, "max_monthly": 4, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 4, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0068", "short": "OB WFMD 9035 M", "color": "ETP", "glass_w": 895, "glass_h": 349, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WU0067", "short": "OB M 5086 M", "color": "ETP", "glass_w": 495, "glass_h": 857, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0110", "short": "HD BDI1R 4591 M", "color": "ETP", "glass_w": 445, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WU0053", "short": "OB M 3065 M", "color": "ETP", "glass_w": 295, "glass_h": 649, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0052", "short": "OB WRMB 9348 M", "color": "ETP", "glass_w": 925, "glass_h": 477, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WF0040", "short": "OB WFED 9053 M", "color": "WC", "glass_w": 895, "glass_h": 529, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0169", "short": "OB WTA 45147 L", "color": "ETP", "glass_w": 445, "glass_h": 1470, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 2}}, {"code": "ME1WT0170", "short": "OB WTA 45147 R", "color": "ETP", "glass_w": 445, "glass_h": 1470, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 2}}, {"code": "ME1WF0069", "short": "OB WFMD 9048 M", "color": "ETP", "glass_w": 895, "glass_h": 477, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WT0134", "short": "OB WT 45147 M", "color": "WC", "glass_w": 445, "glass_h": 1470, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0241", "short": "HD B 3591 L", "color": "ETP", "glass_w": 345, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0049", "short": "OB M 2073(공용) M", "color": "ETP", "glass_w": 195, "glass_h": 729, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "MRSWU0018", "short": "CH M 5073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BD0093", "short": "OB BD2R 12091 M", "color": "ETP", "glass_w": 1195, "glass_h": 347, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 3, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 3}}, {"code": "ME1BA0020", "short": "HD BADMIL 6091", "color": "WC", "glass_w": 595, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BU0216", "short": "HD B 2091 R", "color": "WC", "glass_w": 195, "glass_h": 761, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0109", "short": "HD BD3U 6091 M", "color": "ETP", "glass_w": 595, "glass_h": 185, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TU0005", "short": "HD TH 45220 L", "color": "WC", "glass_w": 445, "glass_h": 2200, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TU0006", "short": "HD TH 45220 R", "color": "WC", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0092", "short": "HD BLD2R 6062 M", "color": "WC", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 2, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0038", "short": "OB M 4565 M", "color": "WC", "glass_w": 445, "glass_h": 649, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 3, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 3, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0141", "short": "OB WTA 60134 L", "color": "WC", "glass_w": 595, "glass_h": 1342, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 2, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWF0019", "short": "Euro700 Grace Sahara CH WFUP 8036 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 3, "avg_monthly": 0.5, "min_monthly": 0, "max_monthly": 3, "active_months": 1, "monthly": {"2025-11": 3, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0219", "short": "HD B 3091 L", "color": "WC", "glass_w": 295, "glass_h": 761, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0072", "short": "OB M 6086 M", "color": "ETP", "glass_w": 595, "glass_h": 857, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0139", "short": "OB WTA 45147 L", "color": "WC", "glass_w": 445, "glass_h": 1470, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WT0140", "short": "OB WTA 45147 R", "color": "WC", "glass_w": 445, "glass_h": 1470, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WF0037", "short": "OB WFED 6053 M", "color": "WC", "glass_w": 595, "glass_h": 529, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1WF0038", "short": "OB WFED 7053 M", "color": "WC", "glass_w": 695, "glass_h": 529, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 2}}, {"code": "ME1BA0026", "short": "HD BADMIL 6091", "color": "ETP", "glass_w": 595, "glass_h": 761, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "MRRWU0020", "short": "CH M 5573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BC0031", "short": "OB BC1A 4291 M", "color": "WC", "glass_w": 422, "glass_h": 729, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BC0032", "short": "OB BC1B 4091 M", "color": "WC", "glass_w": 402, "glass_h": 729, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0055", "short": "OB M 3086 M", "color": "ETP", "glass_w": 295, "glass_h": 857, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0069", "short": "OB M 5586 M", "color": "ETP", "glass_w": 545, "glass_h": 857, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 2, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0059", "short": "OB WF 9037 M", "color": "ETP", "glass_w": 895, "glass_h": 369, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0082", "short": "OB BLD1R 6091 M", "color": "WC", "glass_w": 555, "glass_h": 57, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WU0029", "short": "OB M 3065 M", "color": "WC", "glass_w": 295, "glass_h": 649, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WH0009", "short": "OB WHMH 6065 M", "color": "WC", "glass_w": 595, "glass_h": 649, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 1, "active_months": 2, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTBD0002", "short": "Euro700 Grace Sahara CH BD2R 6091 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTBN0002", "short": "Euro700 Grace Sahara CH BNDC2N 3091 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0078", "short": "OB BD3U 4591 M", "color": "WC", "glass_w": 445, "glass_h": 170, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0056", "short": "OB WF 8037 M", "color": "ETP", "glass_w": 795, "glass_h": 369, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0073", "short": "OB WFUP 8036 M", "color": "ETP", "glass_w": 795, "glass_h": 353, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0142", "short": "OB WTA 60134 R", "color": "WC", "glass_w": 595, "glass_h": 1342, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 2, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BD0099", "short": "OB BLD1R 4591 M", "color": "ETP", "glass_w": 405, "glass_h": 57, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0043", "short": "OB WFMD 9035 M", "color": "WC", "glass_w": 895, "glass_h": 349, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0053", "short": "OB WF 10037 M", "color": "ETP", "glass_w": 995, "glass_h": 369, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WR0059", "short": "OB WRMBS 9035 M", "color": "ETP", "glass_w": 895, "glass_h": 349, "total_6m": 2, "avg_monthly": 0.3, "min_monthly": 0, "max_monthly": 2, "active_months": 1, "monthly": {"2025-11": 2, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0235", "short": "HD B 2091 L", "color": "ETP", "glass_w": 195, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BA0022", "short": "OB BADMIL 6091", "color": "ETP", "glass_w": 595, "glass_h": 729, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WF0058", "short": "OB WF 9033 M", "color": "ETP", "glass_w": 895, "glass_h": 329, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1BU0220", "short": "HD B 3091 R", "color": "WC", "glass_w": 295, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0023", "short": "OB WRMB 4735 M", "color": "WC", "glass_w": 465, "glass_h": 349, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "MRRBD0012", "short": "CH BLD1UA 6091 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WH0008", "short": "OB WHM 6061 M", "color": "WC", "glass_w": 595, "glass_h": 603, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WR0034", "short": "OB WRMB 9545 M", "color": "WC", "glass_w": 945, "glass_h": 452, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WU0043", "short": "OB M 5086 M", "color": "WC", "glass_w": 495, "glass_h": 857, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "MRRWU0011", "short": "CH M 4065 M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 1}}, {"code": "ME1WF0060", "short": "OB WF 9044 M", "color": "ETP", "glass_w": 895, "glass_h": 433, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1BA0025", "short": "OB BTARG 6070 R", "color": "ETP", "glass_w": 592, "glass_h": 693, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WT0178", "short": "OB WTARG 60154 R", "color": "ETP", "glass_w": 592, "glass_h": 1538, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 1, "2026-04": 0}}, {"code": "ME1WT0150", "short": "OB WLDL 9051 M", "color": "ETP", "glass_w": 895, "glass_h": 507, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TU0010", "short": "HD TH 45220 L", "color": "ETP", "glass_w": 445, "glass_h": 2200, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TU0011", "short": "HD TH 45220 R", "color": "ETP", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRRWU0012", "short": "CH M 4073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0236", "short": "HD B 2091 R", "color": "ETP", "glass_w": 195, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRSWU0012", "short": "CH M 4073(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0217", "short": "HD B 2591 L", "color": "WC", "glass_w": 245, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0173", "short": "OB WTA 60147 L", "color": "ETP", "glass_w": 595, "glass_h": 1470, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BC0038", "short": "OB BC1B 4091 M", "color": "ETP", "glass_w": 402, "glass_h": 729, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0164", "short": "OB WT 45147 M", "color": "ETP", "glass_w": 445, "glass_h": 1470, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRQWU0015", "short": "Euro700 Grace MID/N CH M 4573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 0, "2025-12": 0, "2026-01": 1, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WH0006", "short": "OB WHFM 6027 M", "color": "WC", "glass_w": 595, "glass_h": 269, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "MRTWU0020", "short": "Euro700 Grace Sahara CH M 5573(공용) M", "color": "기타", "glass_w": null, "glass_h": null, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WF0066", "short": "OB WFMD 6035 M", "color": "ETP", "glass_w": 595, "glass_h": 349, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1BU0237", "short": "HD B 2591 L", "color": "ETP", "glass_w": 245, "glass_h": 761, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TC0011", "short": "HD TCP1D 42222 L", "color": "ETP", "glass_w": 422, "glass_h": 2110, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1TC0012", "short": "HD TCP1D 40222 R", "color": "ETP", "glass_w": 402, "glass_h": 2110, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0159", "short": "OB WT 30134 M", "color": "ETP", "glass_w": 295, "glass_h": 1342, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}, {"code": "ME1WT0127", "short": "OB WMLDT 6086 M", "color": "WC", "glass_w": 595, "glass_h": 857, "total_6m": 1, "avg_monthly": 0.2, "min_monthly": 0, "max_monthly": 1, "active_months": 1, "monthly": {"2025-11": 1, "2025-12": 0, "2026-01": 0, "2026-02": 0, "2026-03": 0, "2026-04": 0}}];
+  <!-- 공지사항 (편집 가능) -->
+  <div class="card">
+    <div class="card-ttl"><span>📌 공지사항</span>
+      <button onclick="openNoticeModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 작성</button>
+    </div>
+    <div id="notice-list"></div>
+  </div>
 
-// ---- SIZE_GROUPS ----
-const SIZE_GROUPS=[{"w": 595, "h": 139, "key": "595x139", "label": "595 × 139", "models": ["OB BTAO1U 6014 M", "HD BTAO1U 6014 M"], "tags": ["595", "139", "ob btao1u 6014 m", "hd btao1u 6014 m", "595x139"], "avg_monthly": 6.3, "total_6m": 38}, {"w": 445, "h": 170, "key": "445x170", "label": "445 × 170", "models": ["OB BD3U 4591 M"], "tags": ["170", "445x170", "445", "ob bd3u 4591 m"], "avg_monthly": 0.3, "total_6m": 2}, {"w": 445, "h": 347, "key": "445x347", "label": "445 × 347", "models": ["OB BD3U 4591 M"], "tags": ["445x347", "347", "445", "ob bd3u 4591 m"], "avg_monthly": 0, "total_6m": 0}, {"w": 595, "h": 170, "key": "595x170", "label": "595 × 170", "models": ["OB BD3U 6091 M"], "tags": ["170", "595", "595x170", "ob bd3u 6091 m"], "avg_monthly": 2.8, "total_6m": 17}, {"w": 445, "h": 185, "key": "445x185", "label": "445 × 185", "models": ["HD BD3U 4591 M"], "tags": ["445x185", "185", "hd bd3u 4591 m", "445"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 377, "key": "445x377", "label": "445 × 377", "models": ["HD BD3U 4591 M"], "tags": ["445x377", "377", "445", "hd bd3u 4591 m"], "avg_monthly": 0, "total_6m": 0}, {"w": 595, "h": 185, "key": "595x185", "label": "595 × 185", "models": ["HD BD3U 6091 M"], "tags": ["595x185", "595", "185", "hd bd3u 6091 m"], "avg_monthly": 1.7, "total_6m": 10}, {"w": 445, "h": 247, "key": "445x247", "label": "445 × 247", "models": ["OB BLD1R 4591 M", "OB BLD1UA 4591 M"], "tags": ["445x247", "ob bld1ua 4591 m", "247", "ob bld1r 4591 m", "445"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 247, "key": "595x247", "label": "595 × 247", "models": ["OB BLD1R 6091 M", "OB BLD1UA 6091 M", "OB BRO1R 6091 M"], "tags": ["ob bld1r 6091 m", "595", "ob bld1ua 6091 m", "247", "595x247", "ob bro1r 6091 m"], "avg_monthly": 4.5, "total_6m": 27}, {"w": 595, "h": 271, "key": "595x271", "label": "595 × 271", "models": ["OB WHFM 6027 M"], "tags": ["595", "ob whfm 6027 m", "271", "595x271"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 271, "key": "895x271", "label": "895 × 271", "models": ["OB WHFM 9027 M"], "tags": ["ob whfm 9027 m", "271", "895x271", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 304, "key": "595x304", "label": "595 × 304", "models": ["OB WF 6030 M"], "tags": ["595", "ob wf 6030 m", "595x304", "304"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 315, "key": "795x315", "label": "795 × 315", "models": ["OB WFUP 8032 M"], "tags": ["795x315", "315", "ob wfup 8032 m", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 315, "key": "895x315", "label": "895 × 315", "models": ["OB WFUP 9032 M"], "tags": ["895", "ob wfup 9032 m", "315", "895x315"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 315, "key": "995x315", "label": "995 × 315", "models": ["OB WFUP 10032 M"], "tags": ["ob wfup 10032 m", "995x315", "315", "995"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 326, "key": "795x326", "label": "795 × 326", "models": ["OB WRMB 8033 M"], "tags": ["795x326", "326", "ob wrmb 8033 m", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 945, "h": 326, "key": "945x326", "label": "945 × 326", "models": ["OB WRMB 9533 M"], "tags": ["945x326", "326", "945", "ob wrmb 9533 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 326, "key": "995x326", "label": "995 × 326", "models": ["OB WRMB 10033 M"], "tags": ["326", "ob wrmb 10033 m", "995x326", "995"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 331, "key": "895x331", "label": "895 × 331", "models": ["OB WF 9033 M"], "tags": ["331", "ob wf 9033 m", "895x331", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 295, "h": 345, "key": "295x345", "label": "295 × 345", "models": ["OB BUIF 3034", "HD BUIF 3034"], "tags": ["345", "ob buif 3034", "hd buif 3034", "295x345", "295"], "avg_monthly": 12.8, "total_6m": 77}, {"w": 595, "h": 347, "key": "595x347", "label": "595 × 347", "models": ["OB BD2R 6091 M", "OB BLD2R 6062 M", "OB BD3U 6091 M"], "tags": ["595", "347", "ob bld2r 6062 m", "595x347", "ob bd2r 6091 m", "ob bd3u 6091 m"], "avg_monthly": 12.3, "total_6m": 74}, {"w": 895, "h": 347, "key": "895x347", "label": "895 × 347", "models": ["OB BD2R 9091 M"], "tags": ["895x347", "347", "ob bd2r 9091 m", "895"], "avg_monthly": 21.8, "total_6m": 131}, {"w": 1195, "h": 347, "key": "1195x347", "label": "1195 × 347", "models": ["OB BD2R 12091 M"], "tags": ["1195x347", "ob bd2r 12091 m", "1195", "347"], "avg_monthly": 0.5, "total_6m": 3}, {"w": 465, "h": 351, "key": "465x351", "label": "465 × 351", "models": ["OB WRMB 4735 M"], "tags": ["465", "ob wrmb 4735 m", "465x351", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 351, "key": "595x351", "label": "595 × 351", "models": ["OB WFMD 6035 M"], "tags": ["ob wfmd 6035 m", "595", "595x351", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 605, "h": 351, "key": "605x351", "label": "605 × 351", "models": ["OB WRMB 6135 M"], "tags": ["ob wrmb 6135 m", "605", "605x351", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 710, "h": 351, "key": "710x351", "label": "710 × 351", "models": ["OB WRMB 7135 M"], "tags": ["710x351", "710", "ob wrmb 7135 m", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 351, "key": "795x351", "label": "795 × 351", "models": ["OB WRMBS 8035 M"], "tags": ["795x351", "ob wrmbs 8035 m", "795", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 351, "key": "895x351", "label": "895 × 351", "models": ["OB WFMD 9035 M", "OB WRMBS 9035 M"], "tags": ["895x351", "ob wrmbs 9035 m", "ob wfmd 9035 m", "895", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 925, "h": 351, "key": "925x351", "label": "925 × 351", "models": ["OB WRMB 9335 M"], "tags": ["925x351", "ob wrmb 9335 m", "925", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 351, "key": "995x351", "label": "995 × 351", "models": ["OB WRMBS 10035 M"], "tags": ["995", "995x351", "ob wrmbs 10035 m", "351"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 355, "key": "795x355", "label": "795 × 355", "models": ["OB WFUP 8036 M"], "tags": ["795x355", "ob wfup 8036 m", "355", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 355, "key": "895x355", "label": "895 × 355", "models": ["OB WFUP 9036 M"], "tags": ["895x355", "ob wfup 9036 m", "355", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 355, "key": "995x355", "label": "995 × 355", "models": ["OB WFUP 10036 M"], "tags": ["995", "ob wfup 10036 m", "995x355", "355"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 371, "key": "795x371", "label": "795 × 371", "models": ["OB WF 8037 M"], "tags": ["795x371", "371", "ob wf 8037 m", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 371, "key": "895x371", "label": "895 × 371", "models": ["OB WF 9037 M"], "tags": ["ob wf 9037 m", "895x371", "371", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 371, "key": "995x371", "label": "995 × 371", "models": ["OB WF 10037 M"], "tags": ["995x371", "371", "ob wf 10037 m", "995"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 377, "key": "595x377", "label": "595 × 377", "models": ["HD BD2R 6091 M", "HD BLD2R 6062 M", "HD BD3U 6091 M"], "tags": ["595", "hd bd2r 6091 m", "hd bld2r 6062 m", "595x377", "377", "hd bd3u 6091 m"], "avg_monthly": 8.2, "total_6m": 49}, {"w": 895, "h": 377, "key": "895x377", "label": "895 × 377", "models": ["HD BD2R 9091 M"], "tags": ["hd bd2r 9091 m", "377", "895x377", "895"], "avg_monthly": 14.0, "total_6m": 84}, {"w": 1195, "h": 377, "key": "1195x377", "label": "1195 × 377", "models": ["HD BD2R 12091 M"], "tags": ["377", "1195", "hd bd2r 12091 m", "1195x377"], "avg_monthly": 1.7, "total_6m": 10}, {"w": 395, "h": 417, "key": "395x417", "label": "395 × 417", "models": ["OB W2U 4042 M"], "tags": ["ob w2u 4042 m", "395x417", "395", "417"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 417, "key": "445x417", "label": "445 × 417", "models": ["OB W2U 4542 M"], "tags": ["445x417", "ob w2u 4542 m", "445", "417"], "avg_monthly": 0.7, "total_6m": 4}, {"w": 595, "h": 432, "key": "595x432", "label": "595 × 432", "models": ["OB WF 6043 M"], "tags": ["432", "595", "595x432", "ob wf 6043 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 435, "key": "795x435", "label": "795 × 435", "models": ["OB WF 8044 M"], "tags": ["795x435", "435", "ob wf 8044 m", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 435, "key": "895x435", "label": "895 × 435", "models": ["OB WF 9044 M"], "tags": ["ob wf 9044 m", "435", "895x435", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 454, "key": "795x454", "label": "795 × 454", "models": ["OB WRMB 8045 M"], "tags": ["ob wrmb 8045 m", "454", "795x454", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 945, "h": 454, "key": "945x454", "label": "945 × 454", "models": ["OB WRMB 9545 M"], "tags": ["ob wrmb 9545 m", "945x454", "945", "454"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 454, "key": "995x454", "label": "995 × 454", "models": ["OB WRMB 10045 M"], "tags": ["995", "995x454", "454", "ob wrmb 10045 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 465, "h": 479, "key": "465x479", "label": "465 × 479", "models": ["OB WRMB 4748 M"], "tags": ["465", "ob wrmb 4748 m", "479", "465x479"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 479, "key": "595x479", "label": "595 × 479", "models": ["OB WFMD 6048 M"], "tags": ["479", "595", "ob wfmd 6048 m", "595x479"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 605, "h": 479, "key": "605x479", "label": "605 × 479", "models": ["OB WRMB 6148 M"], "tags": ["479", "ob wrmb 6148 m", "605x479", "605"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 710, "h": 479, "key": "710x479", "label": "710 × 479", "models": ["OB WRMB 7148 M"], "tags": ["ob wrmb 7148 m", "710", "479", "710x479"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 479, "key": "795x479", "label": "795 × 479", "models": ["OB WRMBS 8048 M"], "tags": ["795x479", "ob wrmbs 8048 m", "479", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 479, "key": "895x479", "label": "895 × 479", "models": ["OB WFMD 9048 M", "OB WRMBS 9048 M"], "tags": ["479", "895x479", "ob wrmbs 9048 m", "ob wfmd 9048 m", "895"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 925, "h": 479, "key": "925x479", "label": "925 × 479", "models": ["OB WRMB 9348 M"], "tags": ["479", "ob wrmb 9348 m", "925x479", "925"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 479, "key": "995x479", "label": "995 × 479", "models": ["OB WRMBS 10048 M"], "tags": ["995x479", "479", "ob wrmbs 10048 m", "995"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 507, "key": "595x507", "label": "595 × 507", "models": ["OB WLDL 6051 M"], "tags": ["595", "ob wldl 6051 m", "595x507", "507"], "avg_monthly": 7.5, "total_6m": 45}, {"w": 895, "h": 507, "key": "895x507", "label": "895 × 507", "models": ["OB WLDL 9051 M"], "tags": ["895x507", "ob wldl 9051 m", "507", "895"], "avg_monthly": 1.0, "total_6m": 6}, {"w": 595, "h": 513, "key": "595x513", "label": "595 × 513", "models": ["OB M 6052 M"], "tags": ["595", "ob m 6052 m", "513", "595x513"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 531, "key": "595x531", "label": "595 × 531", "models": ["OB WFED 6053 M"], "tags": ["595x531", "595", "ob wfed 6053 m", "531"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 695, "h": 531, "key": "695x531", "label": "695 × 531", "models": ["OB WFED 7053 M"], "tags": ["ob wfed 7053 m", "695", "695x531", "531"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 795, "h": 531, "key": "795x531", "label": "795 × 531", "models": ["OB WFED 8053 M"], "tags": ["531", "ob wfed 8053 m", "795x531", "795"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 895, "h": 531, "key": "895x531", "label": "895 × 531", "models": ["OB WFED 9053 M"], "tags": ["895", "ob wfed 9053 m", "895x531", "531"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 995, "h": 531, "key": "995x531", "label": "995 × 531", "models": ["OB WFED 10053 M"], "tags": ["995x531", "995", "ob wfed 10053 m", "531"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 583, "key": "595x583", "label": "595 × 583", "models": ["OB BAD 6091"], "tags": ["583", "595", "595x583", "ob bad 6091"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 605, "key": "595x605", "label": "595 × 605", "models": ["OB WHM 6061 M"], "tags": ["595", "ob whm 6061 m", "595x605", "605"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 295, "h": 606, "key": "295x606", "label": "295 × 606", "models": ["OB TND2 30149 M", "HD TND2 30149 M"], "tags": ["295x606", "ob tnd2 30149 m", "606", "hd tnd2 30149 m", "295"], "avg_monthly": 5, "total_6m": 30}, {"w": 295, "h": 649, "key": "295x649", "label": "295 × 649", "models": ["OB M 3065 M"], "tags": ["ob m 3065 m", "649", "295", "295x649"], "avg_monthly": 0.8, "total_6m": 5}, {"w": 345, "h": 649, "key": "345x649", "label": "345 × 649", "models": ["OB M 3565 M"], "tags": ["649", "345", "345x649", "ob m 3565 m"], "avg_monthly": 4.5, "total_6m": 27}, {"w": 395, "h": 649, "key": "395x649", "label": "395 × 649", "models": ["OB M 4065 M"], "tags": ["649", "ob m 4065 m", "395", "395x649"], "avg_monthly": 4.3, "total_6m": 26}, {"w": 445, "h": 649, "key": "445x649", "label": "445 × 649", "models": ["OB M 4565 M"], "tags": ["ob m 4565 m", "649", "445x649", "445"], "avg_monthly": 3.0, "total_6m": 18}, {"w": 495, "h": 649, "key": "495x649", "label": "495 × 649", "models": ["OB M 5065 M"], "tags": ["649", "495x649", "ob m 5065 m", "495"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 595, "h": 651, "key": "595x651", "label": "595 × 651", "models": ["OB WHMH 6065 M"], "tags": ["595", "651", "595x651", "ob whmh 6065 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 592, "h": "693L", "key": "592x693L", "label": "592 × 693 (좌·L)", "lr":"L", "hnum":693, "models": ["OB BTARG 6070 L"], "tags": ["592", "ob btarg 6070", "btarg 6070 l", "693", "592x693", "좌", "l"], "avg_monthly": 0.2, "total_6m": 1}, {"w": 592, "h": "693R", "key": "592x693R", "label": "592 × 693 (우·R)", "lr":"R", "hnum":693, "models": ["OB BTARG 6070 R"], "tags": ["592", "ob btarg 6070", "btarg 6070 r", "693", "592x693", "우", "r"], "avg_monthly": 0.2, "total_6m": 1}, {"w": 195, "h": 729, "key": "195x729", "label": "195 × 729", "models": ["OB BNDB2N 2091 M", "OB M 2073(공용) M"], "tags": ["ob m 2073(공용) m", "195", "ob bndb2n 2091 m", "195x729", "729"], "avg_monthly": 7.3, "total_6m": 44}, {"w": 245, "h": 729, "key": "245x729", "label": "245 × 729", "models": ["OB M 2573(공용) M"], "tags": ["245x729", "729", "ob m 2573(공용) m", "245"], "avg_monthly": 2.3, "total_6m": 14}, {"w": 295, "h": 729, "key": "295x729", "label": "295 × 729", "models": ["OB BNDC2N 3091 M", "OB M 3073(공용) M", "OB WMLDT 3073 M"], "tags": ["ob m 3073(공용) m", "295", "ob bndc2n 3091 m", "295x729", "729", "ob wmldt 3073 m"], "avg_monthly": 25.7, "total_6m": 154}, {"w": 345, "h": 729, "key": "345x729", "label": "345 × 729", "models": ["OB M 3573(공용) M"], "tags": ["345", "345x729", "729", "ob m 3573(공용) m"], "avg_monthly": 26.8, "total_6m": 161}, {"w": 395, "h": 729, "key": "395x729", "label": "395 × 729", "models": ["OB M 4073(공용) M"], "tags": ["395x729", "ob m 4073(공용) m", "395", "729"], "avg_monthly": 53.8, "total_6m": 323}, {"w": 402, "h": 729, "key": "402x729", "label": "402 × 729", "models": ["OB BC1B 4091 M"], "tags": ["402x729", "402", "ob bc1b 4091 m", "729"], "avg_monthly": 0.5, "total_6m": 3}, {"w": 422, "h": 729, "key": "422x729", "label": "422 × 729", "models": ["OB BC1A 4291 M"], "tags": ["ob bc1a 4291 m", "422", "422x729", "729"], "avg_monthly": 0.3, "total_6m": 2}, {"w": 445, "h": 729, "key": "445x729", "label": "445 × 729", "models": ["OB BDI1R 4591 M", "OB M 4573(공용) M", "OB WMLDT 4573 M"], "tags": ["ob m 4573(공용) m", "ob bdi1r 4591 m", "445", "445x729", "ob wmldt 4573 m", "729"], "avg_monthly": 97.5, "total_6m": 585}, {"w": 495, "h": 729, "key": "495x729", "label": "495 × 729", "models": ["OB M 5073(공용) M"], "tags": ["ob m 5073(공용) m", "495x729", "729", "495"], "avg_monthly": 55.5, "total_6m": 333}, {"w": 545, "h": 729, "key": "545x729", "label": "545 × 729", "models": ["OB M 5573(공용) M"], "tags": ["ob m 5573(공용) m", "545x729", "545", "729"], "avg_monthly": 11.7, "total_6m": 70}, {"w": 595, "h": 729, "key": "595x729", "label": "595 × 729", "models": ["OB BADMIL 6091", "OB M 6073(공용) M", "OB WMLDT 6073 M"], "tags": ["595", "ob wmldt 6073 m", "ob badmil 6091", "595x729", "729", "ob m 6073(공용) m"], "avg_monthly": 52.7, "total_6m": 316}, {"w": 595, "h": 731, "key": "595x731", "label": "595 × 731", "models": ["OB WHMH 6073 M"], "tags": ["595", "731", "ob whmh 6073 m", "595x731"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 195, "h": 761, "key": "195x761", "label": "195 × 761", "models": ["HD BNDB2N 2091 M", "HD B 2091"], "tags": ["hd bndb2n 2091 m", "761", "195x761", "hd b 2091", "195"], "avg_monthly": 3.2, "total_6m": 19}, {"w": 245, "h": 761, "key": "245x761", "label": "245 × 761", "models": ["HD B 2591"], "tags": ["hd b 2591", "245x761", "761", "245"], "avg_monthly": 0.3, "total_6m": 2}, {"w": 295, "h": 761, "key": "295x761", "label": "295 × 761", "models": ["HD BNDC2N 3091 M", "HD B 3091"], "tags": ["761", "295", "hd bndc2n 3091 m", "hd b 3091", "295x761"], "avg_monthly": 8.3, "total_6m": 50}, {"w": 345, "h": 761, "key": "345x761", "label": "345 × 761", "models": ["HD B 3591"], "tags": ["345", "761", "345x761", "hd b 3591"], "avg_monthly": 2.8, "total_6m": 17}, {"w": 395, "h": 761, "key": "395x761", "label": "395 × 761", "models": ["HD B 4091"], "tags": ["hd b 4091", "761", "395x761", "395"], "avg_monthly": 7.7, "total_6m": 46}, {"w": 402, "h": 761, "key": "402x761", "label": "402 × 761", "models": ["HD BC1B 4091"], "tags": ["402", "761", "hd bc1b 4091", "402x761"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 422, "h": 761, "key": "422x761", "label": "422 × 761", "models": ["HD BC1A 4291"], "tags": ["hd bc1a 4291", "761", "422", "422x761"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 761, "key": "445x761", "label": "445 × 761", "models": ["HD BDI1R 4591 M", "HD B 4591"], "tags": ["445x761", "761", "hd bdi1r 4591 m", "hd b 4591", "445"], "avg_monthly": 20.7, "total_6m": 124}, {"w": 495, "h": 761, "key": "495x761", "label": "495 × 761", "models": ["HD B 5091"], "tags": ["hd b 5091", "761", "495x761", "495"], "avg_monthly": 24.2, "total_6m": 145}, {"w": 545, "h": 761, "key": "545x761", "label": "545 × 761", "models": ["HD B 5591"], "tags": ["545", "761", "hd b 5591", "545x761"], "avg_monthly": 4.2, "total_6m": 25}, {"w": 595, "h": 761, "key": "595x761", "label": "595 × 761", "models": ["HD BADMIL 6091", "HD B 6091"], "tags": ["595", "761", "595x761", "hd b 6091", "hd badmil 6091"], "avg_monthly": 19.3, "total_6m": 116}, {"w": 595, "h": 827, "key": "595x827", "label": "595 × 827", "models": ["OB WMLDT 6083 M"], "tags": ["595", "ob wmldt 6083 m", "827", "595x827"], "avg_monthly": 2.0, "total_6m": 12}, {"w": 195, "h": 857, "key": "195x857", "label": "195 × 857", "models": ["OB M 2086 M"], "tags": ["195", "195x857", "857", "ob m 2086 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 245, "h": 857, "key": "245x857", "label": "245 × 857", "models": ["OB M 2586 M"], "tags": ["857", "ob m 2586 m", "245x857", "245"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 295, "h": 857, "key": "295x857", "label": "295 × 857", "models": ["OB M 3086 M", "OB WMLDT 3086 M"], "tags": ["ob m 3086 m", "857", "295x857", "ob wmldt 3086 m", "295"], "avg_monthly": 2.2, "total_6m": 13}, {"w": 345, "h": 857, "key": "345x857", "label": "345 × 857", "models": ["OB M 3586 M"], "tags": ["ob m 3586 m", "345", "857", "345x857"], "avg_monthly": 2.2, "total_6m": 13}, {"w": 395, "h": 857, "key": "395x857", "label": "395 × 857", "models": ["OB M 4086 M"], "tags": ["395x857", "857", "ob m 4086 m", "395"], "avg_monthly": 8.2, "total_6m": 49}, {"w": 445, "h": 857, "key": "445x857", "label": "445 × 857", "models": ["OB M 4586 M", "OB WMLDT 4586 M"], "tags": ["445x857", "ob wmldt 4586 m", "ob m 4586 m", "857", "445"], "avg_monthly": 5.7, "total_6m": 34}, {"w": 495, "h": 857, "key": "495x857", "label": "495 × 857", "models": ["OB M 5086 M"], "tags": ["857", "495x857", "ob m 5086 m", "495"], "avg_monthly": 0.7, "total_6m": 4}, {"w": 545, "h": 857, "key": "545x857", "label": "545 × 857", "models": ["OB M 5586 M"], "tags": ["857", "ob m 5586 m", "545", "545x857"], "avg_monthly": 0.3, "total_6m": 2}, {"w": 595, "h": 857, "key": "595x857", "label": "595 × 857", "models": ["OB M 6086 M", "OB WMLDT 6086 M"], "tags": ["595x857", "595", "ob m 6086 m", "857", "ob wmldt 6086 m"], "avg_monthly": 2.7, "total_6m": 16}, {"w": 595, "h": 955, "key": "595x955", "label": "595 × 955", "models": ["OB WMLDT 6096 M"], "tags": ["955", "595", "595x955", "ob wmldt 6096 m"], "avg_monthly": 2.3, "total_6m": 14}, {"w": 295, "h": 1342, "key": "295x1342", "label": "295 × 1342", "models": ["OB WT 30134 M"], "tags": ["295x1342", "295", "1342", "ob wt 30134 m"], "avg_monthly": 1.0, "total_6m": 6}, {"w": 395, "h": 1342, "key": "395x1342", "label": "395 × 1342", "models": ["OB WT 40134 M"], "tags": ["395x1342", "1342", "395", "ob wt 40134 m"], "avg_monthly": 1.7, "total_6m": 10}, {"w": 445, "h": 1342, "key": "445x1342", "label": "445 × 1342", "models": ["OB WT 45134 M", "OB WTA 45134"], "tags": ["ob wta 45134", "1342", "445", "ob wt 45134 m", "445x1342"], "avg_monthly": 9, "total_6m": 54}, {"w": 595, "h": 1342, "key": "595x1342", "label": "595 × 1342", "models": ["OB WT 60134 M", "OB WTA 60134"], "tags": ["595", "ob wta 60134", "ob wt 60134 m", "1342", "595x1342"], "avg_monthly": 6.2, "total_6m": 37}, {"w": 402, "h": 1347, "key": "402x1347", "label": "402 × 1347", "models": ["HD TCP1D 40222"], "tags": ["402x1347", "402", "hd tcp1d 40222", "1347"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 422, "h": 1347, "key": "422x1347", "label": "422 × 1347", "models": ["HD TCP1D 42222"], "tags": ["hd tcp1d 42222", "422", "422x1347", "1347"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 1347, "key": "445x1347", "label": "445 × 1347", "models": ["HD TH 45220"], "tags": ["1347", "hd th 45220", "445", "445x1347"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 592, "h": "1410L", "key": "592x1410L", "label": "592 × 1410 (좌·L)", "lr":"L", "hnum":1410, "models": ["OB WTARG 60141 L"], "tags": ["592x1410", "ob wtarg 60141", "wtarg 60141 l", "592", "1410", "좌", "l"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 592, "h": "1410R", "key": "592x1410R", "label": "592 × 1410 (우·R)", "lr":"R", "hnum":1410, "models": ["OB WTARG 60141 R"], "tags": ["592x1410", "ob wtarg 60141", "wtarg 60141 r", "592", "1410", "우", "r"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 295, "h": 1470, "key": "295x1470", "label": "295 × 1470", "models": ["OB WT 30147 M"], "tags": ["1470", "295x1470", "295", "ob wt 30147 m"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 395, "h": 1470, "key": "395x1470", "label": "395 × 1470", "models": ["OB WT 40147 M"], "tags": ["395x1470", "ob wt 40147 m", "1470", "395"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 1470, "key": "445x1470", "label": "445 × 1470", "models": ["OB WT 45147 M", "OB WTA 45147"], "tags": ["445x1470", "1470", "ob wta 45147", "445", "ob wt 45147 m"], "avg_monthly": 2.3, "total_6m": 14}, {"w": 595, "h": 1470, "key": "595x1470", "label": "595 × 1470", "models": ["OB WT 60147 M", "OB WTA 60147"], "tags": ["595", "ob wt 60147 m", "ob wta 60147", "1470", "595x1470"], "avg_monthly": 3.3, "total_6m": 20}, {"w": 402, "h": 1475, "key": "402x1475", "label": "402 × 1475", "models": ["HD TCP1D 40235"], "tags": ["402", "hd tcp1d 40235", "402x1475", "1475"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 422, "h": 1475, "key": "422x1475", "label": "422 × 1475", "models": ["HD TCP1D 42235"], "tags": ["422", "1475", "422x1475", "hd tcp1d 42235"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 445, "h": 1475, "key": "445x1475", "label": "445 × 1475", "models": ["HD TH 45233"], "tags": ["445x1475", "hd th 45233", "1475", "445"], "avg_monthly": 0.0, "total_6m": 0}, {"w": 592, "h": "1538L", "key": "592x1538L", "label": "592 × 1538 (좌·L)", "lr":"L", "hnum":1538, "models": ["OB WTARG 60154 L"], "tags": ["592x1538", "ob wtarg 60154", "wtarg 60154 l", "1538", "592", "좌", "l"], "avg_monthly": 0.2, "total_6m": 1}, {"w": 592, "h": "1538R", "key": "592x1538R", "label": "592 × 1538 (우·R)", "lr":"R", "hnum":1538, "models": ["OB WTARG 60154 R"], "tags": ["592x1538", "ob wtarg 60154", "wtarg 60154 r", "1538", "592", "우", "r"], "avg_monthly": 0.2, "total_6m": 1}];
+  <!-- 일정 달력 (편집 가능) -->
+  <div class="card">
+    <div class="card-ttl">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="moveCalMonth(-1)" style="background:none;border:none;color:var(--tx2);font-size:18px;cursor:pointer;padding:0 4px">‹</button>
+        <span id="cal-title" style="font-size:13px;font-weight:700;min-width:90px;text-align:center"></span>
+        <button onclick="moveCalMonth(1)" style="background:none;border:none;color:var(--tx2);font-size:18px;cursor:pointer;padding:0 4px">›</button>
+      </div>
+      <button onclick="openSchModal()" style="padding:4px 12px;background:var(--acc2);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 일정</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-bottom:4px">
+      <div style="text-align:center;font-size:10px;font-weight:700;color:var(--acc4);padding:4px 0">일</div>
+      <div style="text-align:center;font-size:10px;font-weight:700;color:var(--tx3);padding:4px 0">월</div>
+      <div style="text-align:center;font-size:10px;font-weight:700;color:var(--tx3);padding:4px 0">화</div>
+      <div style="text-align:center;font-size:10px;font-weight:700;color:var(--tx3);padding:4px 0">수</div>
+      <div style="text-align:center;font-size:10px;font-weight:700;color:var(--tx3);padding:4px 0">목</div>
+      <div style="text-align:center;font-size:10px;font-weight:700;color:var(--tx3);padding:4px 0">금</div>
+      <div style="text-align:center;font-size:10px;font-weight:700;color:var(--acc);padding:4px 0">토</div>
+    </div>
+    <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+    <div id="cal-day-detail" style="margin-top:12px"></div>
+  </div>
 
-// ---- CODE_MODEL_MAP ----
-const CODE_MODEL_MAP={"ME1WM0001": {"short": "유리장식벽장 AL도어 4586 M", "color": ""}, "ME1BU0223": {"short": "HD B 4091", "color": "WC"}, "ME1WT0131": {"short": "OB WT 40134 M", "color": "WC"}, "ME1WR0025": {"short": "OB WRMB 6135 M", "color": "WC"}, "ME1BD0086": {"short": "HD BD2R 12091 M", "color": "WC"}, "ME1BD0081": {"short": "OB BLD1R 4591 M", "color": "WC"}, "ME1BN0024": {"short": "HD BNDC2N 3091 M", "color": "WC"}, "ME1BU0227": {"short": "HD B 5091", "color": "WC"}, "ME1BU0228": {"short": "HD B 5091", "color": "WC"}, "ME1BU0224": {"short": "HD B 4091", "color": "WC"}, "ME1BU0219": {"short": "HD B 3091", "color": "WC"}, "ME1BU0232": {"short": "HD B 6091", "color": "WC"}, "ME1TD0012": {"short": "HD BTAO1U 6014 M", "color": "WC"}, "ME1WT0125": {"short": "OB WMLDT 6073 M", "color": "WC"}, "ME1TN0012": {"short": "HD TND2 30149 M", "color": "WC"}, "ME1WT0121": {"short": "OB WMLDT 3073 M", "color": "WC"}, "ME1BU0245": {"short": "HD B 4591", "color": "ETP"}, "ME1BU0246": {"short": "HD B 4591", "color": "ETP"}, "ME1TM0003": {"short": "유리장식키큰장 AL도어 60222 M", "color": ""}, "ME1WUX004": {"short": "OB M 비규격", "color": "WC"}, "ME1BUX025": {"short": "HD B 비규격", "color": "ETP"}, "ME1WUX007": {"short": "OB M 비규격", "color": "ETP"}, "ME1WU0114": {"short": "OB M 5073(공용) M", "color": ""}, "ME1WU0111": {"short": "OB M 4573(공용) M", "color": ""}, "ME1BD0135": {"short": "OB BD3U 6091 M", "color": ""}, "ME1BD0139": {"short": "OB BLD1UA 4591 M", "color": ""}, "ME1BN0033": {"short": "OB BNDB2N 2091 M", "color": ""}, "ME1WU0119": {"short": "OB M 6073(공용) M", "color": ""}, "ME1WT0232": {"short": "OB WTA 60134", "color": ""}, "ME1WT0216": {"short": "OB WMLDT 6083 M", "color": ""}, "ME1WH0025": {"short": "OB WHMH 6073 M", "color": ""}, "ME1WR0091": {"short": "OB WRMB 9335 M", "color": ""}, "ME1WU0105": {"short": "OB M 3573(공용) M", "color": ""}, "ME1WU0108": {"short": "OB M 4073(공용) M", "color": ""}, "ME1BU0244": {"short": "HD B 4091", "color": "ETP"}, "ME1BD0107": {"short": "HD BD2R 9091 M", "color": "ETP"}, "ME1BU0251": {"short": "HD B 6091", "color": "ETP"}, "ME1WT0155": {"short": "OB WMLDT 6073 M", "color": "ETP"}, "ME1WT0163": {"short": "OB WT 45134 M", "color": "ETP"}, "ME1WU0057": {"short": "OB M 3573(공용) M", "color": "ETP"}, "ME1WR0041": {"short": "OB WRMB 10033 M", "color": "ETP"}, "ME1WU0060": {"short": "OB M 4073(공용) M", "color": "ETP"}, "ME1WU0063": {"short": "OB M 4573(공용) M", "color": "ETP"}, "ME1WU0066": {"short": "OB M 5073(공용) M", "color": "ETP"}, "ME1WU0068": {"short": "OB M 5573(공용) M", "color": "ETP"}, "ME1BD0133": {"short": "OB BD2R 9091 M", "color": ""}, "ME1BN0034": {"short": "OB BNDC2N 3091 M", "color": ""}, "ME1WM0002": {"short": "유리장식벽장 AL도어 5086 M", "color": ""}, "ME1BD0084": {"short": "OB BLD1UA 6091 M", "color": "WC"}, "ME1BU0225": {"short": "HD B 4591", "color": "WC"}, "ME1BU0226": {"short": "HD B 4591", "color": "WC"}, "ME1WU0042": {"short": "OB M 5073(공용) M", "color": "WC"}, "ME1WU0039": {"short": "OB M 4573(공용) M", "color": "WC"}, "ME1BD0094": {"short": "OB BD2R 6091 M", "color": "ETP"}, "ME1BD0095": {"short": "OB BD2R 9091 M", "color": "ETP"}, "ME1BD0101": {"short": "OB BLD1UA 4591 M", "color": "ETP"}, "ME1BN0026": {"short": "OB BNDC2N 3091 M", "color": "ETP"}, "ME1WT0167": {"short": "OB WTA 45134", "color": "ETP"}, "ME1WT0168": {"short": "OB WTA 45134", "color": "ETP"}, "ME1TD0017": {"short": "OB BTAO1U 6014 M", "color": "ETP"}, "ME1WU0071": {"short": "OB M 6073(공용) M", "color": "ETP"}, "ME1WF0068": {"short": "OB WFMD 9035 M", "color": "ETP"}, "ME1WR0051": {"short": "OB WRMB 9335 M", "color": "ETP"}, "ME1WU0054": {"short": "OB M 3073(공용) M", "color": "ETP"}, "ME1WU0112": {"short": "OB M 4586 M", "color": ""}, "ME1WU0109": {"short": "OB M 4086 M", "color": ""}, "ME1BD0087": {"short": "HD BD2R 6091 M", "color": "WC"}, "ME1BD0088": {"short": "HD BD2R 9091 M", "color": "WC"}, "ME1BU0229": {"short": "HD B 5591", "color": "WC"}, "ME1BU0230": {"short": "HD B 5591", "color": "WC"}, "ME1WR0033": {"short": "OB WRMB 9533 M", "color": "WC"}, "ME1WR0031": {"short": "OB WRMB 9335 M", "color": "WC"}, "ME1TMX001": {"short": "유리장식키큰장 AL도어 비규격", "color": ""}, "ME1WMX001": {"short": "유리장식벽장 AL도어 비규격", "color": ""}, "ME1BUX023": {"short": "OB BHBU 비규격", "color": "ETP"}, "ME1WRX003": {"short": "OB WRMB 비규격", "color": "ETP"}, "KITAS0075": {"short": "MBD2R소마이다(멍)_555*80(W/Cott", "color": ""}, "ME1BN0022": {"short": "OB BNDC2N 3091 M", "color": "WC"}, "ME1WU0030": {"short": "OB M 3073(공용) M", "color": "WC"}, "ME1BD0077": {"short": "OB BD2R 9091 M", "color": "WC"}, "ME1BU0235": {"short": "HD B 2091", "color": "ETP"}, "ME1WU0067": {"short": "OB M 5086 M", "color": "ETP"}, "ME1BD0106": {"short": "HD BD2R 6091 M", "color": "ETP"}, "ME1BD0110": {"short": "HD BDI1R 4591 M", "color": "ETP"}, "ME1BA0023": {"short": "OB BRO1R 6091 M", "color": "ETP"}, "ME1BU0247": {"short": "HD B 5091", "color": "ETP"}, "ME1BU0248": {"short": "HD B 5091", "color": "ETP"}, "ME1BU0240": {"short": "HD B 3091", "color": "ETP"}, "ME1WT0149": {"short": "OB WLDL 6051 M", "color": "ETP"}, "ME1WU0062": {"short": "OB M 4565 M", "color": "ETP"}, "ME1WU0053": {"short": "OB M 3065 M", "color": "ETP"}, "ME1BU0214": {"short": "HD BUIF 3034", "color": "WC"}, "ME1BU0233": {"short": "OB BUIF 3034", "color": "ETP"}, "ME1BU0253": {"short": "BRZ OB BUIF 3034", "color": ""}, "ME1BU0273": {"short": "OB BUIF 3034", "color": ""}, "ME1WFX010": {"short": "OB WF 비규격", "color": "ETP"}, "ME1TM0001": {"short": "유리장식키큰장 AL도어 45222 M", "color": ""}, "ME1WM0003": {"short": "유리장식벽장 AL도어 6086 M", "color": ""}, "ME1WU0087": {"short": "BRZ OB M 4573(공용) M", "color": ""}, "ME1BD0114": {"short": "BRZ OB BD2R 9091 M", "color": ""}, "ME1BN0030": {"short": "BRZ OB BNDC2N 3091 M", "color": ""}, "ME1WU0090": {"short": "BRZ OB M 5073(공용) M", "color": ""}, "ME1WU0095": {"short": "BRZ OB M 6073(공용) M", "color": ""}, "ME1WT0195": {"short": "BRZ OB WT 60134 M", "color": ""}, "ME1WU0084": {"short": "BRZ OB M 4073(공용) M", "color": ""}, "ME1WF0081": {"short": "BRZ OB WF 8037 M", "color": ""}, "ME1WF0098": {"short": "BRZ OB WFUP 8036 M", "color": ""}, "ME1WF0084": {"short": "BRZ OB WF 9037 M", "color": ""}, "ME1WF0100": {"short": "BRZ OB WFUP 9036 M", "color": ""}, "ME1WU0080": {"short": "BRZ OB M 3565 M", "color": ""}, "ME1WU0083": {"short": "BRZ OB M 4065 M", "color": ""}, "ME1WUX010": {"short": "BRZ OB M 비규격", "color": ""}, "ME1WTX029": {"short": "BRZ OB WT 비규격", "color": ""}, "ME1BUX022": {"short": "HD B 비규격", "color": "WC"}, "ME1WRX002": {"short": "OB WRMB 비규격", "color": "WC"}, "ME1WFX007": {"short": "OB WFED 비규격", "color": "WC"}, "MK1TM0006": {"short": "KB 키큰장용 빗면 프레임 유리 도어 60211", "color": ""}, "MK1TM0007": {"short": "KB 키큰장용 빗면 프레임 유리 도어 60211", "color": ""}, "MK1WM0006": {"short": "KB 플랩장용 빗면 프레임 유리 도어 10054 M", "color": ""}, "ME1BA0022": {"short": "OB BADMIL 6091", "color": "ETP"}, "ME1BD0102": {"short": "OB BLD1UA 6091 M", "color": "ETP"}, "ME1WT0174": {"short": "OB WTA 60147", "color": "ETP"}, "ME1WF0058": {"short": "OB WF 9033 M", "color": "ETP"}, "ME1WR0052": {"short": "OB WRMB 9348 M", "color": "ETP"}, "ME1WU0064": {"short": "OB M 4586 M", "color": "ETP"}, "ME1TM0004": {"short": "유리장식키큰장 AL도어 60235 M", "color": ""}, "ME1WRX004": {"short": "BRZ OB WRMB 비규격", "color": ""}, "ME1WUX011": {"short": "BRZ OB W2HBT 비규격", "color": ""}, "ME1WUX012": {"short": "BRZ OB WHBT 비규격", "color": ""}, "ME1BUX026": {"short": "BRZ OB BHBU 비규격", "color": ""}, "MK1TM0005": {"short": "AL프레임 에어힌지 키큰장유리도어 18T(545*2113)", "color": ""}, "ME1BDX021": {"short": "OB BD2R 비규격", "color": "WC"}, "ME1WU0047": {"short": "OB M 6073(공용) M", "color": "WC"}, "ME1TN0011": {"short": "OB TND2 30149 M", "color": "WC"}, "ME1BA0028": {"short": "BRZ OB BADMIL 6091", "color": ""}, "ME1BD0113": {"short": "BRZ OB BD2R 6091 M", "color": ""}, "ME1WT0199": {"short": "BRZ OB WTA 45147", "color": ""}, "ME1WT0200": {"short": "BRZ OB WTA 45147", "color": ""}, "ME1WU0096": {"short": "BRZ OB M 6086 M", "color": ""}, "ME1WT0179": {"short": "BRZ OB WLDL 6051 M", "color": ""}, "ME1WF0034": {"short": "OB WF 9037 M", "color": "WC"}, "ME1BD0079": {"short": "OB BD3U 6091 M", "color": "WC"}, "ME1BN0021": {"short": "OB BNDB2N 2091 M", "color": "WC"}, "ME1WU0033": {"short": "OB M 3573(공용) M", "color": "WC"}, "ME1WU0036": {"short": "OB M 4073(공용) M", "color": "WC"}, "ME1WU0027": {"short": "OB M 2573(공용) M", "color": "WC"}, "ME1TD0011": {"short": "OB BTAO1U 6014 M", "color": "WC"}, "ME1WF0040": {"short": "OB WFED 9053 M", "color": "WC"}, "ME1WU0044": {"short": "OB M 5573(공용) M", "color": "WC"}, "MK1MM0001": {"short": "AL프레임 에어힌지 분리장유리도어(W595*H1345)", "color": ""}, "ME1BD0085": {"short": "OB BLD2R 6062 M", "color": "WC"}, "ME1BD0076": {"short": "OB BD2R 6091 M", "color": "WC"}, "ME1WF0028": {"short": "OB WF 10037 M", "color": "WC"}, "ME1BU0213": {"short": "OB BUIF 3034", "color": "WC"}, "ME1BU0234": {"short": "HD BUIF 3034", "color": "ETP"}, "ME1BU0274": {"short": "HD BUIF 3034", "color": ""}, "ME1BDX029": {"short": "BRZ OB BD2R 비규격", "color": ""}, "ME1WTX019": {"short": "OB WT 비규격", "color": "WC"}, "ME1WTX024": {"short": "OB WT 비규격", "color": "ETP"}, "MK1WMX001": {"short": "AL프레임 에어힌지 벽장유리도어 18T 비규격", "color": ""}, "MK1MMX001": {"short": "AL프레임 에어힌지 분리장유리도어 비규격", "color": ""}, "ME1WUX013": {"short": "OB M 비규격", "color": ""}, "ME1WFX018": {"short": "OB WF 비규격", "color": ""}, "ME1WRX005": {"short": "OB WRMB 비규격", "color": ""}, "ME1BUX029": {"short": "OB BHBU 비규격", "color": ""}, "ME1BN0023": {"short": "HD BNDB2N 2091 M", "color": "WC"}, "ME1BU0220": {"short": "HD B 3091", "color": "WC"}, "ME1BU0231": {"short": "HD B 6091", "color": "WC"}, "ME1WT0133": {"short": "OB WT 45134 M", "color": "WC"}, "ME1WT0119": {"short": "OB WLDL 6051 M", "color": "WC"}, "ME1WR0023": {"short": "OB WRMB 4735 M", "color": "WC"}, "ME1BDX025": {"short": "OB BD2R 비규격", "color": "ETP"}, "ME1BD0122": {"short": "BRZ OB BLD2R 6062 M", "color": ""}, "ME1WU0025": {"short": "OB M 2073(공용) M", "color": "WC"}, "ME1BU0243": {"short": "HD B 4091", "color": "ETP"}, "ME1BN0028": {"short": "HD BNDC2N 3091 M", "color": "ETP"}, "ME1BD0111": {"short": "HD BLD2R 6062 M", "color": "ETP"}, "ME1WR0053": {"short": "OB WRMB 9533 M", "color": "ETP"}, "ME1WU0116": {"short": "OB M 5573(공용) M", "color": ""}, "ME1BU0254": {"short": "BRZ HD BUIF 3034", "color": ""}, "MK1TMX001": {"short": "AL프레임 에어힌지 키큰장유리도어 18T 비규격", "color": ""}, "MRRBD0012": {"short": "White CH BLD1UA 6091 M", "color": ""}, "ME1WT0126": {"short": "OB WMLDT 6083 M", "color": "WC"}, "ME1WT0135": {"short": "OB WT 60134 M", "color": "WC"}, "ME1BDX023": {"short": "HD BD2R 비규격", "color": "WC"}, "ME1BN0025": {"short": "OB BNDB2N 2091 M", "color": "ETP"}, "ME1BUX020": {"short": "OB BHBU 비규격", "color": "WC"}, "MK1WM0005": {"short": "KB 벽장용 빗면 프레임 유리 도어 5074 M", "color": ""}, "ME1WT0169": {"short": "OB WTA 45147", "color": "ETP"}, "ME1WT0170": {"short": "OB WTA 45147", "color": "ETP"}, "ME1WU0072": {"short": "OB M 6086 M", "color": "ETP"}, "ME1TM0002": {"short": "유리장식키큰장 AL도어 45235 M", "color": ""}, "ME1WF0069": {"short": "OB WFMD 9048 M", "color": "ETP"}, "ME1WR0046": {"short": "OB WRMB 6148 M", "color": "ETP"}, "ME1BD0083": {"short": "OB BLD1UA 4591 M", "color": "WC"}, "ME1BA0017": {"short": "OB BRO1R 6091 M", "color": "WC"}, "ME1TN0013": {"short": "OB TND2 30149 M", "color": "ETP"}, "ME1WT0171": {"short": "OB WTA 60134", "color": "ETP"}, "ME1WTX036": {"short": "OB WTAP 비규격", "color": ""}, "ME1WTX034": {"short": "OB WT 비규격", "color": ""}, "ME1BN0029": {"short": "BRZ OB BNDB2N 2091 M", "color": ""}, "ME1WR0065": {"short": "BRZ OB WRMB 6135 M", "color": ""}, "ME1WT0191": {"short": "BRZ OB WT 40134 M", "color": ""}, "ME1WU0075": {"short": "BRZ OB M 2573(공용) M", "color": ""}, "ME1WU0081": {"short": "BRZ OB M 3573(공용) M", "color": ""}, "ME1WT0139": {"short": "OB WTA 45147", "color": "WC"}, "ME1WT0140": {"short": "OB WTA 45147", "color": "WC"}, "ME1WU0048": {"short": "OB M 6086 M", "color": "WC"}, "ME1WT0134": {"short": "OB WT 45147 M", "color": "WC"}, "ME1WT0136": {"short": "OB WT 60147 M", "color": "WC"}, "ME1WH0008": {"short": "OB WHM 6061 M", "color": "WC"}, "ME1WR0034": {"short": "OB WRMB 9545 M", "color": "WC"}, "ME1WR0026": {"short": "OB WRMB 6148 M", "color": "WC"}, "ME1WU0031": {"short": "OB M 3086 M", "color": "WC"}, "ME1WU0043": {"short": "OB M 5086 M", "color": "WC"}, "ME1WU0037": {"short": "OB M 4086 M", "color": "WC"}, "ME1WU0034": {"short": "OB M 3586 M", "color": "WC"}, "ME1BD0132": {"short": "OB BD2R 6091 M", "color": ""}, "ME1WT0209": {"short": "OB WLDL 6051 M", "color": ""}, "ME1WT0129": {"short": "OB WT 30134 M", "color": "WC"}, "ME1WR0027": {"short": "OB WRMB 7135 M", "color": "WC"}, "ME1BA0016": {"short": "OB BADMIL 6091", "color": "WC"}, "ME1WU0040": {"short": "OB M 4586 M", "color": "WC"}, "ME1WF0037": {"short": "OB WFED 6053 M", "color": "WC"}, "ME1WF0038": {"short": "OB WFED 7053 M", "color": "WC"}, "ME1BUX024": {"short": "HD BHBU 비규격", "color": "ETP"}, "ME1WFX021": {"short": "OB WFMD 비규격", "color": "ETP"}, "ME1BUX028": {"short": "BRZ HD B 비규격", "color": ""}, "ME1WTX028": {"short": "BRZ OB WMLDT 비규격", "color": ""}, "ME1TUX006": {"short": "BRZ HD TH 비규격", "color": ""}, "MK1WM0004": {"short": "KB 벽장용 빗면 프레임 유리 도어 4574 M", "color": ""}, "ME1BDX024": {"short": "HD BD3U 비규격", "color": "WC"}, "ME1BUX021": {"short": "HD BHBU 비규격", "color": "WC"}, "ME1WFX025": {"short": "OB WFMD 비규격", "color": "WC"}, "ME1WUX005": {"short": "OB W2HBT 비규격", "color": "WC"}, "ME1WUX006": {"short": "OB WHBT 비규격", "color": "WC"}, "ME1WFX006": {"short": "OB WF 비규격", "color": "WC"}, "ME1WTX021": {"short": "OB WTAP 비규격", "color": "WC"}, "ME1BD0130": {"short": "BRZ HD BLD2R 6062 M", "color": ""}, "ME1WT0187": {"short": "BRZ OB WMLDT 6086 M", "color": ""}, "ME1WU0085": {"short": "BRZ OB M 4086 M", "color": ""}, "ME1WU0088": {"short": "BRZ OB M 4586 M", "color": ""}, "ME1WT0157": {"short": "OB WMLDT 6086 M", "color": "ETP"}, "ME1WU0061": {"short": "OB M 4086 M", "color": "ETP"}, "ME1BD0080": {"short": "OB BDI1R 4591 M", "color": "WC"}, "ME1BU0241": {"short": "HD B 3591", "color": "ETP"}, "ME1BU0242": {"short": "HD B 3591", "color": "ETP"}, "ME1WU0049": {"short": "OB M 2073(공용) M", "color": "ETP"}, "MRRWU0011": {"short": "White CH M 4065 M", "color": ""}, "ME1BD0090": {"short": "HD BD3U 6091 M", "color": "WC"}, "ME1WFX011": {"short": "OB WFED 비규격", "color": "ETP"}, "MRSWU0018": {"short": "Forest CH M 5073(공용) M", "color": ""}, "ME1TD0029": {"short": "OB BTAO1U 6014 M", "color": ""}, "ME1BD0093": {"short": "OB BD2R 12091 M", "color": "ETP"}, "ME1BD0121": {"short": "BRZ OB BLD1UA 6091 M", "color": ""}, "MK1WM0002": {"short": "AL프레임 에어힌지 벽장유리도어 18T(495*738)", "color": ""}, "ME1BA0026": {"short": "HD BADMIL 6091", "color": "ETP"}, "ME1BD0119": {"short": "BRZ OB BLD1R 6091 M", "color": ""}, "ME1BN0031": {"short": "BRZ HD BNDB2N 2091 M", "color": ""}, "ME1BU0267": {"short": "BRZ HD B 5091", "color": ""}, "ME1BU0268": {"short": "BRZ HD B 5091", "color": ""}, "MK1WM0001": {"short": "AL프레임 에어힌지 벽장유리도어 18T(445*738)", "color": ""}, "ME1BCX031": {"short": "OB BC1A 비규격", "color": "WC"}, "ME1BCX032": {"short": "OB BC1B 비규격", "color": "WC"}, "ME1TD0018": {"short": "HD BTAO1U 6014 M", "color": "ETP"}, "ME1BC0046": {"short": "BRZ HD BC1A 4291", "color": ""}, "ME1BC0047": {"short": "BRZ HD BC1B 4091", "color": ""}, "ME1BD0125": {"short": "BRZ HD BD2R 6091 M", "color": ""}, "ME1BA0029": {"short": "BRZ OB BRO1R 6091 M", "color": ""}, "ME1BU0265": {"short": "BRZ HD B 4591", "color": ""}, "ME1BU0266": {"short": "BRZ HD B 4591", "color": ""}, "ME1BDX033": {"short": "OB BD2R 비규격", "color": ""}, "ME1WR0074": {"short": "BRZ OB WRMB 9545 M", "color": ""}, "ME1WT0120": {"short": "OB WLDL 9051 M", "color": "WC"}, "ME1WH0010": {"short": "OB WHMH 6073 M", "color": "WC"}, "ME1BUX031": {"short": "HD B 비규격", "color": ""}, "ME1WU0102": {"short": "OB M 3073(공용) M", "color": ""}, "ME1WU0120": {"short": "OB M 6086 M", "color": ""}, "ME1WT0224": {"short": "OB WT 45147 M", "color": ""}, "ME1BU0249": {"short": "HD B 5591", "color": "ETP"}, "ME1BU0250": {"short": "HD B 5591", "color": "ETP"}, "ME1TN0014": {"short": "HD TND2 30149 M", "color": "ETP"}, "ME1WT0151": {"short": "OB WMLDT 3073 M", "color": "ETP"}, "ME1BU0256": {"short": "BRZ HD B 2091", "color": ""}, "ME1BU0252": {"short": "HD B 6091", "color": "ETP"}, "ME1WF0060": {"short": "OB WF 9044 M", "color": "ETP"}, "ME1WUX008": {"short": "OB W2HBT 비규격", "color": "ETP"}, "ME1WUX009": {"short": "OB WHBT 비규격", "color": "ETP"}, "ME1BDX027": {"short": "HD BD2R 비규격", "color": "ETP"}, "ME1BU0221": {"short": "HD B 3591", "color": "WC"}, "ME1BU0222": {"short": "HD B 3591", "color": "WC"}, "ME1BD0140": {"short": "OB BLD1UA 6091 M", "color": ""}, "ME1BD0141": {"short": "OB BLD2R 6062 M", "color": ""}, "ME1WF0125": {"short": "OB WFUP 9036 M", "color": ""}, "ME1WF0109": {"short": "OB WF 9037 M", "color": ""}, "ME1WF0103": {"short": "OB WF 10037 M", "color": ""}, "ME1WF0121": {"short": "OB WFUP 10036 M", "color": ""}, "ME1BD0097": {"short": "OB BD3U 6091 M", "color": "ETP"}, "ME1BD0103": {"short": "OB BLD2R 6062 M", "color": "ETP"}, "ME1BA0020": {"short": "HD BADMIL 6091", "color": "WC"}, "MRRWU0020": {"short": "White CH M 5573(공용) M", "color": ""}, "MROBUX001": {"short": "Euro700 Veil/DW CH BHBU 비규격(527*0*826*0", "color": ""}, "ME1BD0100": {"short": "OB BLD1R 6091 M", "color": "ETP"}, "ME1WH0014": {"short": "OB WHMH 6065 M", "color": "ETP"}, "ME1BDX026": {"short": "OB BD3U 비규격", "color": "ETP"}, "ME1BD0126": {"short": "BRZ HD BD2R 9091 M", "color": ""}, "ME1BU0271": {"short": "BRZ HD B 6091", "color": ""}, "ME1WT0185": {"short": "BRZ OB WMLDT 6073 M", "color": ""}, "ME1WR0077": {"short": "BRZ OB WRMBS 8035 M", "color": ""}, "ME1BU0270": {"short": "BRZ HD B 5591", "color": ""}, "ME1WF0093": {"short": "BRZ OB WFMD 9035 M", "color": ""}, "ME1BA0025": {"short": "OB BTARG 6070", "color": "ETP"}, "ME1WT0178": {"short": "OB WTARG 60154", "color": "ETP"}, "ME1WF0046": {"short": "OB WFUP 10036 M", "color": "WC"}, "ME1BA0035": {"short": "OB BRO1R 6091 M", "color": ""}, "ME1BC0031": {"short": "OB BC1A 4291 M", "color": "WC"}, "ME1BC0032": {"short": "OB BC1B 4091 M", "color": "WC"}, "ME1BC0049": {"short": "OB BC1A 4291 M", "color": ""}, "ME1BC0050": {"short": "OB BC1B 4091 M", "color": ""}, "ME1BN0027": {"short": "HD BNDB2N 2091 M", "color": "ETP"}, "ME1WT0166": {"short": "OB WT 60147 M", "color": "ETP"}, "ME1BCX038": {"short": "OB BC1B 비규격", "color": "ETP"}, "ME1WT0194": {"short": "BRZ OB WT 45147 M", "color": ""}, "ME1WU0091": {"short": "BRZ OB M 5086 M", "color": ""}, "ME1WR0042": {"short": "OB WRMB 10045 M", "color": "ETP"}, "ME1WT0158": {"short": "OB WMLDT 6096 M", "color": "ETP"}, "ME1BAX005": {"short": "OB BAD 비규격(600*0*926*", "color": ""}, "ME1WF0031": {"short": "OB WF 8037 M", "color": "WC"}, "ME1WF0048": {"short": "OB WFUP 8036 M", "color": "WC"}, "ME1WF0050": {"short": "OB WFUP 9036 M", "color": "WC"}, "ME1BU0216": {"short": "HD B 2091", "color": "WC"}, "ME1BD0105": {"short": "HD BD2R 12091 M", "color": "ETP"}, "ME1WT0165": {"short": "OB WT 60134 M", "color": "ETP"}, "ME1WR0047": {"short": "OB WRMB 7135 M", "color": "ETP"}, "ME1BA0034": {"short": "OB BADMIL 6091", "color": ""}, "MK1TMX002": {"short": "KB 키큰장용 빗면 프레임 유리 도어 비규격", "color": ""}, "MK1WMX002": {"short": "KB 벽장용 빗면 프레임 유리 도어 비규격", "color": ""}, "ME1BDX022": {"short": "OB BD3U 비규격", "color": "WC"}, "ME1WT0156": {"short": "OB WMLDT 6083 M", "color": "ETP"}, "ME1WT0225": {"short": "OB WT 60134 M", "color": ""}, "ME1WF0118": {"short": "OB WFMD 9035 M", "color": ""}, "ME1WF0094": {"short": "BRZ OB WFMD 9048 M", "color": ""}, "ME1BD0120": {"short": "BRZ OB BLD1UA 4591 M", "color": ""}, "ME1BU0255": {"short": "BRZ HD B 2091", "color": ""}, "ME1WU0055": {"short": "OB M 3086 M", "color": "ETP"}, "ME1WR0045": {"short": "OB WRMB 6135 M", "color": "ETP"}, "MALWF0558": {"short": "(P)AL45 PG새틴그레이[연장P] WFGO 9037 M", "color": ""}, "ME1BU0272": {"short": "BRZ HD B 6091", "color": ""}, "ME1TUX004": {"short": "HD TH 비규격", "color": "ETP"}, "ME1WU0069": {"short": "OB M 5586 M", "color": "ETP"}, "ME1WTX018": {"short": "OB WMLDT 비규격", "color": "WC"}, "ME1BD0109": {"short": "HD BD3U 6091 M", "color": "ETP"}, "ME1WU0056": {"short": "OB M 3565 M", "color": "ETP"}, "ME1WU0059": {"short": "OB M 4065 M", "color": "ETP"}, "ME1TU0005": {"short": "HD TH 45220", "color": "WC"}, "ME1TU0006": {"short": "HD TH 45220", "color": "WC"}, "ME1BDX031": {"short": "BRZ HD BD2R 비규격", "color": ""}, "ME1WFX014": {"short": "BRZ OB WF 비규격", "color": ""}, "ME1WT0226": {"short": "OB WT 60147 M", "color": ""}, "ME1BU0264": {"short": "BRZ HD B 4091", "color": ""}, "ME1WF0085": {"short": "BRZ OB WF 9044 M", "color": ""}, "ME1WF0077": {"short": "BRZ OB W2U 4542 M", "color": ""}, "ME1WU0078": {"short": "BRZ OB M 3073(공용) M", "color": ""}, "ME1WR0073": {"short": "BRZ OB WRMB 9533 M", "color": ""}, "ME1BN0032": {"short": "BRZ HD BNDC2N 3091 M", "color": ""}, "ME1WT0150": {"short": "OB WLDL 9051 M", "color": "ETP"}, "ME1TU0010": {"short": "HD TH 45220", "color": "ETP"}, "ME1TU0011": {"short": "HD TH 45220", "color": "ETP"}, "ME1WF0075": {"short": "OB WFUP 9036 M", "color": "ETP"}, "ME1WF0059": {"short": "OB WF 9037 M", "color": "ETP"}, "ME1WH0015": {"short": "OB WHMH 6073 M", "color": "ETP"}, "ME1BU0291": {"short": "HD B 6091", "color": ""}, "ME1BU0285": {"short": "HD B 4591", "color": ""}, "ME1BU0286": {"short": "HD B 4591", "color": ""}, "ME1WT0231": {"short": "OB WTA 60134", "color": ""}, "ME1TN0018": {"short": "HD TND2 30149 M", "color": ""}, "ME1WT0211": {"short": "OB WMLDT 3073 M", "color": ""}, "ME1WT0223": {"short": "OB WT 45134 M", "color": ""}, "MK1WM0007": {"short": "KB 플랩장용 빗면 프레임 유리 도어 12054 M", "color": ""}, "MRQWUX001": {"short": "MID/N CH M 비규격(600*0*688*0", "color": ""}, "MROWT0010": {"short": "Euro700 Veil/DW CH WT 45134 M", "color": ""}, "MROWU0015": {"short": "Euro700 Veil/DW CH M 4573(공용) M", "color": ""}, "ME1BD0092": {"short": "HD BLD2R 6062 M", "color": "WC"}, "ME1BU0284": {"short": "HD B 4091", "color": ""}, "ME1BD0145": {"short": "HD BD2R 9091 M", "color": ""}, "ME1BU0292": {"short": "HD B 6091", "color": ""}, "ME1BU0287": {"short": "HD B 5091", "color": ""}, "ME1BU0288": {"short": "HD B 5091", "color": ""}, "ME1BU0282": {"short": "HD B 3591", "color": ""}, "ME1BU0283": {"short": "HD B 4091", "color": ""}, "ME1WT0217": {"short": "OB WMLDT 6086 M", "color": ""}, "ME1WF0119": {"short": "OB WFMD 9048 M", "color": ""}, "ME1WUX014": {"short": "OB W2HBT 비규격", "color": ""}, "ME1WUX015": {"short": "OB WHBT 비규격", "color": ""}, "MRRWU0012": {"short": "White CH M 4073(공용) M", "color": ""}, "ME1BD0082": {"short": "OB BLD1R 6091 M", "color": "WC"}, "ME1WR0021": {"short": "OB WRMB 10033 M", "color": "WC"}, "ME1WF0027": {"short": "OB W2U 4542 M", "color": "WC"}, "MALWF0552": {"short": "(P)AL45 PG새틴그레이[연장P] WFGO 10033 M", "color": ""}, "ME1BU0236": {"short": "HD B 2091", "color": "ETP"}, "MRSWU0012": {"short": "Forest CH M 4073(공용) M", "color": ""}, "ME1BCX037": {"short": "OB BC1A 비규격", "color": "ETP"}, "ME1WFX008": {"short": "OB WFUP 비규격", "color": "WC"}, "MROWT0013": {"short": "Euro700 Veil/DW CH WT 60147 M", "color": ""}, "MROWU0016": {"short": "Euro700 Veil/DW CH M 4586 M", "color": ""}, "MROWU0022": {"short": "Euro700 Veil/DW CH M 6073(공용) M", "color": ""}, "MROWUX001": {"short": "Euro700 Veil/DW CH M 비규격(470*0*864*0 M)", "color": ""}, "ME1BU0217": {"short": "HD B 2591", "color": "WC"}, "ME1WU0029": {"short": "OB M 3065 M", "color": "WC"}, "ME1WU0038": {"short": "OB M 4565 M", "color": "WC"}, "ME1WT0173": {"short": "OB WTA 60147", "color": "ETP"}, "ME1WT0161": {"short": "OB WT 40134 M", "color": "ETP"}, "ME1BC0038": {"short": "OB BC1B 4091 M", "color": "ETP"}, "ME1WT0164": {"short": "OB WT 45147 M", "color": "ETP"}, "ME1WH0009": {"short": "OB WHMH 6065 M", "color": "WC"}, "MHIWF0009": {"short": "PT/BK CH WF 9037 M", "color": ""}, "ME1WU0058": {"short": "OB M 3586 M", "color": "ETP"}, "ME1BUX027": {"short": "BRZ HD BHBU 비규격", "color": ""}, "ME1BD0147": {"short": "HD BD3U 6091 M", "color": ""}, "ME1BN0036": {"short": "HD BNDC2N 3091 M", "color": ""}, "ME1BU0275": {"short": "HD B 2091", "color": ""}, "ME1WU0107": {"short": "OB M 4065 M", "color": ""}, "MRTWU0006": {"short": "CH M 3073(공용) M", "color": ""}, "MRTWU0009": {"short": "CH M 3573(공용) M", "color": ""}, "MRTWU0012": {"short": "CH M 4073(공용) M", "color": ""}, "MRTWU0015": {"short": "CH M 4573(공용) M", "color": ""}, "MRQWU0015": {"short": "MID/N CH M 4573(공용) M", "color": ""}, "MROWU0018": {"short": "Euro700 Veil/DW CH M 5073(공용) M", "color": ""}, "ME1BD0116": {"short": "BRZ OB BD3U 6091 M", "color": ""}, "ME1WTX026": {"short": "OB WTAP 비규격", "color": "ETP"}, "MRTBD0002": {"short": "CH BD2R 6091 M", "color": ""}, "MRTBN0002": {"short": "CH BNDC2N 3091 M", "color": ""}, "MRTWF0017": {"short": "CH WFUP 10036 M", "color": ""}, "MRTWU0018": {"short": "CH M 5073(공용) M", "color": ""}, "ME1WF0063": {"short": "OB WFED 7053 M", "color": "ETP"}, "MALWU0531": {"short": "(P)AL45 PG새틴그레이[연장P] MGO 4586 M", "color": ""}, "ME1WU0032": {"short": "OB M 3565 M", "color": "WC"}, "ME1WU0035": {"short": "OB M 4065 M", "color": "WC"}, "MRMWF0013": {"short": "Euro700 Veil/LW CH WFED 7053 M", "color": ""}, "MRMWF0014": {"short": "Euro700 Veil/LW CH WFED 8053 M", "color": ""}, "MRMWF0015": {"short": "Euro700 Veil/LW CH WFED 9053 M", "color": ""}, "ME1TN0016": {"short": "BRZ HD TND2 30149 M", "color": ""}, "ME1WFX023": {"short": "BRZ OB WFMD 비규격(900*0*511*0", "color": ""}, "ME1WR0072": {"short": "BRZ OB WRMB 9348 M", "color": ""}, "ME1WTX031": {"short": "BRZ OB WTAP 비규격(600*0*1502*", "color": ""}, "ME1WU0097": {"short": "OB M 2073(공용) M", "color": ""}, "ME1WHX005": {"short": "OB WHMH 비규격", "color": "WC"}, "ME1BD0078": {"short": "OB BD3U 4591 M", "color": "WC"}, "ME1WU0092": {"short": "BRZ OB M 5573(공용) M", "color": ""}, "MHIWR0007": {"short": "PT/BK CH WRMB 9533 M", "color": ""}, "MHIWT0012": {"short": "PT/BK CH WT 60134 M", "color": ""}, "MHIWU0018": {"short": "PT/BK CH M 5073(공용) M", "color": ""}, "MHIWUX001": {"short": "PT/BK CH M 비규격(150*0*736*0", "color": ""}, "ME1WF0056": {"short": "OB WF 8037 M", "color": "ETP"}, "ME1WF0073": {"short": "OB WFUP 8036 M", "color": "ETP"}, "ME1WT0222": {"short": "OB WT 40147 M", "color": ""}, "ME1WR0082": {"short": "OB WRMB 10045 M", "color": ""}, "ME1WT0141": {"short": "OB WTA 60134", "color": "WC"}, "ME1WT0142": {"short": "OB WTA 60134", "color": "WC"}, "ME1WH0006": {"short": "OB WHFM 6027 M", "color": "WC"}, "MRMBN0002": {"short": "Euro700 Veil/LW CH BNDC2N 3091 M", "color": ""}, "ME1BN0035": {"short": "HD BNDB2N 2091 M", "color": ""}, "ME1BD0099": {"short": "OB BLD1R 4591 M", "color": "ETP"}, "ME1WF0043": {"short": "OB WFMD 9035 M", "color": "WC"}, "MRTWU0020": {"short": "CH M 5573(공용) M", "color": ""}, "MRTWF0019": {"short": "CH WFUP 8036 M", "color": ""}, "ME1WF0066": {"short": "OB WFMD 6035 M", "color": "ETP"}, "ME1BU0237": {"short": "HD B 2591", "color": "ETP"}, "ME1TC0011": {"short": "HD TCP1D 42222", "color": "ETP"}, "ME1TC0012": {"short": "HD TCP1D 40222", "color": "ETP"}, "ME1TN0017": {"short": "OB TND2 30149 M", "color": ""}, "ME1WT0159": {"short": "OB WT 30134 M", "color": "ETP"}, "MHIWU0015": {"short": "PT/BK CH M 4573(공용) M", "color": ""}, "ME1BD0128": {"short": "BRZ HD BD3U 6091 M", "color": ""}, "ME1WH0020": {"short": "BRZ OB WHMH 6073 M", "color": ""}, "ME1BU0269": {"short": "BRZ HD B 5591", "color": ""}, "ME1WR0061": {"short": "BRZ OB WRMB 10033 M", "color": ""}, "ME1WU0086": {"short": "BRZ OB M 4565 M", "color": ""}, "ME1WT0127": {"short": "OB WMLDT 6086 M", "color": "WC"}, "ME1BD0118": {"short": "BRZ OB BLD1R 4591 M", "color": ""}, "ME1WFX012": {"short": "OB WFUP 비규격", "color": "ETP"}, "ME1WTX023": {"short": "OB WMLDT 비규격", "color": "ETP"}, "ME1WF0053": {"short": "OB WF 10037 M", "color": "ETP"}, "ME1BU0289": {"short": "HD B 5591", "color": ""}, "ME1WU0110": {"short": "OB M 4565 M", "color": ""}, "ME1WU0104": {"short": "OB M 3565 M", "color": ""}, "ME1BU0261": {"short": "BRZ HD B 3591", "color": ""}, "ME1BU0262": {"short": "BRZ HD B 3591", "color": ""}, "ME1WT0201": {"short": "BRZ OB WTA 60134", "color": ""}, "ME1WT0197": {"short": "BRZ OB WTA 45134", "color": ""}, "ME1WT0198": {"short": "BRZ OB WTA 45134", "color": ""}, "ME1WT0193": {"short": "BRZ OB WT 45134 M", "color": ""}, "MRMWRX001": {"short": "Euro700 Veil/LW CH WRMB 비규격", "color": ""}, "MRMWUX001": {"short": "Euro700 Veil/LW CH M 비규격", "color": ""}, "MRMBN0001": {"short": "Euro700 Veil/LW CH BNDB2N 2091 M", "color": ""}, "MRMBD0002": {"short": "Euro700 Veil/LW CH BD2R 6091 M", "color": ""}, "ME1BD0117": {"short": "BRZ OB BDI1R 4591 M", "color": ""}, "MALWT0137": {"short": "(P)AL45 PG새틴그레이[연장P] WTGO 45147 M", "color": ""}, "MALWU0528": {"short": "(P)AL45 PG새틴그레이[연장P] MGO 4073(공용) M", "color": ""}, "ME1WU0103": {"short": "OB M 3086 M", "color": ""}, "ME1WR0092": {"short": "OB WRMB 9348 M", "color": ""}, "ME1WR0059": {"short": "OB WRMBS 9035 M", "color": "ETP"}, "ME1BCX043": {"short": "BRZ OB BC1A 비규격", "color": ""}, "ME1BC0044": {"short": "BRZ OB BC1B 4091 M", "color": ""}, "ME1WT0202": {"short": "BRZ OB WTA 60134", "color": ""}, "ME1TD0023": {"short": "BRZ OB BTAO1U 6014 M", "color": ""}, "ME1BDX035": {"short": "HD BD2R 비규격", "color": ""}, "ME1TUX008": {"short": "HD TH 비규격", "color": ""}, "ME1WU0051": {"short": "OB M 2573(공용) M", "color": "ETP"}, "ME1BA0033": {"short": "OB BAD 6091", "color": ""}, "ME1BD0144": {"short": "HD BD2R 6091 M", "color": ""}, "ME1TD0030": {"short": "HD BTAO1U 6014 M", "color": ""}, "ME1WT0215": {"short": "OB WMLDT 6073 M", "color": ""}, "ME1TC0023": {"short": "HD TCP1D 42222", "color": ""}, "ME1TC0024": {"short": "HD TCP1D 40222", "color": ""}, "ME1WR0097": {"short": "OB WRMBS 8035 M", "color": ""}, "ME1WF0106": {"short": "OB WF 8037 M", "color": ""}, "ME1WR0093": {"short": "OB WRMB 9533 M", "color": ""}, "ME1WU0117": {"short": "OB M 5586 M", "color": ""}, "ME1BD0124": {"short": "BRZ HD BD2R 12091 M", "color": ""}, "ME1BU0260": {"short": "BRZ HD B 3091", "color": ""}, "ME1BC0043": {"short": "BRZ OB BC1A 4291 M", "color": ""}, "ME1WTX033": {"short": "OB WMLDT 비규격", "color": ""}, "MRTWR0003": {"short": "CH WRMB 6135 M", "color": ""}, "MRTWR0006": {"short": "CH WRMB 9335 M", "color": ""}, "ME1WT0189": {"short": "BRZ OB WT 30134 M", "color": ""}, "MROWF0042": {"short": "Euro700 Veil/DW CH WFMD 9035 M", "color": ""}};
+  <!-- 일정 목록 (편집 가능) -->
+  <div class="card">
+    <div class="card-ttl"><span>📋 일정 목록</span></div>
+    <div id="sch-list"></div>
+    <div id="sch-history"></div>
+  </div>
 
-// ---- DAEGUBUN ----
-const DAEGUBUN={"SAE000227":"빌트인","MALWF0392":"빌트인","CAIT00442":"빌트인","CAIT00443":"빌트인","CAIT00444":"빌트인","CAIT00445":"빌트인","CAIT00450":"빌트인","CAIT00451":"빌트인","CAIT00452":"빌트인","CAIT00453":"빌트인","CAIT00454":"빌트인","CAIT00455":"빌트인","CAIT00456":"빌트인","CAIT00457":"빌트인","CDIT00277":"빌트인","CAIT00875":"빌트인","FGIT00072":"빌트인","CAIT00484":"빌트인","SAE000327":"빌트인","CAIB13894":"시그니처","CAIB13895":"시그니처","CAIB13942":"시그니처","CAIB13943":"시그니처","ME1WM0001":"EURO","ME1WM0002":"EURO","ME1WM0003":"EURO","ME1TM0001":"EURO","ME1TM0002":"EURO","ME1TM0003":"EURO","ME1TM0004":"EURO","ME1TMX001":"EURO","ME1WMX001":"EURO","MK1WM0001":"에어힌지","MK1WM0002":"에어힌지","MK1MM0001":"에어힌지","MK1TM0005":"에어힌지","MK1WMX001":"에어힌지","MK1MMX001":"에어힌지","MK1TMX001":"에어힌지","MK1WM0004":"빗각","MK1WM0005":"빗각","MK1WM0006":"빗각","MK1WM0007":"빗각","MK1TM0006":"빗각","MK1TMX002":"빗각","MK1WMX002":"빗각","MRUWU0001":"EURO500","MRUWU0003":"EURO500","MRUWU0006":"EURO500","MRUWU0009":"EURO500","MRUWU0012":"EURO500","MRUWU0015":"EURO500","MRUWU0018":"EURO500","MRUWU0020":"EURO500","MRUWU0022":"EURO500","MRUWU0024":"EURO500","MRUWU0025":"EURO500","MRUWU0026":"EURO500","MRUBA0001":"EURO500","MRUBD0002":"EURO500","MRUBD0003":"EURO500","MRUBD0001":"EURO500","MRUBD0004":"EURO500","MRUBD0005":"EURO500","MRUBD0007":"EURO500","MRUBD0008":"EURO500","MRUBD0006":"EURO500","MRUBD0011":"EURO500","MRUBD0012":"EURO500","MRUBD0013":"EURO500","MRUBD0014":"EURO500","MRUBN0001":"EURO500","MRUBN0002":"EURO500","MRUBA0002":"EURO500","MRUBR0002":"EURO500","MRUBA0003":"EURO500","MRUBA0004":"EURO500","MRUBU0001":"EURO500","MRUWU0002":"EURO500","MRUWU0004":"EURO500","MRUWU0005":"EURO500","MRUWU0007":"EURO500","MRUWU0008":"EURO500","MRUWU0010":"EURO500","MRUWU0011":"EURO500","MRUWU0013":"EURO500","MRUWU0014":"EURO500","MRUWU0016":"EURO500","MRUWU0017":"EURO500","MRUWU0019":"EURO500","MRUWU0021":"EURO500","MRUWU0023":"EURO500","MRUWF0004":"EURO500","MRUWF0005":"EURO500","MRUWF0008":"EURO500","MRUWF0006":"EURO500","MRUWF0007":"EURO500","MRUWF0009":"EURO500","MRUWF0010":"EURO500","MRUWF0003":"EURO500","MRUWF0011":"EURO500","MRUWF0012":"EURO500","MRUWF0013":"EURO500","MRUWF0014":"EURO500","MRUWF0015":"EURO500","MRUWH0001":"EURO500","MRUWH0002":"EURO500","MRUWH0003":"EURO500","MRUWF0018":"EURO500","MRUWF0019":"EURO500","MRUWF0020":"EURO500","MRUWF0021":"EURO500","MRUWF0016":"EURO500","MRUWF0017":"EURO500","MRUWH0004":"EURO500","MRUWH0005":"EURO500","MRUWT0001":"EURO500","MRUWT0004":"EURO500","MRUWT0005":"EURO500","MRUWT0002":"EURO500","MRUWT0003":"EURO500","MRUWR0002":"EURO500","MRUWR0009":"EURO500","MRUWR0003":"EURO500","MRUWR0010":"EURO500","MRUWR0004":"EURO500","MRUWR0011":"EURO500","MRUWR0006":"EURO500","MRUWR0001":"EURO500","MRUWR0008":"EURO500","MRUWR0005":"EURO500","MRUWR0012":"EURO500","MRUWR0013":"EURO500","MRUWR0007":"EURO500","MRUWR0014":"EURO500","MRUWT0006":"EURO500","MRUWT0008":"EURO500","MRUWT0010":"EURO500","MRUWT0012":"EURO500","MRUWT0018":"EURO500","MRUWT0019":"EURO500","MRUWT0007":"EURO500","MRUWT0009":"EURO500","MRUWT0011":"EURO500","MRUWT0013":"EURO500","MRUWT0020":"EURO500","MRUWT0021":"EURO500","MRUWT0014":"EURO500","MRUWT0015":"EURO500","MRUWT0016":"EURO500","MRUWT0017":"EURO500","MRUWF0001":"EURO500","MRUWF0002":"EURO500","MRWWU0001":"EURO500","MRWWU0003":"EURO500","MRWWU0006":"EURO500","MRWWU0009":"EURO500","MRWWU0012":"EURO500","MRWWU0015":"EURO500","MRWWU0018":"EURO500","MRWWU0020":"EURO500","MRWWU0022":"EURO500","MRWWU0024":"EURO500","MRWWU0025":"EURO500","MRWWU0026":"EURO500","MRWBA0001":"EURO500","MRWBD0002":"EURO500","MRWBD0003":"EURO500","MRWBD0001":"EURO500","MRWBD0004":"EURO500","MRWBD0005":"EURO500","MRWBD0007":"EURO500","MRWBD0008":"EURO500","MRWBD0006":"EURO500","MRWBD0011":"EURO500","MRWBD0012":"EURO500","MRWBD0013":"EURO500","MRWBD0014":"EURO500","MRWBN0001":"EURO500","MRWBN0002":"EURO500","MRWBA0002":"EURO500","MRWBR0002":"EURO500","MRWBA0003":"EURO500","MRWBA0004":"EURO500","MRWBU0001":"EURO500","MRWWU0002":"EURO500","MRWWU0004":"EURO500","MRWWU0005":"EURO500","MRWWU0007":"EURO500","MRWWU0008":"EURO500","MRWWU0010":"EURO500","MRWWU0011":"EURO500","MRWWU0013":"EURO500","MRWWU0014":"EURO500","MRWWU0016":"EURO500","MRWWU0017":"EURO500","MRWWU0019":"EURO500","MRWWU0021":"EURO500","MRWWU0023":"EURO500","MRWWF0004":"EURO500","MRWWF0005":"EURO500","MRWWF0008":"EURO500","MRWWF0006":"EURO500","MRWWF0007":"EURO500","MRWWF0009":"EURO500","MRWWF0010":"EURO500","MRWWF0003":"EURO500","MRWWF0011":"EURO500","MRWWF0012":"EURO500","MRWWF0013":"EURO500","MRWWF0014":"EURO500","MRWWF0015":"EURO500","MRWWH0001":"EURO500","MRWWH0002":"EURO500","MRWWH0003":"EURO500","MRWWF0018":"EURO500","MRWWF0019":"EURO500","MRWWF0020":"EURO500","MRWWF0021":"EURO500","MRWWF0016":"EURO500","MRWWF0017":"EURO500","MRWWH0004":"EURO500","MRWWH0005":"EURO500","MRWWT0001":"EURO500","MRWWT0004":"EURO500","MRWWT0005":"EURO500","MRWWT0002":"EURO500","MRWWT0003":"EURO500","MRWWR0002":"EURO500","MRWWR0009":"EURO500","MRWWR0003":"EURO500","MRWWR0010":"EURO500","MRWWR0004":"EURO500","MRWWR0011":"EURO500","MRWWR0006":"EURO500","MRWWR0001":"EURO500","MRWWR0008":"EURO500","MRWWR0005":"EURO500","MRWWR0012":"EURO500","MRWWR0013":"EURO500","MRWWR0007":"EURO500","MRWWR0014":"EURO500","MRWWT0006":"EURO500","MRWWT0008":"EURO500","MRWWT0010":"EURO500","MRWWT0012":"EURO500","MRWWT0018":"EURO500","MRWWT0019":"EURO500","MRWWT0007":"EURO500","MRWWT0009":"EURO500","MRWWT0011":"EURO500","MRWWT0013":"EURO500","MRWWT0020":"EURO500","MRWWT0021":"EURO500","MRWWT0014":"EURO500","MRWWT0015":"EURO500","MRWWT0016":"EURO500","MRWWT0017":"EURO500","MRWWF0001":"EURO500","MRWWF0002":"EURO500","MRVWU0001":"EURO500","MRVWU0003":"EURO500","MRVWU0006":"EURO500","MRVWU0009":"EURO500","MRVWU0012":"EURO500","MRVWU0015":"EURO500","MRVWU0018":"EURO500","MRVWU0020":"EURO500","MRVWU0022":"EURO500","MRVWU0024":"EURO500","MRVWU0025":"EURO500","MRVWU0026":"EURO500","MRVBA0001":"EURO500","MRVBD0002":"EURO500","MRVBD0003":"EURO500","MRVBD0001":"EURO500","MRVBD0004":"EURO500","MRVBD0005":"EURO500","MRVBD0007":"EURO500","MRVBD0008":"EURO500","MRVBD0006":"EURO500","MRVBD0011":"EURO500","MRVBD0012":"EURO500","MRVBD0013":"EURO500","MRVBD0014":"EURO500","MRVBN0001":"EURO500","MRVBN0002":"EURO500","MRVBA0002":"EURO500","MRVBR0002":"EURO500","MRVBA0003":"EURO500","MRVBA0004":"EURO500","MRVBU0001":"EURO500","MRVWU0002":"EURO500","MRVWU0004":"EURO500","MRVWU0005":"EURO500","MRVWU0007":"EURO500","MRVWU0008":"EURO500","MRVWU0010":"EURO500","MRVWU0011":"EURO500","MRVWU0013":"EURO500","MRVWU0014":"EURO500","MRVWU0016":"EURO500","MRVWU0017":"EURO500","MRVWU0019":"EURO500","MRVWU0021":"EURO500","MRVWU0023":"EURO500","MRVWF0004":"EURO500","MRVWF0005":"EURO500","MRVWF0008":"EURO500","MRVWF0006":"EURO500","MRVWF0007":"EURO500","MRVWF0009":"EURO500","MRVWF0010":"EURO500","MRVWF0003":"EURO500","MRVWF0011":"EURO500","MRVWF0012":"EURO500","MRVWF0013":"EURO500","MRVWF0014":"EURO500","MRVWF0015":"EURO500","MRVWH0001":"EURO500","MRVWH0002":"EURO500","MRVWH0003":"EURO500","MRVWF0018":"EURO500","MRVWF0019":"EURO500","MRVWF0020":"EURO500","MRVWF0021":"EURO500","MRVWF0016":"EURO500","MRVWF0017":"EURO500","MRVWH0004":"EURO500","MRVWH0005":"EURO500","MRVWT0001":"EURO500","MRVWT0004":"EURO500","MRVWT0005":"EURO500","MRVWT0002":"EURO500","MRVWT0003":"EURO500","MRVWR0002":"EURO500","MRVWR0009":"EURO500","MRVWR0003":"EURO500","MRVWR0010":"EURO500","MRVWR0004":"EURO500","MRVWR0011":"EURO500","MRVWR0006":"EURO500","MRVWR0001":"EURO500","MRVWR0008":"EURO500","MRVWR0005":"EURO500","MRVWR0012":"EURO500","MRVWR0013":"EURO500","MRVWR0007":"EURO500","MRVWR0014":"EURO500","MRVWT0006":"EURO500","MRVWT0008":"EURO500","MRVWT0010":"EURO500","MRVWT0012":"EURO500","MRVWT0018":"EURO500","MRVWT0019":"EURO500","MRVWT0007":"EURO500","MRVWT0009":"EURO500","MRVWT0011":"EURO500","MRVWT0013":"EURO500","MRVWT0020":"EURO500","MRVWT0021":"EURO500","MRVWT0014":"EURO500","MRVWT0015":"EURO500","MRVWT0016":"EURO500","MRVWT0017":"EURO500","MRVWF0001":"EURO500","MRVWF0002":"EURO500","MRUBAX001":"EURO500","MRUBDX001":"EURO500","MRUBDX002":"EURO500","MRUBUX001":"EURO500","MRUTUX002":"EURO500","MRUWFX001":"EURO500","MRUWFX002":"EURO500","MRUWFX003":"EURO500","MRUWFX004":"EURO500","MRUWHX001":"EURO500","MRUWRX001":"EURO500","MRUWTX001":"EURO500","MRUWTX002":"EURO500","MRUWTX003":"EURO500","MRUWUX001":"EURO500","MRUWUX002":"EURO500","MRUWUX003":"EURO500","MRVBAX001":"EURO500","MRVBDX001":"EURO500","MRVBDX002":"EURO500","MRVBUX001":"EURO500","MRVTUX002":"EURO500","MRVWFX001":"EURO500","MRVWFX002":"EURO500","MRVWFX003":"EURO500","MRVWFX004":"EURO500","MRVWHX001":"EURO500","MRVWRX001":"EURO500","MRVWTX001":"EURO500","MRVWTX002":"EURO500","MRVWTX003":"EURO500","MRVWUX001":"EURO500","MRVWUX002":"EURO500","MRVWUX003":"EURO500","MRWBAX001":"EURO500","MRWBDX001":"EURO500","MRWBDX002":"EURO500","MRWBUX001":"EURO500","MRWTUX002":"EURO500","MRWWFX001":"EURO500","MRWWFX002":"EURO500","MRWWFX003":"EURO500","MRWWFX004":"EURO500","MRWWHX001":"EURO500","MRWWRX001":"EURO500","MRWWTX001":"EURO500","MRWWTX002":"EURO500","MRWWTX003":"EURO500","MRWWUX001":"EURO500","MRWWUX002":"EURO500","MRWWUX003":"EURO500","MRVBDX005":"EURO500","MRVBDX006":"EURO500","MRVBDX007":"EURO500","MRVBNX001":"EURO500","MRVBNX002":"EURO500","MRVBAX003":"EURO500","MRVBAX004":"EURO500","MRUBDX005":"EURO500","MRUBDX006":"EURO500","MRUBDX007":"EURO500","MRUBNX001":"EURO500","MRUBNX002":"EURO500","MRUBAX003":"EURO500","MRUBAX004":"EURO500","MRWBDX005":"EURO500","MRWBDX006":"EURO500","MRWBDX007":"EURO500","MRWBNX001":"EURO500","MRWBNX002":"EURO500","MRWBAX003":"EURO500","MRWBAX004":"EURO500","MRUBA0007":"EURO500","MRUBC0002":"EURO500","MRUBCX002":"EURO500","MRUBC0003":"EURO500","MRUBCX003":"EURO500","MRUTN0001":"EURO500","MRUWFX006":"EURO500","MRVBA0007":"EURO500","MRVBC0002":"EURO500","MRVBCX002":"EURO500","MRVBC0003":"EURO500","MRVBCX003":"EURO500","MRVTN0001":"EURO500","MRVWFX006":"EURO500","MRWBA0007":"EURO500","MRWBC0002":"EURO500","MRWBCX002":"EURO500","MRWBC0003":"EURO500","MRWBCX003":"EURO500","MRWTN0001":"EURO500","MRWWFX006":"EURO500","ME1BA0015":"EURO700","ME1BAX002":"EURO700","ME1BA0016":"EURO700","ME1BC0031":"EURO700","ME1BCX031":"EURO700","ME1BC0032":"EURO700","ME1BCX032":"EURO700","ME1BD0075":"EURO700","ME1BD0076":"EURO700","ME1BD0077":"EURO700","ME1BDX021":"EURO700","ME1BD0078":"EURO700","ME1BD0079":"EURO700","ME1BDX022":"EURO700","ME1BD0080":"EURO700","ME1BUX020":"EURO700","ME1BD0081":"EURO700","ME1BD0082":"EURO700","ME1BD0083":"EURO700","ME1BD0084":"EURO700","ME1BD0085":"EURO700","ME1BN0021":"EURO700","ME1BN0022":"EURO700","ME1BA0017":"EURO700","ME1TD0011":"EURO700","ME1BA0018":"EURO700","ME1BA0019":"EURO700","ME1BU0213":"EURO700","ME1WU0025":"EURO700","ME1WU0026":"EURO700","ME1WU0027":"EURO700","ME1WU0028":"EURO700","ME1WU0029":"EURO700","ME1WU0030":"EURO700","ME1WU0031":"EURO700","ME1WU0032":"EURO700","ME1WU0033":"EURO700","ME1WU0034":"EURO700","ME1WU0035":"EURO700","ME1WU0036":"EURO700","ME1WU0037":"EURO700","ME1WU0038":"EURO700","ME1WU0039":"EURO700","ME1WU0040":"EURO700","ME1WU0041":"EURO700","ME1WU0042":"EURO700","ME1WU0043":"EURO700","ME1WU0044":"EURO700","ME1WU0045":"EURO700","ME1WU0046":"EURO700","ME1WU0047":"EURO700","ME1WU0048":"EURO700","ME1WUX004":"EURO700","ME1TN0011":"EURO700","ME1WUX005":"EURO700","ME1WF0026":"EURO700","ME1WF0027":"EURO700","ME1WFX005":"EURO700","ME1WF0028":"EURO700","ME1WF0029":"EURO700","ME1WF0030":"EURO700","ME1WF0031":"EURO700","ME1WF0032":"EURO700","ME1WF0033":"EURO700","ME1WF0034":"EURO700","ME1WF0035":"EURO700","ME1WFX006":"EURO700","ME1WF0036":"EURO700","ME1WF0037":"EURO700","ME1WF0038":"EURO700","ME1WF0039":"EURO700","ME1WF0040":"EURO700","ME1WFX007":"EURO700","ME1WF0041":"EURO700","ME1WF0042":"EURO700","ME1WF0043":"EURO700","ME1WF0044":"EURO700","ME1WFX025":"EURO700","ME1WF0045":"EURO700","ME1WF0046":"EURO700","ME1WF0047":"EURO700","ME1WF0048":"EURO700","ME1WF0049":"EURO700","ME1WF0050":"EURO700","ME1WFX008":"EURO700","ME1WUX006":"EURO700","ME1WH0006":"EURO700","ME1WH0007":"EURO700","ME1WH0008":"EURO700","ME1WHX004":"EURO700","ME1WH0009":"EURO700","ME1WH0010":"EURO700","ME1WHX005":"EURO700","ME1WHX006":"EURO700","ME1WT0119":"EURO700","ME1WT0120":"EURO700","ME1WT0121":"EURO700","ME1WT0122":"EURO700","ME1WT0123":"EURO700","ME1WT0124":"EURO700","ME1WT0125":"EURO700","ME1WT0126":"EURO700","ME1WT0127":"EURO700","ME1WT0128":"EURO700","ME1WTX018":"EURO700","ME1WR0021":"EURO700","ME1WR0022":"EURO700","ME1WR0023":"EURO700","ME1WR0024":"EURO700","ME1WR0025":"EURO700","ME1WR0026":"EURO700","ME1WR0027":"EURO700","ME1WR0028":"EURO700","ME1WR0029":"EURO700","ME1WR0030":"EURO700","ME1WR0031":"EURO700","ME1WR0032":"EURO700","ME1WR0033":"EURO700","ME1WR0034":"EURO700","ME1WRX002":"EURO700","ME1WR0035":"EURO700","ME1WR0036":"EURO700","ME1WR0037":"EURO700","ME1WR0038":"EURO700","ME1WR0039":"EURO700","ME1WR0040":"EURO700","ME1WT0129":"EURO700","ME1WT0130":"EURO700","ME1WT0131":"EURO700","ME1WT0132":"EURO700","ME1WT0133":"EURO700","ME1WT0134":"EURO700","ME1WT0135":"EURO700","ME1WT0136":"EURO700","ME1WTX019":"EURO700","ME1WT0137":"EURO700","ME1WT0138":"EURO700","ME1WT0139":"EURO700","ME1WT0140":"EURO700","ME1WT0141":"EURO700","ME1WT0142":"EURO700","ME1WT0143":"EURO700","ME1WT0144":"EURO700","ME1WTX020":"EURO700","ME1WTX021":"EURO700","ME1WT0145":"EURO700","ME1WT0146":"EURO700","ME1WT0147":"EURO700","ME1WT0148":"EURO700","ME1WTX022":"EURO700","ME1BA0020":"EURO700","ME1BC0034":"EURO700","ME1BCX034":"EURO700","ME1BC0035":"EURO700","ME1BCX035":"EURO700","ME1BD0086":"EURO700","ME1BD0087":"EURO700","ME1BD0088":"EURO700","ME1BDX023":"EURO700","ME1BD0089":"EURO700","ME1BD0090":"EURO700","ME1BDX024":"EURO700","ME1BD0091":"EURO700","ME1BUX021":"EURO700","ME1BD0092":"EURO700","ME1BN0023":"EURO700","ME1BN0024":"EURO700","ME1TD0012":"EURO700","ME1BU0214":"EURO700","ME1BU0215":"EURO700","ME1BU0216":"EURO700","ME1BU0217":"EURO700","ME1BU0218":"EURO700","ME1BU0219":"EURO700","ME1BU0220":"EURO700","ME1BU0221":"EURO700","ME1BU0222":"EURO700","ME1BU0223":"EURO700","ME1BU0224":"EURO700","ME1BU0225":"EURO700","ME1BU0226":"EURO700","ME1BU0227":"EURO700","ME1BU0228":"EURO700","ME1BU0229":"EURO700","ME1BU0230":"EURO700","ME1BU0231":"EURO700","ME1BU0232":"EURO700","ME1BUX022":"EURO700","ME1TN0012":"EURO700","ME1TC0005":"EURO700","ME1TC0006":"EURO700","ME1TC0007":"EURO700","ME1TC0008":"EURO700","ME1TU0005":"EURO700","ME1TU0006":"EURO700","ME1TU0007":"EURO700","ME1TU0008":"EURO700","ME1TUX002":"EURO700","ME1BA0021":"EURO700","ME1BAX003":"EURO700","ME1BA0022":"EURO700","ME1BC0037":"EURO700","ME1BCX037":"EURO700","ME1BC0038":"EURO700","ME1BCX038":"EURO700","ME1BD0093":"EURO700","ME1BD0094":"EURO700","ME1BD0095":"EURO700","ME1BDX025":"EURO700","ME1BD0096":"EURO700","ME1BD0097":"EURO700","ME1BDX026":"EURO700","ME1BD0098":"EURO700","ME1BUX023":"EURO700","ME1BD0099":"EURO700","ME1BD0100":"EURO700","ME1BD0101":"EURO700","ME1BD0102":"EURO700","ME1BD0103":"EURO700","ME1BN0025":"EURO700","ME1BN0026":"EURO700","ME1BA0023":"EURO700","ME1TD0017":"EURO700","ME1BA0024":"EURO700","ME1BA0025":"EURO700","ME1BU0233":"EURO700","ME1WU0049":"EURO700","ME1WU0050":"EURO700","ME1WU0051":"EURO700","ME1WU0052":"EURO700","ME1WU0053":"EURO700","ME1WU0054":"EURO700","ME1WU0055":"EURO700","ME1WU0056":"EURO700","ME1WU0057":"EURO700","ME1WU0058":"EURO700","ME1WU0059":"EURO700","ME1WU0060":"EURO700","ME1WU0061":"EURO700","ME1WU0062":"EURO700","ME1WU0063":"EURO700","ME1WU0064":"EURO700","ME1WU0065":"EURO700","ME1WU0066":"EURO700","ME1WU0067":"EURO700","ME1WU0068":"EURO700","ME1WU0069":"EURO700","ME1WU0070":"EURO700","ME1WU0071":"EURO700","ME1WU0072":"EURO700","ME1WUX007":"EURO700","ME1TN0013":"EURO700","ME1WUX008":"EURO700","ME1WF0051":"EURO700","ME1WF0052":"EURO700","ME1WFX009":"EURO700","ME1WF0053":"EURO700","ME1WF0054":"EURO700","ME1WF0055":"EURO700","ME1WF0056":"EURO700","ME1WF0057":"EURO700","ME1WF0058":"EURO700","ME1WF0059":"EURO700","ME1WF0060":"EURO700","ME1WFX010":"EURO700","ME1WF0061":"EURO700","ME1WF0062":"EURO700","ME1WF0063":"EURO700","ME1WF0064":"EURO700","ME1WF0065":"EURO700","ME1WFX011":"EURO700","ME1WF0066":"EURO700","ME1WF0067":"EURO700","ME1WF0068":"EURO700","ME1WF0069":"EURO700","ME1WFX021":"EURO700","ME1WF0070":"EURO700","ME1WF0071":"EURO700","ME1WF0072":"EURO700","ME1WF0073":"EURO700","ME1WF0074":"EURO700","ME1WF0075":"EURO700","ME1WFX012":"EURO700","ME1WUX009":"EURO700","ME1WH0011":"EURO700","ME1WH0012":"EURO700","ME1WH0013":"EURO700","ME1WHX007":"EURO700","ME1WH0014":"EURO700","ME1WH0015":"EURO700","ME1WHX008":"EURO700","ME1WHX009":"EURO700","ME1WT0149":"EURO700","ME1WT0150":"EURO700","ME1WT0151":"EURO700","ME1WT0152":"EURO700","ME1WT0153":"EURO700","ME1WT0154":"EURO700","ME1WT0155":"EURO700","ME1WT0156":"EURO700","ME1WT0157":"EURO700","ME1WT0158":"EURO700","ME1WTX023":"EURO700","ME1WR0041":"EURO700","ME1WR0042":"EURO700","ME1WR0043":"EURO700","ME1WR0044":"EURO700","ME1WR0045":"EURO700","ME1WR0046":"EURO700","ME1WR0047":"EURO700","ME1WR0048":"EURO700","ME1WR0049":"EURO700","ME1WR0050":"EURO700","ME1WR0051":"EURO700","ME1WR0052":"EURO700","ME1WR0053":"EURO700","ME1WR0054":"EURO700","ME1WRX003":"EURO700","ME1WR0055":"EURO700","ME1WR0056":"EURO700","ME1WR0057":"EURO700","ME1WR0058":"EURO700","ME1WR0059":"EURO700","ME1WR0060":"EURO700","ME1WT0159":"EURO700","ME1WT0160":"EURO700","ME1WT0161":"EURO700","ME1WT0162":"EURO700","ME1WT0163":"EURO700","ME1WT0164":"EURO700","ME1WT0165":"EURO700","ME1WT0166":"EURO700","ME1WTX024":"EURO700","ME1WT0167":"EURO700","ME1WT0168":"EURO700","ME1WT0169":"EURO700","ME1WT0170":"EURO700","ME1WT0171":"EURO700","ME1WT0172":"EURO700","ME1WT0173":"EURO700","ME1WT0174":"EURO700","ME1WTX025":"EURO700","ME1WTX026":"EURO700","ME1WT0175":"EURO700","ME1WT0176":"EURO700","ME1WT0177":"EURO700","ME1WT0178":"EURO700","ME1WTX027":"EURO700","ME1BA0026":"EURO700","ME1BC0040":"EURO700","ME1BCX040":"EURO700","ME1BC0041":"EURO700","ME1BCX041":"EURO700","ME1BD0105":"EURO700","ME1BD0106":"EURO700","ME1BD0107":"EURO700","ME1BDX027":"EURO700","ME1BD0108":"EURO700","ME1BD0109":"EURO700","ME1BDX028":"EURO700","ME1BD0110":"EURO700","ME1BUX024":"EURO700","ME1BD0111":"EURO700","ME1BN0027":"EURO700","ME1BN0028":"EURO700","ME1TD0018":"EURO700","ME1BU0234":"EURO700","ME1BU0235":"EURO700","ME1BU0236":"EURO700","ME1BU0237":"EURO700","ME1BU0238":"EURO700","ME1BU0239":"EURO700","ME1BU0240":"EURO700","ME1BU0241":"EURO700","ME1BU0242":"EURO700","ME1BU0243":"EURO700","ME1BU0244":"EURO700","ME1BU0245":"EURO700","ME1BU0246":"EURO700","ME1BU0247":"EURO700","ME1BU0248":"EURO700","ME1BU0249":"EURO700","ME1BU0250":"EURO700","ME1BU0251":"EURO700","ME1BU0252":"EURO700","ME1BUX025":"EURO700","ME1TN0014":"EURO700","ME1TC0011":"EURO700","ME1TC0012":"EURO700","ME1TC0013":"EURO700","ME1TC0014":"EURO700","ME1TU0010":"EURO700","ME1TU0011":"EURO700","ME1TU0012":"EURO700","ME1TU0013":"EURO700","ME1TUX004":"EURO700","ME1BA0027":"EURO700","ME1BAX004":"EURO700","ME1BA0028":"EURO700","ME1BC0043":"EURO700","ME1BCX043":"EURO700","ME1BC0044":"EURO700","ME1BCX044":"EURO700","ME1BD0112":"EURO700","ME1BD0113":"EURO700","ME1BD0114":"EURO700","ME1BDX029":"EURO700","ME1BD0115":"EURO700","ME1BD0116":"EURO700","ME1BDX030":"EURO700","ME1BD0117":"EURO700","ME1BUX026":"EURO700","ME1BD0118":"EURO700","ME1BD0119":"EURO700","ME1BD0120":"EURO700","ME1BD0121":"EURO700","ME1BD0122":"EURO700","ME1BN0029":"EURO700","ME1BN0030":"EURO700","ME1BA0029":"EURO700","ME1TD0023":"EURO700","ME1BA0030":"EURO700","ME1BA0031":"EURO700","ME1BU0253":"EURO700","ME1WU0073":"EURO700","ME1WU0074":"EURO700","ME1WU0075":"EURO700","ME1WU0076":"EURO700","ME1WU0077":"EURO700","ME1WU0078":"EURO700","ME1WU0079":"EURO700","ME1WU0080":"EURO700","ME1WU0081":"EURO700","ME1WU0082":"EURO700","ME1WU0083":"EURO700","ME1WU0084":"EURO700","ME1WU0085":"EURO700","ME1WU0086":"EURO700","ME1WU0087":"EURO700","ME1WU0088":"EURO700","ME1WU0089":"EURO700","ME1WU0090":"EURO700","ME1WU0091":"EURO700","ME1WU0092":"EURO700","ME1WU0093":"EURO700","ME1WU0094":"EURO700","ME1WU0095":"EURO700","ME1WU0096":"EURO700","ME1WUX010":"EURO700","ME1TN0015":"EURO700","ME1WUX011":"EURO700","ME1WF0076":"EURO700","ME1WF0077":"EURO700","ME1WFX013":"EURO700","ME1WF0078":"EURO700","ME1WF0079":"EURO700","ME1WF0080":"EURO700","ME1WF0081":"EURO700","ME1WF0082":"EURO700","ME1WF0083":"EURO700","ME1WF0084":"EURO700","ME1WF0085":"EURO700","ME1WFX014":"EURO700","ME1WF0086":"EURO700","ME1WF0087":"EURO700","ME1WF0088":"EURO700","ME1WF0089":"EURO700","ME1WF0090":"EURO700","ME1WFX015":"EURO700","ME1WF0091":"EURO700","ME1WF0092":"EURO700","ME1WF0093":"EURO700","ME1WF0094":"EURO700","ME1WFX023":"EURO700","ME1WF0095":"EURO700","ME1WF0096":"EURO700","ME1WF0097":"EURO700","ME1WF0098":"EURO700","ME1WF0099":"EURO700","ME1WF0100":"EURO700","ME1WFX016":"EURO700","ME1WUX012":"EURO700","ME1WH0016":"EURO700","ME1WH0017":"EURO700","ME1WH0018":"EURO700","ME1WHX010":"EURO700","ME1WH0019":"EURO700","ME1WH0020":"EURO700","ME1WHX011":"EURO700","ME1WHX012":"EURO700","ME1WT0179":"EURO700","ME1WT0180":"EURO700","ME1WT0181":"EURO700","ME1WT0182":"EURO700","ME1WT0183":"EURO700","ME1WT0184":"EURO700","ME1WT0185":"EURO700","ME1WT0186":"EURO700","ME1WT0187":"EURO700","ME1WT0188":"EURO700","ME1WTX028":"EURO700","ME1WR0061":"EURO700","ME1WR0062":"EURO700","ME1WR0063":"EURO700","ME1WR0064":"EURO700","ME1WR0065":"EURO700","ME1WR0066":"EURO700","ME1WR0067":"EURO700","ME1WR0068":"EURO700","ME1WR0069":"EURO700","ME1WR0070":"EURO700","ME1WR0071":"EURO700","ME1WR0072":"EURO700","ME1WR0073":"EURO700","ME1WR0074":"EURO700","ME1WRX004":"EURO700","ME1WR0075":"EURO700","ME1WR0076":"EURO700","ME1WR0077":"EURO700","ME1WR0078":"EURO700","ME1WR0079":"EURO700","ME1WR0080":"EURO700","ME1WT0189":"EURO700","ME1WT0190":"EURO700","ME1WT0191":"EURO700","ME1WT0192":"EURO700","ME1WT0193":"EURO700","ME1WT0194":"EURO700","ME1WT0195":"EURO700","ME1WT0196":"EURO700","ME1WTX029":"EURO700","ME1WT0197":"EURO700","ME1WT0198":"EURO700","ME1WT0199":"EURO700","ME1WT0200":"EURO700","ME1WT0201":"EURO700","ME1WT0202":"EURO700","ME1WT0203":"EURO700","ME1WT0204":"EURO700","ME1WTX030":"EURO700","ME1WTX031":"EURO700","ME1WT0205":"EURO700","ME1WT0206":"EURO700","ME1WT0207":"EURO700","ME1WT0208":"EURO700","ME1WTX032":"EURO700","ME1BA0032":"EURO700","ME1BC0046":"EURO700","ME1BCX046":"EURO700","ME1BC0047":"EURO700","ME1BCX047":"EURO700","ME1BD0124":"EURO700","ME1BD0125":"EURO700","ME1BD0126":"EURO700","ME1BDX031":"EURO700","ME1BD0127":"EURO700","ME1BD0128":"EURO700","ME1BDX032":"EURO700","ME1BD0129":"EURO700","ME1BUX027":"EURO700","ME1BD0130":"EURO700","ME1BN0031":"EURO700","ME1BN0032":"EURO700","ME1TD0024":"EURO700","ME1BU0254":"EURO700","ME1BU0255":"EURO700","ME1BU0256":"EURO700","ME1BU0257":"EURO700","ME1BU0258":"EURO700","ME1BU0259":"EURO700","ME1BU0260":"EURO700","ME1BU0261":"EURO700","ME1BU0262":"EURO700","ME1BU0263":"EURO700","ME1BU0264":"EURO700","ME1BU0265":"EURO700","ME1BU0266":"EURO700","ME1BU0267":"EURO700","ME1BU0268":"EURO700","ME1BU0269":"EURO700","ME1BU0270":"EURO700","ME1BU0271":"EURO700","ME1BU0272":"EURO700","ME1BUX028":"EURO700","ME1TN0016":"EURO700","ME1TC0017":"EURO700","ME1TC0018":"EURO700","ME1TC0019":"EURO700","ME1TC0020":"EURO700","ME1TU0015":"EURO700","ME1TU0016":"EURO700","ME1TU0017":"EURO700","ME1TU0018":"EURO700","ME1TUX006":"EURO700","ME1BA0033":"EURO700","ME1BAX005":"EURO700","ME1BA0034":"EURO700","ME1BC0049":"EURO700","ME1BCX049":"EURO700","ME1BC0050":"EURO700","ME1BCX050":"EURO700","ME1BD0131":"EURO700","ME1BD0132":"EURO700","ME1BD0133":"EURO700","ME1BDX033":"EURO700","ME1BD0134":"EURO700","ME1BD0135":"EURO700","ME1BDX034":"EURO700","ME1BD0136":"EURO700","ME1BUX029":"EURO700","ME1BD0137":"EURO700","ME1BD0138":"EURO700","ME1BD0139":"EURO700","ME1BD0140":"EURO700","ME1BD0141":"EURO700","ME1BN0033":"EURO700","ME1BN0034":"EURO700","ME1BA0035":"EURO700","ME1TD0029":"EURO700","ME1BA0036":"EURO700","ME1BA0037":"EURO700","ME1BU0273":"EURO700","ME1WU0097":"EURO700","ME1WU0098":"EURO700","ME1WU0099":"EURO700","ME1WU0100":"EURO700","ME1WU0101":"EURO700","ME1WU0102":"EURO700","ME1WU0103":"EURO700","ME1WU0104":"EURO700","ME1WU0105":"EURO700","ME1WU0106":"EURO700","ME1WU0107":"EURO700","ME1WU0108":"EURO700","ME1WU0109":"EURO700","ME1WU0110":"EURO700","ME1WU0111":"EURO700","ME1WU0112":"EURO700","ME1WU0113":"EURO700","ME1WU0114":"EURO700","ME1WU0115":"EURO700","ME1WU0116":"EURO700","ME1WU0117":"EURO700","ME1WU0118":"EURO700","ME1WU0119":"EURO700","ME1WU0120":"EURO700","ME1WUX013":"EURO700","ME1TN0017":"EURO700","ME1WUX014":"EURO700","ME1WF0101":"EURO700","ME1WF0102":"EURO700","ME1WFX017":"EURO700","ME1WF0103":"EURO700","ME1WF0104":"EURO700","ME1WF0105":"EURO700","ME1WF0106":"EURO700","ME1WF0107":"EURO700","ME1WF0108":"EURO700","ME1WF0109":"EURO700","ME1WF0110":"EURO700","ME1WFX018":"EURO700","ME1WF0111":"EURO700","ME1WF0112":"EURO700","ME1WF0113":"EURO700","ME1WF0114":"EURO700","ME1WF0115":"EURO700","ME1WFX019":"EURO700","ME1WF0116":"EURO700","ME1WF0117":"EURO700","ME1WF0118":"EURO700","ME1WF0119":"EURO700","ME1WFX024":"EURO700","ME1WF0120":"EURO700","ME1WF0121":"EURO700","ME1WF0122":"EURO700","ME1WF0123":"EURO700","ME1WF0124":"EURO700","ME1WF0125":"EURO700","ME1WFX020":"EURO700","ME1WUX015":"EURO700","ME1WH0021":"EURO700","ME1WH0022":"EURO700","ME1WH0023":"EURO700","ME1WHX013":"EURO700","ME1WH0024":"EURO700","ME1WH0025":"EURO700","ME1WHX014":"EURO700","ME1WHX015":"EURO700","ME1WT0209":"EURO700","ME1WT0210":"EURO700","ME1WT0211":"EURO700","ME1WT0212":"EURO700","ME1WT0213":"EURO700","ME1WT0214":"EURO700","ME1WT0215":"EURO700","ME1WT0216":"EURO700","ME1WT0217":"EURO700","ME1WT0218":"EURO700","ME1WTX033":"EURO700","ME1WR0081":"EURO700","ME1WR0082":"EURO700","ME1WR0083":"EURO700","ME1WR0084":"EURO700","ME1WR0085":"EURO700","ME1WR0086":"EURO700","ME1WR0087":"EURO700","ME1WR0088":"EURO700","ME1WR0089":"EURO700","ME1WR0090":"EURO700","ME1WR0091":"EURO700","ME1WR0092":"EURO700","ME1WR0093":"EURO700","ME1WR0094":"EURO700","ME1WRX005":"EURO700","ME1WR0095":"EURO700","ME1WR0096":"EURO700","ME1WR0097":"EURO700","ME1WR0098":"EURO700","ME1WR0099":"EURO700","ME1WR0100":"EURO700","ME1WT0219":"EURO700","ME1WT0220":"EURO700","ME1WT0221":"EURO700","ME1WT0222":"EURO700","ME1WT0223":"EURO700","ME1WT0224":"EURO700","ME1WT0225":"EURO700","ME1WT0226":"EURO700","ME1WTX034":"EURO700","ME1WT0227":"EURO700","ME1WT0228":"EURO700","ME1WT0229":"EURO700","ME1WT0230":"EURO700","ME1WT0231":"EURO700","ME1WT0232":"EURO700","ME1WT0233":"EURO700","ME1WT0234":"EURO700","ME1WTX035":"EURO700","ME1WTX036":"EURO700","ME1WT0235":"EURO700","ME1WT0236":"EURO700","ME1WT0237":"EURO700","ME1WT0238":"EURO700","ME1WTX037":"EURO700","ME1BA0038":"EURO700","ME1BC0052":"EURO700","ME1BCX052":"EURO700","ME1BC0053":"EURO700","ME1BCX053":"EURO700","ME1BD0143":"EURO700","ME1BD0144":"EURO700","ME1BD0145":"EURO700","ME1BDX035":"EURO700","ME1BD0146":"EURO700","ME1BD0147":"EURO700","ME1BDX036":"EURO700","ME1BD0148":"EURO700","ME1BUX030":"EURO700","ME1BD0149":"EURO700","ME1BN0035":"EURO700","ME1BN0036":"EURO700","ME1TD0030":"EURO700","ME1BU0274":"EURO700","ME1BU0275":"EURO700","ME1BU0276":"EURO700","ME1BU0277":"EURO700","ME1BU0278":"EURO700","ME1BU0279":"EURO700","ME1BU0280":"EURO700","ME1BU0281":"EURO700","ME1BU0282":"EURO700","ME1BU0283":"EURO700","ME1BU0284":"EURO700","ME1BU0285":"EURO700","ME1BU0286":"EURO700","ME1BU0287":"EURO700","ME1BU0288":"EURO700","ME1BU0289":"EURO700","ME1BU0290":"EURO700","ME1BU0291":"EURO700","ME1BU0292":"EURO700","ME1BUX031":"EURO700","ME1TN0018":"EURO700","ME1TC0023":"EURO700","ME1TC0024":"EURO700","ME1TC0025":"EURO700","ME1TC0026":"EURO700","ME1TU0020":"EURO700","ME1TU0021":"EURO700","ME1TU0022":"EURO700","ME1TU0023":"EURO700","ME1TUX008":"EURO700"};
-
-// ---- HANSAEM_CATALOG ----
-const HANSAEM_CATALOG={"SAE000227":["AL55 리프트업 도어 600","빌트인",""],"MALWF0392":["AL55브론즈 매직[KB패 WFDSOE 12051 M","빌트인",""],"CAIT00442":["B/I 2단 브론즈 400L","빌트인",""],"CAIT00443":["B/I 2단 브론즈 400R","빌트인",""],"CAIT00444":["B/I 2단 브론즈 600L","빌트인",""],"CAIT00445":["B/I 2단 브론즈 600R","빌트인",""],"CAIT00450":["B/I 3단 브론즈 400L","빌트인",""],"CAIT00451":["B/I 3단 브론즈 400R","빌트인",""],"CAIT00452":["B/I 3단 브론즈 600L","빌트인",""],"CAIT00453":["B/I 3단 브론즈 600R","빌트인",""],"CAIT00454":["B/I 4단 브론즈 400","빌트인",""],"CAIT00455":["B/I 4단 브론즈 600","빌트인",""],"CAIT00456":["B/I 6단 브론즈 400","빌트인",""],"CAIT00457":["B/I 6단 브론즈 600","빌트인",""],"CDIT00277":["B/I 거울 EP","빌트인",""],"CAIT00875":["B/I 슬림 파우더장 거울도어","빌트인",""],"FGIT00072":["B/I 현관 오픈장 브론즈 거울 767*1202","빌트인",""],"CAIT00484":["TV 장 2000전용 흑경 도어","빌트인",""],"SAE000327":["밀란 다크미러 AL리프트업 도어 (H:485)","빌트인",""],"CAIB13894":["글래스 도어 450_채널","시그니처",""],"CAIB13895":["글래스 도어 500_채널","시그니처",""],"CAIB13942":["(비) 글래스 채널도어 450_연장","시그니처",""],"CAIB13943":["(비) 글래스 채널도어 500_연장","시그니처",""],"ME1WM0001":["유리장식벽장 AL도어 4586 M","EURO",""],"ME1WM0002":["유리장식벽장 AL도어 5086 M","EURO",""],"ME1WM0003":["유리장식벽장 AL도어 6086 M","EURO",""],"ME1TM0001":["유리장식키큰장 AL도어 45222 M","EURO",""],"ME1TM0002":["유리장식키큰장 AL도어 45235 M","EURO",""],"ME1TM0003":["유리장식키큰장 AL도어 60222 M","EURO",""],"ME1TM0004":["유리장식키큰장 AL도어 60235 M","EURO",""],"ME1TMX001":["유리장식키큰장 AL도어 비규격","EURO",""],"ME1WMX001":["유리장식벽장 AL도어 비규격","EURO",""],"MK1WM0001":["AL프레임 에어힌지 벽장유리도어 18T(445*738)","에어힌지",""],"MK1WM0002":["AL프레임 에어힌지 벽장유리도어 18T(495*738)","에어힌지",""],"MK1MM0001":["AL프레임 에어힌지 분리장유리도어(W595*H1345)","에어힌지",""],"MK1TM0005":["AL프레임 에어힌지 키큰장유리도어 18T(545*2113)","에어힌지",""],"MK1WMX001":["AL프레임 에어힌지 벽장유리도어 18T 비규격","에어힌지",""],"MK1MMX001":["AL프레임 에어힌지 분리장유리도어 비규격","에어힌지",""],"MK1TMX001":["AL프레임 에어힌지 키큰장유리도어 18T 비규격","에어힌지",""],"MK1WM0004":["KB 벽장용 빗면 프레임 유리 도어 4574 M","빗각",""],"MK1WM0005":["KB 벽장용 빗면 프레임 유리 도어 5074 M","빗각",""],"MK1WM0006":["KB 플랩장용 빗면 프레임 유리 도어 10054 M","빗각",""],"MK1WM0007":["KB 플랩장용 빗면 프레임 유리 도어 12054 M","빗각",""],"MK1TM0006":["KB 키큰장용 빗면 프레임 유리 도어 60211 L","빗각",""],"MK1TMX002":["KB 키큰장용 빗면 프레임 유리 도어 비규격","빗각",""],"MK1WMX002":["KB 벽장용 빗면 프레임 유리 도어 비규격","빗각",""],"MRUWU0001":["(P)Euro500 PG/Off WH CH M 2073(공용) M","EURO500",""],"MRUWU0003":["(P)Euro500 PG/Off WH CH M 2573(공용) M","EURO500",""],"MRUWU0006":["(P)Euro500 PG/Off WH CH M 3073(공용) M","EURO500",""],"MRUWU0009":["(P)Euro500 PG/Off WH CH M 3573(공용) M","EURO500",""],"MRUWU0012":["(P)Euro500 PG/Off WH CH M 4073(공용) M","EURO500",""],"MRUWU0015":["(P)Euro500 PG/Off WH CH M 4573(공용) M","EURO500",""],"MRUWU0018":["(P)Euro500 PG/Off WH CH M 5073(공용) M","EURO500",""],"MRUWU0020":["(P)Euro500 PG/Off WH CH M 5573(공용) M","EURO500",""],"MRUWU0022":["(P)Euro500 PG/Off WH CH M 6073(공용) M","EURO500",""],"MRUWU0024":["(P)Euro500 PG/Off WH CH MS 4573 M","EURO500",""],"MRUWU0025":["(P)Euro500 PG/Off WH CH MS 5073 M","EURO500",""],"MRUWU0026":["(P)Euro500 PG/Off WH CH MS 6073 M","EURO500",""],"MRUBA0001":["(P)Euro500 PG/Off WH CH BAD 6091","EURO500",""],"MRUBD0002":["(P)Euro500 PG/Off WH CH BD2R 6091 M","EURO500",""],"MRUBD0003":["(P)Euro500 PG/Off WH CH BD2R 9091 M","EURO500",""],"MRUBD0001":["(P)Euro500 PG/Off WH CH BD2R 12091 M","EURO500",""],"MRUBD0004":["(P)Euro500 PG/Off WH CH BD3U 4591 M","EURO500",""],"MRUBD0005":["(P)Euro500 PG/Off WH CH BD3U 6091 M","EURO500",""],"MRUBD0007":["(P)Euro500 PG/Off WH CH BLD1R 4591 M","EURO500",""],"MRUBD0008":["(P)Euro500 PG/Off WH CH BLD1R 6091 M","EURO500",""],"MRUBD0006":["(P)Euro500 PG/Off WH CH BDI1R 4591 M","EURO500",""],"MRUBD0011":["(P)Euro500 PG/Off WH CH BLD1UA 4591 M","EURO500",""],"MRUBD0012":["(P)Euro500 PG/Off WH CH BLD1UA 6091 M","EURO500",""],"MRUBD0013":["(P)Euro500 PG/Off WH CH BLD2R 6062 M","EURO500",""],"MRUBD0014":["(P)Euro500 PG/Off WH CH BLDA 6015 M","EURO500",""],"MRUBN0001":["(P)Euro500 PG/Off WH CH BNDB2N 2091 M","EURO500",""],"MRUBN0002":["(P)Euro500 PG/Off WH CH BNDC2N 3091 M","EURO500",""],"MRUBA0002":["(P)Euro500 PG/Off WH CH BRO1R 6091 M","EURO500",""],"MRUBR0002":["(P)Euro500 PG/Off WH CH BRWTI 6091 M","EURO500",""],"MRUBA0003":["(P)Euro500 PG/Off WH CH BTARG 6070 L","EURO500",""],"MRUBA0004":["(P)Euro500 PG/Off WH CH BTARG 6070 R","EURO500",""],"MRUBU0001":["(P)Euro500 PG/Off WH CH BUIF 3034","EURO500",""],"MRUWU0002":["(P)Euro500 PG/Off WH CH M 2086 M","EURO500",""],"MRUWU0004":["(P)Euro500 PG/Off WH CH M 2586 M","EURO500",""],"MRUWU0005":["(P)Euro500 PG/Off WH CH M 3065 M","EURO500",""],"MRUWU0007":["(P)Euro500 PG/Off WH CH M 3086 M","EURO500",""],"MRUWU0008":["(P)Euro500 PG/Off WH CH M 3565 M","EURO500",""],"MRUWU0010":["(P)Euro500 PG/Off WH CH M 3586 M","EURO500",""],"MRUWU0011":["(P)Euro500 PG/Off WH CH M 4065 M","EURO500",""],"MRUWU0013":["(P)Euro500 PG/Off WH CH M 4086 M","EURO500",""],"MRUWU0014":["(P)Euro500 PG/Off WH CH M 4565 M","EURO500",""],"MRUWU0016":["(P)Euro500 PG/Off WH CH M 4586 M","EURO500",""],"MRUWU0017":["(P)Euro500 PG/Off WH CH M 5065 M","EURO500",""],"MRUWU0019":["(P)Euro500 PG/Off WH CH M 5086 M","EURO500",""],"MRUWU0021":["(P)Euro500 PG/Off WH CH M 5586 M","EURO500",""],"MRUWU0023":["(P)Euro500 PG/Off WH CH M 6086 M","EURO500",""],"MRUWF0004":["(P)Euro500 PG/Off WH CH WF 6030 M","EURO500",""],"MRUWF0005":["(P)Euro500 PG/Off WH CH WF 6043 M","EURO500",""],"MRUWF0008":["(P)Euro500 PG/Off WH CH WF 9033 M","EURO500",""],"MRUWF0006":["(P)Euro500 PG/Off WH CH WF 8037 M","EURO500",""],"MRUWF0007":["(P)Euro500 PG/Off WH CH WF 8044 M","EURO500",""],"MRUWF0009":["(P)Euro500 PG/Off WH CH WF 9037 M","EURO500",""],"MRUWF0010":["(P)Euro500 PG/Off WH CH WF 9044 M","EURO500",""],"MRUWF0003":["(P)Euro500 PG/Off WH CH WF 10037 M","EURO500",""],"MRUWF0011":["(P)Euro500 PG/Off WH CH WFED 10053 M","EURO500",""],"MRUWF0012":["(P)Euro500 PG/Off WH CH WFED 6053 M","EURO500",""],"MRUWF0013":["(P)Euro500 PG/Off WH CH WFED 7053 M","EURO500",""],"MRUWF0014":["(P)Euro500 PG/Off WH CH WFED 8053 M","EURO500",""],"MRUWF0015":["(P)Euro500 PG/Off WH CH WFED 9053 M","EURO500",""],"MRUWH0001":["(P)Euro500 PG/Off WH CH WHFM 6027 M","EURO500",""],"MRUWH0002":["(P)Euro500 PG/Off WH CH WHFM 9027 M","EURO500",""],"MRUWH0003":["(P)Euro500 PG/Off WH CH WHM 6061 M","EURO500",""],"MRUWF0018":["(P)Euro500 PG/Off WH CH WFUP 8032 M","EURO500",""],"MRUWF0019":["(P)Euro500 PG/Off WH CH WFUP 8036 M","EURO500",""],"MRUWF0020":["(P)Euro500 PG/Off WH CH WFUP 9032 M","EURO500",""],"MRUWF0021":["(P)Euro500 PG/Off WH CH WFUP 9036 M","EURO500",""],"MRUWF0016":["(P)Euro500 PG/Off WH CH WFUP 10032 M","EURO500",""],"MRUWF0017":["(P)Euro500 PG/Off WH CH WFUP 10036 M","EURO500",""],"MRUWH0004":["(P)Euro500 PG/Off WH CH WHMH 6065 M","EURO500",""],"MRUWH0005":["(P)Euro500 PG/Off WH CH WHMH 6073 M","EURO500",""],"MRUWT0001":["(P)Euro500 PG/Off WH CH WLDL 6051 M","EURO500",""],"MRUWT0004":["(P)Euro500 PG/Off WH CH WMLDT 6083 M","EURO500",""],"MRUWT0005":["(P)Euro500 PG/Off WH CH WMLDT 6096 M","EURO500",""],"MRUWT0002":["(P)Euro500 PG/Off WH CH WMLDT 4583 M","EURO500",""],"MRUWT0003":["(P)Euro500 PG/Off WH CH WMLDT 4596 M","EURO500",""],"MRUWR0002":["(P)Euro500 PG/Off WH CH WRMB 4735 M","EURO500",""],"MRUWR0009":["(P)Euro500 PG/Off WH CH WRMB 4748 M","EURO500",""],"MRUWR0003":["(P)Euro500 PG/Off WH CH WRMB 6135 M","EURO500",""],"MRUWR0010":["(P)Euro500 PG/Off WH CH WRMB 6148 M","EURO500",""],"MRUWR0004":["(P)Euro500 PG/Off WH CH WRMB 7135 M","EURO500",""],"MRUWR0011":["(P)Euro500 PG/Off WH CH WRMB 7148 M","EURO500",""],"MRUWR0006":["(P)Euro500 PG/Off WH CH WRMB 9335 M","EURO500",""],"MRUWR0001":["(P)Euro500 PG/Off WH CH WRMB 10033 M","EURO500",""],"MRUWR0008":["(P)Euro500 PG/Off WH CH WRMB 10045 M","EURO500",""],"MRUWR0005":["(P)Euro500 PG/Off WH CH WRMB 8033 M","EURO500",""],"MRUWR0012":["(P)Euro500 PG/Off WH CH WRMB 8045 M","EURO500",""],"MRUWR0013":["(P)Euro500 PG/Off WH CH WRMB 9348 M","EURO500",""],"MRUWR0007":["(P)Euro500 PG/Off WH CH WRMB 9533 M","EURO500",""],"MRUWR0014":["(P)Euro500 PG/Off WH CH WRMB 9545 M","EURO500",""],"MRUWT0006":["(P)Euro500 PG/Off WH CH WT 30134 M","EURO500",""],"MRUWT0008":["(P)Euro500 PG/Off WH CH WT 40134 M","EURO500",""],"MRUWT0010":["(P)Euro500 PG/Off WH CH WT 45134 M","EURO500",""],"MRUWT0012":["(P)Euro500 PG/Off WH CH WT 60134 M","EURO500",""],"MRUWT0018":["(P)Euro500 PG/Off WH CH WTP 60134 L","EURO500",""],"MRUWT0019":["(P)Euro500 PG/Off WH CH WTP 60134 R","EURO500",""],"MRUWT0007":["(P)Euro500 PG/Off WH CH WT 30147 M","EURO500",""],"MRUWT0009":["(P)Euro500 PG/Off WH CH WT 40147 M","EURO500",""],"MRUWT0011":["(P)Euro500 PG/Off WH CH WT 45147 M","EURO500",""],"MRUWT0013":["(P)Euro500 PG/Off WH CH WT 60147 M","EURO500",""],"MRUWT0020":["(P)Euro500 PG/Off WH CH WTP 60147 L","EURO500",""],"MRUWT0021":["(P)Euro500 PG/Off WH CH WTP 60147 R","EURO500",""],"MRUWT0014":["(P)Euro500 PG/Off WH CH WTARG 60141 L","EURO500",""],"MRUWT0015":["(P)Euro500 PG/Off WH CH WTARG 60141 R","EURO500",""],"MRUWT0016":["(P)Euro500 PG/Off WH CH WTARG 60154 L","EURO500",""],"MRUWT0017":["(P)Euro500 PG/Off WH CH WTARG 60154 R","EURO500",""],"MRUWF0001":["(P)Euro500 PG/Off WH CH W2U 4042 M","EURO500",""],"MRUWF0002":["(P)Euro500 PG/Off WH CH W2U 4542 M","EURO500",""],"MRWWU0001":["(P)Euro500 PG/RG CH M 2073(공용) M","EURO500",""],"MRWWU0003":["(P)Euro500 PG/RG CH M 2573(공용) M","EURO500",""],"MRWWU0006":["(P)Euro500 PG/RG CH M 3073(공용) M","EURO500",""],"MRWWU0009":["(P)Euro500 PG/RG CH M 3573(공용) M","EURO500",""],"MRWWU0012":["(P)Euro500 PG/RG CH M 4073(공용) M","EURO500",""],"MRWWU0015":["(P)Euro500 PG/RG CH M 4573(공용) M","EURO500",""],"MRWWU0018":["(P)Euro500 PG/RG CH M 5073(공용) M","EURO500",""],"MRWWU0020":["(P)Euro500 PG/RG CH M 5573(공용) M","EURO500",""],"MRWWU0022":["(P)Euro500 PG/RG CH M 6073(공용) M","EURO500",""],"MRWWU0024":["(P)Euro500 PG/RG CH MS 4573 M","EURO500",""],"MRWWU0025":["(P)Euro500 PG/RG CH MS 5073 M","EURO500",""],"MRWWU0026":["(P)Euro500 PG/RG CH MS 6073 M","EURO500",""],"MRWBA0001":["(P)Euro500 PG/RG CH BAD 6091","EURO500",""],"MRWBD0002":["(P)Euro500 PG/RG CH BD2R 6091 M","EURO500",""],"MRWBD0003":["(P)Euro500 PG/RG CH BD2R 9091 M","EURO500",""],"MRWBD0001":["(P)Euro500 PG/RG CH BD2R 12091 M","EURO500",""],"MRWBD0004":["(P)Euro500 PG/RG CH BD3U 4591 M","EURO500",""],"MRWBD0005":["(P)Euro500 PG/RG CH BD3U 6091 M","EURO500",""],"MRWBD0007":["(P)Euro500 PG/RG CH BLD1R 4591 M","EURO500",""],"MRWBD0008":["(P)Euro500 PG/RG CH BLD1R 6091 M","EURO500",""],"MRWBD0006":["(P)Euro500 PG/RG CH BDI1R 4591 M","EURO500",""],"MRWBD0011":["(P)Euro500 PG/RG CH BLD1UA 4591 M","EURO500",""],"MRWBD0012":["(P)Euro500 PG/RG CH BLD1UA 6091 M","EURO500",""],"MRWBD0013":["(P)Euro500 PG/RG CH BLD2R 6062 M","EURO500",""],"MRWBD0014":["(P)Euro500 PG/RG CH BLDA 6015 M","EURO500",""],"MRWBN0001":["(P)Euro500 PG/RG CH BNDB2N 2091 M","EURO500",""],"MRWBN0002":["(P)Euro500 PG/RG CH BNDC2N 3091 M","EURO500",""],"MRWBA0002":["(P)Euro500 PG/RG CH BRO1R 6091 M","EURO500",""],"MRWBR0002":["(P)Euro500 PG/RG CH BRWTI 6091 M","EURO500",""],"MRWBA0003":["(P)Euro500 PG/RG CH BTARG 6070 L","EURO500",""],"MRWBA0004":["(P)Euro500 PG/RG CH BTARG 6070 R","EURO500",""],"MRWBU0001":["(P)Euro500 PG/RG CH BUIF 3034","EURO500",""],"MRWWU0002":["(P)Euro500 PG/RG CH M 2086 M","EURO500",""],"MRWWU0004":["(P)Euro500 PG/RG CH M 2586 M","EURO500",""],"MRWWU0005":["(P)Euro500 PG/RG CH M 3065 M","EURO500",""],"MRWWU0007":["(P)Euro500 PG/RG CH M 3086 M","EURO500",""],"MRWWU0008":["(P)Euro500 PG/RG CH M 3565 M","EURO500",""],"MRWWU0010":["(P)Euro500 PG/RG CH M 3586 M","EURO500",""],"MRWWU0011":["(P)Euro500 PG/RG CH M 4065 M","EURO500",""],"MRWWU0013":["(P)Euro500 PG/RG CH M 4086 M","EURO500",""],"MRWWU0014":["(P)Euro500 PG/RG CH M 4565 M","EURO500",""],"MRWWU0016":["(P)Euro500 PG/RG CH M 4586 M","EURO500",""],"MRWWU0017":["(P)Euro500 PG/RG CH M 5065 M","EURO500",""],"MRWWU0019":["(P)Euro500 PG/RG CH M 5086 M","EURO500",""],"MRWWU0021":["(P)Euro500 PG/RG CH M 5586 M","EURO500",""],"MRWWU0023":["(P)Euro500 PG/RG CH M 6086 M","EURO500",""],"MRWWF0004":["(P)Euro500 PG/RG CH WF 6030 M","EURO500",""],"MRWWF0005":["(P)Euro500 PG/RG CH WF 6043 M","EURO500",""],"MRWWF0008":["(P)Euro500 PG/RG CH WF 9033 M","EURO500",""],"MRWWF0006":["(P)Euro500 PG/RG CH WF 8037 M","EURO500",""],"MRWWF0007":["(P)Euro500 PG/RG CH WF 8044 M","EURO500",""],"MRWWF0009":["(P)Euro500 PG/RG CH WF 9037 M","EURO500",""],"MRWWF0010":["(P)Euro500 PG/RG CH WF 9044 M","EURO500",""],"MRWWF0003":["(P)Euro500 PG/RG CH WF 10037 M","EURO500",""],"MRWWF0011":["(P)Euro500 PG/RG CH WFED 10053 M","EURO500",""],"MRWWF0012":["(P)Euro500 PG/RG CH WFED 6053 M","EURO500",""],"MRWWF0013":["(P)Euro500 PG/RG CH WFED 7053 M","EURO500",""],"MRWWF0014":["(P)Euro500 PG/RG CH WFED 8053 M","EURO500",""],"MRWWF0015":["(P)Euro500 PG/RG CH WFED 9053 M","EURO500",""],"MRWWH0001":["(P)Euro500 PG/RG CH WHFM 6027 M","EURO500",""],"MRWWH0002":["(P)Euro500 PG/RG CH WHFM 9027 M","EURO500",""],"MRWWH0003":["(P)Euro500 PG/RG CH WHM 6061 M","EURO500",""],"MRWWF0018":["(P)Euro500 PG/RG CH WFUP 8032 M","EURO500",""],"MRWWF0019":["(P)Euro500 PG/RG CH WFUP 8036 M","EURO500",""],"MRWWF0020":["(P)Euro500 PG/RG CH WFUP 9032 M","EURO500",""],"MRWWF0021":["(P)Euro500 PG/RG CH WFUP 9036 M","EURO500",""],"MRWWF0016":["(P)Euro500 PG/RG CH WFUP 10032 M","EURO500",""],"MRWWF0017":["(P)Euro500 PG/RG CH WFUP 10036 M","EURO500",""],"MRWWH0004":["(P)Euro500 PG/RG CH WHMH 6065 M","EURO500",""],"MRWWH0005":["(P)Euro500 PG/RG CH WHMH 6073 M","EURO500",""],"MRWWT0001":["(P)Euro500 PG/RG CH WLDL 6051 M","EURO500",""],"MRWWT0004":["(P)Euro500 PG/RG CH WMLDT 6083 M","EURO500",""],"MRWWT0005":["(P)Euro500 PG/RG CH WMLDT 6096 M","EURO500",""],"MRWWT0002":["(P)Euro500 PG/RG CH WMLDT 4583 M","EURO500",""],"MRWWT0003":["(P)Euro500 PG/RG CH WMLDT 4596 M","EURO500",""],"MRWWR0002":["(P)Euro500 PG/RG CH WRMB 4735 M","EURO500",""],"MRWWR0009":["(P)Euro500 PG/RG CH WRMB 4748 M","EURO500",""],"MRWWR0003":["(P)Euro500 PG/RG CH WRMB 6135 M","EURO500",""],"MRWWR0010":["(P)Euro500 PG/RG CH WRMB 6148 M","EURO500",""],"MRWWR0004":["(P)Euro500 PG/RG CH WRMB 7135 M","EURO500",""],"MRWWR0011":["(P)Euro500 PG/RG CH WRMB 7148 M","EURO500",""],"MRWWR0006":["(P)Euro500 PG/RG CH WRMB 9335 M","EURO500",""],"MRWWR0001":["(P)Euro500 PG/RG CH WRMB 10033 M","EURO500",""],"MRWWR0008":["(P)Euro500 PG/RG CH WRMB 10045 M","EURO500",""],"MRWWR0005":["(P)Euro500 PG/RG CH WRMB 8033 M","EURO500",""],"MRWWR0012":["(P)Euro500 PG/RG CH WRMB 8045 M","EURO500",""],"MRWWR0013":["(P)Euro500 PG/RG CH WRMB 9348 M","EURO500",""],"MRWWR0007":["(P)Euro500 PG/RG CH WRMB 9533 M","EURO500",""],"MRWWR0014":["(P)Euro500 PG/RG CH WRMB 9545 M","EURO500",""],"MRWWT0006":["(P)Euro500 PG/RG CH WT 30134 M","EURO500",""],"MRWWT0008":["(P)Euro500 PG/RG CH WT 40134 M","EURO500",""],"MRWWT0010":["(P)Euro500 PG/RG CH WT 45134 M","EURO500",""],"MRWWT0012":["(P)Euro500 PG/RG CH WT 60134 M","EURO500",""],"MRWWT0018":["(P)Euro500 PG/RG CH WTP 60134 L","EURO500",""],"MRWWT0019":["(P)Euro500 PG/RG CH WTP 60134 R","EURO500",""],"MRWWT0007":["(P)Euro500 PG/RG CH WT 30147 M","EURO500",""],"MRWWT0009":["(P)Euro500 PG/RG CH WT 40147 M","EURO500",""],"MRWWT0011":["(P)Euro500 PG/RG CH WT 45147 M","EURO500",""],"MRWWT0013":["(P)Euro500 PG/RG CH WT 60147 M","EURO500",""],"MRWWT0020":["(P)Euro500 PG/RG CH WTP 60147 L","EURO500",""],"MRWWT0021":["(P)Euro500 PG/RG CH WTP 60147 R","EURO500",""],"MRWWT0014":["(P)Euro500 PG/RG CH WTARG 60141 L","EURO500",""],"MRWWT0015":["(P)Euro500 PG/RG CH WTARG 60141 R","EURO500",""],"MRWWT0016":["(P)Euro500 PG/RG CH WTARG 60154 L","EURO500",""],"MRWWT0017":["(P)Euro500 PG/RG CH WTARG 60154 R","EURO500",""],"MRWWF0001":["(P)Euro500 PG/RG CH W2U 4042 M","EURO500",""],"MRWWF0002":["(P)Euro500 PG/RG CH W2U 4045 M","EURO500",""],"MRVWU0001":["(P)Euro500 PG/Avocado CH M 2073(공용) M","EURO500",""],"MRVWU0003":["(P)Euro500 PG/Avocado CH M 2573(공용) M","EURO500",""],"MRVWU0006":["(P)Euro500 PG/Avocado CH M 3073(공용) M","EURO500",""],"MRVWU0009":["(P)Euro500 PG/Avocado CH M 3573(공용) M","EURO500",""],"MRVWU0012":["(P)Euro500 PG/Avocado CH M 4073(공용) M","EURO500",""],"MRVWU0015":["(P)Euro500 PG/Avocado CH M 4573(공용) M","EURO500",""],"MRVWU0018":["(P)Euro500 PG/Avocado CH M 5073(공용) M","EURO500",""],"MRVWU0020":["(P)Euro500 PG/Avocado CH M 5573(공용) M","EURO500",""],"MRVWU0022":["(P)Euro500 PG/Avocado CH M 6073(공용) M","EURO500",""],"MRVWU0024":["(P)Euro500 PG/Avocado CH MS 4573 M","EURO500",""],"MRVWU0025":["(P)Euro500 PG/Avocado CH MS 5073 M","EURO500",""],"MRVWU0026":["(P)Euro500 PG/Avocado CH MS 6073 M","EURO500",""],"MRVBA0001":["(P)Euro500 PG/Avocado CH BAD 6091","EURO500",""],"MRVBD0002":["(P)Euro500 PG/Avocado CH BD2R 6091 M","EURO500",""],"MRVBD0003":["(P)Euro500 PG/Avocado CH BD2R 9091 M","EURO500",""],"MRVBD0001":["(P)Euro500 PG/Avocado CH BD2R 12091 M","EURO500",""],"MRVBD0004":["(P)Euro500 PG/Avocado CH BD3U 4591 M","EURO500",""],"MRVBD0005":["(P)Euro500 PG/Avocado CH BD3U 6091 M","EURO500",""],"MRVBD0007":["(P)Euro500 PG/Avocado CH BLD1R 4591 M","EURO500",""],"MRVBD0008":["(P)Euro500 PG/Avocado CH BLD1R 6091 M","EURO500",""],"MRVBD0006":["(P)Euro500 PG/Avocado CH BDI1R 4591 M","EURO500",""],"MRVBD0011":["(P)Euro500 PG/Avocado CH BLD1UA 4591 M","EURO500",""],"MRVBD0012":["(P)Euro500 PG/Avocado CH BLD1UA 6091 M","EURO500",""],"MRVBD0013":["(P)Euro500 PG/Avocado CH BLD2R 6062 M","EURO500",""],"MRVBD0014":["(P)Euro500 PG/Avocado CH BLDA 6015 M","EURO500",""],"MRVBN0001":["(P)Euro500 PG/Avocado CH BNDB2N 2091 M","EURO500",""],"MRVBN0002":["(P)Euro500 PG/Avocado CH BNDC2N 3091 M","EURO500",""],"MRVBA0002":["(P)Euro500 PG/Avocado CH BRO1R 6091 M","EURO500",""],"MRVBR0002":["(P)Euro500 PG/Avocado CH BRWTI 6091 M","EURO500",""],"MRVBA0003":["(P)Euro500 PG/Avocado CH BTARG 6070 L","EURO500",""],"MRVBA0004":["(P)Euro500 PG/Avocado CH BTARG 6070 R","EURO500",""],"MRVBU0001":["(P)Euro500 PG/Avocado CH BUIF 3034","EURO500",""],"MRVWU0002":["(P)Euro500 PG/Avocado CH M 2086 M","EURO500",""],"MRVWU0004":["(P)Euro500 PG/Avocado CH M 2586 M","EURO500",""],"MRVWU0005":["(P)Euro500 PG/Avocado CH M 3065 M","EURO500",""],"MRVWU0007":["(P)Euro500 PG/Avocado CH M 3086 M","EURO500",""],"MRVWU0008":["(P)Euro500 PG/Avocado CH M 3565 M","EURO500",""],"MRVWU0010":["(P)Euro500 PG/Avocado CH M 3586 M","EURO500",""],"MRVWU0011":["(P)Euro500 PG/Avocado CH M 4065 M","EURO500",""],"MRVWU0013":["(P)Euro500 PG/Avocado CH M 4086 M","EURO500",""],"MRVWU0014":["(P)Euro500 PG/Avocado CH M 4565 M","EURO500",""],"MRVWU0016":["(P)Euro500 PG/Avocado CH M 4586 M","EURO500",""],"MRVWU0017":["(P)Euro500 PG/Avocado CH M 5065 M","EURO500",""],"MRVWU0019":["(P)Euro500 PG/Avocado CH M 5086 M","EURO500",""],"MRVWU0021":["(P)Euro500 PG/Avocado CH M 5586 M","EURO500",""],"MRVWU0023":["(P)Euro500 PG/Avocado CH M 6086 M","EURO500",""],"MRVWF0004":["(P)Euro500 PG/Avocado CH WF 6030 M","EURO500",""],"MRVWF0005":["(P)Euro500 PG/Avocado CH WF 6043 M","EURO500",""],"MRVWF0008":["(P)Euro500 PG/Avocado CH WF 9033 M","EURO500",""],"MRVWF0006":["(P)Euro500 PG/Avocado CH WF 8037 M","EURO500",""],"MRVWF0007":["(P)Euro500 PG/Avocado CH WF 8044 M","EURO500",""],"MRVWF0009":["(P)Euro500 PG/Avocado CH WF 9037 M","EURO500",""],"MRVWF0010":["(P)Euro500 PG/Avocado CH WF 9044 M","EURO500",""],"MRVWF0003":["(P)Euro500 PG/Avocado CH WF 10037 M","EURO500",""],"MRVWF0011":["(P)Euro500 PG/Avocado CH WFED 10053 M","EURO500",""],"MRVWF0012":["(P)Euro500 PG/Avocado CH WFED 6053 M","EURO500",""],"MRVWF0013":["(P)Euro500 PG/Avocado CH WFED 7053 M","EURO500",""],"MRVWF0014":["(P)Euro500 PG/Avocado CH WFED 8053 M","EURO500",""],"MRVWF0015":["(P)Euro500 PG/Avocado CH WFED 9053 M","EURO500",""],"MRVWH0001":["(P)Euro500 PG/Avocado CH WHFM 6027 M","EURO500",""],"MRVWH0002":["(P)Euro500 PG/Avocado CH WHFM 9027 M","EURO500",""],"MRVWH0003":["(P)Euro500 PG/Avocado CH WHM 6061 M","EURO500",""],"MRVWF0018":["(P)Euro500 PG/Avocado CH WFUP 8032 M","EURO500",""],"MRVWF0019":["(P)Euro500 PG/Avocado CH WFUP 8036 M","EURO500",""],"MRVWF0020":["(P)Euro500 PG/Avocado CH WFUP 9032 M","EURO500",""],"MRVWF0021":["(P)Euro500 PG/Avocado CH WFUP 9036 M","EURO500",""],"MRVWF0016":["(P)Euro500 PG/Avocado CH WFUP 10032 M","EURO500",""],"MRVWF0017":["(P)Euro500 PG/Avocado CH WFUP 10036 M","EURO500",""],"MRVWH0004":["(P)Euro500 PG/Avocado CH WHMH 6065 M","EURO500",""],"MRVWH0005":["(P)Euro500 PG/Avocado CH WHMH 6073 M","EURO500",""],"MRVWT0001":["(P)Euro500 PG/Avocado CH WLDL 6051 M","EURO500",""],"MRVWT0004":["(P)Euro500 PG/Avocado CH WMLDT 6083 M","EURO500",""],"MRVWT0005":["(P)Euro500 PG/Avocado CH WMLDT 6096 M","EURO500",""],"MRVWT0002":["(P)Euro500 PG/Avocado CH WMLDT 4583 M","EURO500",""],"MRVWT0003":["(P)Euro500 PG/Avocado CH WMLDT 4596 M","EURO500",""],"MRVWR0002":["(P)Euro500 PG/Avocado CH WRMB 4735 M","EURO500",""],"MRVWR0009":["(P)Euro500 PG/Avocado CH WRMB 4748 M","EURO500",""],"MRVWR0003":["(P)Euro500 PG/Avocado CH WRMB 6135 M","EURO500",""],"MRVWR0010":["(P)Euro500 PG/Avocado CH WRMB 6148 M","EURO500",""],"MRVWR0004":["(P)Euro500 PG/Avocado CH WRMB 7135 M","EURO500",""],"MRVWR0011":["(P)Euro500 PG/Avocado CH WRMB 7148 M","EURO500",""],"MRVWR0006":["(P)Euro500 PG/Avocado CH WRMB 9335 M","EURO500",""],"MRVWR0001":["(P)Euro500 PG/Avocado CH WRMB 10033 M","EURO500",""],"MRVWR0008":["(P)Euro500 PG/Avocado CH WRMB 10045 M","EURO500",""],"MRVWR0005":["(P)Euro500 PG/Avocado CH WRMB 8033 M","EURO500",""],"MRVWR0012":["(P)Euro500 PG/Avocado CH WRMB 8045 M","EURO500",""],"MRVWR0013":["(P)Euro500 PG/Avocado CH WRMB 9348 M","EURO500",""],"MRVWR0007":["(P)Euro500 PG/Avocado CH WRMB 9533 M","EURO500",""],"MRVWR0014":["(P)Euro500 PG/Avocado CH WRMB 9545 M","EURO500",""],"MRVWT0006":["(P)Euro500 PG/Avocado CH WT 30134 M","EURO500",""],"MRVWT0008":["(P)Euro500 PG/Avocado CH WT 40134 M","EURO500",""],"MRVWT0010":["(P)Euro500 PG/Avocado CH WT 45134 M","EURO500",""],"MRVWT0012":["(P)Euro500 PG/Avocado CH WT 60134 M","EURO500",""],"MRVWT0018":["(P)Euro500 PG/Avocado CH WTP 60134 L","EURO500",""],"MRVWT0019":["(P)Euro500 PG/Avocado CH WTP 60134 R","EURO500",""],"MRVWT0007":["(P)Euro500 PG/Avocado CH WT 30147 M","EURO500",""],"MRVWT0009":["(P)Euro500 PG/Avocado CH WT 40147 M","EURO500",""],"MRVWT0011":["(P)Euro500 PG/Avocado CH WT 45147 M","EURO500",""],"MRVWT0013":["(P)Euro500 PG/Avocado CH WT 60147 M","EURO500",""],"MRVWT0020":["(P)Euro500 PG/Avocado CH WTP 60147 L","EURO500",""],"MRVWT0021":["(P)Euro500 PG/Avocado CH WTP 60147 R","EURO500",""],"MRVWT0014":["(P)Euro500 PG/Avocado CH WTARG 60141 L","EURO500",""],"MRVWT0015":["(P)Euro500 PG/Avocado CH WTARG 60141 R","EURO500",""],"MRVWT0016":["(P)Euro500 PG/Avocado CH WTARG 60154 L","EURO500",""],"MRVWT0017":["(P)Euro500 PG/Avocado CH WTARG 60154 R","EURO500",""],"MRVWF0001":["(P)Euro500 PG/Avocado CH W2U 4542 M","EURO500",""],"MRVWF0002":["(P)Euro500 PG/Avocado CH W2U 4045 M","EURO500",""],"MRUBAX001":["(P)Euro500 PG/Off WH CH BAD 비규격","EURO500",""],"MRUBDX001":["(P)Euro500 PG/Off WH CH BD2R 비규격","EURO500",""],"MRUBDX002":["(P)Euro500 PG/Off WH CH BD3U 비규격","EURO500",""],"MRUBUX001":["(P)Euro500 PG/Off WH CH BHBU 비규격","EURO500",""],"MRUTUX002":["(P)Euro500 PG/Off WH CH THBT 비규격","EURO500",""],"MRUWFX001":["(P)Euro500 PG/Off WH CH W2U 비규격","EURO500",""],"MRUWFX002":["(P)Euro500 PG/Off WH CH WF 비규격","EURO500",""],"MRUWFX003":["(P)Euro500 PG/Off WH CH WFED 비규격","EURO500",""],"MRUWFX004":["(P)Euro500 PG/Off WH CH WFUP 비규격","EURO500",""],"MRUWHX001":["(P)Euro500 PG/Off WH CH WHM 비규격","EURO500",""],"MRUWRX001":["(P)Euro500 PG/Off WH CH WRMB 비규격","EURO500",""],"MRUWTX001":["(P)Euro500 PG/Off WH CH WMLDT 비규격","EURO500",""],"MRUWTX002":["(P)Euro500 PG/Off WH CH WT 비규격","EURO500",""],"MRUWTX003":["(P)Euro500 PG/Off WH CH WTARG 비규격","EURO500",""],"MRUWUX001":["(P)Euro500 PG/Off WH CH M 비규격","EURO500",""],"MRUWUX002":["(P)Euro500 PG/Off WH CH MS 비규격","EURO500",""],"MRUWUX003":["(P)Euro500 PG/Off WH CH WHBT 비규격","EURO500",""],"MRVBAX001":["(P)Euro500 PG/Avocado CH BAD 비규격","EURO500",""],"MRVBDX001":["(P)Euro500 PG/Avocado CH BD2R 비규격","EURO500",""],"MRVBDX002":["(P)Euro500 PG/Avocado CH BD3U 비규격","EURO500",""],"MRVBUX001":["(P)Euro500 PG/Avocado CH BHBU 비규격","EURO500",""],"MRVTUX002":["(P)Euro500 PG/Avocado CH THBT 비규격","EURO500",""],"MRVWFX001":["(P)Euro500 PG/Avocado CH W2U 비규격","EURO500",""],"MRVWFX002":["(P)Euro500 PG/Avocado CH WF 비규격","EURO500",""],"MRVWFX003":["(P)Euro500 PG/Avocado CH WFED 비규격","EURO500",""],"MRVWFX004":["(P)Euro500 PG/Avocado CH WFUP 비규격","EURO500",""],"MRVWHX001":["(P)Euro500 PG/Avocado CH WHM 비규격","EURO500",""],"MRVWRX001":["(P)Euro500 PG/Avocado CH WRMB 비규격","EURO500",""],"MRVWTX001":["(P)Euro500 PG/Avocado CH WMLDT 비규격","EURO500",""],"MRVWTX002":["(P)Euro500 PG/Avocado CH WT 비규격","EURO500",""],"MRVWTX003":["(P)Euro500 PG/Avocado CH WTARG 비규격","EURO500",""],"MRVWUX001":["(P)Euro500 PG/Avocado CH M 비규격","EURO500",""],"MRVWUX002":["(P)Euro500 PG/Avocado CH MS 비규격","EURO500",""],"MRVWUX003":["(P)Euro500 PG/Avocado CH WHBT 비규격","EURO500",""],"MRWBAX001":["(P)Euro500 PG/RG CH BAD 비규격","EURO500",""],"MRWBDX001":["(P)Euro500 PG/RG CH BD2R 비규격","EURO500",""],"MRWBDX002":["(P)Euro500 PG/RG CH BD3U 비규격","EURO500",""],"MRWBUX001":["(P)Euro500 PG/RG CH BHBU 비규격","EURO500",""],"MRWTUX002":["(P)Euro500 PG/RG CH THBT 비규격","EURO500",""],"MRWWFX001":["(P)Euro500 PG/RG CH W2U 비규격","EURO500",""],"MRWWFX002":["(P)Euro500 PG/RG CH WF 비규격","EURO500",""],"MRWWFX003":["(P)Euro500 PG/RG CH WFED 비규격","EURO500",""],"MRWWFX004":["(P)Euro500 PG/RG CH WFUP 비규격","EURO500",""],"MRWWHX001":["(P)Euro500 PG/RG CH WHM 비규격","EURO500",""],"MRWWRX001":["(P)Euro500 PG/RG CH WRMB 비규격","EURO500",""],"MRWWTX001":["(P)Euro500 PG/RG CH WMLDT 비규격","EURO500",""],"MRWWTX002":["(P)Euro500 PG/RG CH WT 비규격","EURO500",""],"MRWWTX003":["(P)Euro500 PG/RG CH WTARG 비규격","EURO500",""],"MRWWUX001":["(P)Euro500 PG/RG CH M 비규격","EURO500",""],"MRWWUX002":["(P)Euro500 PG/RG CH MS 비규격","EURO500",""],"MRWWUX003":["(P)Euro500 PG/RG CH WHBT 비규격","EURO500",""],"MRVBDX005":["(P)Euro500 PG/Avocado CH BDI1R 비규격","EURO500",""],"MRVBDX006":["(P)Euro500 PG/Avocado CH BLD1R 비규격","EURO500",""],"MRVBDX007":["(P)Euro500 PG/Avocado CH BLD1UA 비규격","EURO500",""],"MRVBNX001":["(P)Euro500 PG/Avocado CH BNDB2N 비규격","EURO500",""],"MRVBNX002":["(P)Euro500 PG/Avocado CH BNDC2N 비규격","EURO500",""],"MRVBAX003":["(P)Euro500 PG/Avocado CH BRO1R 비규격","EURO500",""],"MRVBAX004":["(P)Euro500 PG/Avocado CH BADMIL 비규격","EURO500",""],"MRUBDX005":["(P)Euro500 PG/Off WH CH BDI1R 비규격","EURO500",""],"MRUBDX006":["(P)Euro500 PG/Off WH CH BLD1R 비규격","EURO500",""],"MRUBDX007":["(P)Euro500 PG/Off WH CH BLD1UA 비규격","EURO500",""],"MRUBNX001":["(P)Euro500 PG/Off WH CH BNDB2N 비규격","EURO500",""],"MRUBNX002":["(P)Euro500 PG/Off WH CH BNDC2N 비규격","EURO500",""],"MRUBAX003":["(P)Euro500 PG/Off WH CH BRO1R 비규격","EURO500",""],"MRUBAX004":["(P)Euro500 PG/Off WH CH BADMIL 비규격","EURO500",""],"MRWBDX005":["(P)Euro500 PG/RG CH BDI1R 비규격","EURO500",""],"MRWBDX006":["(P)Euro500 PG/RG CH BLD1R 비규격","EURO500",""],"MRWBDX007":["(P)Euro500 PG/RG CH BLD1UA 비규격","EURO500",""],"MRWBNX001":["(P)Euro500 PG/RG CH BNDB2N 비규격","EURO500",""],"MRWBNX002":["(P)Euro500 PG/RG CH BNDC2N 비규격","EURO500",""],"MRWBAX003":["(P)Euro500 PG/RG CH BRO1R 비규격","EURO500",""],"MRWBAX004":["(P)Euro500 PG/RG CH BADMIL 비규격","EURO500",""],"MRUBA0007":["(P)Euro500 PG/Off WH CH BADMIL 6091","EURO500",""],"MRUBC0002":["(P)Euro500 PG/Off WH CH BC1A 4291 M","EURO500",""],"MRUBCX002":["(P)Euro500 PG/Off WH CH BC1A 비규격","EURO500",""],"MRUBC0003":["(P)Euro500 PG/Off WH CH BC1B 4091 M","EURO500",""],"MRUBCX003":["(P)Euro500 PG/Off WH CH BC1B 비규격","EURO500",""],"MRUTN0001":["(P)Euro500 PG/Off WH CH TND2 30149 M","EURO500",""],"MRUWFX006":["(P)Euro500 PG/Off WH CH WFMD 비규격","EURO500",""],"MRVBA0007":["(P)Euro500 PG/Avocado CH BADMIL 6091","EURO500",""],"MRVBC0002":["(P)Euro500 PG/Avocado CH BC1A 4291 M","EURO500",""],"MRVBCX002":["(P)Euro500 PG/Avocado CH BC1A 비규격","EURO500",""],"MRVBC0003":["(P)Euro500 PG/Avocado CH BC1B 4091 M","EURO500",""],"MRVBCX003":["(P)Euro500 PG/Avocado CH BC1B 비규격","EURO500",""],"MRVTN0001":["(P)Euro500 PG/Avocado CH TND2 30149 M","EURO500",""],"MRVWFX006":["(P)Euro500 PG/Avocado CH WFMD 비규격","EURO500",""],"MRWBA0007":["(P)Euro500 PG/RG CH BADMIL 6091","EURO500",""],"MRWBC0002":["(P)Euro500 PG/RG CH BC1A 4291 M","EURO500",""],"MRWBCX002":["(P)Euro500 PG/RG CH BC1A 비규격","EURO500",""],"MRWBC0003":["(P)Euro500 PG/RG CH BC1B 4091 M","EURO500",""],"MRWBCX003":["(P)Euro500 PG/RG CH BC1B 비규격","EURO500",""],"MRWTN0001":["(P)Euro500 PG/RG CH TND2 30149 M","EURO500",""],"MRWWFX006":["(P)Euro500 PG/RG CH WFMD 비규격","EURO500",""],"ME1BA0015":["Euro700 Grace W/Cotton OB BAD 6091","EURO700","WC"],"ME1BAX002":["Euro700 Grace W/Cotton OB BAD 비규격","EURO700","WC"],"ME1BA0016":["Euro700 Grace W/Cotton OB BADMIL 6091","EURO700","WC"],"ME1BC0031":["Euro700 Grace W/Cotton OB BC1A 4291 M","EURO700","WC"],"ME1BCX031":["Euro700 Grace W/Cotton OB BC1A 비규격","EURO700","WC"],"ME1BC0032":["Euro700 Grace W/Cotton OB BC1B 4091 M","EURO700","WC"],"ME1BCX032":["Euro700 Grace W/Cotton OB BC1B 비규격","EURO700","WC"],"ME1BD0075":["Euro700 Grace W/Cotton OB BD2R 12091 M","EURO700","WC"],"ME1BD0076":["Euro700 Grace W/Cotton OB BD2R 6091 M","EURO700","WC"],"ME1BD0077":["Euro700 Grace W/Cotton OB BD2R 9091 M","EURO700","WC"],"ME1BDX021":["Euro700 Grace W/Cotton OB BD2R 비규격","EURO700","WC"],"ME1BD0078":["Euro700 Grace W/Cotton OB BD3U 4591 M","EURO700","WC"],"ME1BD0079":["Euro700 Grace W/Cotton OB BD3U 6091 M","EURO700","WC"],"ME1BDX022":["Euro700 Grace W/Cotton OB BD3U 비규격","EURO700","WC"],"ME1BD0080":["Euro700 Grace W/Cotton OB BDI1R 4591 M","EURO700","WC"],"ME1BUX020":["Euro700 Grace W/Cotton OB BHBU 비규격","EURO700","WC"],"ME1BD0081":["Euro700 Grace W/Cotton OB BLD1R 4591 M","EURO700","WC"],"ME1BD0082":["Euro700 Grace W/Cotton OB BLD1R 6091 M","EURO700","WC"],"ME1BD0083":["Euro700 Grace W/Cotton OB BLD1UA 4591 M","EURO700","WC"],"ME1BD0084":["Euro700 Grace W/Cotton OB BLD1UA 6091 M","EURO700","WC"],"ME1BD0085":["Euro700 Grace W/Cotton OB BLD2R 6062 M","EURO700","WC"],"ME1BN0021":["Euro700 Grace W/Cotton OB BNDB2N 2091 M","EURO700","WC"],"ME1BN0022":["Euro700 Grace W/Cotton OB BNDC2N 3091 M","EURO700","WC"],"ME1BA0017":["Euro700 Grace W/Cotton OB BRO1R 6091 M","EURO700","WC"],"ME1TD0011":["Euro700 Grace W/Cotton OB BTAO1U 6014 M","EURO700","WC"],"ME1BA0018":["Euro700 Grace W/Cotton OB BTARG 6070 L","EURO700","WC"],"ME1BA0019":["Euro700 Grace W/Cotton OB BTARG 6070 R","EURO700","WC"],"ME1BU0213":["Euro700 Grace W/Cotton OB BUIF 3034","EURO700","WC"],"ME1WU0025":["Euro700 Grace W/Cotton OB M 2073(공용) M","EURO700","WC"],"ME1WU0026":["Euro700 Grace W/Cotton OB M 2086 M","EURO700","WC"],"ME1WU0027":["Euro700 Grace W/Cotton OB M 2573(공용) M","EURO700","WC"],"ME1WU0028":["Euro700 Grace W/Cotton OB M 2586 M","EURO700","WC"],"ME1WU0029":["Euro700 Grace W/Cotton OB M 3065 M","EURO700","WC"],"ME1WU0030":["Euro700 Grace W/Cotton OB M 3073(공용) M","EURO700","WC"],"ME1WU0031":["Euro700 Grace W/Cotton OB M 3086 M","EURO700","WC"],"ME1WU0032":["Euro700 Grace W/Cotton OB M 3565 M","EURO700","WC"],"ME1WU0033":["Euro700 Grace W/Cotton OB M 3573(공용) M","EURO700","WC"],"ME1WU0034":["Euro700 Grace W/Cotton OB M 3586 M","EURO700","WC"],"ME1WU0035":["Euro700 Grace W/Cotton OB M 4065 M","EURO700","WC"],"ME1WU0036":["Euro700 Grace W/Cotton OB M 4073(공용) M","EURO700","WC"],"ME1WU0037":["Euro700 Grace W/Cotton OB M 4086 M","EURO700","WC"],"ME1WU0038":["Euro700 Grace W/Cotton OB M 4565 M","EURO700","WC"],"ME1WU0039":["Euro700 Grace W/Cotton OB M 4573(공용) M","EURO700","WC"],"ME1WU0040":["Euro700 Grace W/Cotton OB M 4586 M","EURO700","WC"],"ME1WU0041":["Euro700 Grace W/Cotton OB M 5065 M","EURO700","WC"],"ME1WU0042":["Euro700 Grace W/Cotton OB M 5073(공용) M","EURO700","WC"],"ME1WU0043":["Euro700 Grace W/Cotton OB M 5086 M","EURO700","WC"],"ME1WU0044":["Euro700 Grace W/Cotton OB M 5573(공용) M","EURO700","WC"],"ME1WU0045":["Euro700 Grace W/Cotton OB M 5586 M","EURO700","WC"],"ME1WU0046":["Euro700 Grace W/Cotton OB M 6052 M","EURO700","WC"],"ME1WU0047":["Euro700 Grace W/Cotton OB M 6073(공용) M","EURO700","WC"],"ME1WU0048":["Euro700 Grace W/Cotton OB M 6086 M","EURO700","WC"],"ME1WUX004":["Euro700 Grace W/Cotton OB M 비규격","EURO700","WC"],"ME1TN0011":["Euro700 Grace W/Cotton OB TND2 30149 M","EURO700","WC"],"ME1WUX005":["Euro700 Grace W/Cotton OB W2HBT 비규격","EURO700","WC"],"ME1WF0026":["Euro700 Grace W/Cotton OB W2U 4042 M","EURO700","WC"],"ME1WF0027":["Euro700 Grace W/Cotton OB W2U 4542 M","EURO700","WC"],"ME1WFX005":["Euro700 Grace W/Cotton OB W2U 비규격","EURO700","WC"],"ME1WF0028":["Euro700 Grace W/Cotton OB WF 10037 M","EURO700","WC"],"ME1WF0029":["Euro700 Grace W/Cotton OB WF 6030 M","EURO700","WC"],"ME1WF0030":["Euro700 Grace W/Cotton OB WF 6043 M","EURO700","WC"],"ME1WF0031":["Euro700 Grace W/Cotton OB WF 8037 M","EURO700","WC"],"ME1WF0032":["Euro700 Grace W/Cotton OB WF 8044 M","EURO700","WC"],"ME1WF0033":["Euro700 Grace W/Cotton OB WF 9033 M","EURO700","WC"],"ME1WF0034":["Euro700 Grace W/Cotton OB WF 9037 M","EURO700","WC"],"ME1WF0035":["Euro700 Grace W/Cotton OB WF 9044 M","EURO700","WC"],"ME1WFX006":["Euro700 Grace W/Cotton OB WF 비규격","EURO700","WC"],"ME1WF0036":["Euro700 Grace W/Cotton OB WFED 10053 M","EURO700","WC"],"ME1WF0037":["Euro700 Grace W/Cotton OB WFED 6053 M","EURO700","WC"],"ME1WF0038":["Euro700 Grace W/Cotton OB WFED 7053 M","EURO700","WC"],"ME1WF0039":["Euro700 Grace W/Cotton OB WFED 8053 M","EURO700","WC"],"ME1WF0040":["Euro700 Grace W/Cotton OB WFED 9053 M","EURO700","WC"],"ME1WFX007":["Euro700 Grace W/Cotton OB WFED 비규격","EURO700","WC"],"ME1WF0041":["Euro700 Grace W/Cotton OB WFMD 6035 M","EURO700","WC"],"ME1WF0042":["Euro700 Grace W/Cotton OB WFMD 6048 M","EURO700","WC"],"ME1WF0043":["Euro700 Grace W/Cotton OB WFMD 9035 M","EURO700","WC"],"ME1WF0044":["Euro700 Grace W/Cotton OB WFMD 9048 M","EURO700","WC"],"ME1WFX025":["Euro700 Grace W/Cotton OB WFMD 비규격","EURO700","WC"],"ME1WF0045":["Euro700 Grace W/Cotton OB WFUP 10032 M","EURO700","WC"],"ME1WF0046":["Euro700 Grace W/Cotton OB WFUP 10036 M","EURO700","WC"],"ME1WF0047":["Euro700 Grace W/Cotton OB WFUP 8032 M","EURO700","WC"],"ME1WF0048":["Euro700 Grace W/Cotton OB WFUP 8036 M","EURO700","WC"],"ME1WF0049":["Euro700 Grace W/Cotton OB WFUP 9032 M","EURO700","WC"],"ME1WF0050":["Euro700 Grace W/Cotton OB WFUP 9036 M","EURO700","WC"],"ME1WFX008":["Euro700 Grace W/Cotton OB WFUP 비규격","EURO700","WC"],"ME1WUX006":["Euro700 Grace W/Cotton OB WHBT 비규격","EURO700","WC"],"ME1WH0006":["Euro700 Grace W/Cotton OB WHFM 6027 M","EURO700","WC"],"ME1WH0007":["Euro700 Grace W/Cotton OB WHFM 9027 M","EURO700","WC"],"ME1WH0008":["Euro700 Grace W/Cotton OB WHM 6061 M","EURO700","WC"],"ME1WHX004":["Euro700 Grace W/Cotton OB WHM 비규격","EURO700","WC"],"ME1WH0009":["Euro700 Grace W/Cotton OB WHMH 6065 M","EURO700","WC"],"ME1WH0010":["Euro700 Grace W/Cotton OB WHMH 6073 M","EURO700","WC"],"ME1WHX005":["Euro700 Grace W/Cotton OB WHMH 비규격","EURO700","WC"],"ME1WHX006":["Euro700 Grace W/Cotton OB WHMHBT 비규격","EURO700","WC"],"ME1WT0119":["Euro700 Grace W/Cotton OB WLDL 6051 M","EURO700","WC"],"ME1WT0120":["Euro700 Grace W/Cotton OB WLDL 9051 M","EURO700","WC"],"ME1WT0121":["Euro700 Grace W/Cotton OB WMLDT 3073 M","EURO700","WC"],"ME1WT0122":["Euro700 Grace W/Cotton OB WMLDT 3086 M","EURO700","WC"],"ME1WT0123":["Euro700 Grace W/Cotton OB WMLDT 4573 M","EURO700","WC"],"ME1WT0124":["Euro700 Grace W/Cotton OB WMLDT 4586 M","EURO700","WC"],"ME1WT0125":["Euro700 Grace W/Cotton OB WMLDT 6073 M","EURO700","WC"],"ME1WT0126":["Euro700 Grace W/Cotton OB WMLDT 6083 M","EURO700","WC"],"ME1WT0127":["Euro700 Grace W/Cotton OB WMLDT 6086 M","EURO700","WC"],"ME1WT0128":["Euro700 Grace W/Cotton OB WMLDT 6096 M","EURO700","WC"],"ME1WTX018":["Euro700 Grace W/Cotton OB WMLDT 비규격","EURO700","WC"],"ME1WR0021":["Euro700 Grace W/Cotton OB WRMB 10033 M","EURO700","WC"],"ME1WR0022":["Euro700 Grace W/Cotton OB WRMB 10045 M","EURO700","WC"],"ME1WR0023":["Euro700 Grace W/Cotton OB WRMB 4735 M","EURO700","WC"],"ME1WR0024":["Euro700 Grace W/Cotton OB WRMB 4748 M","EURO700","WC"],"ME1WR0025":["Euro700 Grace W/Cotton OB WRMB 6135 M","EURO700","WC"],"ME1WR0026":["Euro700 Grace W/Cotton OB WRMB 6148 M","EURO700","WC"],"ME1WR0027":["Euro700 Grace W/Cotton OB WRMB 7135 M","EURO700","WC"],"ME1WR0028":["Euro700 Grace W/Cotton OB WRMB 7148 M","EURO700","WC"],"ME1WR0029":["Euro700 Grace W/Cotton OB WRMB 8033 M","EURO700","WC"],"ME1WR0030":["Euro700 Grace W/Cotton OB WRMB 8045 M","EURO700","WC"],"ME1WR0031":["Euro700 Grace W/Cotton OB WRMB 9335 M","EURO700","WC"],"ME1WR0032":["Euro700 Grace W/Cotton OB WRMB 9348 M","EURO700","WC"],"ME1WR0033":["Euro700 Grace W/Cotton OB WRMB 9533 M","EURO700","WC"],"ME1WR0034":["Euro700 Grace W/Cotton OB WRMB 9545 M","EURO700","WC"],"ME1WRX002":["Euro700 Grace W/Cotton OB WRMB 비규격","EURO700","WC"],"ME1WR0035":["Euro700 Grace W/Cotton OB WRMBS 10035 M","EURO700","WC"],"ME1WR0036":["Euro700 Grace W/Cotton OB WRMBS 10048 M","EURO700","WC"],"ME1WR0037":["Euro700 Grace W/Cotton OB WRMBS 8035 M","EURO700","WC"],"ME1WR0038":["Euro700 Grace W/Cotton OB WRMBS 8048 M","EURO700","WC"],"ME1WR0039":["Euro700 Grace W/Cotton OB WRMBS 9035 M","EURO700","WC"],"ME1WR0040":["Euro700 Grace W/Cotton OB WRMBS 9048 M","EURO700","WC"],"ME1WT0129":["Euro700 Grace W/Cotton OB WT 30134 M","EURO700","WC"],"ME1WT0130":["Euro700 Grace W/Cotton OB WT 30147 M","EURO700","WC"],"ME1WT0131":["Euro700 Grace W/Cotton OB WT 40134 M","EURO700","WC"],"ME1WT0132":["Euro700 Grace W/Cotton OB WT 40147 M","EURO700","WC"],"ME1WT0133":["Euro700 Grace W/Cotton OB WT 45134 M","EURO700","WC"],"ME1WT0134":["Euro700 Grace W/Cotton OB WT 45147 M","EURO700","WC"],"ME1WT0135":["Euro700 Grace W/Cotton OB WT 60134 M","EURO700","WC"],"ME1WT0136":["Euro700 Grace W/Cotton OB WT 60147 M","EURO700","WC"],"ME1WTX019":["Euro700 Grace W/Cotton OB WT 비규격","EURO700","WC"],"ME1WT0137":["Euro700 Grace W/Cotton OB WTA 45134 L","EURO700","WC"],"ME1WT0138":["Euro700 Grace W/Cotton OB WTA 45134 R","EURO700","WC"],"ME1WT0139":["Euro700 Grace W/Cotton OB WTA 45147 L","EURO700","WC"],"ME1WT0140":["Euro700 Grace W/Cotton OB WTA 45147 R","EURO700","WC"],"ME1WT0141":["Euro700 Grace W/Cotton OB WTA 60134 L","EURO700","WC"],"ME1WT0142":["Euro700 Grace W/Cotton OB WTA 60134 R","EURO700","WC"],"ME1WT0143":["Euro700 Grace W/Cotton OB WTA 60147 L","EURO700","WC"],"ME1WT0144":["Euro700 Grace W/Cotton OB WTA 60147 R","EURO700","WC"],"ME1WTX020":["Euro700 Grace W/Cotton OB WTA 비규격","EURO700","WC"],"ME1WTX021":["Euro700 Grace W/Cotton OB WTAP 비규격","EURO700","WC"],"ME1WT0145":["Euro700 Grace W/Cotton OB WTARG 60141 L","EURO700","WC"],"ME1WT0146":["Euro700 Grace W/Cotton OB WTARG 60141 R","EURO700","WC"],"ME1WT0147":["Euro700 Grace W/Cotton OB WTARG 60154 L","EURO700","WC"],"ME1WT0148":["Euro700 Grace W/Cotton OB WTARG 60154 R","EURO700","WC"],"ME1WTX022":["Euro700 Grace W/Cotton OB WTARG 비규격","EURO700","WC"],"ME1BA0020":["Euro700 Grace W/Cotton HD BADMIL 6091","EURO700","WC"],"ME1BC0034":["Euro700 Grace W/Cotton HD BC1A 4291 L","EURO700","WC"],"ME1BCX034":["Euro700 Grace W/Cotton HD BC1A 비규격","EURO700","WC"],"ME1BC0035":["Euro700 Grace W/Cotton HD BC1B 4091 R","EURO700","WC"],"ME1BCX035":["Euro700 Grace W/Cotton HD BC1B 비규격","EURO700","WC"],"ME1BD0086":["Euro700 Grace W/Cotton HD BD2R 12091 M","EURO700","WC"],"ME1BD0087":["Euro700 Grace W/Cotton HD BD2R 6091 M","EURO700","WC"],"ME1BD0088":["Euro700 Grace W/Cotton HD BD2R 9091 M","EURO700","WC"],"ME1BDX023":["Euro700 Grace W/Cotton HD BD2R 비규격","EURO700","WC"],"ME1BD0089":["Euro700 Grace W/Cotton HD BD3U 4591 M","EURO700","WC"],"ME1BD0090":["Euro700 Grace W/Cotton HD BD3U 6091 M","EURO700","WC"],"ME1BDX024":["Euro700 Grace W/Cotton HD BD3U 비규격","EURO700","WC"],"ME1BD0091":["Euro700 Grace W/Cotton HD BDI1R 4591 M","EURO700","WC"],"ME1BUX021":["Euro700 Grace W/Cotton HD BHBU 비규격","EURO700","WC"],"ME1BD0092":["Euro700 Grace W/Cotton HD BLD2R 6062 M","EURO700","WC"],"ME1BN0023":["Euro700 Grace W/Cotton HD BNDB2N 2091 M","EURO700","WC"],"ME1BN0024":["Euro700 Grace W/Cotton HD BNDC2N 3091 M","EURO700","WC"],"ME1TD0012":["Euro700 Grace W/Cotton HD BTAO1U 6014 M","EURO700","WC"],"ME1BU0214":["Euro700 Grace W/Cotton HD BUIF 3034","EURO700","WC"],"ME1BU0215":["Euro700 Grace W/Cotton HD B 2091 L","EURO700","WC"],"ME1BU0216":["Euro700 Grace W/Cotton HD B 2091 R","EURO700","WC"],"ME1BU0217":["Euro700 Grace W/Cotton HD B 2591 L","EURO700","WC"],"ME1BU0218":["Euro700 Grace W/Cotton HD B 2591 R","EURO700","WC"],"ME1BU0219":["Euro700 Grace W/Cotton HD B 3091 L","EURO700","WC"],"ME1BU0220":["Euro700 Grace W/Cotton HD B 3091 R","EURO700","WC"],"ME1BU0221":["Euro700 Grace W/Cotton HD B 3591 L","EURO700","WC"],"ME1BU0222":["Euro700 Grace W/Cotton HD B 3591 R","EURO700","WC"],"ME1BU0223":["Euro700 Grace W/Cotton HD B 4091 L","EURO700","WC"],"ME1BU0224":["Euro700 Grace W/Cotton HD B 4091 R","EURO700","WC"],"ME1BU0225":["Euro700 Grace W/Cotton HD B 4591 L","EURO700","WC"],"ME1BU0226":["Euro700 Grace W/Cotton HD B 4591 R","EURO700","WC"],"ME1BU0227":["Euro700 Grace W/Cotton HD B 5091 L","EURO700","WC"],"ME1BU0228":["Euro700 Grace W/Cotton HD B 5091 R","EURO700","WC"],"ME1BU0229":["Euro700 Grace W/Cotton HD B 5591 L","EURO700","WC"],"ME1BU0230":["Euro700 Grace W/Cotton HD B 5591 R","EURO700","WC"],"ME1BU0231":["Euro700 Grace W/Cotton HD B 6091 L","EURO700","WC"],"ME1BU0232":["Euro700 Grace W/Cotton HD B 6091 R","EURO700","WC"],"ME1BUX022":["Euro700 Grace W/Cotton HD B 비규격","EURO700","WC"],"ME1TN0012":["Euro700 Grace W/Cotton HD TND2 30149 M","EURO700","WC"],"ME1TC0005":["Euro700 Grace W/Cotton HD TCP1D 42222 L","EURO700","WC"],"ME1TC0006":["Euro700 Grace W/Cotton HD TCP1D 40222 R","EURO700","WC"],"ME1TC0007":["Euro700 Grace W/Cotton HD TCP1D 42235 L","EURO700","WC"],"ME1TC0008":["Euro700 Grace W/Cotton HD TCP1D 40235 R","EURO700","WC"],"ME1TU0005":["Euro700 Grace W/Cotton HD TH 45220 L","EURO700","WC"],"ME1TU0006":["Euro700 Grace W/Cotton HD TH 45220 R","EURO700","WC"],"ME1TU0007":["Euro700 Grace W/Cotton HD TH 45233 L","EURO700","WC"],"ME1TU0008":["Euro700 Grace W/Cotton HD TH 45233 R","EURO700","WC"],"ME1TUX002":["Euro700 Grace W/Cotton HD TH 비규격","EURO700","WC"],"ME1BA0021":["Euro700 Grace ETP OB BAD 6091","EURO700","ETP"],"ME1BAX003":["Euro700 Grace ETP OB BAD 비규격","EURO700","ETP"],"ME1BA0022":["Euro700 Grace ETP OB BADMIL 6091","EURO700","ETP"],"ME1BC0037":["Euro700 Grace ETP OB BC1A 4291 M","EURO700","ETP"],"ME1BCX037":["Euro700 Grace ETP OB BC1A 비규격","EURO700","ETP"],"ME1BC0038":["Euro700 Grace ETP OB BC1B 4091 M","EURO700","ETP"],"ME1BCX038":["Euro700 Grace ETP OB BC1B 비규격","EURO700","ETP"],"ME1BD0093":["Euro700 Grace ETP OB BD2R 12091 M","EURO700","ETP"],"ME1BD0094":["Euro700 Grace ETP OB BD2R 6091 M","EURO700","ETP"],"ME1BD0095":["Euro700 Grace ETP OB BD2R 9091 M","EURO700","ETP"],"ME1BDX025":["Euro700 Grace ETP OB BD2R 비규격","EURO700","ETP"],"ME1BD0096":["Euro700 Grace ETP OB BD3U 4591 M","EURO700","ETP"],"ME1BD0097":["Euro700 Grace ETP OB BD3U 6091 M","EURO700","ETP"],"ME1BDX026":["Euro700 Grace ETP OB BD3U 비규격","EURO700","ETP"],"ME1BD0098":["Euro700 Grace ETP OB BDI1R 4591 M","EURO700","ETP"],"ME1BUX023":["Euro700 Grace ETP OB BHBU 비규격","EURO700","ETP"],"ME1BD0099":["Euro700 Grace ETP OB BLD1R 4591 M","EURO700","ETP"],"ME1BD0100":["Euro700 Grace ETP OB BLD1R 6091 M","EURO700","ETP"],"ME1BD0101":["Euro700 Grace ETP OB BLD1UA 4591 M","EURO700","ETP"],"ME1BD0102":["Euro700 Grace ETP OB BLD1UA 6091 M","EURO700","ETP"],"ME1BD0103":["Euro700 Grace ETP OB BLD2R 6062 M","EURO700","ETP"],"ME1BN0025":["Euro700 Grace ETP OB BNDB2N 2091 M","EURO700","ETP"],"ME1BN0026":["Euro700 Grace ETP OB BNDC2N 3091 M","EURO700","ETP"],"ME1BA0023":["Euro700 Grace ETP OB BRO1R 6091 M","EURO700","ETP"],"ME1TD0017":["Euro700 Grace ETP OB BTAO1U 6014 M","EURO700","ETP"],"ME1BA0024":["Euro700 Grace ETP OB BTARG 6070 L","EURO700","ETP"],"ME1BA0025":["Euro700 Grace ETP OB BTARG 6070 R","EURO700","ETP"],"ME1BU0233":["Euro700 Grace ETP OB BUIF 3034","EURO700","ETP"],"ME1WU0049":["Euro700 Grace ETP OB M 2073(공용) M","EURO700","ETP"],"ME1WU0050":["Euro700 Grace ETP OB M 2086 M","EURO700","ETP"],"ME1WU0051":["Euro700 Grace ETP OB M 2573(공용) M","EURO700","ETP"],"ME1WU0052":["Euro700 Grace ETP OB M 2586 M","EURO700","ETP"],"ME1WU0053":["Euro700 Grace ETP OB M 3065 M","EURO700","ETP"],"ME1WU0054":["Euro700 Grace ETP OB M 3073(공용) M","EURO700","ETP"],"ME1WU0055":["Euro700 Grace ETP OB M 3086 M","EURO700","ETP"],"ME1WU0056":["Euro700 Grace ETP OB M 3565 M","EURO700","ETP"],"ME1WU0057":["Euro700 Grace ETP OB M 3573(공용) M","EURO700","ETP"],"ME1WU0058":["Euro700 Grace ETP OB M 3586 M","EURO700","ETP"],"ME1WU0059":["Euro700 Grace ETP OB M 4065 M","EURO700","ETP"],"ME1WU0060":["Euro700 Grace ETP OB M 4073(공용) M","EURO700","ETP"],"ME1WU0061":["Euro700 Grace ETP OB M 4086 M","EURO700","ETP"],"ME1WU0062":["Euro700 Grace ETP OB M 4565 M","EURO700","ETP"],"ME1WU0063":["Euro700 Grace ETP OB M 4573(공용) M","EURO700","ETP"],"ME1WU0064":["Euro700 Grace ETP OB M 4586 M","EURO700","ETP"],"ME1WU0065":["Euro700 Grace ETP OB M 5065 M","EURO700","ETP"],"ME1WU0066":["Euro700 Grace ETP OB M 5073(공용) M","EURO700","ETP"],"ME1WU0067":["Euro700 Grace ETP OB M 5086 M","EURO700","ETP"],"ME1WU0068":["Euro700 Grace ETP OB M 5573(공용) M","EURO700","ETP"],"ME1WU0069":["Euro700 Grace ETP OB M 5586 M","EURO700","ETP"],"ME1WU0070":["Euro700 Grace ETP OB M 6052 M","EURO700","ETP"],"ME1WU0071":["Euro700 Grace ETP OB M 6073(공용) M","EURO700","ETP"],"ME1WU0072":["Euro700 Grace ETP OB M 6086 M","EURO700","ETP"],"ME1WUX007":["Euro700 Grace ETP OB M 비규격","EURO700","ETP"],"ME1TN0013":["Euro700 Grace ETP OB TND2 30149 M","EURO700","ETP"],"ME1WUX008":["Euro700 Grace ETP OB W2HBT 비규격","EURO700","ETP"],"ME1WF0051":["Euro700 Grace ETP OB W2U 4042 M","EURO700","ETP"],"ME1WF0052":["Euro700 Grace ETP OB W2U 4542 M","EURO700","ETP"],"ME1WFX009":["Euro700 Grace ETP OB W2U 비규격","EURO700","ETP"],"ME1WF0053":["Euro700 Grace ETP OB WF 10037 M","EURO700","ETP"],"ME1WF0054":["Euro700 Grace ETP OB WF 6030 M","EURO700","ETP"],"ME1WF0055":["Euro700 Grace ETP OB WF 6043 M","EURO700","ETP"],"ME1WF0056":["Euro700 Grace ETP OB WF 8037 M","EURO700","ETP"],"ME1WF0057":["Euro700 Grace ETP OB WF 8044 M","EURO700","ETP"],"ME1WF0058":["Euro700 Grace ETP OB WF 9033 M","EURO700","ETP"],"ME1WF0059":["Euro700 Grace ETP OB WF 9037 M","EURO700","ETP"],"ME1WF0060":["Euro700 Grace ETP OB WF 9044 M","EURO700","ETP"],"ME1WFX010":["Euro700 Grace ETP OB WF 비규격","EURO700","ETP"],"ME1WF0061":["Euro700 Grace ETP OB WFED 10053 M","EURO700","ETP"],"ME1WF0062":["Euro700 Grace ETP OB WFED 6053 M","EURO700","ETP"],"ME1WF0063":["Euro700 Grace ETP OB WFED 7053 M","EURO700","ETP"],"ME1WF0064":["Euro700 Grace ETP OB WFED 8053 M","EURO700","ETP"],"ME1WF0065":["Euro700 Grace ETP OB WFED 9053 M","EURO700","ETP"],"ME1WFX011":["Euro700 Grace ETP OB WFED 비규격","EURO700","ETP"],"ME1WF0066":["Euro700 Grace ETP OB WFMD 6035 M","EURO700","ETP"],"ME1WF0067":["Euro700 Grace ETP OB WFMD 6048 M","EURO700","ETP"],"ME1WF0068":["Euro700 Grace ETP OB WFMD 9035 M","EURO700","ETP"],"ME1WF0069":["Euro700 Grace ETP OB WFMD 9048 M","EURO700","ETP"],"ME1WFX021":["Euro700 Grace ETP OB WFMD 비규격","EURO700","ETP"],"ME1WF0070":["Euro700 Grace ETP OB WFUP 10032 M","EURO700","ETP"],"ME1WF0071":["Euro700 Grace ETP OB WFUP 10036 M","EURO700","ETP"],"ME1WF0072":["Euro700 Grace ETP OB WFUP 8032 M","EURO700","ETP"],"ME1WF0073":["Euro700 Grace ETP OB WFUP 8036 M","EURO700","ETP"],"ME1WF0074":["Euro700 Grace ETP OB WFUP 9032 M","EURO700","ETP"],"ME1WF0075":["Euro700 Grace ETP OB WFUP 9036 M","EURO700","ETP"],"ME1WFX012":["Euro700 Grace ETP OB WFUP 비규격","EURO700","ETP"],"ME1WUX009":["Euro700 Grace ETP OB WHBT 비규격","EURO700","ETP"],"ME1WH0011":["Euro700 Grace ETP OB WHFM 6027 M","EURO700","ETP"],"ME1WH0012":["Euro700 Grace ETP OB WHFM 9027 M","EURO700","ETP"],"ME1WH0013":["Euro700 Grace ETP OB WHM 6061 M","EURO700","ETP"],"ME1WHX007":["Euro700 Grace ETP OB WHM 비규격","EURO700","ETP"],"ME1WH0014":["Euro700 Grace ETP OB WHMH 6065 M","EURO700","ETP"],"ME1WH0015":["Euro700 Grace ETP OB WHMH 6073 M","EURO700","ETP"],"ME1WHX008":["Euro700 Grace ETP OB WHMH 비규격","EURO700","ETP"],"ME1WHX009":["Euro700 Grace ETP OB WHMHBT 비규격","EURO700","ETP"],"ME1WT0149":["Euro700 Grace ETP OB WLDL 6051 M","EURO700","ETP"],"ME1WT0150":["Euro700 Grace ETP OB WLDL 9051 M","EURO700","ETP"],"ME1WT0151":["Euro700 Grace ETP OB WMLDT 3073 M","EURO700","ETP"],"ME1WT0152":["Euro700 Grace ETP OB WMLDT 3086 M","EURO700","ETP"],"ME1WT0153":["Euro700 Grace ETP OB WMLDT 4573 M","EURO700","ETP"],"ME1WT0154":["Euro700 Grace ETP OB WMLDT 4586 M","EURO700","ETP"],"ME1WT0155":["Euro700 Grace ETP OB WMLDT 6073 M","EURO700","ETP"],"ME1WT0156":["Euro700 Grace ETP OB WMLDT 6083 M","EURO700","ETP"],"ME1WT0157":["Euro700 Grace ETP OB WMLDT 6086 M","EURO700","ETP"],"ME1WT0158":["Euro700 Grace ETP OB WMLDT 6096 M","EURO700","ETP"],"ME1WTX023":["Euro700 Grace ETP OB WMLDT 비규격","EURO700","ETP"],"ME1WR0041":["Euro700 Grace ETP OB WRMB 10033 M","EURO700","ETP"],"ME1WR0042":["Euro700 Grace ETP OB WRMB 10045 M","EURO700","ETP"],"ME1WR0043":["Euro700 Grace ETP OB WRMB 4735 M","EURO700","ETP"],"ME1WR0044":["Euro700 Grace ETP OB WRMB 4748 M","EURO700","ETP"],"ME1WR0045":["Euro700 Grace ETP OB WRMB 6135 M","EURO700","ETP"],"ME1WR0046":["Euro700 Grace ETP OB WRMB 6148 M","EURO700","ETP"],"ME1WR0047":["Euro700 Grace ETP OB WRMB 7135 M","EURO700","ETP"],"ME1WR0048":["Euro700 Grace ETP OB WRMB 7148 M","EURO700","ETP"],"ME1WR0049":["Euro700 Grace ETP OB WRMB 8033 M","EURO700","ETP"],"ME1WR0050":["Euro700 Grace ETP OB WRMB 8045 M","EURO700","ETP"],"ME1WR0051":["Euro700 Grace ETP OB WRMB 9335 M","EURO700","ETP"],"ME1WR0052":["Euro700 Grace ETP OB WRMB 9348 M","EURO700","ETP"],"ME1WR0053":["Euro700 Grace ETP OB WRMB 9533 M","EURO700","ETP"],"ME1WR0054":["Euro700 Grace ETP OB WRMB 9545 M","EURO700","ETP"],"ME1WRX003":["Euro700 Grace ETP OB WRMB 비규격","EURO700","ETP"],"ME1WR0055":["Euro700 Grace ETP OB WRMBS 10035 M","EURO700","ETP"],"ME1WR0056":["Euro700 Grace ETP OB WRMBS 10048 M","EURO700","ETP"],"ME1WR0057":["Euro700 Grace ETP OB WRMBS 8035 M","EURO700","ETP"],"ME1WR0058":["Euro700 Grace ETP OB WRMBS 8048 M","EURO700","ETP"],"ME1WR0059":["Euro700 Grace ETP OB WRMBS 9035 M","EURO700","ETP"],"ME1WR0060":["Euro700 Grace ETP OB WRMBS 9048 M","EURO700","ETP"],"ME1WT0159":["Euro700 Grace ETP OB WT 30134 M","EURO700","ETP"],"ME1WT0160":["Euro700 Grace ETP OB WT 30147 M","EURO700","ETP"],"ME1WT0161":["Euro700 Grace ETP OB WT 40134 M","EURO700","ETP"],"ME1WT0162":["Euro700 Grace ETP OB WT 40147 M","EURO700","ETP"],"ME1WT0163":["Euro700 Grace ETP OB WT 45134 M","EURO700","ETP"],"ME1WT0164":["Euro700 Grace ETP OB WT 45147 M","EURO700","ETP"],"ME1WT0165":["Euro700 Grace ETP OB WT 60134 M","EURO700","ETP"],"ME1WT0166":["Euro700 Grace ETP OB WT 60147 M","EURO700","ETP"],"ME1WTX024":["Euro700 Grace ETP OB WT 비규격","EURO700","ETP"],"ME1WT0167":["Euro700 Grace ETP OB WTA 45134 L","EURO700","ETP"],"ME1WT0168":["Euro700 Grace ETP OB WTA 45134 R","EURO700","ETP"],"ME1WT0169":["Euro700 Grace ETP OB WTA 45147 L","EURO700","ETP"],"ME1WT0170":["Euro700 Grace ETP OB WTA 45147 R","EURO700","ETP"],"ME1WT0171":["Euro700 Grace ETP OB WTA 60134 L","EURO700","ETP"],"ME1WT0172":["Euro700 Grace ETP OB WTA 60134 R","EURO700","ETP"],"ME1WT0173":["Euro700 Grace ETP OB WTA 60147 L","EURO700","ETP"],"ME1WT0174":["Euro700 Grace ETP OB WTA 60147 R","EURO700","ETP"],"ME1WTX025":["Euro700 Grace ETP OB WTA 비규격","EURO700","ETP"],"ME1WTX026":["Euro700 Grace ETP OB WTAP 비규격","EURO700","ETP"],"ME1WT0175":["Euro700 Grace ETP OB WTARG 60141 L","EURO700","ETP"],"ME1WT0176":["Euro700 Grace ETP OB WTARG 60141 R","EURO700","ETP"],"ME1WT0177":["Euro700 Grace ETP OB WTARG 60154 L","EURO700","ETP"],"ME1WT0178":["Euro700 Grace ETP OB WTARG 60154 R","EURO700","ETP"],"ME1WTX027":["Euro700 Grace ETP OB WTARG 비규격","EURO700","ETP"],"ME1BA0026":["Euro700 Grace ETP HD BADMIL 6091","EURO700","ETP"],"ME1BC0040":["Euro700 Grace ETP HD BC1A 4291 L","EURO700","ETP"],"ME1BCX040":["Euro700 Grace ETP HD BC1A 비규격","EURO700","ETP"],"ME1BC0041":["Euro700 Grace ETP HD BC1B 4091 R","EURO700","ETP"],"ME1BCX041":["Euro700 Grace ETP HD BC1B 비규격","EURO700","ETP"],"ME1BD0105":["Euro700 Grace ETP HD BD2R 12091 M","EURO700","ETP"],"ME1BD0106":["Euro700 Grace ETP HD BD2R 6091 M","EURO700","ETP"],"ME1BD0107":["Euro700 Grace ETP HD BD2R 9091 M","EURO700","ETP"],"ME1BDX027":["Euro700 Grace ETP HD BD2R 비규격","EURO700","ETP"],"ME1BD0108":["Euro700 Grace ETP HD BD3U 4591 M","EURO700","ETP"],"ME1BD0109":["Euro700 Grace ETP HD BD3U 6091 M","EURO700","ETP"],"ME1BDX028":["Euro700 Grace ETP HD BD3U 비규격","EURO700","ETP"],"ME1BD0110":["Euro700 Grace ETP HD BDI1R 4591 M","EURO700","ETP"],"ME1BUX024":["Euro700 Grace ETP HD BHBU 비규격","EURO700","ETP"],"ME1BD0111":["Euro700 Grace ETP HD BLD2R 6062 M","EURO700","ETP"],"ME1BN0027":["Euro700 Grace ETP HD BNDB2N 2091 M","EURO700","ETP"],"ME1BN0028":["Euro700 Grace ETP HD BNDC2N 3091 M","EURO700","ETP"],"ME1TD0018":["Euro700 Grace ETP HD BTAO1U 6014 M","EURO700","ETP"],"ME1BU0234":["Euro700 Grace ETP HD BUIF 3034","EURO700","ETP"],"ME1BU0235":["Euro700 Grace ETP HD B 2091 L","EURO700","ETP"],"ME1BU0236":["Euro700 Grace ETP HD B 2091 R","EURO700","ETP"],"ME1BU0237":["Euro700 Grace ETP HD B 2591 L","EURO700","ETP"],"ME1BU0238":["Euro700 Grace ETP HD B 2591 R","EURO700","ETP"],"ME1BU0239":["Euro700 Grace ETP HD B 3091 L","EURO700","ETP"],"ME1BU0240":["Euro700 Grace ETP HD B 3091 R","EURO700","ETP"],"ME1BU0241":["Euro700 Grace ETP HD B 3591 L","EURO700","ETP"],"ME1BU0242":["Euro700 Grace ETP HD B 3591 R","EURO700","ETP"],"ME1BU0243":["Euro700 Grace ETP HD B 4091 L","EURO700","ETP"],"ME1BU0244":["Euro700 Grace ETP HD B 4091 R","EURO700","ETP"],"ME1BU0245":["Euro700 Grace ETP HD B 4591 L","EURO700","ETP"],"ME1BU0246":["Euro700 Grace ETP HD B 4591 R","EURO700","ETP"],"ME1BU0247":["Euro700 Grace ETP HD B 5091 L","EURO700","ETP"],"ME1BU0248":["Euro700 Grace ETP HD B 5091 R","EURO700","ETP"],"ME1BU0249":["Euro700 Grace ETP HD B 5591 L","EURO700","ETP"],"ME1BU0250":["Euro700 Grace ETP HD B 5591 R","EURO700","ETP"],"ME1BU0251":["Euro700 Grace ETP HD B 6091 L","EURO700","ETP"],"ME1BU0252":["Euro700 Grace ETP HD B 6091 R","EURO700","ETP"],"ME1BUX025":["Euro700 Grace ETP HD B 비규격","EURO700","ETP"],"ME1TN0014":["Euro700 Grace ETP HD TND2 30149 M","EURO700","ETP"],"ME1TC0011":["Euro700 Grace ETP HD TCP1D 42222 L","EURO700","ETP"],"ME1TC0012":["Euro700 Grace ETP HD TCP1D 40222 R","EURO700","ETP"],"ME1TC0013":["Euro700 Grace ETP HD TCP1D 42235 L","EURO700","ETP"],"ME1TC0014":["Euro700 Grace ETP HD TCP1D 40235 R","EURO700","ETP"],"ME1TU0010":["Euro700 Grace ETP HD TH 45220 L","EURO700","ETP"],"ME1TU0011":["Euro700 Grace ETP HD TH 45220 R","EURO700","ETP"],"ME1TU0012":["Euro700 Grace ETP HD TH 45233 L","EURO700","ETP"],"ME1TU0013":["Euro700 Grace ETP HD TH 45233 R","EURO700","ETP"],"ME1TUX004":["Euro700 Grace ETP HD TH 비규격","EURO700","ETP"],"ME1BA0027":["Euro700 Veil BRZ OB BAD 6091","EURO700",""],"ME1BAX004":["Euro700 Veil BRZ OB BAD 비규격","EURO700",""],"ME1BA0028":["Euro700 Veil BRZ OB BADMIL 6091","EURO700",""],"ME1BC0043":["Euro700 Veil BRZ OB BC1A 4291 M","EURO700",""],"ME1BCX043":["Euro700 Veil BRZ OB BC1A 비규격","EURO700",""],"ME1BC0044":["Euro700 Veil BRZ OB BC1B 4091 M","EURO700",""],"ME1BCX044":["Euro700 Veil BRZ OB BC1B 비규격","EURO700",""],"ME1BD0112":["Euro700 Veil BRZ OB BD2R 12091 M","EURO700",""],"ME1BD0113":["Euro700 Veil BRZ OB BD2R 6091 M","EURO700",""],"ME1BD0114":["Euro700 Veil BRZ OB BD2R 9091 M","EURO700",""],"ME1BDX029":["Euro700 Veil BRZ OB BD2R 비규격","EURO700",""],"ME1BD0115":["Euro700 Veil BRZ OB BD3U 4591 M","EURO700",""],"ME1BD0116":["Euro700 Veil BRZ OB BD3U 6091 M","EURO700",""],"ME1BDX030":["Euro700 Veil BRZ OB BD3U 비규격","EURO700",""],"ME1BD0117":["Euro700 Veil BRZ OB BDI1R 4591 M","EURO700",""],"ME1BUX026":["Euro700 Veil BRZ OB BHBU 비규격","EURO700",""],"ME1BD0118":["Euro700 Veil BRZ OB BLD1R 4591 M","EURO700",""],"ME1BD0119":["Euro700 Veil BRZ OB BLD1R 6091 M","EURO700",""],"ME1BD0120":["Euro700 Veil BRZ OB BLD1UA 4591 M","EURO700",""],"ME1BD0121":["Euro700 Veil BRZ OB BLD1UA 6091 M","EURO700",""],"ME1BD0122":["Euro700 Veil BRZ OB BLD2R 6062 M","EURO700",""],"ME1BN0029":["Euro700 Veil BRZ OB BNDB2N 2091 M","EURO700",""],"ME1BN0030":["Euro700 Veil BRZ OB BNDC2N 3091 M","EURO700",""],"ME1BA0029":["Euro700 Veil BRZ OB BRO1R 6091 M","EURO700",""],"ME1TD0023":["Euro700 Veil BRZ OB BTAO1U 6014 M","EURO700",""],"ME1BA0030":["Euro700 Veil BRZ OB BTARG 6070 L","EURO700",""],"ME1BA0031":["Euro700 Veil BRZ OB BTARG 6070 R","EURO700",""],"ME1BU0253":["Euro700 Veil BRZ OB BUIF 3034","EURO700",""],"ME1WU0073":["Euro700 Veil BRZ OB M 2073(공용) M","EURO700",""],"ME1WU0074":["Euro700 Veil BRZ OB M 2086 M","EURO700",""],"ME1WU0075":["Euro700 Veil BRZ OB M 2573(공용) M","EURO700",""],"ME1WU0076":["Euro700 Veil BRZ OB M 2586 M","EURO700",""],"ME1WU0077":["Euro700 Veil BRZ OB M 3065 M","EURO700",""],"ME1WU0078":["Euro700 Veil BRZ OB M 3073(공용) M","EURO700",""],"ME1WU0079":["Euro700 Veil BRZ OB M 3086 M","EURO700",""],"ME1WU0080":["Euro700 Veil BRZ OB M 3565 M","EURO700",""],"ME1WU0081":["Euro700 Veil BRZ OB M 3573(공용) M","EURO700",""],"ME1WU0082":["Euro700 Veil BRZ OB M 3586 M","EURO700",""],"ME1WU0083":["Euro700 Veil BRZ OB M 4065 M","EURO700",""],"ME1WU0084":["Euro700 Veil BRZ OB M 4073(공용) M","EURO700",""],"ME1WU0085":["Euro700 Veil BRZ OB M 4086 M","EURO700",""],"ME1WU0086":["Euro700 Veil BRZ OB M 4565 M","EURO700",""],"ME1WU0087":["Euro700 Veil BRZ OB M 4573(공용) M","EURO700",""],"ME1WU0088":["Euro700 Veil BRZ OB M 4586 M","EURO700",""],"ME1WU0089":["Euro700 Veil BRZ OB M 5065 M","EURO700",""],"ME1WU0090":["Euro700 Veil BRZ OB M 5073(공용) M","EURO700",""],"ME1WU0091":["Euro700 Veil BRZ OB M 5086 M","EURO700",""],"ME1WU0092":["Euro700 Veil BRZ OB M 5573(공용) M","EURO700",""],"ME1WU0093":["Euro700 Veil BRZ OB M 5586 M","EURO700",""],"ME1WU0094":["Euro700 Veil BRZ OB M 6052 M","EURO700",""],"ME1WU0095":["Euro700 Veil BRZ OB M 6073(공용) M","EURO700",""],"ME1WU0096":["Euro700 Veil BRZ OB M 6086 M","EURO700",""],"ME1WUX010":["Euro700 Veil BRZ OB M 비규격","EURO700",""],"ME1TN0015":["Euro700 Veil BRZ OB TND2 30149 M","EURO700",""],"ME1WUX011":["Euro700 Veil BRZ OB W2HBT 비규격","EURO700",""],"ME1WF0076":["Euro700 Veil BRZ OB W2U 4042 M","EURO700",""],"ME1WF0077":["Euro700 Veil BRZ OB W2U 4542 M","EURO700",""],"ME1WFX013":["Euro700 Veil BRZ OB W2U 비규격","EURO700",""],"ME1WF0078":["Euro700 Veil BRZ OB WF 10037 M","EURO700",""],"ME1WF0079":["Euro700 Veil BRZ OB WF 6030 M","EURO700",""],"ME1WF0080":["Euro700 Veil BRZ OB WF 6043 M","EURO700",""],"ME1WF0081":["Euro700 Veil BRZ OB WF 8037 M","EURO700",""],"ME1WF0082":["Euro700 Veil BRZ OB WF 8044 M","EURO700",""],"ME1WF0083":["Euro700 Veil BRZ OB WF 9033 M","EURO700",""],"ME1WF0084":["Euro700 Veil BRZ OB WF 9037 M","EURO700",""],"ME1WF0085":["Euro700 Veil BRZ OB WF 9044 M","EURO700",""],"ME1WFX014":["Euro700 Veil BRZ OB WF 비규격","EURO700",""],"ME1WF0086":["Euro700 Veil BRZ OB WFED 10053 M","EURO700",""],"ME1WF0087":["Euro700 Veil BRZ OB WFED 6053 M","EURO700",""],"ME1WF0088":["Euro700 Veil BRZ OB WFED 7053 M","EURO700",""],"ME1WF0089":["Euro700 Veil BRZ OB WFED 8053 M","EURO700",""],"ME1WF0090":["Euro700 Veil BRZ OB WFED 9053 M","EURO700",""],"ME1WFX015":["Euro700 Veil BRZ OB WFED 비규격","EURO700",""],"ME1WF0091":["Euro700 Veil BRZ OB WFMD 6035 M","EURO700",""],"ME1WF0092":["Euro700 Veil BRZ OB WFMD 6048 M","EURO700",""],"ME1WF0093":["Euro700 Veil BRZ OB WFMD 9035 M","EURO700",""],"ME1WF0094":["Euro700 Veil BRZ OB WFMD 9048 M","EURO700",""],"ME1WFX023":["Euro700 Veil BRZ OB WFMD 비규격","EURO700",""],"ME1WF0095":["Euro700 Veil BRZ OB WFUP 10032 M","EURO700",""],"ME1WF0096":["Euro700 Veil BRZ OB WFUP 10036 M","EURO700",""],"ME1WF0097":["Euro700 Veil BRZ OB WFUP 8032 M","EURO700",""],"ME1WF0098":["Euro700 Veil BRZ OB WFUP 8036 M","EURO700",""],"ME1WF0099":["Euro700 Veil BRZ OB WFUP 9032 M","EURO700",""],"ME1WF0100":["Euro700 Veil BRZ OB WFUP 9036 M","EURO700",""],"ME1WFX016":["Euro700 Veil BRZ OB WFUP 비규격","EURO700",""],"ME1WUX012":["Euro700 Veil BRZ OB WHBT 비규격","EURO700",""],"ME1WH0016":["Euro700 Veil BRZ OB WHFM 6027 M","EURO700",""],"ME1WH0017":["Euro700 Veil BRZ OB WHFM 9027 M","EURO700",""],"ME1WH0018":["Euro700 Veil BRZ OB WHM 6061 M","EURO700",""],"ME1WHX010":["Euro700 Veil BRZ OB WHM 비규격","EURO700",""],"ME1WH0019":["Euro700 Veil BRZ OB WHMH 6065 M","EURO700",""],"ME1WH0020":["Euro700 Veil BRZ OB WHMH 6073 M","EURO700",""],"ME1WHX011":["Euro700 Veil BRZ OB WHMH 비규격","EURO700",""],"ME1WHX012":["Euro700 Veil BRZ OB WHMHBT 비규격","EURO700",""],"ME1WT0179":["Euro700 Veil BRZ OB WLDL 6051 M","EURO700",""],"ME1WT0180":["Euro700 Veil BRZ OB WLDL 9051 M","EURO700",""],"ME1WT0181":["Euro700 Veil BRZ OB WMLDT 3073 M","EURO700",""],"ME1WT0182":["Euro700 Veil BRZ OB WMLDT 3086 M","EURO700",""],"ME1WT0183":["Euro700 Veil BRZ OB WMLDT 4573 M","EURO700",""],"ME1WT0184":["Euro700 Veil BRZ OB WMLDT 4586 M","EURO700",""],"ME1WT0185":["Euro700 Veil BRZ OB WMLDT 6073 M","EURO700",""],"ME1WT0186":["Euro700 Veil BRZ OB WMLDT 6083 M","EURO700",""],"ME1WT0187":["Euro700 Veil BRZ OB WMLDT 6086 M","EURO700",""],"ME1WT0188":["Euro700 Veil BRZ OB WMLDT 6096 M","EURO700",""],"ME1WTX028":["Euro700 Veil BRZ OB WMLDT 비규격","EURO700",""],"ME1WR0061":["Euro700 Veil BRZ OB WRMB 10033 M","EURO700",""],"ME1WR0062":["Euro700 Veil BRZ OB WRMB 10045 M","EURO700",""],"ME1WR0063":["Euro700 Veil BRZ OB WRMB 4735 M","EURO700",""],"ME1WR0064":["Euro700 Veil BRZ OB WRMB 4748 M","EURO700",""],"ME1WR0065":["Euro700 Veil BRZ OB WRMB 6135 M","EURO700",""],"ME1WR0066":["Euro700 Veil BRZ OB WRMB 6148 M","EURO700",""],"ME1WR0067":["Euro700 Veil BRZ OB WRMB 7135 M","EURO700",""],"ME1WR0068":["Euro700 Veil BRZ OB WRMB 7148 M","EURO700",""],"ME1WR0069":["Euro700 Veil BRZ OB WRMB 8033 M","EURO700",""],"ME1WR0070":["Euro700 Veil BRZ OB WRMB 8045 M","EURO700",""],"ME1WR0071":["Euro700 Veil BRZ OB WRMB 9335 M","EURO700",""],"ME1WR0072":["Euro700 Veil BRZ OB WRMB 9348 M","EURO700",""],"ME1WR0073":["Euro700 Veil BRZ OB WRMB 9533 M","EURO700",""],"ME1WR0074":["Euro700 Veil BRZ OB WRMB 9545 M","EURO700",""],"ME1WRX004":["Euro700 Veil BRZ OB WRMB 비규격","EURO700",""],"ME1WR0075":["Euro700 Veil BRZ OB WRMBS 10035 M","EURO700",""],"ME1WR0076":["Euro700 Veil BRZ OB WRMBS 10048 M","EURO700",""],"ME1WR0077":["Euro700 Veil BRZ OB WRMBS 8035 M","EURO700",""],"ME1WR0078":["Euro700 Veil BRZ OB WRMBS 8048 M","EURO700",""],"ME1WR0079":["Euro700 Veil BRZ OB WRMBS 9035 M","EURO700",""],"ME1WR0080":["Euro700 Veil BRZ OB WRMBS 9048 M","EURO700",""],"ME1WT0189":["Euro700 Veil BRZ OB WT 30134 M","EURO700",""],"ME1WT0190":["Euro700 Veil BRZ OB WT 30147 M","EURO700",""],"ME1WT0191":["Euro700 Veil BRZ OB WT 40134 M","EURO700",""],"ME1WT0192":["Euro700 Veil BRZ OB WT 40147 M","EURO700",""],"ME1WT0193":["Euro700 Veil BRZ OB WT 45134 M","EURO700",""],"ME1WT0194":["Euro700 Veil BRZ OB WT 45147 M","EURO700",""],"ME1WT0195":["Euro700 Veil BRZ OB WT 60134 M","EURO700",""],"ME1WT0196":["Euro700 Veil BRZ OB WT 60147 M","EURO700",""],"ME1WTX029":["Euro700 Veil BRZ OB WT 비규격","EURO700",""],"ME1WT0197":["Euro700 Veil BRZ OB WTA 45134 L","EURO700",""],"ME1WT0198":["Euro700 Veil BRZ OB WTA 45134 R","EURO700",""],"ME1WT0199":["Euro700 Veil BRZ OB WTA 45147 L","EURO700",""],"ME1WT0200":["Euro700 Veil BRZ OB WTA 45147 R","EURO700",""],"ME1WT0201":["Euro700 Veil BRZ OB WTA 60134 L","EURO700",""],"ME1WT0202":["Euro700 Veil BRZ OB WTA 60134 R","EURO700",""],"ME1WT0203":["Euro700 Veil BRZ OB WTA 60147 L","EURO700",""],"ME1WT0204":["Euro700 Veil BRZ OB WTA 60147 R","EURO700",""],"ME1WTX030":["Euro700 Veil BRZ OB WTA 비규격","EURO700",""],"ME1WTX031":["Euro700 Veil BRZ OB WTAP 비규격","EURO700",""],"ME1WT0205":["Euro700 Veil BRZ OB WTARG 60141 L","EURO700",""],"ME1WT0206":["Euro700 Veil BRZ OB WTARG 60141 R","EURO700",""],"ME1WT0207":["Euro700 Veil BRZ OB WTARG 60154 L","EURO700",""],"ME1WT0208":["Euro700 Veil BRZ OB WTARG 60154 R","EURO700",""],"ME1WTX032":["Euro700 Veil BRZ OB WTARG 비규격","EURO700",""],"ME1BA0032":["Euro700 Veil BRZ HD BADMIL 6091","EURO700",""],"ME1BC0046":["Euro700 Veil BRZ HD BC1A 4291 L","EURO700",""],"ME1BCX046":["Euro700 Veil BRZ HD BC1A 비규격","EURO700",""],"ME1BC0047":["Euro700 Veil BRZ HD BC1B 4091 R","EURO700",""],"ME1BCX047":["Euro700 Veil BRZ HD BC1B 비규격","EURO700",""],"ME1BD0124":["Euro700 Veil BRZ HD BD2R 12091 M","EURO700",""],"ME1BD0125":["Euro700 Veil BRZ HD BD2R 6091 M","EURO700",""],"ME1BD0126":["Euro700 Veil BRZ HD BD2R 9091 M","EURO700",""],"ME1BDX031":["Euro700 Veil BRZ HD BD2R 비규격","EURO700",""],"ME1BD0127":["Euro700 Veil BRZ HD BD3U 4591 M","EURO700",""],"ME1BD0128":["Euro700 Veil BRZ HD BD3U 6091 M","EURO700",""],"ME1BDX032":["Euro700 Veil BRZ HD BD3U 비규격","EURO700",""],"ME1BD0129":["Euro700 Veil BRZ HD BDI1R 4591 M","EURO700",""],"ME1BUX027":["Euro700 Veil BRZ HD BHBU 비규격","EURO700",""],"ME1BD0130":["Euro700 Veil BRZ HD BLD2R 6062 M","EURO700",""],"ME1BN0031":["Euro700 Veil BRZ HD BNDB2N 2091 M","EURO700",""],"ME1BN0032":["Euro700 Veil BRZ HD BNDC2N 3091 M","EURO700",""],"ME1TD0024":["Euro700 Veil BRZ HD BTAO1U 6014 M","EURO700",""],"ME1BU0254":["Euro700 Veil BRZ HD BUIF 3034","EURO700",""],"ME1BU0255":["Euro700 Veil BRZ HD B 2091 L","EURO700",""],"ME1BU0256":["Euro700 Veil BRZ HD B 2091 R","EURO700",""],"ME1BU0257":["Euro700 Veil BRZ HD B 2591 L","EURO700",""],"ME1BU0258":["Euro700 Veil BRZ HD B 2591 R","EURO700",""],"ME1BU0259":["Euro700 Veil BRZ HD B 3091 L","EURO700",""],"ME1BU0260":["Euro700 Veil BRZ HD B 3091 R","EURO700",""],"ME1BU0261":["Euro700 Veil BRZ HD B 3591 L","EURO700",""],"ME1BU0262":["Euro700 Veil BRZ HD B 3591 R","EURO700",""],"ME1BU0263":["Euro700 Veil BRZ HD B 4091 L","EURO700",""],"ME1BU0264":["Euro700 Veil BRZ HD B 4091 R","EURO700",""],"ME1BU0265":["Euro700 Veil BRZ HD B 4591 L","EURO700",""],"ME1BU0266":["Euro700 Veil BRZ HD B 4591 R","EURO700",""],"ME1BU0267":["Euro700 Veil BRZ HD B 5091 L","EURO700",""],"ME1BU0268":["Euro700 Veil BRZ HD B 5091 R","EURO700",""],"ME1BU0269":["Euro700 Veil BRZ HD B 5591 L","EURO700",""],"ME1BU0270":["Euro700 Veil BRZ HD B 5591 R","EURO700",""],"ME1BU0271":["Euro700 Veil BRZ HD B 6091 L","EURO700",""],"ME1BU0272":["Euro700 Veil BRZ HD B 6091 R","EURO700",""],"ME1BUX028":["Euro700 Veil BRZ HD B 비규격","EURO700",""],"ME1TN0016":["Euro700 Veil BRZ HD TND2 30149 M","EURO700",""],"ME1TC0017":["Euro700 Veil BRZ HD TCP1D 42222 L","EURO700",""],"ME1TC0018":["Euro700 Veil BRZ HD TCP1D 40222 R","EURO700",""],"ME1TC0019":["Euro700 Veil BRZ HD TCP1D 42235 L","EURO700",""],"ME1TC0020":["Euro700 Veil BRZ HD TCP1D 40235 R","EURO700",""],"ME1TU0015":["Euro700 Veil BRZ HD TH 45220 L","EURO700",""],"ME1TU0016":["Euro700 Veil BRZ HD TH 45220 R","EURO700",""],"ME1TU0017":["Euro700 Veil BRZ HD TH 45233 L","EURO700",""],"ME1TU0018":["Euro700 Veil BRZ HD TH 45233 R","EURO700",""],"ME1TUX006":["Euro700 Veil BRZ HD TH 비규격","EURO700",""],"ME1BA0033":["Euro700 Veil Shade OB BAD 6091","EURO700",""],"ME1BAX005":["Euro700 Veil Shade OB BAD 비규격","EURO700",""],"ME1BA0034":["Euro700 Veil Shade OB BADMIL 6091","EURO700",""],"ME1BC0049":["Euro700 Veil Shade OB BC1A 4291 M","EURO700",""],"ME1BCX049":["Euro700 Veil Shade OB BC1A 비규격","EURO700",""],"ME1BC0050":["Euro700 Veil Shade OB BC1B 4091 M","EURO700",""],"ME1BCX050":["Euro700 Veil Shade OB BC1B 비규격","EURO700",""],"ME1BD0131":["Euro700 Veil Shade OB BD2R 12091 M","EURO700",""],"ME1BD0132":["Euro700 Veil Shade OB BD2R 6091 M","EURO700",""],"ME1BD0133":["Euro700 Veil Shade OB BD2R 9091 M","EURO700",""],"ME1BDX033":["Euro700 Veil Shade OB BD2R 비규격","EURO700",""],"ME1BD0134":["Euro700 Veil Shade OB BD3U 4591 M","EURO700",""],"ME1BD0135":["Euro700 Veil Shade OB BD3U 6091 M","EURO700",""],"ME1BDX034":["Euro700 Veil Shade OB BD3U 비규격","EURO700",""],"ME1BD0136":["Euro700 Veil Shade OB BDI1R 4591 M","EURO700",""],"ME1BUX029":["Euro700 Veil Shade OB BHBU 비규격","EURO700",""],"ME1BD0137":["Euro700 Veil Shade OB BLD1R 4591 M","EURO700",""],"ME1BD0138":["Euro700 Veil Shade OB BLD1R 6091 M","EURO700",""],"ME1BD0139":["Euro700 Veil Shade OB BLD1UA 4591 M","EURO700",""],"ME1BD0140":["Euro700 Veil Shade OB BLD1UA 6091 M","EURO700",""],"ME1BD0141":["Euro700 Veil Shade OB BLD2R 6062 M","EURO700",""],"ME1BN0033":["Euro700 Veil Shade OB BNDB2N 2091 M","EURO700",""],"ME1BN0034":["Euro700 Veil Shade OB BNDC2N 3091 M","EURO700",""],"ME1BA0035":["Euro700 Veil Shade OB BRO1R 6091 M","EURO700",""],"ME1TD0029":["Euro700 Veil Shade OB BTAO1U 6014 M","EURO700",""],"ME1BA0036":["Euro700 Veil Shade OB BTARG 6070 L","EURO700",""],"ME1BA0037":["Euro700 Veil Shade OB BTARG 6070 R","EURO700",""],"ME1BU0273":["Euro700 Veil Shade OB BUIF 3034","EURO700",""],"ME1WU0097":["Euro700 Veil Shade OB M 2073(공용) M","EURO700",""],"ME1WU0098":["Euro700 Veil Shade OB M 2086 M","EURO700",""],"ME1WU0099":["Euro700 Veil Shade OB M 2573(공용) M","EURO700",""],"ME1WU0100":["Euro700 Veil Shade OB M 2586 M","EURO700",""],"ME1WU0101":["Euro700 Veil Shade OB M 3065 M","EURO700",""],"ME1WU0102":["Euro700 Veil Shade OB M 3073(공용) M","EURO700",""],"ME1WU0103":["Euro700 Veil Shade OB M 3086 M","EURO700",""],"ME1WU0104":["Euro700 Veil Shade OB M 3565 M","EURO700",""],"ME1WU0105":["Euro700 Veil Shade OB M 3573(공용) M","EURO700",""],"ME1WU0106":["Euro700 Veil Shade OB M 3586 M","EURO700",""],"ME1WU0107":["Euro700 Veil Shade OB M 4065 M","EURO700",""],"ME1WU0108":["Euro700 Veil Shade OB M 4073(공용) M","EURO700",""],"ME1WU0109":["Euro700 Veil Shade OB M 4086 M","EURO700",""],"ME1WU0110":["Euro700 Veil Shade OB M 4565 M","EURO700",""],"ME1WU0111":["Euro700 Veil Shade OB M 4573(공용) M","EURO700",""],"ME1WU0112":["Euro700 Veil Shade OB M 4586 M","EURO700",""],"ME1WU0113":["Euro700 Veil Shade OB M 5065 M","EURO700",""],"ME1WU0114":["Euro700 Veil Shade OB M 5073(공용) M","EURO700",""],"ME1WU0115":["Euro700 Veil Shade OB M 5086 M","EURO700",""],"ME1WU0116":["Euro700 Veil Shade OB M 5573(공용) M","EURO700",""],"ME1WU0117":["Euro700 Veil Shade OB M 5586 M","EURO700",""],"ME1WU0118":["Euro700 Veil Shade OB M 6052 M","EURO700",""],"ME1WU0119":["Euro700 Veil Shade OB M 6073(공용) M","EURO700",""],"ME1WU0120":["Euro700 Veil Shade OB M 6086 M","EURO700",""],"ME1WUX013":["Euro700 Veil Shade OB M 비규격","EURO700",""],"ME1TN0017":["Euro700 Veil Shade OB TND2 30149 M","EURO700",""],"ME1WUX014":["Euro700 Veil Shade OB W2HBT 비규격","EURO700",""],"ME1WF0101":["Euro700 Veil Shade OB W2U 4042 M","EURO700",""],"ME1WF0102":["Euro700 Veil Shade OB W2U 4542 M","EURO700",""],"ME1WFX017":["Euro700 Veil Shade OB W2U 비규격","EURO700",""],"ME1WF0103":["Euro700 Veil Shade OB WF 10037 M","EURO700",""],"ME1WF0104":["Euro700 Veil Shade OB WF 6030 M","EURO700",""],"ME1WF0105":["Euro700 Veil Shade OB WF 6043 M","EURO700",""],"ME1WF0106":["Euro700 Veil Shade OB WF 8037 M","EURO700",""],"ME1WF0107":["Euro700 Veil Shade OB WF 8044 M","EURO700",""],"ME1WF0108":["Euro700 Veil Shade OB WF 9033 M","EURO700",""],"ME1WF0109":["Euro700 Veil Shade OB WF 9037 M","EURO700",""],"ME1WF0110":["Euro700 Veil Shade OB WF 9044 M","EURO700",""],"ME1WFX018":["Euro700 Veil Shade OB WF 비규격","EURO700",""],"ME1WF0111":["Euro700 Veil Shade OB WFED 10053 M","EURO700",""],"ME1WF0112":["Euro700 Veil Shade OB WFED 6053 M","EURO700",""],"ME1WF0113":["Euro700 Veil Shade OB WFED 7053 M","EURO700",""],"ME1WF0114":["Euro700 Veil Shade OB WFED 8053 M","EURO700",""],"ME1WF0115":["Euro700 Veil Shade OB WFED 9053 M","EURO700",""],"ME1WFX019":["Euro700 Veil Shade OB WFED 비규격","EURO700",""],"ME1WF0116":["Euro700 Veil Shade OB WFMD 6035 M","EURO700",""],"ME1WF0117":["Euro700 Veil Shade OB WFMD 6048 M","EURO700",""],"ME1WF0118":["Euro700 Veil Shade OB WFMD 9035 M","EURO700",""],"ME1WF0119":["Euro700 Veil Shade OB WFMD 9048 M","EURO700",""],"ME1WFX024":["Euro700 Veil Shade OB WFMD 비규격","EURO700",""],"ME1WF0120":["Euro700 Veil Shade OB WFUP 10032 M","EURO700",""],"ME1WF0121":["Euro700 Veil Shade OB WFUP 10036 M","EURO700",""],"ME1WF0122":["Euro700 Veil Shade OB WFUP 8032 M","EURO700",""],"ME1WF0123":["Euro700 Veil Shade OB WFUP 8036 M","EURO700",""],"ME1WF0124":["Euro700 Veil Shade OB WFUP 9032 M","EURO700",""],"ME1WF0125":["Euro700 Veil Shade OB WFUP 9036 M","EURO700",""],"ME1WFX020":["Euro700 Veil Shade OB WFUP 비규격","EURO700",""],"ME1WUX015":["Euro700 Veil Shade OB WHBT 비규격","EURO700",""],"ME1WH0021":["Euro700 Veil Shade OB WHFM 6027 M","EURO700",""],"ME1WH0022":["Euro700 Veil Shade OB WHFM 9027 M","EURO700",""],"ME1WH0023":["Euro700 Veil Shade OB WHM 6061 M","EURO700",""],"ME1WHX013":["Euro700 Veil Shade OB WHM 비규격","EURO700",""],"ME1WH0024":["Euro700 Veil Shade OB WHMH 6065 M","EURO700",""],"ME1WH0025":["Euro700 Veil Shade OB WHMH 6073 M","EURO700",""],"ME1WHX014":["Euro700 Veil Shade OB WHMH 비규격","EURO700",""],"ME1WHX015":["Euro700 Veil Shade OB WHMHBT 비규격","EURO700",""],"ME1WT0209":["Euro700 Veil Shade OB WLDL 6051 M","EURO700",""],"ME1WT0210":["Euro700 Veil Shade OB WLDL 9051 M","EURO700",""],"ME1WT0211":["Euro700 Veil Shade OB WMLDT 3073 M","EURO700",""],"ME1WT0212":["Euro700 Veil Shade OB WMLDT 3086 M","EURO700",""],"ME1WT0213":["Euro700 Veil Shade OB WMLDT 4573 M","EURO700",""],"ME1WT0214":["Euro700 Veil Shade OB WMLDT 4586 M","EURO700",""],"ME1WT0215":["Euro700 Veil Shade OB WMLDT 6073 M","EURO700",""],"ME1WT0216":["Euro700 Veil Shade OB WMLDT 6083 M","EURO700",""],"ME1WT0217":["Euro700 Veil Shade OB WMLDT 6086 M","EURO700",""],"ME1WT0218":["Euro700 Veil Shade OB WMLDT 6096 M","EURO700",""],"ME1WTX033":["Euro700 Veil Shade OB WMLDT 비규격","EURO700",""],"ME1WR0081":["Euro700 Veil Shade OB WRMB 10033 M","EURO700",""],"ME1WR0082":["Euro700 Veil Shade OB WRMB 10045 M","EURO700",""],"ME1WR0083":["Euro700 Veil Shade OB WRMB 4735 M","EURO700",""],"ME1WR0084":["Euro700 Veil Shade OB WRMB 4748 M","EURO700",""],"ME1WR0085":["Euro700 Veil Shade OB WRMB 6135 M","EURO700",""],"ME1WR0086":["Euro700 Veil Shade OB WRMB 6148 M","EURO700",""],"ME1WR0087":["Euro700 Veil Shade OB WRMB 7135 M","EURO700",""],"ME1WR0088":["Euro700 Veil Shade OB WRMB 7148 M","EURO700",""],"ME1WR0089":["Euro700 Veil Shade OB WRMB 8033 M","EURO700",""],"ME1WR0090":["Euro700 Veil Shade OB WRMB 8045 M","EURO700",""],"ME1WR0091":["Euro700 Veil Shade OB WRMB 9335 M","EURO700",""],"ME1WR0092":["Euro700 Veil Shade OB WRMB 9348 M","EURO700",""],"ME1WR0093":["Euro700 Veil Shade OB WRMB 9533 M","EURO700",""],"ME1WR0094":["Euro700 Veil Shade OB WRMB 9545 M","EURO700",""],"ME1WRX005":["Euro700 Veil Shade OB WRMB 비규격","EURO700",""],"ME1WR0095":["Euro700 Veil Shade OB WRMBS 10035 M","EURO700",""],"ME1WR0096":["Euro700 Veil Shade OB WRMBS 10048 M","EURO700",""],"ME1WR0097":["Euro700 Veil Shade OB WRMBS 8035 M","EURO700",""],"ME1WR0098":["Euro700 Veil Shade OB WRMBS 8048 M","EURO700",""],"ME1WR0099":["Euro700 Veil Shade OB WRMBS 9035 M","EURO700",""],"ME1WR0100":["Euro700 Veil Shade OB WRMBS 9048 M","EURO700",""],"ME1WT0219":["Euro700 Veil Shade OB WT 30134 M","EURO700",""],"ME1WT0220":["Euro700 Veil Shade OB WT 30147 M","EURO700",""],"ME1WT0221":["Euro700 Veil Shade OB WT 40134 M","EURO700",""],"ME1WT0222":["Euro700 Veil Shade OB WT 40147 M","EURO700",""],"ME1WT0223":["Euro700 Veil Shade OB WT 45134 M","EURO700",""],"ME1WT0224":["Euro700 Veil Shade OB WT 45147 M","EURO700",""],"ME1WT0225":["Euro700 Veil Shade OB WT 60134 M","EURO700",""],"ME1WT0226":["Euro700 Veil Shade OB WT 60147 M","EURO700",""],"ME1WTX034":["Euro700 Veil Shade OB WT 비규격","EURO700",""],"ME1WT0227":["Euro700 Veil Shade OB WTA 45134 L","EURO700",""],"ME1WT0228":["Euro700 Veil Shade OB WTA 45134 R","EURO700",""],"ME1WT0229":["Euro700 Veil Shade OB WTA 45147 L","EURO700",""],"ME1WT0230":["Euro700 Veil Shade OB WTA 45147 R","EURO700",""],"ME1WT0231":["Euro700 Veil Shade OB WTA 60134 L","EURO700",""],"ME1WT0232":["Euro700 Veil Shade OB WTA 60134 R","EURO700",""],"ME1WT0233":["Euro700 Veil Shade OB WTA 60147 L","EURO700",""],"ME1WT0234":["Euro700 Veil Shade OB WTA 60147 R","EURO700",""],"ME1WTX035":["Euro700 Veil Shade OB WTA 비규격","EURO700",""],"ME1WTX036":["Euro700 Veil Shade OB WTAP 비규격","EURO700",""],"ME1WT0235":["Euro700 Veil Shade OB WTARG 60141 L","EURO700",""],"ME1WT0236":["Euro700 Veil Shade OB WTARG 60141 R","EURO700",""],"ME1WT0237":["Euro700 Veil Shade OB WTARG 60154 L","EURO700",""],"ME1WT0238":["Euro700 Veil Shade OB WTARG 60154 R","EURO700",""],"ME1WTX037":["Euro700 Veil Shade OB WTARG 비규격","EURO700",""],"ME1BA0038":["Euro700 Veil Shade HD BADMIL 6091","EURO700",""],"ME1BC0052":["Euro700 Veil Shade HD BC1A 4291 L","EURO700",""],"ME1BCX052":["Euro700 Veil Shade HD BC1A 비규격","EURO700",""],"ME1BC0053":["Euro700 Veil Shade HD BC1B 4091 R","EURO700",""],"ME1BCX053":["Euro700 Veil Shade HD BC1B 비규격","EURO700",""],"ME1BD0143":["Euro700 Veil Shade HD BD2R 12091 M","EURO700",""],"ME1BD0144":["Euro700 Veil Shade HD BD2R 6091 M","EURO700",""],"ME1BD0145":["Euro700 Veil Shade HD BD2R 9091 M","EURO700",""],"ME1BDX035":["Euro700 Veil Shade HD BD2R 비규격","EURO700",""],"ME1BD0146":["Euro700 Veil Shade HD BD3U 4591 M","EURO700",""],"ME1BD0147":["Euro700 Veil Shade HD BD3U 6091 M","EURO700",""],"ME1BDX036":["Euro700 Veil Shade HD BD3U 비규격","EURO700",""],"ME1BD0148":["Euro700 Veil Shade HD BDI1R 4591 M","EURO700",""],"ME1BUX030":["Euro700 Veil Shade HD BHBU 비규격","EURO700",""],"ME1BD0149":["Euro700 Veil Shade HD BLD2R 6062 M","EURO700",""],"ME1BN0035":["Euro700 Veil Shade HD BNDB2N 2091 M","EURO700",""],"ME1BN0036":["Euro700 Veil Shade HD BNDC2N 3091 M","EURO700",""],"ME1TD0030":["Euro700 Veil Shade HD BTAO1U 6014 M","EURO700",""],"ME1BU0274":["Euro700 Veil Shade HD BUIF 3034","EURO700",""],"ME1BU0275":["Euro700 Veil Shade HD B 2091 L","EURO700",""],"ME1BU0276":["Euro700 Veil Shade HD B 2091 R","EURO700",""],"ME1BU0277":["Euro700 Veil Shade HD B 2591 L","EURO700",""],"ME1BU0278":["Euro700 Veil Shade HD B 2591 R","EURO700",""],"ME1BU0279":["Euro700 Veil Shade HD B 3091 L","EURO700",""],"ME1BU0280":["Euro700 Veil Shade HD B 3091 R","EURO700",""],"ME1BU0281":["Euro700 Veil Shade HD B 3591 L","EURO700",""],"ME1BU0282":["Euro700 Veil Shade HD B 3591 R","EURO700",""],"ME1BU0283":["Euro700 Veil Shade HD B 4091 L","EURO700",""],"ME1BU0284":["Euro700 Veil Shade HD B 4091 R","EURO700",""],"ME1BU0285":["Euro700 Veil Shade HD B 4591 L","EURO700",""],"ME1BU0286":["Euro700 Veil Shade HD B 4591 R","EURO700",""],"ME1BU0287":["Euro700 Veil Shade HD B 5091 L","EURO700",""],"ME1BU0288":["Euro700 Veil Shade HD B 5091 R","EURO700",""],"ME1BU0289":["Euro700 Veil Shade HD B 5591 L","EURO700",""],"ME1BU0290":["Euro700 Veil Shade HD B 5591 R","EURO700",""],"ME1BU0291":["Euro700 Veil Shade HD B 6091 L","EURO700",""],"ME1BU0292":["Euro700 Veil Shade HD B 6091 R","EURO700",""],"ME1BUX031":["Euro700 Veil Shade HD B 비규격","EURO700",""],"ME1TN0018":["Euro700 Veil Shade HD TND2 30149 M","EURO700",""],"ME1TC0023":["Euro700 Veil Shade HD TCP1D 42222 L","EURO700",""],"ME1TC0024":["Euro700 Veil Shade HD TCP1D 40222 R","EURO700",""],"ME1TC0025":["Euro700 Veil Shade HD TCP1D 42235 L","EURO700",""],"ME1TC0026":["Euro700 Veil Shade HD TCP1D 40235 R","EURO700",""],"ME1TU0020":["Euro700 Veil Shade HD TH 45220 L","EURO700",""],"ME1TU0021":["Euro700 Veil Shade HD TH 45220 R","EURO700",""],"ME1TU0022":["Euro700 Veil Shade HD TH 45233 L","EURO700",""],"ME1TU0023":["Euro700 Veil Shade HD TH 45233 R","EURO700",""],"ME1TUX008":["Euro700 Veil Shade HD TH 비규격","EURO700",""]};
-
-// ─────────────────────────────────────────────────────────
-//  GLASS_SPEC — 조립실 일반유리 종류/거래처 표기 (발주현황 기준)
-//  ※ ybn-data.js 맨 끝에 붙여넣으세요. (index.html에 동일 폴백이 있어
-//     안 넣어도 작동하지만, 여기 넣으면 데이터 단일출처로 관리 가능)
-//  거래처/유리종류가 실제와 다르면 이 값만 고치면 전체 반영됩니다.
-// ─────────────────────────────────────────────────────────
-const GLASS_SPEC = {
-  '시그니처':      { glass:'5T 투명/반강화',               vendor:'아름유리' },
-  '투웨이':        { glass:'5T 백유리 투명/반강화',         vendor:'현성유리' },
-  '키친·에어힌지': { glass:'5T 투명/강화·비산방지필름',     vendor:'아름유리' },
-  '키친·미러':     { glass:'5T 브론즈/강화·비산방지필름',   vendor:'아름유리' },
-  'EURO700':       { glass:'인쇄유리(실크인쇄)',            vendor:'' },
-};
+  <!-- 오늘 작업 요약 -->
+  <div class="card">
+    <div class="card-ttl"><span>✏️ 오늘 작업</span><button onclick="showMain('stock');setTimeout(()=>showSub('worklog'),50)" style="font-size:10px;color:var(--acc);background:none;border:none;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0">작업입력</button></div>
+    <div id="home-work"></div>
+  </div>
+</div>
 
 
-// ═════════════════════════════════════════════════════════
-//  MODEL_BOM — 세트→인쇄유리 전개표 (Euro 700 Grace)
-//  출처: 유로_700_신제품_도어규격_유리규격_공부.xlsx (HD/OB 2시트, Qty 기반 자동추출)
-//  ────────────────────────────────────────────────────────
-//  • 키: "{TYPE} {MODEL}"  (색상 접두어 BRZ/ETP/WC/Veil 등 제외)
-//        조회는 bomOf(short) 사용 → 색상 접두어 자동 제거 후 룩업.
-//  • glass[]: 세트 1건당 인쇄유리 장수.  {w,h,qty}
-//        w,h = 인쇄실 유리 사이즈(유리가로×유리세로). 1mm도 별개.
-//        qty = 세트당 장수(배치수량 아님). batch÷set-base로 정규화.
-//  • hapjeok: 세트당 인쇄유리 2장 이상인 모델만 true.
-//        예) BD3U=소마이다2+대마이다1, BD2R=같은유리2장, TND=상/하 2장.
-//  • note: 엑셀 비고의 합적 구조 텍스트(조립실 라벨/검증용, 표시 전용).
-//  ────────────────────────────────────────────────────────
-//  ⚠ 인쇄유리만 포함. 비유리 부재는 제외(=포장부자재, 다음 층):
-//     · 목대(="N목대 합적" 모델의 소마이다, 예 555×80/555×57)
-//     · (멍)표기 가짜조각 · 케이싱 · 쫄대 · 휠라 · 가림판넬 · 철물
-//     ※ 단, 제품명의 '멍문/멍도어'(BAD 등)와 'TRO 마이다'(얇은 띠유리)는 정상 인쇄유리로 포함.
-//     예) HD BLD2R 6062 = 595×377 1장 (555×80 목대 2개 제외)
-//         OB BAD 6091 = 595×583 1장 (멍도어=정상 인쇄도어)
-// ═════════════════════════════════════════════════════════
-const MODEL_BOM = {
-  "HD B 2091 L": { glass:[{w:195,h:761,qty:1}] },
-  "HD B 2091 R": { glass:[{w:195,h:761,qty:1}] },
-  "HD B 2591 L": { glass:[{w:245,h:761,qty:1}] },
-  "HD B 2591 R": { glass:[{w:245,h:761,qty:1}] },
-  "HD B 3091 L": { glass:[{w:295,h:761,qty:1}] },
-  "HD B 3091 R": { glass:[{w:295,h:761,qty:1}] },
-  "HD B 3591 L": { glass:[{w:345,h:761,qty:1}] },
-  "HD B 3591 R": { glass:[{w:345,h:761,qty:1}] },
-  "HD B 4091 L": { glass:[{w:395,h:761,qty:1}] },
-  "HD B 4091 R": { glass:[{w:395,h:761,qty:1}] },
-  "HD B 4591 L": { glass:[{w:445,h:761,qty:1}] },
-  "HD B 4591 R": { glass:[{w:445,h:761,qty:1}] },
-  "HD B 5091 L": { glass:[{w:495,h:761,qty:1}] },
-  "HD B 5091 R": { glass:[{w:495,h:761,qty:1}] },
-  "HD B 5591 L": { glass:[{w:545,h:761,qty:1}] },
-  "HD B 5591 R": { glass:[{w:545,h:761,qty:1}] },
-  "HD B 6091 L": { glass:[{w:595,h:761,qty:1}] },
-  "HD B 6091 R": { glass:[{w:595,h:761,qty:1}] },
-  "HD B 비규격": { glass:[{w:595,h:761,qty:1}] },
-  "HD BADMIL 6091": { glass:[{w:595,h:761,qty:1}] },
-  "HD BC1A 4291 L": { glass:[{w:422,h:761,qty:1}] },
-  "HD BC1A 비규격": { glass:[{w:572,h:761,qty:1}] },
-  "HD BC1B 4091 R": { glass:[{w:402,h:761,qty:1}] },
-  "HD BC1B 비규격": { glass:[{w:552,h:761,qty:1}] },
-  "HD BD2R 12091 M": { glass:[{w:1195,h:377,qty:2}], hapjeok:true, note:"2도어 합적/ 보링위치다름(상하 확인)" },
-  "HD BD2R 6091 M": { glass:[{w:595,h:377,qty:2}], hapjeok:true, note:"2도어 합적/ 보링위치다름(상하 확인)" },
-  "HD BD2R 9091 M": { glass:[{w:895,h:377,qty:2}], hapjeok:true, note:"2도어 합적/ 보링위치다름(상하 확인)" },
-  "HD BD2R 비규격": { glass:[{w:1195,h:377,qty:2}], hapjeok:true },
-  "HD BD3U 4591 M": { glass:[{w:445,h:185,qty:2}, {w:445,h:377,qty:1}], hapjeok:true, note:"대마이다1/소마이다2 합적 보링위치(상하)확인" },
-  "HD BD3U 6091 M": { glass:[{w:595,h:185,qty:2}, {w:595,h:377,qty:1}], hapjeok:true, note:"대마이다1/소마이다2 합적 보링위치(상하)확인" },
-  "HD BD3U 비규격": { glass:[{w:595,h:185,qty:2}, {w:595,h:377,qty:1}], hapjeok:true },
-  "HD BDI1R 4591 M": { glass:[{w:445,h:761,qty:1}] },
-  "HD BHBU 비규격": { glass:[{w:595,h:851,qty:1}] },
-  "HD BLD2R 6062 M": { glass:[{w:595,h:377,qty:1}], note:"1마이다 2목대 합적" },
-  "HD BNDB2N 2091 M": { glass:[{w:195,h:761,qty:1}] },
-  "HD BNDC2N 3091 M": { glass:[{w:295,h:761,qty:1}] },
-  "HD BTAO1U 6014 M": { glass:[{w:595,h:139,qty:1}], note:"케이싱마이다/M4*24 피스 합적 보링위치 (상하) 확인" },
-  "HD BUIF 3034": { glass:[{w:295,h:345,qty:1}] },
-  "HD TCP1D 40222 R": { glass:[{w:402,h:1347,qty:1}] },
-  "HD TCP1D 40235 R": { glass:[{w:402,h:1475,qty:1}] },
-  "HD TCP1D 42222 L": { glass:[{w:422,h:1347,qty:1}] },
-  "HD TCP1D 42235 L": { glass:[{w:422,h:1475,qty:1}] },
-  "HD TH 45220 L": { glass:[{w:445,h:1347,qty:1}] },
-  "HD TH 45233 L": { glass:[{w:445,h:1475,qty:1}] },
-  "HD TH 45233 R": { glass:[{w:445,h:1475,qty:1}] },
-  "HD TND2 30149 M": { glass:[{w:295,h:606,qty:1}, {w:295,h:761,qty:1}], hapjeok:true, note:"2마이다 합적/ 2마이다 사전 펀치 확인" },
-  "OB BAD 6091": { glass:[{w:595,h:583,qty:1}] },
-  "OB BAD 비규격": { glass:[{w:595,h:729,qty:1}] },
-  "OB BADMIL 6091": { glass:[{w:595,h:729,qty:1}] },
-  "OB BC1A 4291 M": { glass:[{w:422,h:729,qty:1}] },
-  "OB BC1A 비규격": { glass:[{w:572,h:729,qty:1}] },
-  "OB BC1B 4091 M": { glass:[{w:402,h:729,qty:1}] },
-  "OB BC1B 비규격": { glass:[{w:552,h:729,qty:1}] },
-  "OB BD2R 12091 M": { glass:[{w:1195,h:347,qty:2}], hapjeok:true, note:"마이다/ 2도어 합적 상/하 보링위치다름" },
-  "OB BD2R 6091 M": { glass:[{w:595,h:347,qty:2}], hapjeok:true, note:"마이다/ 2도어 합적 상/하 보링위치다름" },
-  "OB BD2R 9091 M": { glass:[{w:895,h:347,qty:2}], hapjeok:true, note:"마이다/ 2도어 합적 상/하 보링위치다름" },
-  "OB BD2R 비규격": { glass:[{w:1195,h:347,qty:2}], hapjeok:true },
-  "OB BD3U 4591 M": { glass:[{w:445,h:170,qty:2}, {w:445,h:347,qty:1}], hapjeok:true, note:"케이싱마이다 대마이다1/소마이다2 합적" },
-  "OB BD3U 6091 M": { glass:[{w:595,h:170,qty:2}, {w:595,h:347,qty:1}], hapjeok:true, note:"케이싱마이다 대마이다1/소마이다2 합적" },
-  "OB BD3U 비규격": { glass:[{w:595,h:170,qty:2}, {w:595,h:347,qty:1}], hapjeok:true },
-  "OB BDI1R 4591 M": { glass:[{w:445,h:729,qty:1}] },
-  "OB BHBU 비규격": { glass:[{w:595,h:819,qty:1}] },
-  "OB BLD1R 4591 M": { glass:[{w:445,h:247,qty:1}], note:"1마이다 1목대 합적" },
-  "OB BLD1R 6091 M": { glass:[{w:595,h:247,qty:1}], note:"1마이다 1목대 합적" },
-  "OB BLD1UA 4591 M": { glass:[{w:445,h:247,qty:1}], note:"1케이싱마이다 1목대 합적" },
-  "OB BLD1UA 6091 M": { glass:[{w:595,h:247,qty:1}], note:"1케이싱마이다 1목대 합적" },
-  "OB BLD2R 6062 M": { glass:[{w:595,h:347,qty:1}], note:"1마이다 2목대 합적" },
-  "OB BNDB2N 2091 M": { glass:[{w:195,h:729,qty:1}] },
-  "OB BNDC2N 3091 M": { glass:[{w:295,h:729,qty:1}] },
-  "OB BRO1R 6091 M": { glass:[{w:595,h:247,qty:1}] },
-  "OB BTAO1U 6014 M": { glass:[{w:595,h:139,qty:1}] },
-  "OB BTARG 6070 L": { glass:[{w:592,h:693,qty:1}] },
-  "OB BTARG 6070 R": { glass:[{w:592,h:693,qty:1}] },
-  "OB BUIF 3034": { glass:[{w:295,h:345,qty:1}] },
-  "OB M 2073(공용) M": { glass:[{w:195,h:729,qty:1}] },
-  "OB M 2086 M": { glass:[{w:195,h:857,qty:1}] },
-  "OB M 2573(공용) M": { glass:[{w:245,h:729,qty:1}] },
-  "OB M 2586 M": { glass:[{w:245,h:857,qty:1}] },
-  "OB M 3065 M": { glass:[{w:295,h:649,qty:1}] },
-  "OB M 3073(공용) M": { glass:[{w:295,h:729,qty:1}] },
-  "OB M 3086 M": { glass:[{w:295,h:857,qty:1}] },
-  "OB M 3565 M": { glass:[{w:345,h:649,qty:1}] },
-  "OB M 3573(공용) M": { glass:[{w:345,h:729,qty:1}] },
-  "OB M 3586 M": { glass:[{w:345,h:857,qty:1}] },
-  "OB M 4065 M": { glass:[{w:395,h:649,qty:1}] },
-  "OB M 4073(공용) M": { glass:[{w:395,h:729,qty:1}] },
-  "OB M 4086 M": { glass:[{w:395,h:857,qty:1}] },
-  "OB M 4565 M": { glass:[{w:445,h:649,qty:1}] },
-  "OB M 4573(공용) M": { glass:[{w:445,h:729,qty:1}] },
-  "OB M 4586 M": { glass:[{w:445,h:857,qty:1}] },
-  "OB M 5065 M": { glass:[{w:495,h:649,qty:1}] },
-  "OB M 5073(공용) M": { glass:[{w:495,h:729,qty:1}] },
-  "OB M 5086 M": { glass:[{w:495,h:857,qty:1}] },
-  "OB M 5573(공용) M": { glass:[{w:545,h:729,qty:1}] },
-  "OB M 5586 M": { glass:[{w:545,h:857,qty:1}] },
-  "OB M 6052 M": { glass:[{w:595,h:513,qty:1}] },
-  "OB M 6073(공용) M": { glass:[{w:595,h:729,qty:1}] },
-  "OB M 6086 M": { glass:[{w:595,h:857,qty:1}] },
-  "OB M 비규격": { glass:[{w:595,h:729,qty:1}] },
-  "OB TND2 30149 M": { glass:[{w:295,h:606,qty:1}, {w:295,h:729,qty:1}], hapjeok:true },
-  "OB TRO 453 M": { glass:[{w:445,h:27,qty:1}] },
-  "OB TRO 603 M": { glass:[{w:595,h:27,qty:1}] },
-  "OB TRO 605 M": { glass:[{w:595,h:43,qty:1}] },
-  "OB W2HBT 비규격": { glass:[{w:445,h:927,qty:2}], hapjeok:true },
-  "OB W2U 4042 M": { glass:[{w:395,h:417,qty:1}] },
-  "OB W2U 4542 M": { glass:[{w:445,h:417,qty:1}] },
-  "OB W2U 비규격": { glass:[{w:495,h:417,qty:1}] },
-  "OB WF 10037 M": { glass:[{w:995,h:371,qty:1}], note:"피스합적,후면사전펀치" },
-  "OB WF 6030 M": { glass:[{w:595,h:304,qty:1}], note:"피스합적,사전펀치" },
-  "OB WF 6043 M": { glass:[{w:595,h:432,qty:1}], note:"피스합적,사전펀치" },
-  "OB WF 8037 M": { glass:[{w:795,h:371,qty:1}], note:"피스합적,사전펀치" },
-  "OB WF 8044 M": { glass:[{w:795,h:435,qty:1}], note:"피스합적,사전펀치" },
-  "OB WF 9033 M": { glass:[{w:895,h:331,qty:1}], note:"피스합적,사전펀치" },
-  "OB WF 9037 M": { glass:[{w:895,h:371,qty:1}], note:"피스합적,사전펀치" },
-  "OB WF 9044 M": { glass:[{w:895,h:435,qty:1}], note:"피스합적,사전펀치" },
-  "OB WF 비규격": { glass:[{w:1195,h:427,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFED 10053 M": { glass:[{w:995,h:531,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFED 6053 M": { glass:[{w:595,h:531,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFED 7053 M": { glass:[{w:695,h:531,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFED 8053 M": { glass:[{w:795,h:531,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFED 9053 M": { glass:[{w:895,h:531,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFED 비규격": { glass:[{w:995,h:531,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFUP 10032 M": { glass:[{w:995,h:315,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFUP 10036 M": { glass:[{w:995,h:355,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFUP 8032 M": { glass:[{w:795,h:315,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFUP 8036 M": { glass:[{w:795,h:355,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFUP 9032 M": { glass:[{w:895,h:315,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFUP 9036 M": { glass:[{w:895,h:355,qty:1}], note:"피스합적,사전펀치" },
-  "OB WFUP 비규격": { glass:[{w:1195,h:411,qty:1}], note:"피스합적,사전펀치" },
-  "OB WHBT 비규격": { glass:[{w:445,h:731,qty:1}], note:"피스합적,사전펀치" },
-  "OB WHFM 6027 M": { glass:[{w:595,h:271,qty:1}], note:"피스합적,사전펀치" },
-  "OB WHFM 9027 M": { glass:[{w:895,h:271,qty:1}], note:"피스합적,사전펀치" },
-  "OB WHM 6061 M": { glass:[{w:595,h:605,qty:1}], note:"피스합적,사전펀치" },
-  "OB WHM 비규격": { glass:[{w:895,h:605,qty:1}], note:"피스합적,사전펀치" },
-  "OB WHMH 6065 M": { glass:[{w:595,h:651,qty:1}], note:"피스합적,사전펀치 다름" },
-  "OB WHMH 6073 M": { glass:[{w:595,h:731,qty:1}], note:"피스합적,사전펀치 다름" },
-  "OB WHMH 비규격": { glass:[{w:595,h:739,qty:1}] },
-  "OB WHMHBT 비규격": { glass:[{w:595,h:927,qty:1}] },
-  "OB WLDL 6051 M": { glass:[{w:595,h:507,qty:1}] },
-  "OB WLDL 9051 M": { glass:[{w:895,h:507,qty:1}] },
-  "OB WMLDT 3073 M": { glass:[{w:295,h:729,qty:1}] },
-  "OB WMLDT 3086 M": { glass:[{w:295,h:857,qty:1}] },
-  "OB WMLDT 4573 M": { glass:[{w:445,h:729,qty:1}] },
-  "OB WMLDT 4586 M": { glass:[{w:445,h:857,qty:1}] },
-  "OB WMLDT 6073 M": { glass:[{w:595,h:729,qty:1}] },
-  "OB WMLDT 6083 M": { glass:[{w:595,h:827,qty:1}] },
-  "OB WMLDT 6086 M": { glass:[{w:595,h:857,qty:1}] },
-  "OB WMLDT 6096 M": { glass:[{w:595,h:955,qty:1}] },
-  "OB WMLDT 비규격": { glass:[{w:595,h:1000,qty:1}] },
-  "OB WRMB 10033 M": { glass:[{w:995,h:326,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 10045 M": { glass:[{w:995,h:454,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 4735 M": { glass:[{w:465,h:351,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 4748 M": { glass:[{w:465,h:479,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 6135 M": { glass:[{w:605,h:351,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 6148 M": { glass:[{w:605,h:479,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 7135 M": { glass:[{w:710,h:351,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 7148 M": { glass:[{w:710,h:479,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 8033 M": { glass:[{w:795,h:326,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 8045 M": { glass:[{w:795,h:454,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 9335 M": { glass:[{w:925,h:351,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 9348 M": { glass:[{w:925,h:479,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 9533 M": { glass:[{w:945,h:326,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 9545 M": { glass:[{w:945,h:454,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMB 비규격": { glass:[{w:995,h:499,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMBS 10035 M": { glass:[{w:995,h:351,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMBS 10048 M": { glass:[{w:995,h:479,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMBS 8035 M": { glass:[{w:795,h:351,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMBS 8048 M": { glass:[{w:795,h:479,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMBS 9035 M": { glass:[{w:895,h:351,qty:1}], note:"피스합적,사전펀치" },
-  "OB WRMBS 9048 M": { glass:[{w:895,h:479,qty:1}], note:"피스합적,사전펀치" },
-  "OB WT 30134 M": { glass:[{w:295,h:1342,qty:1}] },
-  "OB WT 30147 M": { glass:[{w:295,h:1470,qty:1}] },
-  "OB WT 40134 M": { glass:[{w:395,h:1342,qty:1}] },
-  "OB WT 40147 M": { glass:[{w:395,h:1470,qty:1}] },
-  "OB WT 45134 M": { glass:[{w:445,h:1342,qty:1}] },
-  "OB WT 45147 M": { glass:[{w:445,h:1470,qty:1}] },
-  "OB WT 60134 M": { glass:[{w:595,h:1342,qty:1}] },
-  "OB WT 60147 M": { glass:[{w:595,h:1470,qty:1}] },
-  "OB WT 비규격": { glass:[{w:595,h:1515,qty:1}] },
-  "OB WTA 45134 L": { glass:[{w:445,h:1342,qty:1}] },
-  "OB WTA 45134 R": { glass:[{w:445,h:1342,qty:1}] },
-  "OB WTA 45147 L": { glass:[{w:445,h:1470,qty:1}] },
-  "OB WTA 45147 R": { glass:[{w:445,h:1470,qty:1}] },
-  "OB WTA 60134 L": { glass:[{w:595,h:1342,qty:1}] },
-  "OB WTA 60134 R": { glass:[{w:595,h:1342,qty:1}] },
-  "OB WTA 60147 L": { glass:[{w:595,h:1470,qty:1}] },
-  "OB WTA 60147 R": { glass:[{w:595,h:1470,qty:1}] },
-  "OB WTA 비규격": { glass:[{w:595,h:1515,qty:1}] },
-  "OB WTAP 비규격": { glass:[{w:595,h:1515,qty:1}] },
-  "OB WTARG 60141 L": { glass:[{w:592,h:1410,qty:1}] },
-  "OB WTARG 60141 R": { glass:[{w:592,h:1410,qty:1}] },
-  "OB WTARG 60154 L": { glass:[{w:592,h:1538,qty:1}] },
-  "OB WTARG 60154 R": { glass:[{w:592,h:1538,qty:1}] }
-};
+<!-- WORKLOG MAIN PAGE -->
+<div class="sec-pg" id="pg-worklog" style="padding:0 0 80px">
 
-// 색상/제품 접두어 제거 후 BOM 조회. (인쇄유리는 색상 무관 = 사이즈 동일)
-// 예) "BRZ HD BD3U 6091 M" → "HD BD3U 6091 M" → MODEL_BOM 룩업
-function bomOf(shortName){
-  if(!shortName) return null;
-  let s = String(shortName).trim();
-  const PFX = /^(BRZ|VEIL\s*BRZ|VEIL\s*SHADE|ETP|WC|\(P\)[^ ]*)\s+/;
-  while(PFX.test(s)) s = s.replace(PFX, '');
-  return MODEL_BOM[s] || null;
+  <!-- 오늘 현황 헤더 -->
+  <div style="background:var(--acc3);padding:14px 18px;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font-size:11px;color:rgba(0,0,0,.5);font-weight:600;margin-bottom:2px">오늘 작업량</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:900;color:#fff" id="wl-today-total">0<span style="font-size:13px;margin-left:2px">장</span></div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;color:rgba(0,0,0,.4)" id="wl-today-date"></div>
+      <div style="font-size:11px;color:rgba(0,0,0,.5);margin-top:2px">
+        <span id="wl-today-wc">웜코튼 0</span> / <span id="wl-today-etp">에토프 0</span>
+      </div>
+      <div style="font-size:10px;color:rgba(220,38,38,.6);margin-top:2px" id="wl-today-defect"></div>
+    </div>
+  </div>
+
+  <!-- 인쇄실 / 조립실 탭 -->
+  <div style="display:flex;background:#fff;border-bottom:2px solid var(--b1)">
+    <button class="wl-room-btn on" id="wroom-print" onclick="setWlRoom('print',this)"
+      style="flex:1;padding:12px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;color:var(--tx3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px">
+      🖨️ 인쇄실
+    </button>
+    <button class="wl-room-btn" id="wroom-assembly" onclick="setWlRoom('assembly',this)"
+      style="flex:1;padding:12px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;color:var(--tx3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px">
+      🔧 조립실
+    </button>
+  </div>
+
+  <!-- 인쇄실 패널 -->
+  <div id="wl-panel-print" style="padding:12px 14px">
+
+    <!-- 납품서 추천 체크리스트 -->
+    <div class="card" id="wl-recommend-card">
+      <div class="card-ttl">
+        <span>📦 오늘 납품서 작업 목록</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="checkAllWork()" style="padding:3px 10px;background:var(--acc3);border:none;border-radius:12px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체선택</button>
+          <button onclick="uncheckAllWork()" style="padding:3px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:12px;color:var(--tx2);font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체해제</button>
+        </div>
+      </div>
+      <div id="wl-recommend-list"></div>
+      <!-- 선택 항목 작업 완료 버튼 -->
+      <div id="wl-checklist-actions" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--b1)">
+        <div style="font-size:11px;color:var(--tx2);margin-bottom:8px" id="wl-checked-summary"></div>
+        <div style="display:flex;gap:8px">
+          <button onclick="confirmCheckedWork()" style="flex:1;padding:12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">✅ 작업 완료</button>
+          <button onclick="postponeCheckedWork()" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📅 내일로 미루기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 미뤄진 작업 -->
+    <div class="card" id="wl-postponed-card" style="display:none">
+      <div class="card-ttl"><span>📅 미뤄진 작업</span></div>
+      <div id="wl-postponed-list"></div>
+    </div>
+
+    <!-- 직접 추가 버튼 -->
+    <button onclick="openWorkModal()" style="width:100%;padding:14px;background:var(--acc);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:18px">✏️</span> 직접 검색해서 추가
+    </button>
+
+    <!-- 오늘 작업 완료 목록 -->
+    <div class="card">
+      <div class="card-ttl">✅ 오늘 완료된 작업</div>
+      <div id="wl-today-list"></div>
+    </div>
+
+  </div>
+
+  <!-- 조립실 패널 -->
+  <div id="wl-panel-assembly" style="display:none;padding:12px 14px">
+    <div class="info-note" style="margin-bottom:12px">
+      🔧 조립실 불량 차감 및 작업 기록
+    </div>
+    <button onclick="openWorkModalAssembly()" style="width:100%;padding:14px;background:var(--acc4);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:18px">🚫</span> 조립실 불량 차감
+    </button>
+    <div class="card">
+      <div class="card-ttl">📋 오늘 조립실 기록</div>
+      <div id="wl-assembly-list"></div>
+    </div>
+  </div>
+
+  <!-- 이력 필터 -->
+  <div style="padding:0 14px;margin-bottom:8px">
+    <div class="filter-row" style="margin-bottom:0">
+      <button class="f-btn on" onclick="setWlMainFilter('all',this)">전체 이력</button>
+      <button class="f-btn" onclick="setWlMainFilter('today',this)">오늘</button>
+      <button class="f-btn" onclick="setWlMainFilter('week',this)">이번주</button>
+    </div>
+  </div>
+  <div style="padding:0 14px">
+    <div id="wl-main-list"></div>
+  </div>
+</div>
+
+<!-- DELIVERY -->
+<div class="sec-pg" id="pg-delivery">
+  <div class="info-note" style="margin-bottom:12px">
+    📦 납품서 PDF를 올리면 <b>공장 출고일(납품요청일 + 2영업일, 주말 제외)</b> 기준으로 정리됩니다.<br>
+    오늘 출고할 것만 보이고, 출고일이 지난 건은 자동으로 접혀요. 발주 이력은 계속 누적됩니다.
+  </div>
+  <input type="file" id="deliv-pdf-input" accept="application/pdf" multiple style="display:none" onchange="handleDelivPdf(event)">
+  <button onclick="document.getElementById('deliv-pdf-input').click()" style="width:100%;padding:13px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">
+    📄 납품서 PDF 올리기 (여러 장 가능)
+  </button>
+  <div id="deliv-upload-status" style="font-size:11px;color:var(--tx2);margin-bottom:8px;min-height:14px"></div>
+  <button onclick="clearDelivLog()" style="width:100%;padding:9px;background:none;border:1px solid var(--b2);border-radius:8px;color:#f85149;font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">
+    🗑 납품서 자료 전체 초기화
+  </button>
+  <button onclick="openDelivDateDelete()" style="width:100%;padding:9px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--acc2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">
+    📅 업로드 날짜별 골라서 삭제
+  </button>
+  <div id="deliv-datedel-modal"></div>
+
+  <input id="deliv-search" type="text" oninput="delivSearchKey=this.value.trim();renderDelivery()" placeholder="🔍 납품번호 · 참조문서번호 · 오더번호 · 제품 검색" style="width:100%;box-sizing:border-box;padding:10px;font-size:12px;border:1px solid var(--b2);border-radius:8px;background:var(--s2);color:var(--tx1);margin-bottom:12px;font-family:'Noto Sans KR',sans-serif">
+
+  <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,var(--s2),var(--s1))">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:800">📋 일일 작업 브리핑</span>
+      <input type="date" id="brief-date" onchange="onBriefDateChange()" style="margin-left:auto;padding:5px 8px;font-size:12px;border:1px solid var(--b2);border-radius:7px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif">
+    </div>
+    <div class="filter-row" id="brief-mode-toggle" style="margin-bottom:8px">
+      <button class="f-btn on" data-bmode="order" onclick="setBriefMode('order',this)">🧾 발주일 기준</button>
+      <button class="f-btn" data-bmode="req" onclick="setBriefMode('req',this)">📅 납품요청일 기준</button>
+    </div>
+    <div id="brief-host"><div style="font-size:11px;color:var(--tx3)">기준과 날짜를 선택하면 그날 나가야 할 작업량이 정리됩니다.</div></div>
+  </div>
+
+  <!-- 완제품 재고 보유 알림 (오늘+예정 납품서 대조) -->
+  <div id="deliv-stock-alert"></div>
+
+  <!-- 오늘/예정 출고 -->
+  <div id="deliv-active"></div>
+
+  <!-- 지난(밀린·완료) 출고 접이식 -->
+  <div id="deliv-archive"></div>
+</div>
+
+
+<!-- STOCK -->
+<div class="sec-pg" id="pg-stock">
+  <nav class="sub-nav">
+    <button class="sub-nav-btn on" onclick="showSub('stocklist')"><span class="ico">📦</span>인쇄실</button>
+    <!-- 완제품 탭 제거: 완제품은 조립실에서 관리(일원화). renderFinished/finApply 함수는 보존(홈 알림 등에서 참조). -->
+    <button class="sub-nav-btn" onclick="showSub('assembly')"><span class="ico">🔧</span>조립실</button>
+    <button class="sub-nav-btn" onclick="showSub('activity')"><span class="ico">🕓</span>변경이력</button>
+    <button class="sub-nav-btn" onclick="showSub('dashboard')"><span class="ico">📊</span>현황</button>
+    <button class="sub-nav-btn" onclick="showSub('trend')"><span class="ico">📈</span>추이</button>
+    <button class="sub-nav-btn" onclick="showSub('spec')"><span class="ico">📐</span>규격</button>
+    <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
+    <button class="sub-nav-btn" onclick="showSub('nonspec')"><span class="ico">🔲</span>비규격</button>
+    <button class="sub-nav-btn" onclick="showSub('mat')"><span class="ico">📒</span>원장재고</button>
+  </nav>
+  <!-- 대시보드 -->
+  <div id="sp-dashboard" class="sub-pg" style="padding:14px 14px 80px">
+    <div class="card"><div class="card-ttl">⚡ 긴급 부족 모델</div><div id="d-urgent"></div></div>
+    <div class="g2">
+      <div class="stat"><div class="stat-l">오늘 작업량</div><div class="stat-v" id="d-tw" style="color:var(--acc3)">0</div><div class="stat-s">장</div></div>
+      <div class="stat"><div class="stat-l">인쇄실 원유리</div><div class="stat-v" id="d-raw" style="color:var(--acc)">0</div><div class="stat-s">장</div></div>
+      <div class="stat"><div class="stat-l">웜코튼 잉크</div><div class="stat-v" id="d-ink-wc" style="color:var(--wc)">-</div><div class="stat-s">통</div></div>
+      <div class="stat"><div class="stat-l">에토프 잉크</div><div class="stat-v" id="d-ink-etp" style="color:var(--etp)">-</div><div class="stat-s">통</div></div>
+    </div>
+    <div class="card"><div class="card-ttl">📋 오늘 작업</div><div id="d-work"></div></div>
+    <div class="card"><div class="card-ttl">🔥 고빈도 TOP 10</div><div id="d-top10"></div></div>
+  </div>
+  <!-- 잉크 -->
+  <div id="sp-ink" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="info-note">💡 작업일지 기반 잉크 소모 추정. 기본 1.5KG/일 (2일 1통).</div>
+    <div class="ink-card wc">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:14px;font-weight:700;color:var(--wc)">🪣 웜코튼 잉크</span>
+        <button onclick="openInkModal('WC')" style="padding:5px 12px;background:rgba(121,192,255,.15);border:1px solid rgba(121,192,255,.3);border-radius:16px;color:var(--wc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">+ 입고</button>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:4px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--wc)" id="ink-wc-stock">0</div>
+        <div style="font-size:13px;color:var(--tx2);margin-bottom:4px">통</div>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px" id="ink-wc-kg">≈ 0KG</div>
+      </div>
+      <div class="ink-gauge"><div class="ink-bar wc" id="ink-wc-bar" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx3);margin-bottom:12px"><span>예상 소진까지</span><span id="ink-wc-days">-</span></div>
+      <div class="divider"></div>
+      <div style="font-size:10px;color:var(--tx2);margin:8px 0 6px;font-weight:600">이력</div>
+      <div id="ink-wc-log"></div>
+    </div>
+    <div class="ink-card etp">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:14px;font-weight:700;color:var(--etp)">🪣 에토프 잉크</span>
+        <button onclick="openInkModal('ETP')" style="padding:5px 12px;background:rgba(255,166,87,.15);border:1px solid rgba(255,166,87,.3);border-radius:16px;color:var(--etp);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">+ 입고</button>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:4px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--etp)" id="ink-etp-stock">0</div>
+        <div style="font-size:13px;color:var(--tx2);margin-bottom:4px">통</div>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px" id="ink-etp-kg">≈ 0KG</div>
+      </div>
+      <div class="ink-gauge"><div class="ink-bar etp" id="ink-etp-bar" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx3);margin-bottom:12px"><span>예상 소진까지</span><span id="ink-etp-days">-</span></div>
+      <div class="divider"></div>
+      <div style="font-size:10px;color:var(--tx2);margin:8px 0 6px;font-weight:600">이력</div>
+      <div id="ink-etp-log"></div>
+    </div>
+    <div class="card">
+      <div class="card-ttl">⚙️ 소모 기준 설정</div>
+      <div class="f-row">
+        <div><span class="lbl" style="color:var(--wc)">웜코튼 KG/일</span><input type="number" id="ink-rate-wc" step="0.1" min="0.1" max="5" value="1.5" class="inp" style="margin-bottom:0" onchange="saveInkRates()"></div>
+        <div><span class="lbl" style="color:var(--etp)">에토프 KG/일</span><input type="number" id="ink-rate-etp" step="0.1" min="0.1" max="5" value="1.5" class="inp" style="margin-bottom:0" onchange="saveInkRates()"></div>
+      </div>
+    </div>
+  </div>
+  <!-- 재고 목록 (사이즈 기준) -->
+  <div id="sp-stocklist" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <input class="inp" id="stock-search" placeholder="🔍 모델명 / 사이즈 (예: 6073, 595729, 595*729)..." oninput="renderStockList()">
+    <div class="filter-row">
+      <button class="f-btn on" onclick="setStockFilter('all',this)">전체</button>
+      <button class="f-btn" onclick="setStockFilter('has',this)">📦 재고있음</button>
+      <button class="f-btn" onclick="setStockFilter('urgent',this)">🔴 부족</button>
+      <button class="f-btn" onclick="setStockFilter('WC',this)">웜코튼</button>
+      <button class="f-btn" onclick="setStockFilter('ETP',this)">에토프</button>
+      <button class="f-btn" onclick="setStockFilter('HD',this)">HD</button>
+      <button class="f-btn" onclick="setStockFilter('OB',this)">OB</button>
+      <button class="f-btn" onclick="setStockFilter('high',this)">고빈도</button>
+    </div>
+    <div id="stock-period-note" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--tx2);background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:8px 11px;margin:2px 0 12px">
+      <span style="font-weight:700;color:var(--tx1)">📊 월평균 집계 기준</span>
+      <span id="stock-period-range" style="color:var(--tx3)">계산 중…</span>
+      <span style="margin-left:auto;color:var(--tx3)">🟢 최근 6개월=납품서 실데이터 · 회색=과거 분석 폴백</span>
+    </div>
+    <div id="stock-list"></div>
+    <!-- 비규격 섹션 (사이즈 매핑 안 된 모델들) -->
+    <div id="stock-misc-section" style="margin-top:20px"></div>
+  </div>
+  <!-- 완제품 재고 (조립+포장 완료, 출고 전) -->
+  <div id="sp-finished" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="info-note" style="margin-bottom:12px;font-size:10.5px">
+      🚪 <b>완제품</b>은 조립·포장까지 끝났지만 아직 출고 안 나간 도어 재고예요. <b>모델 + 색상</b> 단위로 셉니다.<br>
+      (유리 재고와는 별도로 직접 관리 — 입고/실측/출고로 수량을 조정하세요)
+    </div>
+    <button onclick="openFinAdd()" style="width:100%;padding:13px;background:var(--acc5);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">＋ 완제품 추가 / 입고</button>
+    <input class="inp" id="fin-search" placeholder="🔍 모델 / 색상 검색..." oninput="renderFinished()" style="margin-bottom:8px">
+    <div class="filter-row">
+      <button class="f-btn on" id="finf-all" onclick="setFinFilter('all',this)">전체</button>
+      <button class="f-btn" id="finf-has" onclick="setFinFilter('has',this)">📦 재고있음</button>
+      <button class="f-btn" id="finf-hd" onclick="setFinFilter('HD',this)">HD</button>
+      <button class="f-btn" id="finf-ob" onclick="setFinFilter('OB',this)">OB</button>
+    </div>
+    <div id="fin-total" style="font-size:11px;color:var(--tx2);text-align:right;margin-bottom:8px"></div>
+    <div id="fin-list"></div>
+  </div>
+  <!-- 변경이력 (활동 피드) -->
+  <div id="sp-activity" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <input class="inp" id="act-search" placeholder="🔍 사이즈 / 메모 검색..." oninput="renderActivityFeed()" style="margin-bottom:8px">
+    <div class="filter-row" id="act-type-filter">
+      <button class="f-btn on" onclick="setActFilter('type','all',this)">전체</button>
+      <button class="f-btn" onclick="setActFilter('type','count',this)">🔢 실측</button>
+      <button class="f-btn" onclick="setActFilter('type','in',this)">📦 입고</button>
+      <button class="f-btn" onclick="setActFilter('type','print',this)">🖨 인쇄</button>
+      <button class="f-btn" onclick="setActFilter('type','out',this)">📤 출고</button>
+      <button class="f-btn" onclick="setActFilter('type','defect',this)">🚫 불량</button>
+      <button class="f-btn" onclick="setActFilter('type','adjust',this)">⚙️ 조정</button>
+    </div>
+    <div class="filter-row" id="act-actor-filter" style="margin-top:6px"></div>
+    <div id="activity-feed"></div>
+  </div>
+  <!-- 추이 -->
+  <div id="sp-trend" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <input class="inp" id="trend-search" placeholder="🔍 모델명 검색..." oninput="renderTrend()">
+    <div class="filter-row">
+      <button class="f-btn on" onclick="setTrendFilter('all',this)">전체</button>
+      <button class="f-btn" onclick="setTrendFilter('high',this)">고빈도</button>
+      <button class="f-btn" onclick="setTrendFilter('mid',this)">중빈도</button>
+      <button class="f-btn" onclick="setTrendFilter('none',this)">아예없음</button>
+      <button class="f-btn" onclick="setTrendFilter('WC',this)">웜코튼</button>
+      <button class="f-btn" onclick="setTrendFilter('ETP',this)">에토프</button>
+    </div>
+    <div class="filter-row" id="trend-cat-row" style="margin-top:6px;flex-wrap:wrap">
+      <button class="f-btn on" onclick="setTrendCat('all',this)">전체분류</button>
+      <button class="f-btn" onclick="setTrendCat('글래스도어',this)">시그니처</button>
+      <button class="f-btn" onclick="setTrendCat('EURO700',this)">EURO700</button>
+      <button class="f-btn" onclick="setTrendCat('EURO500',this)">EURO500</button>
+      <button class="f-btn" onclick="setTrendCat('빌트인',this)">빌트인</button>
+      <button class="f-btn" onclick="setTrendCat('유리장식장',this)">유리장식장</button>
+      <button class="f-btn" onclick="setTrendCat('에어힌지',this)">에어힌지</button>
+      <button class="f-btn" onclick="setTrendCat('KB',this)">KB</button>
+    </div>
+    <div id="trend-range" class="trend-range"></div>
+    <div id="trend-list"></div>
+  </div>
+  <!-- 재고 편집 -->
+  <!-- 조립실 재고 (인쇄 안 하는 제품: 시그니처/투웨이/키친) -->
+  <div id="sp-assembly" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="info-note">🔧 <b>유리</b>(일반/인쇄)와 <b>완제품</b> 재고를 관리합니다. 흐름: 인쇄실 원유리→인쇄→조립실 인쇄유리 / 일반유리 입고 → 조립 → 납품. 납품서 PDF를 올리면 작업할 수량이 자동으로 뜹니다.</div>
+    <input class="inp" id="asm-search" placeholder="🔍 제품명 / 사이즈 / 코드 / 색상 (예: 시그니처, 6073, 웜코튼)..." oninput="renderAssembly()">
+    <!-- 대분류: 유리 / 완제품 -->
+    <div class="filter-row" id="asm-maincat-row" style="margin-bottom:6px">
+      <button class="f-btn on" onclick="setAsmMainCat('glass',this)">📦 유리</button>
+      <button class="f-btn" onclick="setAsmMainCat('done',this)">🚪 완제품</button>
+    </div>
+    <!-- 유리 소분류: 일반/인쇄 (대분류=유리일 때만) -->
+    <div class="filter-row" id="asm-glasssub-row" style="margin-bottom:6px">
+      <button class="f-btn on" onclick="setAsmGlassSub('all',this)">전체유리</button>
+      <button class="f-btn" onclick="setAsmGlassSub('plain',this)">일반유리</button>
+      <button class="f-btn" onclick="setAsmGlassSub('printed',this)">인쇄유리</button>
+    </div>
+    <!-- 창고(제품군) -->
+    <div class="filter-row" id="asm-wh-row" style="flex-wrap:wrap">
+      <button class="f-btn on" onclick="setAsmWarehouse('전체',this)">전체</button>
+      <button class="f-btn" onclick="setAsmWarehouse('EURO700',this)">EURO700</button>
+      <button class="f-btn" onclick="setAsmWarehouse('시그니처',this)">시그니처</button>
+      <button class="f-btn" onclick="setAsmWarehouse('투웨이',this)">투웨이</button>
+      <button class="f-btn" onclick="setAsmWarehouse('키친·에어힌지',this)">키친·에어힌지</button>
+      <button class="f-btn" onclick="setAsmWarehouse('키친·미러',this)">키친·미러</button>
+    </div>
+    <div id="asm-list"></div>
+  </div>
+  <!-- 제품규격 (한샘 AL 발주 규격 마스터) -->
+  <div id="sp-spec" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="info-note">📐 한샘 AL 발주 규격표. <b>프레임 W×H</b>와 <b>유리 W×H</b>를 함께 봅니다. 납품서(발주) 빈도가 자동 연결됩니다.</div>
+    <input class="inp" id="spec-search" placeholder="🔍 제품군 / 모델명 / 사이즈 (예: 시그니처, 595, 441×2165)..." oninput="renderSpec()">
+    <div class="filter-row" id="spec-cat-row" style="flex-wrap:wrap">
+      <button class="f-btn on" onclick="setSpecCat('all',this)">전체</button>
+      <button class="f-btn" onclick="setSpecCat('EURO700',this)">EURO700</button>
+      <button class="f-btn" onclick="setSpecCat('SIG',this)">시그니처</button>
+      <button class="f-btn" onclick="setSpecCat('TWOWAY',this)">투웨이</button>
+      <button class="f-btn" onclick="setSpecCat('KB_AIR',this)">키친·에어힌지</button>
+      <button class="f-btn" onclick="setSpecCat('KB_MIR',this)">키친·미러</button>
+    </div>
+    <div id="spec-list"></div>
+  </div>
+  <!-- 비규격 -->
+  <div id="sp-nonspec" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="card"><div class="card-ttl">📐 비규격 사이즈 분석</div><div id="nonspec-list"></div></div>
+  </div>
+  <!-- 원장재고 (구 자재관리) -->
+  <div id="sp-mat" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <!-- 원장 재고 요약 -->
+    <div class="g3" id="sheet-summary" style="margin-top:0"></div>
+    <!-- 입고/출고 버튼 -->
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button onclick="openSheetModal('in','breeze')" style="flex:1;padding:12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">+ 입고</button>
+      <button onclick="openSheetModal('out','breeze')" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">- 출고</button>
+    </div>
+    <!-- 원판 소요량 계산 -->
+    <div class="card">
+      <div class="card-ttl">🧮 원판 소요량 계산</div>
+      <div style="font-size:11px;color:var(--tx2);margin-bottom:10px">원판 1장(1200×2400)에서 취득 가능한 수량</div>
+      <div id="sheet-yield-table"></div>
+    </div>
+    <!-- 입출고 이력 -->
+    <div class="card">
+      <div class="card-ttl">📋 원장 입출고 이력</div>
+      <div id="sheet-log-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- VENDORS (거래처 명부) -->
+<div class="sec-pg" id="pg-vendors">
+  <div class="info-note" style="margin-bottom:12px">
+    🏢 거래처의 사업자번호·대표자·주소·연락처·업태·종목을 모아둡니다.<br>
+    매입·매출에 새 거래처가 들어오면 여기에 자동으로 등록돼요. 상세정보는 직접 채우거나, 명세서 내용을 붙여넣어 한 번에 채울 수 있어요.
+  </div>
+
+  <div class="card">
+    <div class="card-ttl" id="vd-form-title">➕ 거래처 추가 / 수정</div>
+
+    <!-- 붙여넣기로 한 번에 입력 -->
+    <details style="margin-bottom:10px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);padding:8px 10px">
+      <summary style="font-size:12px;font-weight:700;color:var(--acc3);cursor:pointer;list-style:none">📋 명세서 내용 붙여넣기 (클로드가 정리해준 거래처 정보)</summary>
+      <div style="font-size:10px;color:var(--tx3);margin:6px 0">
+        "상호: …", "사업자번호: …", "대표자: …", "주소: …", "전화: …", "팩스: …", "업태: …", "종목: …" 형식으로 붙여넣고 불러오기를 누르세요.
+      </div>
+      <textarea id="vd-paste" rows="5" placeholder="상호: 아름지엠에스&#10;사업자번호: 132-81-49411&#10;대표자: 유지송&#10;주소: 경기도 포천시 화현면 …&#10;전화: 031-534-5408&#10;팩스: 031-534-5407&#10;업태: 제조&#10;종목: …" style="width:100%;box-sizing:border-box;padding:8px;font-size:12px;font-family:'JetBrains Mono',monospace;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);resize:vertical"></textarea>
+      <button onclick="vdParsePaste()" style="width:100%;margin-top:6px;padding:9px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📥 불러오기 (아래 칸에 채우기)</button>
+      <div id="vd-paste-status" style="font-size:11px;margin-top:6px"></div>
+    </details>
+
+    <span class="lbl">상호 (거래처명)</span>
+    <input id="vd-name" class="inp" placeholder="거래처명" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+
+    <div class="f-row">
+      <div><span class="lbl">사업자번호</span><input id="vd-bizno" class="inp" placeholder="000-00-00000" style="padding:9px 10px;font-size:13px;font-family:'JetBrains Mono',monospace"></div>
+      <div><span class="lbl">대표자</span><input id="vd-ceo" class="inp" placeholder="대표자명" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif"></div>
+    </div>
+
+    <span class="lbl">주소</span>
+    <input id="vd-addr" class="inp" placeholder="사업장 주소" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+
+    <div class="f-row">
+      <div><span class="lbl">전화</span><input id="vd-tel" class="inp" placeholder="전화번호" style="padding:9px 10px;font-size:13px;font-family:'JetBrains Mono',monospace"></div>
+      <div><span class="lbl">팩스</span><input id="vd-fax" class="inp" placeholder="팩스번호" style="padding:9px 10px;font-size:13px;font-family:'JetBrains Mono',monospace"></div>
+    </div>
+
+    <div class="f-row">
+      <div><span class="lbl">업태</span><input id="vd-biztype" class="inp" placeholder="예: 제조" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif"></div>
+      <div><span class="lbl">종목</span><input id="vd-bizitem" class="inp" placeholder="예: 유리,가구" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif"></div>
+    </div>
+
+    <input id="vd-memo" class="inp" placeholder="메모 (선택)" style="padding:9px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif;margin:8px 0 10px">
+
+    <button class="act-btn blue" id="vd-save-btn" onclick="vdSave()" style="background:var(--acc3)">💾 거래처 저장</button>
+    <div id="vd-edit-cancel" style="display:none;text-align:center;margin-top:6px"><button onclick="vdResetForm()" style="background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;text-decoration:underline">수정 취소</button></div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl" style="display:flex;align-items:center;justify-content:space-between">
+      <span>📋 거래처 목록 <span id="vd-count" style="font-weight:400;color:var(--tx3)"></span></span>
+      <button onclick="vdMakeExcel()" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--acc3);font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📊 엑셀 저장</button>
+    </div>
+    <input id="vd-search" class="inp" placeholder="🔍 거래처 검색" oninput="renderVendorList()" style="padding:8px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif;margin-bottom:8px">
+    <div id="vd-list"></div>
+  </div>
+</div>
+
+<!-- LEDGER (매입/매출) -->
+<div class="sec-pg" id="pg-ledger">
+  <div class="info-note" style="margin-bottom:12px">
+    💰 매입(사오는 것)·매출(파는 것)을 기록하고 월별·거래처별 합계를 봅니다.<br>
+    명세서 사진을 올리면 내용을 읽어 자동으로 채워주고, <b>확인·수정 후 저장</b>할 수 있어요.
+  </div>
+
+  <!-- 매입/매출 전환 -->
+  <div class="modal-tabs" style="margin-bottom:14px">
+    <button class="m-tab on" id="lg-tab-buy" onclick="setLedgerKind('buy')">📥 매입 (사오는 것)</button>
+    <button class="m-tab" id="lg-tab-sell" onclick="setLedgerKind('sell')">📤 매출 (파는 것)</button>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl" id="lg-form-title">📥 매입 입력</div>
+
+    <!-- 명세서 사진 -->
+    <span class="lbl">명세서 사진 (선택)</span>
+    <input type="file" id="lg-photo" accept="image/*" onchange="lgPhotoSelected(event)" style="display:none">
+    <button onclick="document.getElementById('lg-photo').click()" style="width:100%;padding:12px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:13px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">📷 명세서 사진 찍기 / 올리기</button>
+    <div id="lg-photo-preview" style="margin-bottom:8px"></div>
+    <div id="lg-read-status" style="font-size:11px;color:var(--tx2);margin-bottom:8px"></div>
+
+    <div class="f-row">
+      <div>
+        <span class="lbl">거래처</span>
+        <input id="lg-vendor" class="inp" placeholder="거래처명" list="lg-vendor-list" autocomplete="off" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <datalist id="lg-vendor-list"></datalist>
+      </div>
+      <div>
+        <span class="lbl">날짜</span>
+        <input type="date" id="lg-date" class="inp" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+      </div>
+    </div>
+
+    <!-- 붙여넣기로 한 번에 입력 -->
+    <details style="margin-top:8px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);padding:8px 10px">
+      <summary style="font-size:12px;font-weight:700;color:var(--acc3);cursor:pointer;list-style:none">📋 붙여넣기로 한 번에 입력 (클로드가 정리해준 내용)</summary>
+      <div style="font-size:10px;color:var(--tx3);margin:6px 0">
+        클로드 채팅에 명세서 사진을 보내고, 정리해준 내용을 그대로 복사해서 아래에 붙여넣고 "불러오기"를 누르세요.<br>
+        한 줄에 한 품목 · 쉼표(,)나 탭으로 구분 · 순서는 <b>품목, 단가, 수량, 금액</b>.<br>
+        "거래처: …", "날짜: …" 줄이 있으면 거래처·날짜도 같이 채워져요.
+      </div>
+      <textarea id="lg-paste" rows="5" placeholder="거래처: 아름지엠에스&#10;날짜: 2026-06-01&#10;5T 투명 505*2073, 43706, 20, 874111&#10;5T 브론즈 500*2476, 57104, 2, 114208" style="width:100%;box-sizing:border-box;padding:8px;font-size:12px;font-family:'JetBrains Mono',monospace;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);resize:vertical"></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button onclick="lgParsePaste(false)" style="flex:1;padding:9px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📥 불러오기 (기존에 추가)</button>
+        <button onclick="lgParsePaste(true)" style="flex:1;padding:9px;background:var(--s3);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">🔄 새로 채우기</button>
+      </div>
+      <div id="lg-paste-status" style="font-size:11px;margin-top:6px"></div>
+    </details>
+
+    <span class="lbl" style="margin-top:8px;display:block">품목 (명세서에 여러 줄이면 추가하세요)</span>
+    <div id="lg-items"></div>
+    <button onclick="lgAddItemRow()" style="width:100%;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:13px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin:4px 0 10px">➕ 품목 추가</button>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;margin-bottom:10px">
+      <span style="font-size:13px;font-weight:700">명세서 합계</span>
+      <span id="lg-grand" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:var(--acc3)">0원</span>
+    </div>
+
+    <input id="lg-memo" class="inp" placeholder="메모 (선택)" style="padding:9px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif;margin-bottom:10px">
+
+    <button class="act-btn blue" id="lg-save-btn" onclick="lgSave()" style="background:var(--acc3)">💾 기록 저장</button>
+    <div id="lg-edit-cancel" style="display:none;text-align:center;margin-top:6px"><button onclick="lgResetForm()" style="background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;text-decoration:underline">수정 취소</button></div>
+  </div>
+
+  <!-- 월별 집계 -->
+  <div class="card">
+    <div class="card-ttl">📊 월별 집계</div>
+    <div id="lg-monthly"></div>
+  </div>
+
+  <!-- 거래처별 집계 -->
+  <div class="card">
+    <div class="card-ttl">🏢 거래처별 집계 <span id="lg-bizkind" style="font-weight:400;color:var(--tx3)"></span></div>
+    <div id="lg-byvendor"></div>
+  </div>
+
+  <!-- 기록 리스트 -->
+  <div class="card">
+    <div class="card-ttl" style="display:flex;align-items:center;justify-content:space-between">
+      <span>📋 기록 <span id="lg-list-count" style="font-weight:400;color:var(--tx3)"></span></span>
+      <button onclick="lgMakeExcel()" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--acc3);font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📊 엑셀 저장</button>
+    </div>
+    <div id="lg-list"></div>
+  </div>
+</div>
+
+<!-- 명세서 사진 크게보기 -->
+<div class="modal-bg" id="lg-photo-modal" onclick="closeM('lg-photo-modal')">
+  <div style="max-width:96vw;max-height:90vh"><img id="lg-photo-big" style="max-width:96vw;max-height:90vh;border-radius:8px" src=""></div>
+</div>
+
+<!-- ORDER ANALYSIS -->
+<div class="sec-pg" id="pg-order">
+  <div class="info-note" style="margin-bottom:12px">
+    🧾 유리 사이즈와 수량을 입력하고 <b>이미지 복사</b>를 누르면 카톡에 바로 붙여넣을 수 있어요.<br>
+    <b>발주 리스트에 기록</b>하면 월말정산용으로 쌓이고, 입고되면 <b>체크</b>로 원유리 입고가 잡힙니다.
+    (엑셀 저장은 필요할 때만)
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">📝 새 발주서 작성</div>
+
+    <span class="lbl">대분류</span>
+    <select class="sel" id="od-cat" onchange="odCatChanged()">
+      <option value="유리">유리</option>
+      <option value="알루미늄">알루미늄</option>
+      <option value="브라켓">브라켓</option>
+      <option value="힌지">힌지</option>
+      <option value="알판">알판</option>
+      <option value="박스">박스</option>
+      <option value="목대">목대</option>
+      <option value="기타용품">기타용품</option>
+    </select>
+
+    <span class="lbl">발주처</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <select class="sel" id="od-vendor" onchange="odVendorChanged()" style="flex:1;margin:0"></select>
+      <button onclick="odAddVendor()" title="발주처 추가" style="flex-shrink:0;padding:9px 12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">＋</button>
+      <button onclick="odRemoveVendor()" title="추가한 발주처 삭제" style="flex-shrink:0;padding:9px 11px;background:var(--s3);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;cursor:pointer">🗑</button>
+    </div>
+
+    <span class="lbl">종류 (두께 / 비고 자동)</span>
+    <select class="sel" id="od-type" onchange="odTypeChanged()"></select>
+    <div id="od-type-hint" style="font-size:10px;color:var(--tx2);margin:-4px 0 10px;line-height:1.5"></div>
+
+    <div class="f-row">
+      <div>
+        <span class="lbl">발주일</span>
+        <input type="date" id="od-date" class="inp" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+      </div>
+      <div>
+        <span class="lbl">납기</span>
+        <input type="text" id="od-due" class="inp" placeholder="예: 5/27 또는 긴급" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+      </div>
+    </div>
+
+    <div class="f-row">
+      <div>
+        <span class="lbl">비고 (기본값)</span>
+        <input type="text" id="od-bigo" class="inp" placeholder="예: 각면/강화" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+      </div>
+      <div>
+        <span class="lbl">업체명</span>
+        <input type="text" id="od-client" class="inp" value="한샘" placeholder="예: 한샘" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px">
+      <span class="lbl" style="margin:0">발주 품목</span>
+      <span id="od-line-hint" style="font-size:10px;color:var(--tx3)">규격은 가로*세로 (mm)</span>
+    </div>
+    <div id="od-preset-sizes" style="margin-bottom:8px"></div>
+    <div id="od-lines"></div>
+    <datalist id="od-model-list"></datalist>
+    <button onclick="odAddLine()" style="width:100%;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:6px">＋ 품목 추가</button>
+
+    <div id="od-livecount" style="font-size:11px;color:var(--tx2);text-align:right;margin-bottom:12px"></div>
+
+    <button class="act-btn blue" onclick="odCopyImage()" style="background:var(--acc)">📋 카톡용 이미지 복사</button>
+    <button class="act-btn blue" onclick="odSaveOrder()" style="background:var(--acc5)">💾 발주 리스트에 기록</button>
+    <button onclick="odMakeExcel()" style="width:100%;padding:11px;background:none;border:1px solid var(--b2);border-radius:10px;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">📊 엑셀 발주서 저장 (선택)</button>
+    <button onclick="document.getElementById('od-import-file').click()" style="width:100%;padding:11px;background:none;border:1px dashed var(--acc5);border-radius:10px;color:var(--acc5);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">📥 발주서 엑셀 불러오기 (직원 작성본)</button>
+    <input type="file" id="od-import-file" accept=".xlsx,.xls" style="display:none" onchange="odImportExcel(this)">
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">📋 발주 리스트 (월별) <span id="od-list-count" style="font-weight:400;color:var(--tx3)"></span></div>
+    <div style="font-size:10px;color:var(--tx2);line-height:1.6;margin-bottom:10px">
+      입고된 품목은 ☐를 눌러 체크하세요. 체크하면 해당 사이즈가 <b>원유리 입고</b>로 잡힙니다.
+      월말정산은 월별 <b>발주합계 vs 입고합계</b>로 확인하세요.
+    </div>
+    <div id="od-order-list"></div>
+  </div>
+</div>
+
+<!-- 발주서 이미지 캡쳐용 (화면 밖 렌더) -->
+<div id="od-capture-host" style="position:fixed;left:-9999px;top:0;background:#fff"></div>
+
+<!-- 발주서 엑셀 불러오기: 시트 선택 모달 -->
+<div class="modal-bg" id="od-import-modal">
+  <div class="modal-sheet" style="max-width:600px;margin:0 auto">
+    <button class="close-btn" onclick="closeM('od-import-modal')">×</button>
+    <div class="modal-ttl">📥 발주서 시트 선택</div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:12px">
+      엑셀 안의 시트별로 <b>발주처·종류·품목수</b>를 읽었어요.<br>
+      발주 리스트에 넣을 시트를 고르세요. (작성 폼에도 자동으로 채워집니다)
+    </div>
+    <div id="od-import-list" style="margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeM('od-import-modal')" style="flex:1;padding:12px;background:var(--s3);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">닫기</button>
+      <button onclick="odImportApply()" id="od-import-apply" style="flex:2;padding:12px;background:var(--acc5);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">선택한 시트 기록</button>
+    </div>
+  </div>
+</div>
+
+<!-- 완제품 추가/입고 모달 -->
+<div class="modal-bg" id="fin-add-modal">
+  <div class="modal-sheet" style="max-width:480px;margin:0 auto">
+    <button class="close-btn" onclick="closeM('fin-add-modal')">×</button>
+    <div class="modal-ttl">🚪 완제품 추가 / 입고</div>
+    <span class="lbl">모델명</span>
+    <input class="inp" id="fin-model" placeholder="예: OB M 6073" list="fin-model-list" autocomplete="off">
+    <datalist id="fin-model-list"></datalist>
+    <span class="lbl">색상</span>
+    <input class="inp" id="fin-color" placeholder="예: 화이트, 웜코튼, 에토프..." list="fin-color-list" autocomplete="off">
+    <datalist id="fin-color-list"></datalist>
+    <span class="lbl">입고 수량</span>
+    <input type="number" class="inp" id="fin-qty" value="1" min="1" inputmode="numeric">
+    <span class="lbl">입고 날짜 <span style="color:var(--tx3);font-weight:400">(선입선출 기준)</span></span>
+    <input type="date" class="inp" id="fin-indate">
+    <span class="lbl">메모 (선택)</span>
+    <input class="inp" id="fin-memo" placeholder="예: 6/12 조립분">
+    <button class="act-btn" style="background:var(--acc5);color:#fff" onclick="finAddConfirm()">✓ 완제품 입고</button>
+  </div>
+</div>
+
+<!-- 완제품 수량 조정 모달 (개별 항목) -->
+<div class="modal-bg" id="fin-edit-modal">
+  <div class="modal-sheet" style="max-width:480px;margin:0 auto">
+    <button class="close-btn" onclick="closeM('fin-edit-modal')">×</button>
+    <div class="modal-ttl" id="fin-edit-ttl">수량 조정</div>
+    <div id="fin-edit-cur" style="text-align:center;font-size:13px;color:var(--tx2);margin-bottom:14px"></div>
+    <div class="m-tabs" style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="m-tab on" id="fet-in" onclick="setFinEditMode('in')">＋ 입고</button>
+      <button class="m-tab" id="fet-out" onclick="setFinEditMode('out')">－ 출고</button>
+      <button class="m-tab" id="fet-count" onclick="setFinEditMode('count')">🔢 실측</button>
+    </div>
+    <span class="lbl" id="fin-edit-qty-lbl">입고 수량</span>
+    <input type="number" class="inp" id="fin-edit-qty" value="1" min="0" inputmode="numeric">
+    <div id="fin-edit-date-wrap"><span class="lbl">입고 날짜 <span style="color:var(--tx3);font-weight:400">(선입선출 기준)</span></span>
+    <input type="date" class="inp" id="fin-edit-indate"></div>
+    <span class="lbl">메모 (선택)</span>
+    <input class="inp" id="fin-edit-memo" placeholder="예: 단가확인, 손상 등">
+    <button class="act-btn" id="fin-edit-confirm" style="background:var(--acc5);color:#fff" onclick="finEditConfirm()">✓ 적용</button>
+    <button class="act-btn" style="background:rgba(248,81,73,.1);color:var(--acc4);border:1px solid rgba(248,81,73,.3);margin-top:8px" onclick="finDeleteCurrent()">🗑 이 완제품 항목 삭제</button>
+    <div id="fin-edit-log" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<!-- 조립실 품목 이력 모달 (이벤트 개별 삭제) -->
+<div class="modal-bg" id="asm-hist-modal">
+  <div class="modal-sheet" style="max-width:480px;margin:0 auto">
+    <button class="close-btn" onclick="closeM('asm-hist-modal')">×</button>
+    <div class="modal-ttl" id="asm-hist-ttl">📜 입력 이력</div>
+    <div id="asm-hist-body" style="max-height:60vh;overflow-y:auto"></div>
+  </div>
+</div>
+
+  <!-- 내가 넣은 발주 통계 (orderLog 기반) -->
+  <div class="card" style="border-left:3px solid var(--acc3)">
+    <div class="card-ttl">📈 내 발주 통계 <span style="font-weight:400;color:var(--tx3);font-size:11px">(앱에서 기록한 발주 기준)</span></div>
+    <div class="filter-row" style="margin-bottom:10px">
+      <button class="f-btn on" id="ods-p-1" onclick="setOdStatPeriod(1,this)">이번달</button>
+      <button class="f-btn" id="ods-p-3" onclick="setOdStatPeriod(3,this)">최근 3개월</button>
+      <button class="f-btn" id="ods-p-6" onclick="setOdStatPeriod(6,this)">최근 6개월</button>
+      <button class="f-btn" id="ods-p-0" onclick="setOdStatPeriod(0,this)">전체</button>
+    </div>
+    <div id="od-stat-body"></div>
+  </div>
+
+  <!-- ★ 주차별 누적 (납품서 PDF 기반) -->
+  <div class="card" style="border-left:3px solid var(--acc5)">
+    <div class="card-ttl"><span>📅 주차별 발주 누적 <span style="font-weight:400;color:var(--tx3);font-size:11px">(납품서 PDF · 발주일 기준)</span></span></div>
+    <div class="info-note" style="margin-bottom:10px;font-size:10.5px">
+      올린 <b>납품서</b>를 <b>발주일</b> 기준으로 모아, 한 달을 <b>1주(1~7)·2주(8~14)·3주(15~21)·4주(22~28)·5주(29~31)</b>로 나눠 집계해요. AS(54-)는 제외됩니다.
+    </div>
+    <div class="filter-row" style="margin-bottom:8px">
+      <button class="f-btn on" id="wkv-total" onclick="setWkView('total',this)">총수량</button>
+      <button class="f-btn" id="wkv-size" onclick="setWkView('size',this)">사이즈/모델별</button>
+    </div>
+    <div class="filter-row" style="margin-bottom:10px">
+      <button class="f-btn on" id="wkp-3" onclick="setWkMonths(3,this)">최근 3개월</button>
+      <button class="f-btn" id="wkp-6" onclick="setWkMonths(6,this)">최근 6개월</button>
+      <button class="f-btn" id="wkp-12" onclick="setWkMonths(12,this)">최근 12개월</button>
+      <button class="f-btn" id="wkp-0" onclick="setWkMonths(0,this)">전체</button>
+    </div>
+    <input class="inp" id="wk-size-search" placeholder="🔍 사이즈/모델 검색 (사이즈/모델별 뷰에서)" oninput="renderWeekStat()" style="margin-bottom:10px;display:none">
+    <div id="wk-stat-body"><div style="font-size:11px;color:var(--tx3)">납품서를 올리면 여기 주차별 집계가 표시됩니다.</div></div>
+  </div>
+
+  <!-- ★ 주차 패턴 요약 (매주 평균·예상) -->
+  <div class="card" style="border-left:3px solid var(--acc2)">
+    <div class="card-ttl"><span>📈 주차 패턴 · 예상수량 <span style="font-weight:400;color:var(--tx3);font-size:11px">(과거 같은 주차 평균)</span></span></div>
+    <div class="info-note" style="margin-bottom:10px;font-size:10.5px">
+      과거 데이터에서 <b>1주차끼리, 2주차끼리</b> 평균을 내 "이 달 몇째 주에 발주가 몰리는지"와 <b>다음 각 주차 예상수량</b>을 보여줘요.
+    </div>
+    <div id="wk-pattern-body"><div style="font-size:11px;color:var(--tx3)">데이터가 쌓이면 주차별 평균이 표시됩니다.</div></div>
+  </div>
+
+  <!-- ★ 예시 대조 분석 -->
+  <div class="card" style="border-left:3px solid var(--acc)">
+    <div class="card-ttl"><span>🎯 예시 vs 실제 대조</span>
+      <button onclick="openWkExampleModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">＋ 예시 입력</button>
+    </div>
+    <div class="info-note" style="margin-bottom:10px;font-size:10.5px">
+      엑셀 예시표를 붙여넣으면, 그 품목들이 <b>실제 납품서로 확정되는지</b> 품목별로 대조해 <b>적중률·헛예측률</b>을 분석해요. (미리 만들어 놓고 안 나가는 낭비 방지)
+    </div>
+    <div id="wk-example-body"><div style="font-size:11px;color:var(--tx3)">＋ 예시 입력으로 우리가 예상했던 수량을 넣어보세요.</div></div>
+  </div>
+
+  <div class="info-note" style="margin-bottom:12px">
+    📊 아래는 <b>2025.11 ~ 2026.04 (6개월)</b> 과거 발주 데이터 기준 분석입니다.<br>
+    월평균 수량을 참고해 발주량을 결정하세요.
+  </div>
+
+  <!-- 필터 -->
+  <div class="filter-row" id="analysis-model-filters">
+    <button class="f-btn on" onclick="setAnalysisFilter('all',this)">전체</button>
+    <button class="f-btn" onclick="setAnalysisFilter('high',this)">🔴 고빈도(월10↑)</button>
+    <button class="f-btn" onclick="setAnalysisFilter('mid',this)">🟡 중빈도(5~10)</button>
+    <button class="f-btn" onclick="setAnalysisFilter('low',this)">🔵 저빈도(5미만)</button>
+    <button class="f-btn" onclick="setAnalysisFilter('WC',this)">웜코튼</button>
+    <button class="f-btn" onclick="setAnalysisFilter('ETP',this)">에토프</button>
+  </div>
+  <input class="inp" id="analysis-search" placeholder="🔍 모델명 / 코드 검색..." oninput="renderAnalysis()">
+
+  <div id="analysis-list"></div>
+</div>
+
+<!-- 인쇄유리 소요 (납품서 → 인쇄실 대상 유리 · 오더날짜별) -->
+<div class="sec-pg" id="pg-glassneed" style="padding:14px 14px 80px">
+  <div class="card" style="border-left:3px solid var(--acc)">
+    <div class="card-ttl"><span>🖨️ 인쇄유리 소요 (오더날짜별)</span></div>
+    <div class="info-note" style="margin-top:6px">
+      납품서에 올라온 오더를 인쇄유리 대상 모델만 골라, 오더 날짜별로 인쇄해야 할 유리를 사이즈별로 보여줍니다.
+      합적(BD3U 등) 모델은 세트당 여러 장으로 자동 전개됩니다. <b>재고 대조는 하지 않습니다</b>(당일 생산 기준 소요량만).
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+      <label style="font-size:11px;color:var(--tx2)">기간</label>
+      <input type="date" id="gn-from" style="padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px">
+      <span style="color:var(--tx3)">~</span>
+      <input type="date" id="gn-to" style="padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px">
+      <button onclick="renderGlassNeed()" style="padding:7px 14px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">조회</button>
+      <button onclick="gnResetRange()" style="padding:7px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:16px;color:var(--tx2);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체</button>
+    </div>
+    <div id="gn-summary" style="margin-top:10px"></div>
+  </div>
+  <div id="gn-body"></div>
+</div>
+
+<!-- SETTINGS -->
+<div class="sec-pg" id="pg-settings" style="padding:14px 14px 80px">
+  <div class="card" style="border-left:3px solid var(--acc)">
+    <div class="card-ttl">👤 내 이름 (작성자 식별)</div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:10px">
+      여러 명이 동시에 작업할 때 누가 등록했는지 표시하기 위해 사용됩니다.<br>
+      예) <b>예빈PC</b>, <b>예빈모바일</b>, <b>원영PC</b>
+    </div>
+    <input id="actor-input" class="inp" placeholder="예: 예빈모바일" style="font-size:13px;font-family:'Noto Sans KR',sans-serif">
+    <button onclick="saveActor()" style="width:100%;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">✓ 이름 저장</button>
+    <div id="actor-current" style="margin-top:8px;font-size:11px;color:var(--tx3);text-align:center"></div>
+  </div>
+  <div class="card">
+    <div class="card-ttl">📥 발주서 엑셀 업로드</div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.7;margin-bottom:10px">
+      발주서 엑셀 파일을 올리면 Grace 모델의 <b>조립실 출고</b>가 자동으로 반영됩니다.
+    </div>
+    <button onclick="openOrderUpload()" style="width:100%;padding:13px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📊 발주서 파일 업로드</button>
+  </div>
+  <div class="card">
+    <div class="card-ttl">🔋 저장 용량</div>
+    <div id="storage-bar-host"><div style="font-size:11px;color:var(--tx3)">계산 중...</div></div>
+  </div>
+  <div class="card">
+    <div class="card-ttl">🔗 구글 시트 연동</div>
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;margin-bottom:12px">
+      <div id="gs-dot" style="width:10px;height:10px;border-radius:50%;background:var(--tx3);flex-shrink:0"></div>
+      <div><div style="font-size:12px;font-weight:600" id="gs-txt">연동 미설정</div><div style="font-size:10px;color:var(--tx3)" id="gs-sub">URL을 입력하세요</div></div>
+      <div style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3)" id="gs-sync-time">-</div>
+    </div>
+    <span class="lbl">Apps Script 웹 앱 URL</span>
+    <input id="gs-url-input" class="inp" placeholder="https://script.google.com/macros/s/..." style="font-size:12px;font-family:'JetBrains Mono',monospace">
+    <button onclick="saveGsUrl()" style="width:100%;padding:12px;background:var(--acc);border:none;border-radius:8px;color:#0d1117;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:6px">✓ URL 저장 & 연결 테스트</button>
+    <div style="display:flex;gap:6px">
+      <button onclick="syncToSheet()" style="flex:1;padding:11px;background:var(--acc3);border:none;border-radius:8px;color:#0d1117;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">⬆ 앱→시트</button>
+      <button onclick="syncFromSheet()" style="flex:1;padding:11px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">⬇ 시트→앱</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-ttl">📥 내보내기</div>
+    <button onclick="exportCSV()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">📊 재고 CSV</button>
+    <button onclick="exportWorkLog()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">📋 작업일지 CSV</button>
+    <button onclick="exportTodoCSV()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">✅ 할일 CSV</button>
+    <button onclick="exportBackup()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer">💾 전체 백업 JSON</button>
+  </div>
+  <div class="card">
+    <div class="card-ttl">📤 복원</div>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(event)">
+    <button onclick="document.getElementById('import-file').click()" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📤 JSON 복원</button>
+  </div>
+  <div class="card">
+    <div class="card-ttl" style="color:var(--acc4)">⚠️ 초기화</div>
+    <button onclick="clearStock()" style="width:100%;padding:11px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:8px;color:var(--acc4);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">재고 초기화</button>
+    <button onclick="clearWorkLog()" style="width:100%;padding:11px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:8px;color:var(--acc4);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:7px">작업일지 초기화</button>
+    <button onclick="clearInk()" style="width:100%;padding:11px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:8px;color:var(--acc4);font-size:13px;font-family:'Noto Sans KR',sans-serif;cursor:pointer">잉크 이력 초기화</button>
+  </div>
+</div>
+
+<button class="fab" id="fab-btn" style="background:var(--acc3)" onclick="onFab()">＋</button>
+
+<!-- TODO MODAL -->
+<!-- 주차 예시 입력 모달 (엑셀 붙여넣기) -->
+<div class="modal-bg" id="wk-example-modal">
+  <div class="modal-sheet" style="max-width:560px;margin:0 auto">
+    <button class="close-btn" onclick="closeM('wk-example-modal')">×</button>
+    <div class="modal-ttl">🎯 예시표 붙여넣기 (엑셀)</div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:12px">
+      엑셀 예시표를 <b>그대로 복사해서 아래에 붙여넣기</b> 하세요. 모델명(또는 코드)과 수량 열을 자동으로 찾아 정리합니다.<br>
+      저장하면 이후 올라오는 <b>실제 납품서와 대조</b>해서 적중/헛예측(false alarm)을 분석해요.
+    </div>
+    <div class="f-row">
+      <div><span class="lbl">연·월</span><input type="month" id="wke-ym" class="inp"></div>
+      <div><span class="lbl">주차</span><select id="wke-week" class="sel"><option value="0">월 전체</option><option value="1">1주(1~7)</option><option value="2">2주(8~14)</option><option value="3">3주(15~21)</option><option value="4">4주(22~28)</option><option value="5">5주(29~31)</option></select></div>
+    </div>
+    <span class="lbl">예시표 붙여넣기 <span style="color:var(--tx3);font-weight:400">(코드/모델 + 수량 · 탭/스페이스 구분)</span></span>
+    <textarea id="wke-paste" class="inp" style="height:130px;resize:vertical;font-family:'JetBrains Mono',monospace;font-size:11px" placeholder="예)
+BUIF6091	에토프	12
+6073	웜코튼	8
+Euro700 Grace W/Cotton	6
+..." oninput="previewWkPaste()"></textarea>
+    <div id="wke-paste-preview" style="font-size:11px;color:var(--tx3);margin:6px 0 10px"></div>
+    <span class="lbl">메모 (선택)</span>
+    <input id="wke-note" class="inp" placeholder="예: 명절 직후라 많을 듯">
+    <button class="act-btn blue" onclick="confirmWkExample()">✓ 예시표 저장</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="todo-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('todo-modal')">×</button>
+    <div class="modal-ttl" id="tm-title">✅ 할일 추가</div>
+    <span class="lbl">내용</span><textarea id="tm-content" class="inp" style="height:80px;resize:none" placeholder="할일 내용..."></textarea>
+    <div class="f-row">
+      <div><span class="lbl">담당자</span><input id="tm-assignee" class="inp" placeholder="이름" list="assignee-list" autocomplete="off"><datalist id="assignee-list"></datalist></div>
+      <div><span class="lbl">업체명</span><input id="tm-company" class="inp" placeholder="업체" list="company-list" autocomplete="off"><datalist id="company-list"></datalist></div>
+    </div>
+    <div class="f-row">
+      <div><span class="lbl">우선순위</span><select id="tm-priority" class="sel"><option>긴급</option><option selected>보통</option><option>여유</option></select></div>
+      <div><span class="lbl">마감일</span><input type="date" id="tm-due" class="inp"></div>
+    </div>
+    <button class="act-btn green" id="tm-confirm" onclick="confirmTodo()">✓ 추가</button>
+  </div>
+</div>
+
+<!-- NOTICE MODAL -->
+<div class="modal-bg" id="notice-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('notice-modal')">×</button>
+    <div class="modal-ttl" id="nm-title">📌 공지 작성</div>
+    <span class="lbl">제목</span><input id="nm-title-input" class="inp" placeholder="공지 제목...">
+    <span class="lbl">내용</span><textarea id="nm-content" class="inp" style="height:100px;resize:none" placeholder="공지 내용..."></textarea>
+    <span class="lbl">중요도</span>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="q-btn" id="npri-normal" onclick="setNoticePri('normal',this)" style="flex:1;padding:10px">일반</button>
+      <button class="q-btn" id="npri-important" onclick="setNoticePri('important',this)" style="flex:1;padding:10px">⚠️ 중요</button>
+      <button class="q-btn" id="npri-urgent" onclick="setNoticePri('urgent',this)" style="flex:1;padding:10px">🔴 긴급</button>
+    </div>
+    <button class="act-btn blue" onclick="confirmNotice()" id="nm-confirm">✓ 등록</button>
+  </div>
+</div>
+
+<!-- SCHEDULE MODAL -->
+<div class="modal-bg" id="sch-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('sch-modal')">×</button>
+    <div class="modal-ttl" id="sch-modal-title">📅 일정 추가</div>
+    <span class="lbl">날짜</span><input type="date" id="sm-date" class="inp">
+    <span class="lbl">내용</span><input id="sm-content" class="inp" placeholder="일정 내용...">
+    <span class="lbl">구분</span>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="q-btn" id="scat-work" onclick="setSchCat('work',this)" style="flex:1;padding:10px">작업</button>
+      <button class="q-btn" id="scat-delivery" onclick="setSchCat('delivery',this)" style="flex:1;padding:10px">납품</button>
+      <button class="q-btn" id="scat-order" onclick="setSchCat('order',this)" style="flex:1;padding:10px">발주</button>
+      <button class="q-btn" id="scat-etc" onclick="setSchCat('etc',this)" style="flex:1;padding:10px">기타</button>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;padding:10px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px">
+      <input type="checkbox" id="sm-pin" style="width:18px;height:18px;accent-color:var(--acc4);cursor:pointer">
+      <span style="font-size:13px;font-weight:600">📌 공지에도 띄우기</span>
+      <span style="font-size:10px;color:var(--tx3);margin-left:auto">중요한 일정만</span>
+    </label>
+    <button class="act-btn orange" id="sch-confirm-btn" onclick="confirmSch()">✓ 저장</button>
+  </div>
+</div>
+
+<!-- WORK MODAL -->
+<div class="modal-bg" id="work-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('work-modal')">×</button>
+    <div class="modal-ttl" id="wm-title">✏️ 작업 입력</div>
+    <div style="margin-bottom:12px">
+      <span class="lbl">작업 날짜</span>
+      <input type="date" id="wm-date" class="inp" style="margin-bottom:0">
+    </div>
+
+    <!-- 정상/불량 탭 -->
+    <div class="modal-tabs" style="margin-bottom:14px">
+      <button class="m-tab on" id="wtab-normal" onclick="setWorkTab('normal')">✅ 정상 작업</button>
+      <button class="m-tab" id="wtab-defect" onclick="setWorkTab('defect')" style="color:var(--acc4)">🚫 불량 차감</button>
+    </div>
+
+    <!-- 모드 안내 -->
+    <div id="wm-mode-hint" style="padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:11px;font-weight:600"></div>
+
+    <span class="lbl" id="wm-search-label">검색</span>
+    <input class="inp" id="wm-search" placeholder="사이즈 또는 모델명..." oninput="renderWorkSearch()" style="margin-bottom:6px">
+    <div id="wm-results"></div>
+    <div id="wm-selected" style="display:none">
+      <div class="sel-box"><div class="sel-label" id="wm-sel-label">✓ 선택됨</div><div style="font-size:13px;font-weight:700" id="wm-sel-name"></div><div style="font-size:10px;color:var(--tx2);margin-top:2px" id="wm-sel-meta"></div></div>
+    </div>
+    <div id="wm-qty-box" style="display:none">
+      <!-- 선택된 사이즈 정보 -->
+      <div id="wm-sel-size-info" style="background:var(--s2);border-radius:8px;padding:10px 12px;margin-bottom:12px;position:relative">
+        <button onclick="clearWlSelection()" title="선택 취소" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border:none;border-radius:8px;background:var(--s3);color:var(--tx2);font-size:18px;font-weight:700;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
+        <div style="font-size:16px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--acc);padding-right:34px" id="wm-size-label"></div>
+        <div style="font-size:10px;color:var(--tx2);margin-top:4px" id="wm-size-models"></div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:3px" id="wm-size-stock"></div>
+      </div>
+
+      <!-- 색상 선택 -->
+      <div id="wm-color-box" style="margin-bottom:12px">
+        <span class="lbl">색상 구분</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="q-btn wc-btn on" id="wcolor-wc" onclick="setWlColor('WC',this)"
+            style="padding:12px;font-size:13px;font-weight:700;background:rgba(121,192,255,.2);border-color:var(--wc);color:var(--wc)">
+            🔵 웜코튼
+          </button>
+          <button class="q-btn etp-btn" id="wcolor-etp" onclick="setWlColor('ETP',this)"
+            style="padding:12px;font-size:13px;font-weight:700">
+            🟠 에토프
+          </button>
+        </div>
+      </div>
+
+      <span class="lbl" id="wm-qty-label">작업 수량</span>
+      <div class="qty-ctrl"><button class="qty-btn" onclick="wQtyD(-1)">−</button><input type="number" id="wm-qty" class="qty-num" value="1" min="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="wQty=parseInt(this.value)||0"><button class="qty-btn" onclick="wQtyD(1)">＋</button></div>
+      <div class="quick-btns">
+        <button class="q-btn" onclick="addWQ(5)">+5</button>
+        <button class="q-btn" onclick="addWQ(10)">+10</button>
+        <button class="q-btn" onclick="addWQ(-5)">-5</button>
+        <button class="q-btn" onclick="addWQ(-10)">-10</button>
+        <button class="q-btn" style="color:var(--acc4)" onclick="wQty=0;document.getElementById('wm-qty').value=0">초기화</button>
+      </div>
+
+      <!-- 불량 사유 -->
+      <div id="wm-defect-reason" style="display:none;margin-bottom:12px">
+        <span class="lbl">불량 위치</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+          <button class="q-btn defect-loc-btn on" id="dloc-print" onclick="setDefectLoc('print',this)" style="padding:10px;font-size:11px">
+            🖨️ 인쇄실<br><span style="font-size:9px;color:var(--tx3)">원유리 차감</span>
+          </button>
+          <button class="q-btn defect-loc-btn" id="dloc-assembly" onclick="setDefectLoc('assembly',this)" style="padding:10px;font-size:11px">
+            🔧 조립실<br><span style="font-size:9px;color:var(--tx3)">인쇄유리 차감</span>
+          </button>
+        </div>
+        <span class="lbl">불량 사유</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <button class="q-btn defect-btn on" id="dr-crack" onclick="setDefectReason('파손/크랙',this)" style="padding:10px">파손/크랙</button>
+          <button class="q-btn defect-btn" id="dr-scratch" onclick="setDefectReason('스크래치',this)" style="padding:10px">스크래치</button>
+          <button class="q-btn defect-btn" id="dr-print" onclick="setDefectReason('인쇄불량',this)" style="padding:10px">인쇄불량</button>
+          <button class="q-btn defect-btn" id="dr-etc" onclick="setDefectReason('기타',this)" style="padding:10px">기타</button>
+        </div>
+      </div>
+
+      <button class="act-btn green" id="wm-confirm-btn" onclick="addToCart()">➕ 목록에 담기</button>
+      <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px" id="wm-confirm-desc">담은 뒤 아래에서 계속 추가 → 마지막에 한 번에 올리기</div>
+    </div>
+
+    <!-- ── 담긴 목록 (장바구니) ── -->
+    <div id="wm-cart-box" style="display:none;margin-top:16px;border-top:2px solid var(--b2);padding-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:800;color:var(--acc3)">🧺 담은 작업 <span id="wm-cart-count" style="color:var(--acc)">0</span>건</div>
+        <button onclick="clearCart()" style="font-size:11px;padding:4px 10px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--tx2);cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체비우기</button>
+      </div>
+      <div id="wm-cart-list"></div>
+      <button class="act-btn green" id="wm-submit-all-btn" onclick="submitCart()" style="margin-top:12px;background:var(--acc);font-size:15px">✅ 전체 올리기 (재고 반영)</button>
+      <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px">담은 <span class="wm-cart-count2">0</span>건을 선택한 날짜에 한 번에 기록합니다</div>
+    </div>
+  </div>
+</div>
+
+<!-- STOCK MODAL -->
+<div class="modal-bg" id="stock-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('stock-modal')">×</button>
+    <div class="modal-ttl" id="sm-name"></div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:10px" id="sm-sub"></div>
+
+    <!-- 현재 재고 요약 -->
+    <div style="background:var(--s2);border-radius:8px;padding:8px 12px;margin-bottom:12px;display:flex;justify-content:space-around;font-size:11px">
+      <div style="text-align:center"><div style="color:var(--tx3);font-size:10px">인쇄실 원유리</div><div id="sm-cur-raw" style="font-weight:700;color:var(--acc);font-family:'JetBrains Mono',monospace;font-size:14px">0</div></div>
+      <div style="width:1px;background:var(--b2)"></div>
+      <div style="text-align:center"><div style="color:var(--tx3);font-size:10px">조립실 인쇄유리</div><div id="sm-cur-printed" style="font-weight:700;color:var(--acc3);font-family:'JetBrains Mono',monospace;font-size:14px">0</div></div>
+    </div>
+
+    <!-- 위치 탭 -->
+    <div class="modal-tabs">
+      <button class="m-tab on" id="stab-raw" onclick="setSTab('raw')">인쇄실 원유리</button>
+      <button class="m-tab" id="stab-printed" onclick="setSTab('printed')">조립실 인쇄유리</button>
+    </div>
+
+    <!-- 동작 모드 선택 -->
+    <span class="lbl" style="font-size:10px">동작 모드</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
+      <button class="q-btn smode-btn on" id="smode-set" onclick="setSMode('set')" style="padding:10px;font-size:11px;line-height:1.3">
+        ✏️ 직접 수정<br><span style="font-size:9px;color:var(--tx3)">현재 값을 지정</span>
+      </button>
+      <button class="q-btn smode-btn" id="smode-move" onclick="setSMode('move')" style="padding:10px;font-size:11px;line-height:1.3">
+        🔄 인쇄→조립<br><span style="font-size:9px;color:var(--tx3)">원유리↓ 인쇄유리↑</span>
+      </button>
+    </div>
+
+    <!-- 수량 입력 -->
+    <span class="lbl" id="sm-qty-label">현재 재고</span>
+    <div class="qty-ctrl"><button class="qty-btn" onclick="sQtyD(-1)">−</button><input type="number" id="sm-qty" class="qty-num" value="0" min="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="sQty=parseInt(this.value)||0"><button class="qty-btn" onclick="sQtyD(1)">＋</button></div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="addSQ(5)">+5</button>
+      <button class="q-btn" onclick="addSQ(10)">+10</button>
+      <button class="q-btn" onclick="addSQ(-5)">-5</button>
+      <button class="q-btn" onclick="addSQ(-10)">-10</button>
+      <button class="q-btn" style="color:var(--acc4)" onclick="sQty=0;document.getElementById('sm-qty').value=0">초기화</button>
+    </div>
+    <button class="act-btn blue" onclick="confirmStock()" id="sm-confirm-btn">✓ 재고 저장</button>
+    <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:6px" id="sm-confirm-desc"></div>
+  </div>
+</div>
+
+<!-- SIZE STOCK MODAL (입고/실측/인쇄/출고) -->
+<div class="modal-bg" id="size-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('size-modal')">×</button>
+    <div class="modal-ttl" id="szm-title">📐</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:6px" id="szm-sub"></div>
+    <div id="szm-models" style="margin-bottom:10px"></div>
+    <div id="szm-warning" style="margin-bottom:10px"></div>
+
+    <!-- 현재 재고 요약 -->
+    <div id="szm-summary" style="background:var(--s2);border-radius:8px;padding:10px 14px;margin-bottom:8px"></div>
+
+    <!-- 미기록 손실 경고 -->
+    <div id="szm-mismatch" style="margin-bottom:12px"></div>
+
+    <!-- 액션 모드 4가지 -->
+    <span class="lbl" style="font-size:10px">동작 선택</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:12px">
+      <button class="q-btn szm-mode-btn on" id="szm-mode-in" onclick="setSzmMode('in')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        📦 입고<br><span style="font-size:9px;color:var(--tx3)">발주서</span>
+      </button>
+      <button class="q-btn szm-mode-btn" id="szm-mode-count" onclick="setSzmMode('count')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        🔢 실측<br><span style="font-size:9px;color:var(--tx3)">눈으로 셈</span>
+      </button>
+      <button class="q-btn szm-mode-btn" id="szm-mode-print" onclick="setSzmMode('print')" style="display:none;padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        🖨 인쇄<br><span style="font-size:9px;color:var(--tx3)">원→인쇄</span>
+      </button>
+      <button class="q-btn szm-mode-btn" id="szm-mode-out" onclick="setSzmMode('out')" style="padding:10px 2px;font-size:10px;line-height:1.3;font-family:'Noto Sans KR',sans-serif">
+        📤 출고<br><span style="font-size:9px;color:var(--tx3)">납품</span>
+      </button>
+    </div>
+
+    <!-- 실측 대상 (실측 모드에서만) -->
+    <div id="szm-target-row" style="display:none">
+      <span class="lbl" style="font-size:10px">실측 대상</span>
+      <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:10px">
+        <button class="q-btn szm-target-btn on" id="szm-target-raw" onclick="setSzmTarget('raw')" style="padding:9px 4px;font-size:11px;line-height:1.2;font-family:'Noto Sans KR',sans-serif">📦 원유리</button>
+        <button class="q-btn szm-target-btn" id="szm-target-WC" onclick="setSzmTarget('WC')" style="display:none;padding:9px 4px;font-size:11px;line-height:1.2;font-family:'Noto Sans KR',sans-serif">🔵 WC인쇄</button>
+        <button class="q-btn szm-target-btn" id="szm-target-ETP" onclick="setSzmTarget('ETP')" style="display:none;padding:9px 4px;font-size:11px;line-height:1.2;font-family:'Noto Sans KR',sans-serif">🟠 ETP인쇄</button>
+      </div>
+    </div>
+
+    <!-- 색상 (인쇄/출고 시 표시) -->
+    <div id="szm-color-row" style="display:none">
+      <span class="lbl" style="font-size:10px">대상 색상</span>
+      <div class="modal-tabs" style="margin-bottom:10px">
+        <button class="m-tab on" id="szm-tab-WC" onclick="setSzmColor('WC')">🔵 웜코튼</button>
+        <button class="m-tab" id="szm-tab-ETP" onclick="setSzmColor('ETP')">🟠 에토프</button>
+      </div>
+    </div>
+
+    <!-- 일시 입력 -->
+    <span class="lbl" style="font-size:10px">일시 (기본: 오늘)</span>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:10px">
+      <input type="date" id="szm-date" class="inp" style="margin:0;padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+      <div style="display:flex;gap:4px">
+        <button class="q-btn szm-ampm on" id="szm-am" onclick="setSzmAmpm('AM')" style="flex:1;padding:9px 4px;font-size:11px">오전</button>
+        <button class="q-btn szm-ampm" id="szm-pm" onclick="setSzmAmpm('PM')" style="flex:1;padding:9px 4px;font-size:11px">오후</button>
+      </div>
+    </div>
+
+    <!-- 메모 -->
+    <input type="text" id="szm-note" class="inp" placeholder="메모 (선택, 예: 발주서 #1234)" style="margin-bottom:10px;padding:9px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif">
+
+    <!-- 수량 -->
+    <span class="lbl" id="szm-qty-label">수량</span>
+    <div class="qty-ctrl">
+      <button class="qty-btn" onclick="szmQtyD(-1)">−</button>
+      <input type="number" id="szm-qty" class="qty-num" value="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="szQty=parseInt(this.value)||0">
+      <button class="qty-btn" onclick="szmQtyD(1)">＋</button>
+    </div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="szmAddQ(1)">+1</button>
+      <button class="q-btn" onclick="szmAddQ(5)">+5</button>
+      <button class="q-btn" onclick="szmAddQ(10)">+10</button>
+      <button class="q-btn" onclick="szmAddQ(30)">+30</button>
+      <button class="q-btn" style="color:var(--acc4)" onclick="szQty=0;document.getElementById('szm-qty').value=0">초기화</button>
+    </div>
+    <button class="act-btn blue" onclick="confirmSizeStock()" id="szm-confirm-btn">✓ 저장</button>
+    <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:6px" id="szm-confirm-desc"></div>
+
+    <!-- 이력 토글 -->
+    <button onclick="toggleSzmHistory()" id="szm-history-toggle" style="width:100%;margin-top:14px;padding:9px;background:none;border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📜 이력 보기 ▼</button>
+    <div id="szm-history" style="display:none;margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- SIZE EDIT MODAL (사이즈 수정 UI) -->
+<div class="modal-bg" id="size-edit-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('size-edit-modal')">×</button>
+    <div class="modal-ttl">✏️ 사이즈 수정</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:10px;background:rgba(248,81,73,.08);padding:8px 12px;border-radius:8px;border-left:3px solid #f85149">
+      ⚠️ <b>주의:</b> 사이즈를 변경하면 이 사이즈에 매핑된 모든 모델의 등록 사이즈가 같이 바뀝니다. 이미 쌓인 재고 이력(stockEvents)도 새 사이즈 키로 자동 이전됩니다.
+    </div>
+
+    <div style="font-size:12px;color:var(--tx2);margin-bottom:6px">현재 사이즈</div>
+    <div style="background:var(--s2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--tx1)" id="sze-current"></div>
+
+    <div style="font-size:12px;color:var(--tx2);margin-bottom:6px">매핑된 모델 (수정 시 모두 영향)</div>
+    <div id="sze-models" style="background:var(--s2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;max-height:100px;overflow-y:auto"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div>
+        <span class="lbl" style="font-size:10px">📐 유리 가로 (mm)</span>
+        <input type="number" id="sze-glass-w" class="inp" style="margin:0;padding:9px 10px;font-size:14px;font-family:'JetBrains Mono',monospace;font-weight:700">
+      </div>
+      <div>
+        <span class="lbl" style="font-size:10px">📐 유리 세로 (mm)</span>
+        <input type="number" id="sze-glass-h" class="inp" style="margin:0;padding:9px 10px;font-size:14px;font-family:'JetBrains Mono',monospace;font-weight:700">
+      </div>
+    </div>
+
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:6px">🔧 조립 사이즈 (보통 유리보다 +3mm, 플랩도어 +1mm)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div>
+        <span class="lbl" style="font-size:10px">조립 가로 (mm)</span>
+        <input type="number" id="sze-asm-w" class="inp" style="margin:0;padding:9px 10px;font-size:14px;font-family:'JetBrains Mono',monospace">
+      </div>
+      <div>
+        <span class="lbl" style="font-size:10px">조립 세로 (mm)</span>
+        <input type="number" id="sze-asm-h" class="inp" style="margin:0;padding:9px 10px;font-size:14px;font-family:'JetBrains Mono',monospace">
+      </div>
+    </div>
+
+    <div id="sze-preview" style="background:rgba(46,160,67,.08);border-left:3px solid var(--acc3);padding:8px 12px;border-radius:6px;margin-bottom:14px;font-size:11px;display:none"></div>
+
+    <button class="act-btn blue" onclick="confirmSizeEdit()">✓ 사이즈 변경 적용</button>
+    <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:6px">변경 후 동기화 시 시트도 함께 업데이트됩니다</div>
+  </div>
+</div>
+
+<!-- INK MODAL -->
+<div class="modal-bg" id="ink-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('ink-modal')">×</button>
+    <div class="modal-ttl" id="im-title">🪣 잉크 입고</div>
+    <div id="im-sub" style="font-size:12px;font-weight:700;margin-bottom:12px;padding:8px 12px;border-radius:8px"></div>
+    <div class="modal-tabs">
+      <button class="m-tab on" id="itab-in" onclick="setInkTab('in')">입고 (통)</button>
+      <button class="m-tab" id="itab-set" onclick="setInkTab('set')">재고 직접 설정</button>
+    </div>
+    <span class="lbl">날짜</span>
+    <input type="date" id="im-date" class="inp" style="margin-bottom:12px">
+    <span class="lbl">수량 (통)</span>
+    <div class="qty-ctrl"><button class="qty-btn" onclick="inkQtyD(-1)">−</button><input type="number" id="im-qty" class="qty-num" value="1" min="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="inkQty=parseInt(this.value)||0"><button class="qty-btn" onclick="inkQtyD(1)">＋</button></div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="addIQ(5)">+5</button>
+      <button class="q-btn" onclick="addIQ(10)">+10</button>
+      <button class="q-btn" onclick="addIQ(-5)">-5</button>
+      <button class="q-btn" style="color:var(--acc4)" onclick="inkQty=0;document.getElementById('im-qty').value=0">초기화</button>
+    </div>
+    <button class="act-btn orange" onclick="confirmInk()">✓ 저장</button>
+  </div>
+</div>
+
+<!-- SHEET MODAL -->
+<div class="modal-bg" id="sheet-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('sheet-modal')">×</button>
+    <div class="modal-ttl" id="shm-title">📦 원장 입고</div>
+    <span class="lbl">색상 선택</span>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button id="shm-mat-breeze" class="q-btn" onclick="setSheetMat('breeze',this)" style="flex:1;padding:10px">브리즈</button>
+      <button id="shm-mat-shade" class="q-btn" onclick="setSheetMat('shade',this)" style="flex:1;padding:10px">쉐이드</button>
+      <button id="shm-mat-sahara" class="q-btn" onclick="setSheetMat('sahara',this)" style="flex:1;padding:10px">사하라</button>
+    </div>
+    <span class="lbl">수량 (장)</span>
+    <div class="qty-ctrl">
+      <button class="qty-btn" onclick="shmQtyD(-1)">−</button>
+      <input type="number" id="shm-qty" class="qty-num" value="0" min="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="sheetModalQty=parseInt(this.value)||0">
+      <button class="qty-btn" onclick="shmQtyD(1)">＋</button>
+    </div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="addShmQ(5)">+5</button>
+      <button class="q-btn" onclick="addShmQ(10)">+10</button>
+      <button class="q-btn" onclick="addShmQ(-5)">-5</button>
+      <button class="q-btn" onclick="addShmQ(-10)">-10</button>
+      <button class="q-btn" style="color:var(--acc4)" onclick="sheetModalQty=0;document.getElementById('shm-qty').value=0">초기화</button>
+    </div>
+    <div class="f-row" style="margin-bottom:10px">
+      <div>
+        <span class="lbl">날짜</span>
+        <input type="date" id="shm-date" class="inp" style="margin-bottom:0">
+      </div>
+      <div>
+        <span class="lbl">시간</span>
+        <input type="time" id="shm-time" class="inp" style="margin-bottom:0">
+      </div>
+    </div>
+    <span class="lbl">메모 (선택)</span>
+    <input id="shm-note" class="inp" placeholder="거래처, 발주번호 등...">
+    <button class="act-btn green" onclick="confirmSheetModal()">✓ 저장</button>
+  </div>
+</div>
+
+<!-- WORKLOG EDIT MODAL -->
+<div class="modal-bg" id="wl-edit-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('wl-edit-modal')">×</button>
+    <div class="modal-ttl">✏️ 작업 기록 수정</div>
+    <div id="wl-edit-info" style="background:var(--s2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--tx2)"></div>
+
+    <span class="lbl">날짜</span>
+    <input type="date" id="wl-edit-date" class="inp">
+
+    <span class="lbl">색상</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <button class="q-btn wc-edit-btn" id="wl-edit-wc" onclick="setEditColor('WC',this)"
+        style="padding:10px;font-size:13px;font-weight:700">🔵 웜코튼</button>
+      <button class="q-btn etp-edit-btn" id="wl-edit-etp" onclick="setEditColor('ETP',this)"
+        style="padding:10px;font-size:13px;font-weight:700">🟠 에토프</button>
+    </div>
+
+    <span class="lbl">수량</span>
+    <div class="qty-ctrl">
+      <button class="qty-btn" onclick="editQtyD(-1)">−</button>
+      <input type="number" id="wl-edit-qty" class="qty-num" value="1" min="1"
+        style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)">
+      <button class="qty-btn" onclick="editQtyD(1)">＋</button>
+    </div>
+    <div class="quick-btns" style="margin-bottom:16px">
+      <button class="q-btn" onclick="editQtyAdd(5)">+5</button>
+      <button class="q-btn" onclick="editQtyAdd(10)">+10</button>
+      <button class="q-btn" onclick="editQtyAdd(-5)">-5</button>
+      <button class="q-btn" style="color:var(--acc4)" onclick="document.getElementById('wl-edit-qty').value=1">초기화</button>
+    </div>
+
+    <button class="act-btn green" onclick="confirmWlEdit()">✓ 수정 완료</button>
+    <button class="act-btn" style="background:rgba(248,81,73,.1);color:var(--acc4);border:1px solid rgba(248,81,73,.3);margin-top:8px" onclick="deleteWlItemCurrent()">🗑 이 기록 삭제</button>
+  </div>
+</div>
+
+<!-- ORDER UPLOAD MODAL -->
+<div class="modal-bg" id="order-upload-modal">
+  <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
+    <button class="close-btn" onclick="closeM('order-upload-modal')">×</button>
+    <div class="modal-ttl">📊 발주서 업로드</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px">Grace 모델 조립실 출고가 자동 반영됩니다</div>
+
+    <!-- 파일 선택 -->
+    <input type="file" id="order-file-input" accept=".xlsx,.xls" style="display:none" onchange="handleOrderFile(event)">
+    <div onclick="document.getElementById('order-file-input').click()" style="border:2px dashed var(--b2);border-radius:10px;padding:20px;text-align:center;cursor:pointer;margin-bottom:12px;transition:all .2s" onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--b2)'">
+      <div style="font-size:24px;margin-bottom:6px">📂</div>
+      <div style="font-size:13px;font-weight:600;color:var(--tx1)" id="ou-file-name">파일을 선택하세요</div>
+      <div style="font-size:11px;color:var(--tx3);margin-top:4px">.xlsx / .xls 파일 지원</div>
+    </div>
+
+    <!-- 분석 결과 -->
+    <div id="ou-result"></div>
+
+    <!-- 반영 버튼 -->
+    <button class="act-btn green" id="ou-confirm-btn" onclick="confirmOrderUpload()" style="display:none;margin-top:8px">✓ 조립실 출고 반영하기</button>
+  </div>
+</div>
+
+<!-- MAT MODAL -->
+<div class="modal-bg" id="mat-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('mat-modal')">×</button>
+    <div class="modal-ttl" id="mm-title">📦 자재 재고 입력</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px" id="mm-sub"></div>
+    <div class="modal-tabs">
+      <button class="m-tab on" id="mmtab-in" onclick="setMatAction('in',this)">입고</button>
+      <button class="m-tab" id="mmtab-out" onclick="setMatAction('out',this)">출고</button>
+      <button class="m-tab" id="mmtab-set" onclick="setMatAction('set',this)">직접설정</button>
+    </div>
+    <div class="qty-ctrl">
+      <button class="qty-btn" onclick="mmQtyD(-1)">−</button>
+      <input type="number" id="mm-qty" class="qty-num" value="0" min="0" style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--acc);background:var(--s2)" oninput="matModalQty=parseInt(this.value)||0">
+      <button class="qty-btn" onclick="mmQtyD(1)">＋</button>
+    </div>
+    <div class="quick-btns">
+      <button class="q-btn" onclick="addMMQ(5)">+5</button>
+      <button class="q-btn" onclick="addMMQ(10)">+10</button>
+      <button class="q-btn" onclick="addMMQ(-5)">-5</button>
+      <button class="q-btn" onclick="addMMQ(-10)">-10</button>
+      <button class="q-btn" style="color:var(--acc4)" onclick="matModalQty=0;document.getElementById('mm-qty').value=0">초기화</button>
+    </div>
+    <span class="lbl">메모 (선택)</span>
+    <input id="mm-note" class="inp" placeholder="비고...">
+    <button class="act-btn green" onclick="confirmMat()">✓ 저장</button>
+  </div>
+</div>
+
+<!-- BULK MAT MODAL -->
+<div class="modal-bg" id="bulk-mat-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('bulk-mat-modal')">×</button>
+    <div class="modal-ttl">+ 자재 입고 등록</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px">모델 선택 후 자재별 입고 수량을 입력하세요</div>
+    <span class="lbl">모델 검색</span>
+    <input class="inp" id="bm-search" placeholder="제품코드 또는 모델명..." oninput="renderBulkSearch()" style="margin-bottom:6px">
+    <div id="bm-results"></div>
+    <div id="bm-selected-info"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+
+const MONTHS=["2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04"];
+const MONTH_LABELS={"2025-11": "25년 11월", "2025-12": "25년 12월", "2026-01": "26년 01월", "2026-02": "26년 02월", "2026-03": "26년 03월", "2026-04": "26년 04월"};
+/* MODELS → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
+/* ASSEMBLY_MODELS → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
+
+/* NONSPEC_GROUPS → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
+const DATA_GENERATED="2026-05-20";
+const INITIAL_TODOS=[{"id": "t1", "content": "코아스 자재 기름얼룩 체크", "assignee": "", "company": "코아스", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t2", "content": "전체 재고 파악", "assignee": "", "company": "전체", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t3", "content": "한샘 클레임 유형 파악시트 만들기", "assignee": "", "company": "한샘", "priority": "보통", "status": "진행중", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t4", "content": "재고량 파악 (유리/프레임/원부자재 기준 설정)", "assignee": "", "company": "전체", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t5", "content": "사무실 인수인계 제작", "assignee": "원영", "company": "와이비앤디", "priority": "여유", "status": "진행중", "date": "2026-04-30", "dueDate": "2026-05-22", "createdAt": "2026-04-30T00:00:00"}, {"id": "t6", "content": "마감자료 정리 (자동화 공부중)", "assignee": "예빈", "company": "전체", "priority": "여유", "status": "진행중", "date": "2026-04-28", "dueDate": "", "createdAt": "2026-04-28T00:00:00"}];
+const INITIAL_NOTICES=[{"id": "n1", "title": "송영훈 휴가", "content": "5월 13일(수) 휴가", "pri": "normal", "createdAt": "2026-05-12T09:00:00"}, {"id": "n2", "title": "실장님 휴가", "content": "5월 19-20일 휴가", "pri": "normal", "createdAt": "2026-05-12T09:00:00"}, {"id": "n3", "title": "중국 출장", "content": "5월 27일(수) ~ 5월 28일(목)", "pri": "important", "createdAt": "2026-05-12T09:00:00"}];
+/* ANALYSIS → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
+/* SIZE_GROUPS → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
+/* CODE_MODEL_MAP → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
+// ── MODELS 정규화: code 필드가 없으면 id를 복사 (재고 식별용 키) ──
+MODELS.forEach(m=>{
+  if(!m.code) m.code = m.id;
+  // 기본 임계값 (min_stock, freq)이 없으면 추정값 채움
+  if(m.min_stock===undefined){
+    // 월평균 사용량의 1.5배를 최소재고로 보수적 추정
+    m.min_stock = Math.max(1, Math.round((m.avg_monthly||0) * 1.5));
+  }
+  if(!m.freq){
+    const am = m.avg_monthly||0;
+    if(am >= 20) m.freq='high';
+    else if(am <= 1) m.freq='rare';
+    else m.freq='normal';
+  }
+  // monthly가 없으면 추이용 빈 객체
+  if(!m.monthly) m.monthly = {};
+  // codes 배열을 검색가능 문자열로 미리 합쳐둠
+  if(Array.isArray(m.codes)) m._codesSearchable = m.codes.join(' ').toLowerCase();
+});
+
+// 모델을 다양한 키로 찾는 헬퍼 (m.code, m.id, codes 배열, 외부 발주 코드 모두 지원)
+// ── 사이즈별 최근 N개월 출고 롤링 집계 (delivLog 기반) ──
+// 반환: {total, monthlyAvg, activeMonths, hasEnoughData}
+function rollingShipStats(w, h, months){
+  months = months || 6;
+  if(typeof delivLog==='undefined' || !delivLog.length) return null;
+  const now=new Date();
+  const cutoff=new Date(now.getFullYear(), now.getMonth()-months, now.getDate());
+  const cutoffStr=cutoff.toISOString().slice(0,10);
+  // 이 사이즈에 속한 제품명 집합 (SIZE_GROUPS의 models)
+  const sg=(typeof SIZE_GROUPS!=='undefined') ? SIZE_GROUPS.find(g=>g.w===w && g.h===h) : null;
+  const sizeNames = sg ? new Set(sg.models.map(n=>n.replace(/\s+/g,'').toLowerCase())) : null;
+  let total=0;
+  const monthsSeen=new Set();
+  delivLog.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return; // AS 제외
+    const dt=d.delivReqDate||d.orderDate;
+    if(!dt || dt<cutoffStr) return;
+    (d.items||[]).forEach(it=>{
+      let match=false;
+      // 1) findModel로 사이즈 직접 매칭
+      const m=findModel(it.code);
+      if(m && m.glass_w===w && m.glass_h===h) match=true;
+      // 2) 항목에 저장된 size 문자열 매칭 (예: "445×729")
+      if(!match && it.size){ const s=String(it.size).replace(/[×x*]/g,'x'); if(s===`${w}x${h}`) match=true; }
+      // 3) 제품명으로 사이즈그룹 매칭
+      if(!match && sizeNames){
+        const nm=(it.short||(delivLookup(it.code).short)||'').replace(/\s+/g,'').toLowerCase();
+        if(nm && sizeNames.has(nm)) match=true;
+      }
+      if(match){ total+=(it.qty||0); monthsSeen.add(dt.slice(0,7)); }
+    });
+  });
+  const activeMonths=monthsSeen.size;
+  const denom=Math.min(months, Math.max(activeMonths,1));
+  return {
+    total,
+    monthlyAvg: total>0 ? total/denom : 0,
+    activeMonths,
+    hasEnoughData: total>0 && activeMonths>=2
+  };
 }
+
+function findModel(key){
+  if(!key) return null;
+  const k = String(key);
+  // 1) code 또는 id로 직접 매칭
+  let found = MODELS.find(m=>m.code===k || m.id===k);
+  if(found) return found;
+  // 2) codes 배열에서 매칭 (외부 발주 코드 → 내부 모델)
+  found = MODELS.find(m=>Array.isArray(m.codes) && m.codes.includes(k));
+  if(found) return found;
+  // 3) CODE_MODEL_MAP에서 short 찾아서 → MODELS의 short으로 역추적
+  if(typeof CODE_MODEL_MAP !== 'undefined' && CODE_MODEL_MAP[k]){
+    const sh = CODE_MODEL_MAP[k].short;
+    if(sh){
+      found = MODELS.find(m=>m.short===sh);
+      if(found) return found;
+    }
+  }
+  return null;
+}
+
+// ── 납품서(delivLog) 기반 모델별 출고 집계 (라이브) ──
+// 업로드되는 납품서가 쌓일수록 TOP10/긴급부족 리스트가 자동 갱신됨.
+// 반환: Map(model.code -> {total, recent, lastDate, months:Set})
+let _delivAggCache=null, _delivAggSig='';
+function delivModelAgg(months){
+  months = months || 6;
+  const sig=(delivLog?delivLog.length:0)+'|'+months;
+  if(_delivAggCache && _delivAggSig===sig) return _delivAggCache;
+  const agg=new Map();
+  if(typeof delivLog==='undefined' || !delivLog.length){ _delivAggCache=agg; _delivAggSig=sig; return agg; }
+  const now=new Date();
+  const cutoff=new Date(now.getFullYear(), now.getMonth()-months, now.getDate()).toISOString().slice(0,10);
+  // 최근 14일을 '오늘 필요분(긴급)' 가중 윈도우로 사용
+  const recentCut=new Date(now.getTime()-14*86400000).toISOString().slice(0,10);
+  delivLog.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return; // AS 제외
+    const dt=d.delivReqDate||d.orderDate||'';
+    if(!dt || dt<cutoff) return;
+    (d.items||[]).forEach(it=>{
+      const m=findModel(it.code);
+      if(!m) return;
+      let e=agg.get(m.code);
+      if(!e){ e={total:0, recent:0, lastDate:'', months:new Set()}; agg.set(m.code,e); }
+      const q=it.qty||0;
+      e.total+=q;
+      e.months.add(dt.slice(0,7));
+      if(dt>=recentCut) e.recent+=q;
+      if(dt>e.lastDate) e.lastDate=dt;
+    });
+  });
+  _delivAggCache=agg; _delivAggSig=sig;
+  return agg;
+}
+// 캐시 무효화 (납품서 변경 시 호출)
+function invalidateDelivAgg(){ _delivAggCache=null; _delivAggSig=''; }
+
+// ── 추이 탭 전용 집계: 납품서(delivLog) → 제품명(short)별 · 색상(WC/ETP)별 · 월별 ──
+// 하드코딩 monthly 스냅샷을 대체. 납품서가 쌓일 때마다 자동 갱신.
+// 반환: {rows:[{short, code, glass_w, glass_h, door_type, byColor:{WC:{months,total,avg}, ETP:{...}}, total}], monthKeys:[...], minDate, maxDate}
+let _trendAggCache=null, _trendAggSig='';
+function trendAgg(){
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  const sig=log.length+'|'+log.reduce((a,d)=>a+((d.items||[]).length),0);
+  if(_trendAggCache && _trendAggSig===sig) return _trendAggCache;
+
+  const _date=d=>d.delivDate||d.delivReqDate||d.orderDate||'';
+  let minDate='', maxDate='';
+  const monthSet=new Set();
+  // short -> {meta, byColor:{COL:{months:{ym:qty}, total}}}
+  const groups=new Map();
+
+  log.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return; // AS 제외
+    const dt=_date(d); if(!dt) return;
+    const ym=dt.slice(0,7);
+    monthSet.add(ym);
+    if(!minDate||dt<minDate) minDate=dt;
+    if(!maxDate||dt>maxDate) maxDate=dt;
+    (d.items||[]).forEach(it=>{
+      const m=findModel(it.code);
+      // 제품명: 모델 매칭 우선, 없으면 항목에 저장된 short
+      const short=(m&&m.short)||it.short||it.code||'(미상)';
+      const color=(it.color||(m&&m.color)||'').toUpperCase();
+      let g=groups.get(short);
+      if(!g){
+        // 카테고리: 기존 브리핑 분류기 재사용 (daegubun 우선, 제품명 폴백)
+        let cat='기타';
+        try{
+          const dg=(typeof delivLookup==='function'?(delivLookup(it.code).daegubun||it.daegubun||''):'')||'';
+          if(typeof classifyDelivItem==='function') cat=classifyDelivItem(short, dg).cat||'기타';
+        }catch(e){}
+        g={short, code:(m&&m.code)||it.code||'', glass_w:m&&m.glass_w, glass_h:m&&m.glass_h, door_type:m&&m.door_type, cat, byColor:{}};
+        groups.set(short,g);
+      }
+      // 모델 메타는 처음 잡힌 값 유지하되, 비어있으면 채움
+      if(!g.glass_w && m&&m.glass_w){ g.glass_w=m.glass_w; g.glass_h=m.glass_h; }
+      if(!g.door_type && m&&m.door_type) g.door_type=m.door_type;
+      const ck=color||'-';
+      let c=g.byColor[ck];
+      if(!c){ c={months:{}, total:0}; g.byColor[ck]=c; }
+      const q=it.qty||0;
+      c.months[ym]=(c.months[ym]||0)+q;
+      c.total+=q;
+    });
+  });
+
+  const monthKeys=[...monthSet].sort();
+  const nMonths=Math.max(monthKeys.length,1);
+  const rows=[];
+  groups.forEach(g=>{
+    let total=0;
+    Object.values(g.byColor).forEach(c=>{ c.avg=c.total/nMonths; total+=c.total; });
+    g.total=total;
+    g.avg=total/nMonths;
+    rows.push(g);
+  });
+  rows.sort((a,b)=>b.total-a.total);
+
+  _trendAggCache={rows, monthKeys, minDate, maxDate, nMonths};
+  _trendAggSig=sig;
+  return _trendAggCache;
+}
+function invalidateTrendAgg(){ _trendAggCache=null; _trendAggSig=''; }
+
+
+// ── STORAGE ──
+const LS={stock:'ybn-s5',meta:'ybn-m5',work:'ybn-w5',ink:'ybn-i5',inkRate:'ybn-ir2',notices:'ybn-n2',schedules:'ybn-sc2',todos:'ybn-t2',gsUrl:'ybn-gs2',delivLog:'ybn-deliv-v1',actor:'ybn-actor-v1',stockEvents:'ybn-sev-v1',finished:'ybn-fin-v1'};
+function J(s){try{return s?JSON.parse(s):null;}catch{return null;}}
+let stock=J(localStorage.getItem(LS.stock))||{};
+let meta=J(localStorage.getItem(LS.meta))||{};
+let workLog=J(localStorage.getItem(LS.work))||[];
+let inkLog=J(localStorage.getItem(LS.ink))||[];
+let inkRates=J(localStorage.getItem(LS.inkRate))||{WC:1.5,ETP:1.5};
+let notices=J(localStorage.getItem(LS.notices))||INITIAL_NOTICES;
+let schedules=J(localStorage.getItem(LS.schedules))||[];
+let todos=J(localStorage.getItem(LS.todos))||INITIAL_TODOS;
+// 기본 시트 연동 주소 (새 기기/새 브라우저도 설정 없이 자동 연결)
+const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycby2fhWdU5Uc39vMDObAqd7w5uuTcz8y2C5suH3FYxVaP--0UCtOGoGEUTry-hGdj89Y/exec';
+let gsUrl=localStorage.getItem(LS.gsUrl)||DEFAULT_GS_URL;
+let actor=localStorage.getItem(LS.actor)||'';
+let delivLog=J(localStorage.getItem(LS.delivLog))||[];
+let delivDeleted=J(localStorage.getItem('ybn-deliv-del-v1'))||{}; // {id: 삭제시각} 삭제된 납품서 묘비(병합 시 부활 방지)
+let orderDeleted=J(localStorage.getItem('ybn-order-del-v1'))||{}; // {id: 삭제시각} 삭제된 발주 묘비(병합 시 부활 방지)
+let noticeState=J(localStorage.getItem('ybn-notice-state-v1'))||{}; // {id:{archived,deleted,at}} 공지 보관/삭제 묘비(병합 후 강제 적용)
+let ledgerLog=J(localStorage.getItem('ybn-ledger-v1'))||[];
+let vendorBook=J(localStorage.getItem('ybn-vendors-v1'))||[];
+let odCustomVendors=J(localStorage.getItem('ybn-od-vendors-v1'))||{}; // {대분류: [발주처명,...]}
+let wkExamples=J(localStorage.getItem('ybn-wk-examples-v1'))||[]; // 주차 예상 예시 [{id,ym,week,qty,note}]
+
+// ── 재고 이력 (StockEvents) ──
+// 키: "595x729" (원유리) 또는 "595x729_WC" / "595x729_ETP" (인쇄유리)
+// 각 키마다 events 배열: [{id, at, type, qty, by, byAt, note, source}]
+// type: 'in'(입고), 'count'(실측), 'print'(인쇄), 'out'(출고), 'adjust'(조정), 'defect'(불량)
+// source: 'manual' | 'worklog' | 'auto-adjust'
+let stockEvents = J(localStorage.getItem(LS.stockEvents)) || {};
+
+// ── 완제품 재고 (조립+포장 완료, 출고 전) ──
+// 단위: 모델 + 색상.  구조: {id, model, color, qty, note, updatedAt, by, events:[{id,type,delta,at,by,memo}]}
+// 독립 관리 (유리 재고와 연동 안 함). type: 'in'(입고/완성), 'count'(실측), 'out'(출고), 'adjust'(조정)
+let finishedStock = J(localStorage.getItem(LS.finished)) || [];
+function saveFinished(){ localStorage.setItem(LS.finished, JSON.stringify(finishedStock)); }
+function finKey(model,color){ return (model||'').trim()+'│'+(color||'').trim(); }
+function findFinished(model,color){
+  const k=finKey(model,color);
+  return finishedStock.find(f=>finKey(f.model,f.color)===k);
+}
+// 완제품 수량 변경 (delta 또는 실측 절대값)
+function finApply(model,color,opt){
+  // opt: {type, delta, abs, memo}
+  model=(model||'').trim(); color=(color||'').trim();
+  if(!model){ return null; }
+  let f=findFinished(model,color);
+  if(!f){
+    f={ id:'fin_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        model, color, qty:0, note:'', updatedAt:new Date().toISOString(),
+        by:getActor()||'', events:[] };
+    finishedStock.unshift(f);
+  }
+  const now=new Date().toISOString();
+  let delta=0, type=opt.type||'adjust';
+  if(type==='count'){
+    const target=Math.max(0, parseInt(opt.abs)||0);
+    delta = target - f.qty;
+    f.qty = target;
+  } else {
+    delta = parseInt(opt.delta)||0;
+    f.qty = Math.max(0, f.qty + delta);
+  }
+  f.updatedAt=now; f.by=getActor()||'';
+  const evInDate = (type==='in' && opt.inDate) ? opt.inDate : '';
+  f.events.push({ id:'fe_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
+    type, delta, at:now, by:getActor()||'', memo:(opt.memo||'').trim(), inDate:evInDate });
+  // 선입선출(FIFO) 추적: 재고가 0이 되면 입고이력 리셋, 입고 시 가장 오래된 입고날짜 유지
+  if(f.qty<=0){ f.firstInDate=''; }
+  else if(type==='in' && evInDate){
+    if(!f.firstInDate || evInDate < f.firstInDate) f.firstInDate = evInDate;
+  }
+  saveFinished();
+  return f;
+}
+function deleteFinished(id){
+  const i=finishedStock.findIndex(f=>f.id===id);
+  if(i>=0){ finishedStock.splice(i,1); saveFinished(); return true; }
+  return false;
+}
+
+// ── 색상 정규화: 자유입력/코드 → 'WC' | 'ETP' | '' ──
+// 완제품 색상("웜코튼","화이트","에토프"...)과 납품서 색상코드("WC","ETP")를 같은 기준으로 비교하기 위함
+function normColor(c){
+  const s=(c||'').toString().trim().toUpperCase().replace(/\s/g,'');
+  if(!s) return '';
+  if(s==='WC' || s.includes('웜코튼') || s.includes('웜') || s.includes('화이트') || s.includes('WHITE') || s==='W/C' || s.includes('W/COTTON') || s.includes('COTTON')) return 'WC';
+  if(s==='ETP' || s.includes('에토프') || s.includes('에뜨') || s.includes('ETOPE') || s.includes('ETP')) return 'ETP';
+  if(s.includes('쉐이드') || s.includes('셰이드') || s.includes('SHADE')) return 'SHADE';
+  if(s.includes('브리즈') || s.includes('BRZ') || s.includes('BREEZE') || s.includes('브론즈')) return 'BRZ';
+  return s; // 그 외는 원문 대문자 그대로 — 같은 표기끼리만 매칭
+}
+
+// 한샘 코드 → 시리즈 색상(WC/ETP/SHADE/BRZ) 추출
+// HANSAEM_CATALOG 모델명 앞부분: "Euro700 Grace W/Cotton ...", "Euro700 Veil Shade ...", "Euro700 Veil BRZ ..." 등
+function delivColorOf(code){
+  let name='';
+  if(typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[code]) name=HANSAEM_CATALOG[code][0]||'';
+  if(!name && typeof CODE_MODEL_MAP!=='undefined' && CODE_MODEL_MAP[code]) name=CODE_MODEL_MAP[code].short||'';
+  const n=name.toUpperCase();
+  if(n.includes('W/COTTON') || n.includes('GRACE W/C')) return 'WC';
+  if(n.includes('GRACE ETP') || n.includes('ETP')) return 'ETP';
+  if(n.includes('VEIL SHADE') || n.includes('SHADE')) return 'SHADE';
+  if(n.includes('VEIL BRZ') || n.includes('BRZ')) return 'BRZ';
+  // 카탈로그 color값 백업 (WC/ETP만 들어있음)
+  if(typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[code]) return normColor(HANSAEM_CATALOG[code][2]||'');
+  const m=(typeof findModel==='function')?findModel(code):null;
+  return m?normColor(m.color||''):'';
+}
+
+// ── 납품서 한 건의 품목들을 완제품 재고와 대조 ──
+// 반환: [{model, color(정규화 전 재고 표기), reqQty, stockQty, finId}]  (재고가 1+ 인 것만)
+function matchFinishedForDeliv(d){
+  if(!d || !Array.isArray(d.items) || !finishedStock.length) return [];
+  // 재고를 (정규화모델|정규화색상) → 항목 으로 인덱싱
+  const idx={};
+  finishedStock.forEach(f=>{
+    if(f.qty<=0) return;
+    const key=normModelName(f.model)+'│'+normColor(f.color);
+    idx[key]=f;
+  });
+  const out=[]; const seen={};
+  d.items.forEach(it=>{
+    const m=findModel(it.code);
+    if(!m) return;
+    const model=normModelName(m.short||'');
+    const col=delivColorOf(it.code);   // ← 카탈로그 기반 시리즈 색상
+    if(!model) return;
+    const key=model+'│'+col;
+    const f=idx[key];
+    if(!f) return;
+    if(seen[key]){ seen[key].reqQty += (it.qty||0); }
+    else {
+      const row={ model:f.model, color:f.color, reqQty:(it.qty||0), stockQty:f.qty, finId:f.id, code:it.code };
+      seen[key]=row; out.push(row);
+    }
+  });
+  return out;
+}
+
+// ── 납품서 한 건을 조립실 완제품(assemblyStock.done)과 대조 ──
+// 반환: [{itemId, name, reqQty, stockQty, code}] (완제품 1+ 인 것만)
+function matchAssemblyForDeliv(d){
+  if(!d || !Array.isArray(d.items) || typeof assemblyStock==='undefined' || !assemblyStock.length) return [];
+  // 완제품(done>0) 인덱스
+  const doneIdx={};
+  assemblyStock.forEach(a=>{ if((a.done||0)>0) doneIdx[a.id]=a; });
+  if(!Object.keys(doneIdx).length) return [];
+  const out=[]; const seen={};
+  d.items.forEach(it=>{
+    const id = (typeof asmMatchAnyId==='function') ? asmMatchAnyId(it.code) : null;
+    if(!id || !doneIdx[id]) return;
+    if(seen[id]){ seen[id].reqQty += (it.qty||0); }
+    else {
+      const nm = (typeof asmItemName==='function') ? asmItemName(id) : id;
+      const row={ itemId:id, name:nm, reqQty:(it.qty||0), stockQty:doneIdx[id].done, code:it.code };
+      seen[id]=row; out.push(row);
+    }
+  });
+  return out;
+}
+
+// 모델명 비교용 정규화: 시리즈 접두어 제거 + 공백/대소문자 통일
+// "Euro700 Grace W/Cotton OB M 6073(공용) M" → "OBM6073(공용)M",  "OB M 6073" → "OBM6073"
+function normModelName(s){
+  let n=(s||'').toString().trim();
+  // 시리즈/색상 접두어 제거
+  n=n.replace(/Euro700\s+Grace\s+W\/Cotton/ig,'')
+     .replace(/Euro700\s+Grace\s+ETP/ig,'')
+     .replace(/Euro700\s+Veil\s+Shade/ig,'')
+     .replace(/Euro700\s+Veil\s+BRZ/ig,'')
+     .replace(/Euro700\s+\S+\s+\S+/ig,'') // 기타 Euro700 시리즈
+     .replace(/BRZ\s+/ig,'');
+  return n.toUpperCase().replace(/\s+/g,'');
+}
+
+
+// 이벤트 → 현재 재고 계산
+// 가장 최근 'count' 이후의 모든 in/print/out/adjust/defect를 누적
+function calcStockFromEvents(key){
+  const evs = (stockEvents[key] || []).slice().sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  let lastCountIdx = -1;
+  let baseQty = 0;
+  for(let i=evs.length-1; i>=0; i--){
+    if(evs[i].type === 'count'){
+      lastCountIdx = i;
+      baseQty = parseInt(evs[i].qty)||0;
+      break;
+    }
+  }
+  // count가 없으면 모든 in/out 누계
+  let q = baseQty;
+  const startIdx = lastCountIdx === -1 ? 0 : lastCountIdx + 1;
+  for(let i=startIdx; i<evs.length; i++){
+    const e = evs[i];
+    const v = parseInt(e.qty)||0;
+    if(e.type === 'in') q += v;
+    else if(e.type === 'print' || e.type === 'out' || e.type === 'defect') q -= v;
+    else if(e.type === 'adjust') q += v; // adjust는 부호 포함된 값
+  }
+  return q;
+}
+
+// 원유리 이벤트 (사이즈만)
+function getRawEvents(w, h){ return stockEvents[`${w}x${h}`] || []; }
+function getPrintedEvents(w, h, color){ return stockEvents[`${w}x${h}_${color}`] || []; }
+
+// 현재 원유리 / 인쇄유리 재고 (이벤트 기반)
+function getRawQty(w, h){ return calcStockFromEvents(`${w}x${h}`); }
+function getPrintedQty(w, h, color){ return calcStockFromEvents(`${w}x${h}_${color}`); }
+
+// 이벤트 추가 헬퍼 (시간순 자동 정렬, ID 자동 부여)
+function addStockEvent(key, ev){
+  if(!stockEvents[key]) stockEvents[key] = [];
+  const event = {
+    id: 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    at: ev.at || new Date().toISOString(),
+    type: ev.type,
+    qty: parseInt(ev.qty) || 0,
+    by: ev.by || getActor() || '',
+    byAt: new Date().toISOString(),
+    note: ev.note || '',
+    source: ev.source || 'manual'
+  };
+  stockEvents[key].push(event);
+  // 시간순 정렬
+  stockEvents[key].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  // 만약 이 키에 count가 있으면, 자동조정 재계산
+  // (시간 역순으로 입고/인쇄 등이 들어오면 기존 조정값이 틀어지므로)
+  if(event.source !== 'auto-adjust' && stockEvents[key].some(e=>e.type==='count')){
+    recalcAutoAdjusts(key);
+  }
+  return event;
+}
+
+// 이벤트 삭제
+function deleteStockEvent(key, evId){
+  if(!stockEvents[key]) return false;
+  const before = stockEvents[key].length;
+  stockEvents[key] = stockEvents[key].filter(e=>e.id !== evId);
+  return stockEvents[key].length < before;
+}
+
+// 이벤트 수정 (qty/at/note만)
+function updateStockEvent(key, evId, patch){
+  if(!stockEvents[key]) return false;
+  const e = stockEvents[key].find(x=>x.id === evId);
+  if(!e) return false;
+  if(patch.qty !== undefined) e.qty = parseInt(patch.qty) || 0;
+  if(patch.at !== undefined) e.at = patch.at;
+  if(patch.note !== undefined) e.note = patch.note;
+  // 시간 바꿨으면 재정렬
+  stockEvents[key].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  return true;
+}
+
+// 실측 이벤트 추가 시 자동 조정 이력 생성
+// (사용자 결정: 실측을 절대값으로 덮어쓰고 차이는 '조정' 이력으로 자동 생성)
+function addCountWithAutoAdjust(key, ev){
+  // 1) 실측 이벤트 추가
+  if(!stockEvents[key]) stockEvents[key] = [];
+  const newEv = {
+    id: 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    at: ev.at || new Date().toISOString(),
+    type: 'count',
+    qty: parseInt(ev.qty) || 0,
+    by: ev.by || getActor() || '',
+    byAt: new Date().toISOString(),
+    note: ev.note || '',
+    source: 'manual'
+  };
+  stockEvents[key].push(newEv);
+
+  // 2) 자동조정 재계산 (이 키의 모든 count에 대해)
+  recalcAutoAdjusts(key);
+
+  // 3) 방금 추가한 count의 diff 확인 (브리핑용)
+  const adjForThis = stockEvents[key].find(e => e.relatedCountId === newEv.id);
+  const diff = adjForThis ? adjForThis.qty : 0;
+
+  return { count: newEv, diff };
+}
+
+// 작업일지 항목의 eventIds로 stockEvents에서 해당 이벤트들 제거
+// (작업일지 수정/삭제 시 호출)
+function removeStockEventsByIds(ids){
+  if(!ids || !ids.length) return 0;
+  let removed = 0;
+  Object.keys(stockEvents).forEach(key=>{
+    const before = stockEvents[key].length;
+    stockEvents[key] = stockEvents[key].filter(e => !ids.includes(e.id));
+    removed += (before - stockEvents[key].length);
+  });
+  return removed;
+}
+
+// 시간 역순/중간 삽입 후 모든 count의 auto-adjust 재계산
+// (한 키 내에서, count의 시점까지의 모든 변동을 다시 계산해서 조정 이력을 갱신)
+function recalcAutoAdjusts(key){
+  if(!stockEvents[key]) return;
+  // 1) 기존 auto-adjust 이력 모두 제거
+  stockEvents[key] = stockEvents[key].filter(e => e.source !== 'auto-adjust');
+  // 2) 시간순 정렬
+  stockEvents[key].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  // 3) 각 count마다 그 시점까지의 이론값 계산 → 차이를 adjust로 재추가
+  const evs = stockEvents[key].slice(); // 복사본 순회 (원본 수정 중)
+  let runningTheoretical = 0;
+  let prevCountQty = 0;
+  let prevCountSeen = false;
+  for(let i=0; i<evs.length; i++){
+    const e = evs[i];
+    if(e.type === 'count'){
+      // 이 count 시점까지의 이론값 vs 실측값
+      const diff = (parseInt(e.qty)||0) - runningTheoretical;
+      if(diff !== 0){
+        // 이 count보다 1ms 이전 시각에 auto-adjust 추가
+        const adjustAt = new Date(new Date(e.at).getTime() - 1).toISOString();
+        const adjEv = {
+          id: 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + '_radj',
+          at: adjustAt,
+          type: 'adjust',
+          qty: diff,
+          by: e.by || '',
+          byAt: new Date().toISOString(),
+          note: diff > 0 ? `실측 조정 +${diff}장 (미기록 입고 추정)` : `실측 조정 ${diff}장 (미기록 손실 추정)`,
+          source: 'auto-adjust',
+          relatedCountId: e.id
+        };
+        stockEvents[key].push(adjEv);
+      }
+      runningTheoretical = parseInt(e.qty)||0; // count 시점부터 다시 시작
+      prevCountSeen = true;
+    } else {
+      const v = parseInt(e.qty)||0;
+      if(e.type === 'in') runningTheoretical += v;
+      else if(e.type === 'print' || e.type === 'out' || e.type === 'defect') runningTheoretical -= v;
+      // adjust는 이미 제거됨
+    }
+  }
+  // 4) 최종 정렬
+  stockEvents[key].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+}
+
+// 일자 + 오전/오후 → ISO 문자열 (한국 시간 기준 KST=UTC+9)
+// 오전 → 한국 09시 → UTC 00시
+// 오후 → 한국 15시 → UTC 06시
+function dateAmPmToIso(dateStr, ampm){
+  // dateStr: "2025-05-18", ampm: "AM" or "PM"
+  const utcHour = ampm === 'PM' ? '06' : '00';
+  return `${dateStr}T${utcHour}:00:00.000Z`;
+}
+// ISO → "5/18 오전" (한국 시간 기준)
+function formatEventDate(iso){
+  try{
+    const d = new Date(iso);
+    // 한국시간으로 변환 (UTC + 9시간)
+    const kstMs = d.getTime() + 9*60*60*1000;
+    const kst = new Date(kstMs);
+    const m = kst.getUTCMonth() + 1;
+    const day = kst.getUTCDate();
+    const h = kst.getUTCHours();
+    const period = h < 12 ? '오전' : '오후';
+    return `${m}/${day} ${period}`;
+  }catch(e){ return iso; }
+}
+
+// 마지막 실측 이후 지난 일수 (없으면 null)
+function daysSinceLastCount(key){
+  const evs = stockEvents[key] || [];
+  let last = null;
+  evs.forEach(e=>{ if(e.type==='count' && (!last || String(e.at)>String(last.at))) last = e; });
+  if(!last) return null;
+  const lastT = new Date(last.at).getTime();
+  const nowT = Date.now();
+  const days = Math.floor((nowT - lastT) / 86400000);
+  return Math.max(0, days);
+}
+// 실측 상태 배지 정보
+function countAgeBadge(key){
+  const d = daysSinceLastCount(key);
+  if(d === null) return { text: '실측 없음', color: 'var(--tx3)', urgent: false };
+  if(d === 0) return { text: '오늘 실측', color: 'var(--acc3)', urgent: false };
+  if(d === 1) return { text: '1일 전 실측', color: 'var(--tx2)', urgent: false };
+  if(d <= 3) return { text: `${d}일 전 실측`, color: 'var(--tx2)', urgent: false };
+  if(d <= 7) return { text: `${d}일 전 실측 ⚠️`, color: '#d29922', urgent: true };
+  return { text: `${d}일 전 실측 🚨`, color: '#f85149', urgent: true };
+}
+
+// ── 사이즈+색상 기반 재고 함수 ──
+function szKey(w,h,color){return `sz_${w}x${h}_${color||'X'}`;}
+function getSzStock(w,h,color){
+  const k=szKey(w,h,color);
+  if(stock[k]) return stock[k];
+  return {raw:0,printed:0};
+}
+function setSzStock(w,h,color,raw,printed,opts){
+  // opts: { allowNeg: true } - 인쇄유리는 출고초과로 마이너스 허용
+  const key = szKey(w,h,color);
+  if(opts && opts.allowNeg){
+    stock[key]={raw:Math.max(0,raw), printed:printed};
+  } else {
+    stock[key]={raw:Math.max(0,raw), printed:Math.max(0,printed)};
+  }
+  // 마지막 수정자 기록 (작성자 추적용)
+  if(getActor()){
+    if(!stock._meta) stock._meta = {};
+    stock._meta[key] = { by: getActor(), byAt: new Date().toISOString() };
+  }
+}
+// 사이즈 전체 재고 (WC+ETP 합산)
+function getSzStockTotal(w,h){
+  const wc=getSzStock(w,h,'WC');
+  const etp=getSzStock(w,h,'ETP');
+  return {raw:wc.raw+etp.raw, printed:wc.printed+etp.printed, wc, etp};
+}
+let wSelSize=null;
+let wSelModel=null; // {short, color, w, h}
+let wlColor='WC';
+// ── 작업 담기(장바구니): 여러 항목을 담아뒀다 한 번에 올리기 ──
+let wlCart=[];
+// ── 작성자 (Actor) 관리 ──
+// 여러 명이 동시 작업 시 누가 무엇을 등록했는지 추적
+function getActor(){ return (actor || '').trim(); }
+function actorTag(){
+  // 모든 데이터 항목에 첨부할 메타 필드
+  const a = getActor();
+  if(!a) return {};
+  return { by: a, byAt: new Date().toISOString() };
+}
+function saveActor(){
+  const val = (document.getElementById('actor-input')?.value || '').trim();
+  if(!val){ showToast('이름을 입력하세요'); return; }
+  if(val.length > 20){ showToast('20자 이하로'); return; }
+  actor = val;
+  localStorage.setItem(LS.actor, actor);
+  document.getElementById('actor-current').textContent = `현재: ${actor}`;
+  showToast(`✓ "${actor}" 으로 저장`);
+}
+function actorBadge(by, when){
+  // 다른 곳에서 작은 배지 HTML을 생성할 때 사용
+  if(!by) return '';
+  const isMe = by === getActor();
+  const bg = isMe ? 'rgba(46,160,67,.15)' : 'rgba(88,166,255,.12)';
+  const fg = isMe ? 'var(--acc3)' : 'var(--acc)';
+  const border = isMe ? 'rgba(46,160,67,.35)' : 'rgba(88,166,255,.3)';
+  const time = when ? ` · ${_formatActorTime(when)}` : '';
+  return `<span style="display:inline-block;padding:1px 6px;background:${bg};border:1px solid ${border};border-radius:8px;font-size:9px;color:${fg};font-weight:600;white-space:nowrap" title="${by}${time}">👤 ${by}</span>`;
+}
+function _formatActorTime(iso){
+  try{
+    const d = new Date(iso);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    if(sameDay){
+      const h = String(d.getHours()).padStart(2,'0');
+      const m = String(d.getMinutes()).padStart(2,'0');
+      return `${h}:${m}`;
+    }
+    return d.toISOString().slice(5,10).replace('-','/');
+  }catch(e){ return ''; }
+}
+
+function saveAll(){
+  if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
+  if(typeof invalidateTrendAgg==="function") invalidateTrendAgg();
+  // 로컬 변경 시각 기록 (시트→앱 받기 직전 경고용)
+  // _skipLocalChange가 true면 외부(시트→앱)에서 받은 후 호출이므로 갱신 안 함
+  if(!window._skipLocalChange && meta){
+    meta.lastLocalChange = new Date().toISOString();
+    if(getActor()) meta.lastActor = getActor();
+  }
+  localStorage.setItem(LS.stock,JSON.stringify(stock));
+  localStorage.setItem(LS.meta,JSON.stringify(meta));
+  localStorage.setItem(LS.work,JSON.stringify(workLog));
+  localStorage.setItem(LS.ink,JSON.stringify(inkLog));
+  localStorage.setItem(LS.inkRate,JSON.stringify(inkRates));
+  localStorage.setItem(LS.notices,JSON.stringify(notices));
+  localStorage.setItem(LS.schedules,JSON.stringify(schedules));
+  localStorage.setItem(LS.todos,JSON.stringify(todos));
+  localStorage.setItem(LS.delivLog,JSON.stringify(delivLog));
+  localStorage.setItem('ybn-deliv-del-v1',JSON.stringify(delivDeleted));
+  localStorage.setItem('ybn-ledger-v1',JSON.stringify(ledgerLog));
+  if(typeof orderLog!=='undefined') localStorage.setItem('ybn-order-v1',JSON.stringify(orderLog));
+  localStorage.setItem('ybn-order-del-v1',JSON.stringify(orderDeleted));
+  localStorage.setItem('ybn-notice-state-v1',JSON.stringify(noticeState));
+  localStorage.setItem('ybn-vendors-v1',JSON.stringify(vendorBook));
+  localStorage.setItem('ybn-od-vendors-v1',JSON.stringify(odCustomVendors));
+  localStorage.setItem(LS.stockEvents,JSON.stringify(stockEvents));
+  if(typeof assemblyStock!=='undefined') localStorage.setItem('ybn-asm-v1',JSON.stringify(assemblyStock));
+  if(typeof matStock!=='undefined') localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
+  if(typeof matLog!=='undefined') localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
+  if(typeof sheetLog!=='undefined') localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
+  // 설정 화면이 열려 있으면 용량 바 갱신
+  if(typeof renderStorageBar==='function' && document.getElementById('storage-bar-host')) renderStorageBar();
+}
+
+// ── TIME ──
+function updateHdr(){
+  const now=new Date();
+  document.getElementById('hdr-now').textContent=now.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'})+' '+now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+  const el=document.getElementById('home-date');
+  if(el) el.textContent=now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+}
+setInterval(updateHdr,30000); updateHdr();
+function todayStr(){return new Date().toISOString().slice(0,10);}
+
+// 날짜 문자열을 안전하게 YYYY-MM-DD로 변환
+function safeDate(str){
+  if(!str) return todayStr();
+  const s=String(str).trim();
+  // 이미 YYYY-MM-DD 형식
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // 다른 형식 시도
+  const d=new Date(s);
+  if(!isNaN(d.getTime())) return d.toISOString().slice(0,10);
+  return todayStr();
+}
+
+// 날짜 표시용 (Invalid Date 방지)
+function fmtDateSafe(str){
+  const s=safeDate(str);
+  const d=new Date(s+'T00:00:00');
+  if(isNaN(d.getTime())) return str||'-';
+  return d.toLocaleDateString('ko-KR',{month:'short',day:'numeric',weekday:'short'});
+}
+
+function calcDday(due){
+  if(!due) return null;
+  const diff=Math.floor((new Date(due)-new Date(todayStr()))/86400000);
+  if(diff===0) return 'D-Day';
+  if(diff>0) return 'D-'+diff;
+  return 'D+'+Math.abs(diff);
+}
+
+// ── NAV ──
+const MAINS=['home','todo','board','stock','settings'];
+const SUBS=['stocklist','assembly','activity','dashboard','trend','spec','ink','nonspec','mat'];
+let curMain='home', curSub='stocklist';
+// 달력 상태 (renderHome가 renderCal을 호출하므로 미리 선언)
+let calYear=new Date().getFullYear();
+let calMonth=new Date().getMonth(); // 0-based
+let calSelectedDate=todayStr();
+
+function showMain(id){
+  curMain=id;
+  document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.main-nav-btn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  // 버튼 하이라이트: onclick의 showMain('id')로 정확히 매칭 (인덱스 불일치 방지)
+  document.querySelectorAll('.main-nav-btn').forEach(b=>{
+    const oc=b.getAttribute('onclick')||'';
+    if(oc.indexOf("showMain('"+id+"')")>=0) b.classList.add('on');
+  });
+  const fab=document.getElementById('fab-btn');
+  fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
+  if(id==='home')renderHome();
+  if(id==='todo')renderTodo();
+  if(id==='board'){renderNotices();renderSchedules();}
+  if(id==='stock')renderSub(curSub);
+  if(id==='mat')renderMat();
+  if(id==='glassneed')renderGlassNeed();
+  if(id==='settings')initGsUI();
+}
+function showSub(id){
+  curSub=id;
+  document.querySelectorAll('.sub-pg').forEach(s=>s.style.display='none');
+  document.querySelectorAll('.sub-nav-btn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('sp-'+id).style.display='block';
+  document.querySelectorAll('.sub-nav-btn')[SUBS.indexOf(id)].classList.add('on');
+  document.getElementById('fab-btn').style.display=id==='worklog'?'flex':'none';
+  renderSub(id);
+}
+function renderSub(id){
+  if(id==='dashboard')renderDash();
+  if(id==='ink')renderInk();
+  if(id==='stocklist')renderStockList();
+  // 완제품(finished) 탭 제거됨 — 조립실로 일원화. renderFinished 함수는 홈 알림용으로 보존.
+  if(id==='assembly')renderAssembly();
+  if(id==='activity')renderActivityFeed();
+  if(id==='trend')renderTrend();
+  if(id==='spec')renderSpec();
+  if(id==='nonspec')renderNonspec();
+  if(id==='mat')renderMat();
+}
+function renderMat(){
+  renderSheetSummary();
+  renderSheetLog();
+  renderYieldTable();
+}
+
+// ── 🖨️ 인쇄유리 소요 (납품서 → 인쇄유리 대상만 → 오더날짜별 사이즈 전개) ──
+function gnResetRange(){
+  const f=document.getElementById('gn-from'), t=document.getElementById('gn-to');
+  if(f) f.value=''; if(t) t.value='';
+  renderGlassNeed();
+}
+function renderGlassNeed(){
+  const sumEl=document.getElementById('gn-summary');
+  const bodyEl=document.getElementById('gn-body');
+  if(!bodyEl) return;
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  if(!log.length){
+    if(sumEl) sumEl.innerHTML='';
+    bodyEl.innerHTML='<div class="card"><div class="empty"><div class="empty-ico">📭</div>납품서가 없습니다<br><span style="font-size:11px">납품서 탭에서 PDF를 올리면 여기에 인쇄유리 소요가 잡힙니다</span></div></div>';
+    return;
+  }
+  const fromV=(document.getElementById('gn-from')||{}).value||'';
+  const toV=(document.getElementById('gn-to')||{}).value||'';
+
+  // 오더날짜(delivDate) → { sizeKey: {w,h,color,short,qty, models} } 전개
+  const byDate={};
+  let skippedNoBom=0;   // 인쇄유리 대상 아님(BOM 없음)
+  const dates=[];
+
+  log.forEach(doc=>{
+    const date=doc.delivDate||doc.date||'(날짜없음)';
+    if(fromV && date<fromV) return;
+    if(toV && date>toV) return;
+    (doc.items||[]).forEach(it=>{
+      const bom=bomOf(it.short||it.code);
+      if(!bom || !bom.glass || !bom.glass.length){ skippedNoBom+=(it.qty||0); return; } // 인쇄유리 대상 아님 → 제외
+      const color=it.color||'';
+      bom.glass.forEach(g=>{
+        const qty=(g.qty||1)*(it.qty||0);
+        if(qty<=0) return;
+        const key=`${g.w}x${g.h}_${color}`;
+        if(!byDate[date]) byDate[date]={};
+        if(!byDate[date][key]) byDate[date][key]={w:g.w,h:g.h,color,qty:0,models:{}};
+        byDate[date][key].qty+=qty;
+        const mn=it.short||it.code;
+        byDate[date][key].models[mn]=(byDate[date][key].models[mn]||0)+qty;
+      });
+    });
+  });
+
+  Object.keys(byDate).forEach(d=>dates.push(d));
+  dates.sort((a,b)=>String(b).localeCompare(String(a))); // 최신 오더 위로
+
+  let grandTotal=0, grandWc=0, grandEtp=0;
+  dates.forEach(d=>Object.values(byDate[d]).forEach(a=>{
+    grandTotal+=a.qty;
+    if(a.color==='WC') grandWc+=a.qty; else if(a.color==='ETP') grandEtp+=a.qty;
+  }));
+  if(sumEl){
+    if(!dates.length){
+      sumEl.innerHTML='<div style="font-size:12px;color:var(--tx3)">해당 기간에 인쇄유리 대상 오더가 없습니다.</div>';
+    } else {
+      sumEl.innerHTML=
+        `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline">
+           <span style="font-size:12px;color:var(--tx2)">오더일 <b style="color:var(--tx1)">${dates.length}</b>일</span>
+           <span style="font-size:12px;color:var(--tx2)">총 인쇄유리 <b style="color:var(--acc)">${grandTotal}</b>장</span>
+           <span style="font-size:11px;color:var(--wc)">🔵 웜코튼 ${grandWc}</span>
+           <span style="font-size:11px;color:var(--etp)">🟠 에토프 ${grandEtp}</span>
+           ${skippedNoBom?`<span style="font-size:10px;color:var(--tx3)">· 인쇄유리 대상 아님 ${skippedNoBom}건 제외</span>`:''}
+         </div>`;
+    }
+  }
+
+  if(!dates.length){ bodyEl.innerHTML=''; return; }
+
+  bodyEl.innerHTML=dates.map(date=>{
+    const rows=Object.values(byDate[date]).sort((a,b)=>{
+      if(a.color!==b.color) return (a.color||'').localeCompare(b.color||'');
+      if(a.h!==b.h) return a.h-b.h;
+      return a.w-b.w;
+    });
+    const dayTotal=rows.reduce((s,r)=>s+r.qty,0);
+    const rowHtml=rows.map(r=>{
+      const cDot=r.color==='WC'?'var(--wc)':r.color==='ETP'?'var(--etp)':'var(--tx3)';
+      const cLabel=r.color==='WC'?'웜코튼':r.color==='ETP'?'에토프':'미지정';
+      const modelList=Object.entries(r.models).map(([m,q])=>`${m} <span style="color:var(--tx3)">×${q}</span>`).join(' · ');
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--b1)">
+        <span style="width:8px;height:8px;border-radius:50%;background:${cDot};flex:none"></span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:var(--tx1)">
+            ${r.w}<span style="color:var(--tx3);font-weight:400">×</span>${r.h}
+            <span style="font-size:11px;font-weight:700;color:${cDot};margin-left:6px">${cLabel}</span>
+          </div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${modelList}</div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc);flex:none">
+          ${r.qty}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="card" style="margin-top:12px">
+      <div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center">
+        <span>📅 ${date}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--tx2);text-transform:none;letter-spacing:0">인쇄유리 ${dayTotal}장 · ${rows.length}종</span>
+      </div>
+      <div style="margin-top:4px">${rowHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function onFab(){
+  if(curMain==='todo')openTodoModal();
+  else if(curMain==='worklog')openWorkModal();
+  else if(curMain==='stock'&&curSub==='worklog')openWorkModal();
+}
+
+// ── HELPERS ──
+function getStock(c){const s=stock[c]||{};return{raw:s.raw||0,printed:s.printed||0};}
+function colorBadge(c){
+  const m={WC:'<span class="badge b-wc">웜코튼</span>',ETP:'<span class="badge b-etp">에토프</span>',White:'<span class="badge b-white">화이트</span>',Forest:'<span class="badge b-forest">포레스트</span>',Sahara:'<span class="badge b-sahara">사하라</span>'};
+  return m[c]||'';
+}
+function doorBadge(d){return d==='HD'?'<span class="badge b-hd">HD</span>':d==='OB'?'<span class="badge b-ob">OB</span>':'<span class="badge b-ch">CH</span>';}
+function freqBadge(f,a){const L={high:'고빈도',mid:'중빈도',low:'저빈도',rare:'희귀'},C={high:'b-high',mid:'b-mid',low:'b-low',rare:'b-rare'};return '<span class="badge '+C[f]+'">'+L[f]+'</span><span class="freq-avg">월평균 '+a+'장</span>';}
+function miniTrend(m){if(!m)return '';const v=MONTHS.map(mo=>m[mo]||0),mx=Math.max(...v,1);return v.map(x=>'<div class="trend-bar'+(x===0?' z':'')+'" style="height:'+Math.max(Math.round(x/mx*26),x>0?3:2)+'px"></div>').join('');}
+function isUrgent(m){return getStock(m.code).raw<Math.max(1,m.min_stock)&&m.freq!=='rare';}
+function isWarn(m){const s=getStock(m.code);return !isUrgent(m)&&s.raw<m.min_stock*2&&m.freq==='high';}
+function hlName(n,c){
+  const hl={WC:'rgba(147,197,253,.5)',ETP:'rgba(253,186,116,.5)',White:'rgba(230,230,230,.3)',Forest:'rgba(110,231,183,.4)',Sahara:'rgba(217,119,6,.3)'};
+  const bg=hl[c];
+  return bg?'<span style="background:linear-gradient(transparent 28%,'+bg+' 28%);border-radius:2px;padding:0 2px;font-weight:800">'+n+'</span>':n;
+}
+function closeM(id){document.getElementById(id).classList.remove('on');}
+document.querySelectorAll('.modal-bg').forEach(bg=>bg.addEventListener('click',function(e){if(e.target===this)this.classList.remove('on');}));
+function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),2200);}
+
+// ── HOME ──
+function renderHome(){
+  document.getElementById('home-urgent').innerHTML=notices.filter(n=>n.pri==='urgent'&&!n.archived).map(n=>'<div class="urgent-banner"><div class="urgent-label">🔴 긴급공지</div><div class="urgent-title">'+n.title+'</div><div class="urgent-body">'+n.content+'</div></div>').join('');
+  const td=todayStr(),tl=workLog.find(d=>d.date===td);
+  const tw=tl?tl.items.reduce((a,i)=>a+i.qty,0):0;
+  document.getElementById('home-inprog').textContent=todos.filter(t=>t.status==='진행중').length;
+  document.getElementById('home-tw').textContent=tw;
+  document.getElementById('home-us').textContent=MODELS.filter(m=>isUrgent(m)).length;
+  // 편집 가능한 할일/공지/일정 렌더
+  if(typeof renderTodo==='function') renderTodo();
+  if(typeof renderNotices==='function') renderNotices();
+  if(typeof renderSchedules==='function') renderSchedules();
+  if(typeof renderCal==='function') renderCal();
+  if(!tl||!tl.items.length){document.getElementById('home-work').innerHTML='<div class="empty-sm">오늘 작업 기록 없음</div>';return;}
+  const wcQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
+  const etpQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
+  document.getElementById('home-work').innerHTML='<div class="work-stats"><div class="ws"><div class="ws-l">총계</div><div class="ws-v acc3">'+tw+'장</div></div><div class="ws"><div class="ws-l wc">웜코튼</div><div class="ws-v wc">'+wcQ+'</div></div><div class="ws"><div class="ws-l etp">에토프</div><div class="ws-v etp">'+etpQ+'</div></div></div>'+tl.items.slice(0,5).map(it=>{const m=MODELS.find(x=>x.code===it.code);const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';return '<div class="wsum-row"><div class="dot" style="background:'+dot+'"></div><div class="wsum-name">'+(m?hlName(m.short,m.color):it.code)+'</div><div class="wsum-qty">'+it.qty+'장</div></div>';}).join('');
+}
+
+// ── TODO ──
+let todoFilter='all', editTodoId=null;
+function setTodoFilter(f,btn){todoFilter=f;if(btn&&btn.parentElement){btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}renderTodo();}
+function renderTodo(){
+  const q=(document.getElementById('todo-search')?.value||'').toLowerCase();
+  let list=[...todos];
+  if(q)list=list.filter(t=>t.content.toLowerCase().includes(q)||(t.assignee||'').toLowerCase().includes(q)||(t.company||'').toLowerCase().includes(q));
+  if(todoFilter==='시작전')list=list.filter(t=>t.status==='시작전');
+  else if(todoFilter==='진행중')list=list.filter(t=>t.status==='진행중');
+  else if(todoFilter==='완료')list=list.filter(t=>t.status==='완료');
+  else if(todoFilter==='긴급')list=list.filter(t=>t.priority==='긴급');
+  const po={긴급:0,보통:1,여유:2};
+  list.sort((a,b)=>{if(a.status==='완료'&&b.status!=='완료')return 1;if(b.status==='완료'&&a.status!=='완료')return -1;return(po[a.priority]||1)-(po[b.priority]||1);});
+  const el=document.getElementById('todo-list');
+  el.innerHTML=!list.length?'<div class="empty"><div class="empty-ico">✅</div>할일이 없습니다</div>':list.map(t=>todoItemHTML(t,false)).join('');
+}
+function todoItemHTML(t,compact){
+  const done=t.status==='완료';
+  const dd=calcDday(t.dueDate);
+  const ddc=!dd?'none':dd.startsWith('D+')&&dd!=='D-Day'?'over':'ok';
+  return '<div class="todo-item'+(done?' done':'')+'">'
+    +'<button class="todo-check'+(done?' done':'')+'" onclick="toggleTodo(\''+t.id+'\')">'+(done?'✓':'')+'</button>'
+    +'<div class="todo-left">'
+    +'<div class="todo-content">'+t.content+'</div>'
+    +'<div class="todo-meta">'
+    +(t.assignee?'<span class="assignee-tag">'+t.assignee+'</span>':'')
+    +(t.company?'<span class="company-tag">'+t.company+'</span>':'')
+    +'<span class="status-tag st-'+t.status+'">'+t.status+'</span>'
+    +'<span class="pri-tag pri-'+t.priority+'">'+t.priority+'</span>'
+    +(dd?'<span class="dday '+ddc+'">'+dd+'</span>':'')
+    +(t.dueDate?'<span class="due-txt">~'+t.dueDate.slice(5).replace('-','/')+'</span>':'')
+    +'</div></div>'
+    +(!compact?'<div class="todo-actions"><button onclick="editTodo(\''+t.id+'\')" class="icon-btn">✏️</button><button onclick="cycleTodo(\''+t.id+'\')" class="icon-btn">🔄</button><button onclick="deleteTodo(\''+t.id+'\')" class="icon-btn del">🗑</button></div>':'')
+    +'</div>';
+}
+function toggleTodo(id){const t=todos.find(x=>x.id===id);if(!t)return;t.status=t.status==='완료'?'시작전':'완료';saveAll();renderTodo();renderHome();autoSync();}
+function cycleTodo(id){const t=todos.find(x=>x.id===id);if(!t)return;const c=['시작전','진행중','완료'];t.status=c[(c.indexOf(t.status)+1)%c.length];saveAll();renderTodo();renderHome();autoSync();showToast('→ '+t.status);}
+function deleteTodo(id){if(!confirm('삭제합니까?'))return;todos=todos.filter(t=>t.id!==id);saveAll();renderTodo();renderHome();autoSync();}
+function fillTodoDatalists(){
+  const names=[...new Set(todos.map(t=>(t.assignee||'').trim()).filter(Boolean))].sort();
+  const comps=[...new Set(todos.map(t=>(t.company||'').trim()).filter(Boolean))].sort();
+  const al=document.getElementById('assignee-list');
+  const cl=document.getElementById('company-list');
+  if(al) al.innerHTML=names.map(n=>'<option value="'+n+'"></option>').join('');
+  if(cl) cl.innerHTML=comps.map(c=>'<option value="'+c+'"></option>').join('');
+}
+function editTodo(id){
+  const t=todos.find(x=>x.id===id);if(!t)return;
+  editTodoId=id;
+  fillTodoDatalists();
+  document.getElementById('tm-title').textContent='✅ 할일 수정';
+  document.getElementById('tm-content').value=t.content;
+  document.getElementById('tm-assignee').value=t.assignee||'';
+  document.getElementById('tm-company').value=t.company||'';
+  document.getElementById('tm-priority').value=t.priority||'보통';
+  document.getElementById('tm-due').value=t.dueDate||'';
+  document.getElementById('tm-confirm').textContent='✓ 수정';
+  document.getElementById('todo-modal').classList.add('on');
+}
+function openTodoModal(){
+  editTodoId=null;
+  fillTodoDatalists();
+  document.getElementById('tm-title').textContent='✅ 할일 추가';
+  document.getElementById('tm-content').value='';
+  document.getElementById('tm-assignee').value='';
+  document.getElementById('tm-company').value='';
+  document.getElementById('tm-priority').value='보통';
+  document.getElementById('tm-due').value='';
+  document.getElementById('tm-confirm').textContent='✓ 추가';
+  document.getElementById('todo-modal').classList.add('on');
+}
+function confirmTodo(){
+  const content=document.getElementById('tm-content').value.trim();
+  if(!content){showToast('내용을 입력하세요');return;}
+  const data={content,assignee:document.getElementById('tm-assignee').value.trim(),company:document.getElementById('tm-company').value.trim(),priority:document.getElementById('tm-priority').value,dueDate:document.getElementById('tm-due').value};
+  if(editTodoId){const t=todos.find(x=>x.id===editTodoId);if(t)Object.assign(t,data);}
+  else todos.push({id:Date.now().toString(),...data,status:'시작전',date:todayStr(),createdAt:new Date().toISOString(),...actorTag()});
+  saveAll();closeM('todo-modal');renderTodo();renderHome();autoSync();
+  showToast(editTodoId?'✅ 수정됨':'✅ 추가됨');editTodoId=null;
+}
+
+// ── NOTICES ──
+let noticePri='normal',editNoticeId=null,noticeArchiveOpen=false;
+function toggleNoticeArchive(){ noticeArchiveOpen=!noticeArchiveOpen; renderNotices(); }
+function archiveNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=true; n.updatedAt=new Date().toISOString(); noticeState[id]={archived:true,deleted:false,at:n.updatedAt}; saveAll(); renderNotices(); renderHome(); autoSync(); showToast('🗂 보관함으로 이동'); }
+function restoreNotice(id){ const n=notices.find(x=>x.id===id); if(!n)return; n.archived=false; n.updatedAt=new Date().toISOString(); noticeState[id]={archived:false,deleted:false,at:n.updatedAt}; saveAll(); renderNotices(); renderHome(); autoSync(); showToast('공지로 복원'); }
+function renderNotices(){
+  const el=document.getElementById('notice-list');
+  const PL={normal:'일반',important:'⚠️ 중요',urgent:'🔴 긴급'};
+  const PC={normal:'var(--acc)',important:'var(--acc2)',urgent:'var(--acc4)'};
+  const CL={work:'작업',delivery:'납품',order:'발주',etc:'기타'};
+  const today=todayStr();
+
+  // 1) 공지에 띄우기 체크된 '예정' 일정 (지난 건 제외)
+  let pinnedHtml='';
+  const pinned=schedules
+    .map(s=>({...s,date:safeDate(s.date)}))
+    .filter(s=>s.pin && s.date>=today)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  if(pinned.length){
+    pinnedHtml=pinned.map(s=>{
+      const ds=fmtDateSafe(s.date);
+      const isToday=s.date===today;
+      return '<div class="notice-item important" style="border-left-color:var(--acc2)">'
+        +'<div class="notice-hdr"><div class="notice-hdr-left"><span class="notice-pri" style="color:var(--acc2)">📌 일정</span><span class="notice-title">'+s.content+'</span></div>'
+        +'<div class="notice-btns"><button onclick="editSch(\''+s.id+'\')" class="icon-btn">✏️</button></div></div>'
+        +'<div class="notice-body">'+ds+(isToday?' · 오늘':'')+' · '+(CL[s.cat]||'')+'</div></div>';
+    }).join('');
+  }
+
+  // 2) 보관 안 된 공지
+  const active=notices.filter(n=>!n.archived);
+  const archived=notices.filter(n=>n.archived);
+  let activeHtml='';
+  if(!active.length && !pinned.length){
+    activeHtml='<div class="empty"><div class="empty-ico">📭</div>공지 없음</div>';
+  } else if(active.length){
+    activeHtml=[...active].reverse().map(n=>{
+      const ds=new Date(n.createdAt).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' '+new Date(n.createdAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+      return '<div class="notice-item '+n.pri+'">'
+        +'<div class="notice-hdr"><div class="notice-hdr-left"><span class="notice-pri" style="color:'+PC[n.pri]+'">'+PL[n.pri]+'</span><span class="notice-title">'+n.title+'</span></div>'
+        +'<div class="notice-btns"><button onclick="editNotice(\''+n.id+'\')" class="icon-btn">✏️</button><button onclick="archiveNotice(\''+n.id+'\')" class="icon-btn" title="보관">🗂</button><button onclick="deleteNotice(\''+n.id+'\')" class="icon-btn del">🗑</button></div></div>'
+        +'<div class="notice-body">'+n.content+'</div>'
+        +'<div class="notice-date">'+ds+(n.updatedAt?' (수정됨)':'')+'</div></div>';
+    }).join('');
+  }
+
+  // 3) 보관함 (접이식)
+  let archiveHtml='';
+  if(archived.length){
+    const toggleBtn='<button onclick="toggleNoticeArchive()" style="width:100%;margin-top:10px;padding:10px;background:none;border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif;display:flex;justify-content:space-between;align-items:center">'
+      +'<span>🗂 보관된 공지 ('+archived.length+'건)</span><span>'+(noticeArchiveOpen?'▲ 닫기':'▼ 열기')+'</span></button>';
+    let body='';
+    if(noticeArchiveOpen){
+      body='<div style="margin-top:8px">'+[...archived].reverse().map(n=>{
+        const ds=new Date(n.createdAt).toLocaleDateString('ko-KR',{month:'short',day:'numeric'});
+        return '<div class="notice-item '+n.pri+'" style="opacity:.65">'
+          +'<div class="notice-hdr"><div class="notice-hdr-left"><span class="notice-title">'+n.title+'</span></div>'
+          +'<div class="notice-btns"><button onclick="restoreNotice(\''+n.id+'\')" class="icon-btn" title="복원">↩️</button><button onclick="deleteNotice(\''+n.id+'\')" class="icon-btn del">🗑</button></div></div>'
+          +'<div class="notice-body">'+n.content+'</div>'
+          +'<div class="notice-date">'+ds+'</div></div>';
+      }).join('')+'</div>';
+    }
+    archiveHtml=toggleBtn+body;
+  }
+
+  el.innerHTML=pinnedHtml+activeHtml+archiveHtml;
+}
+function openNoticeModal(id=null){
+  editNoticeId=id;noticePri='normal';
+  const ex=id?notices.find(n=>n.id===id):null;
+  document.getElementById('nm-title').textContent=id?'📌 공지 수정':'📌 공지 작성';
+  document.getElementById('nm-title-input').value=ex?ex.title:'';
+  document.getElementById('nm-content').value=ex?ex.content:'';
+  document.getElementById('nm-confirm').textContent=id?'✓ 수정':'✓ 등록';
+  if(ex){noticePri=ex.pri;setNoticePri(ex.pri,document.getElementById('npri-'+ex.pri));}
+  else setNoticePri('normal',document.getElementById('npri-normal'));
+  document.getElementById('notice-modal').classList.add('on');
+}
+function editNotice(id){openNoticeModal(id);}
+function deleteNotice(id){if(!confirm('공지를 삭제합니까?'))return;noticeState[id]={archived:true,deleted:true,at:new Date().toISOString()};notices=notices.filter(n=>n.id!==id);saveAll();renderNotices();renderHome();autoSync();showToast('삭제됨');}
+function setNoticePri(pri,btn){
+  noticePri=pri;
+  document.querySelectorAll('#notice-modal .q-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  const c={normal:'var(--acc)',important:'var(--acc2)',urgent:'var(--acc4)'};
+  if(btn){btn.style.background=c[pri];btn.style.color='#0d1117';btn.style.borderColor=c[pri];}
+}
+function confirmNotice(){
+  const title=document.getElementById('nm-title-input').value.trim();
+  const content=document.getElementById('nm-content').value.trim();
+  if(!title){showToast('제목을 입력하세요');return;}
+  if(editNoticeId){const n=notices.find(x=>x.id===editNoticeId);if(n){n.title=title;n.content=content;n.pri=noticePri;n.updatedAt=new Date().toISOString();}}
+  else notices.push({id:Date.now().toString(),title,content,pri:noticePri,createdAt:new Date().toISOString()});
+  saveAll();closeM('notice-modal');renderNotices();renderHome();autoSync();
+  showToast(editNoticeId?'수정됨':'✅ 공지 등록됨');editNoticeId=null;
+}
+
+// ── SCHEDULES ──
+let schCat='work';
+let schHistoryOpen=false;
+function toggleSchHistory(){ schHistoryOpen=!schHistoryOpen; renderSchedules(); }
+function renderSchedules(){
+  const el=document.getElementById('sch-list');
+  const histEl=document.getElementById('sch-history');
+  if(!schedules.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">📅</div>일정 없음</div>';
+    if(histEl) histEl.innerHTML='';
+    return;
+  }
+  const CC={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
+  const CL={work:'작업',delivery:'납품',order:'발주',etc:'기타'};
+  const today=todayStr();
+  // 3년 전 컷오프
+  const cut=new Date(); cut.setFullYear(cut.getFullYear()-3);
+  const cutStr=cut.toISOString().slice(0,10);
+
+  // 날짜 정규화
+  const normalized=schedules.map(s=>({...s, date:safeDate(s.date)}));
+  const sorted=[...normalized].sort((a,b)=>a.date.localeCompare(b.date));
+  const upcoming=sorted.filter(s=>s.date>=today);
+  const past=sorted.filter(s=>s.date<today && s.date>=cutStr).reverse();
+
+  // 예정 일정만 메인에 표시 (지난 건 절대 안 보임)
+  if(!upcoming.length){
+    el.innerHTML='<div class="empty-sm">예정된 일정 없음</div>';
+  } else {
+    el.innerHTML=upcoming.map(s=>{
+      const isToday=s.date===today;
+      const ds=fmtDateSafe(s.date);
+      return '<div class="sch-item">'
+        +'<div class="sch-date'+(isToday?' today':'')+'">'+ds+(isToday?'<br><span class="today-label">오늘</span>':'')+'</div>'
+        +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
+        +'<div class="sch-info"><div class="sch-content">'+s.content+'</div><div class="sch-cat">'+CL[s.cat]+'</div></div>'
+        +'<div style="display:flex;gap:2px;flex-shrink:0">'
+        +'<button onclick="editSch(\''+s.id+'\')" class="icon-btn">✏️</button>'
+        +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button>'
+        +'</div></div>';
+    }).join('');
+  }
+
+  // 지난 일정 = 접이식 보관함 (기본 닫힘)
+  if(histEl){
+    if(!past.length){ histEl.innerHTML=''; }
+    else{
+      const toggleBtn='<button onclick="toggleSchHistory()" style="width:100%;margin-top:10px;padding:10px;background:none;border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif;text-align:left;display:flex;justify-content:space-between;align-items:center">'
+        +'<span>🗂 지난 일정 보관함 ('+past.length+'건)</span>'
+        +'<span>'+(schHistoryOpen?'▲ 닫기':'▼ 열기')+'</span></button>';
+      let body='';
+      if(schHistoryOpen){
+        body='<div style="margin-top:8px">'
+          +past.map(s=>{
+            const ds=fmtDateSafe(s.date);
+            return '<div class="sch-item" style="opacity:.6">'
+              +'<div class="sch-date past">'+ds+'</div>'
+              +'<div class="sch-bar2" style="background:'+CC[s.cat]+'"></div>'
+              +'<div class="sch-info"><div class="sch-content">'+s.content+'</div><div class="sch-cat">'+CL[s.cat]+'</div></div>'
+              +'<div style="display:flex;gap:2px;flex-shrink:0">'
+              +'<button onclick="deleteSch(\''+s.id+'\')" class="icon-btn del">🗑</button>'
+              +'</div></div>';
+          }).join('')
+          +'</div>';
+      }
+      histEl.innerHTML=toggleBtn+body;
+    }
+  }
+}
+
+let editSchId=null;
+function openSchModal(){
+  editSchId=null;
+  schCat='work';
+  document.getElementById('sm-date').value=todayStr();
+  document.getElementById('sm-content').value='';
+  const pin=document.getElementById('sm-pin'); if(pin)pin.checked=false;
+  document.getElementById('sch-modal-title').textContent='📅 일정 추가';
+  document.getElementById('sch-confirm-btn').textContent='✓ 저장';
+  setSchCat('work',document.getElementById('scat-work'));
+  document.getElementById('sch-modal').classList.add('on');
+}
+function editSch(id){
+  const s=schedules.find(x=>x.id===id); if(!s) return;
+  editSchId=id;
+  schCat=s.cat||'work';
+  document.getElementById('sm-date').value=safeDate(s.date);
+  document.getElementById('sm-content').value=s.content;
+  const pin=document.getElementById('sm-pin'); if(pin)pin.checked=!!s.pin;
+  document.getElementById('sch-modal-title').textContent='📅 일정 수정';
+  document.getElementById('sch-confirm-btn').textContent='✓ 수정';
+  setSchCat(s.cat||'work',document.getElementById('scat-'+( s.cat||'work')));
+  document.getElementById('sch-modal').classList.add('on');
+}
+function setSchCat(cat,btn){
+  schCat=cat;
+  document.querySelectorAll('#sch-modal .q-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  const c={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
+  if(btn){btn.style.background=c[cat];btn.style.color='#0d1117';btn.style.borderColor=c[cat];}
+}
+function deleteSch(id){if(!confirm('일정을 삭제합니까?'))return;schedules=schedules.filter(s=>s.id!==id);saveAll();renderSchedules();renderHome();renderCal();autoSync();showToast('삭제됨');}
+function confirmSch(){
+  const date=document.getElementById('sm-date').value;
+  const content=document.getElementById('sm-content').value.trim();
+  const pin=!!(document.getElementById('sm-pin')&&document.getElementById('sm-pin').checked);
+  if(!date||!content){showToast('날짜와 내용을 입력하세요');return;}
+  if(editSchId){
+    const s=schedules.find(x=>x.id===editSchId);
+    if(s){s.date=date;s.content=content;s.cat=schCat;s.pin=pin;s.updatedAt=new Date().toISOString();}
+    showToast('✅ 일정 수정됨');
+  } else {
+    schedules.push({id:Date.now().toString(),date,content,cat:schCat,pin:pin,createdAt:new Date().toISOString()});
+    showToast(pin?'✅ 일정 추가됨 (공지에 표시)':'✅ 일정 추가됨');
+  }
+  editSchId=null;
+  saveAll();closeM('sch-modal');renderSchedules();renderHome();renderCal();renderNotices();autoSync();
+}
+
+// ── STOCK DASHBOARD ──
+function calcInkStock(color){
+  let inTotal=0;
+  inkLog.filter(l=>l.color===color).forEach(l=>{if(l.type==='in')inTotal+=l.qty;if(l.type==='set')inTotal=l.qty;});
+  const rate=inkRates[color]||1.5;
+  let usedKg=0;
+  workLog.forEach(day=>{const q=day.items.filter(it=>{const m=MODELS.find(x=>x.code===it.code);return m&&m.color===color;}).reduce((a,i)=>a+i.qty,0);if(q>0)usedKg+=rate;});
+  const remaining=Math.max(0,Math.round((inTotal-usedKg/3)*10)/10);
+  return {remaining,kgLeft:remaining*3,inTotal};
+}
+function renderDash(){
+  let rawT=0;MODELS.forEach(m=>{rawT+=getStock(m.code).raw;});
+  const td=todayStr(),tl=workLog.find(d=>d.date===td);
+  const tw=tl?tl.items.reduce((a,i)=>a+i.qty,0):0;
+  document.getElementById('d-raw').textContent=rawT;
+  document.getElementById('d-tw').textContent=tw;
+  const wc=calcInkStock('WC'),etp=calcInkStock('ETP');
+  document.getElementById('d-ink-wc').textContent=wc.remaining;
+  document.getElementById('d-ink-etp').textContent=etp.remaining;
+  // ── 긴급 부족 모델 (라이브: 업로드된 납품서 기준 최근 수요 + 재고 부족) ──
+  const agg=delivModelAgg(6);
+  // 1) 최근 14일 납품서에 등장한 모델 중 재고(원유리)가 수요보다 부족한 것
+  const demandList=[];
+  agg.forEach((e,code)=>{
+    if(e.recent<=0) return;
+    const m=MODELS.find(x=>x.code===code);
+    if(!m) return;
+    const s=getStock(code);
+    const shortage=e.recent - s.raw; // 최근 필요분 대비 원유리 부족량
+    if(shortage>0) demandList.push({m, recent:e.recent, raw:s.raw, shortage, lastDate:e.lastDate});
+  });
+  demandList.sort((a,b)=>b.shortage-a.shortage || b.recent-a.recent);
+  // 2) 기존 min_stock 기반 긴급(납품서에 안 잡혔지만 재고 바닥)도 보조로
+  const demandCodes=new Set(demandList.map(d=>d.m.code));
+  const baseUrg=MODELS.filter(m=>isUrgent(m) && !demandCodes.has(m.code)).slice(0,4);
+
+  let urgentHtml='';
+  if(demandList.length){
+    urgentHtml=demandList.slice(0,8).map(d=>{
+      const m=d.m, sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';
+      const dm=d.lastDate?d.lastDate.slice(5).replace('-','/'):'';
+      return '<div class="alert-box" onclick="openSModal(\''+m.code+'\')">'
+        +'<div class="alert-inner"><div><div class="alert-name">'+hlName(m.short,m.color)+'</div>'
+        +'<div class="alert-meta">'+m.code+' | '+sz+' '+colorBadge(m.color)
+        +' <span style="color:var(--acc4);font-weight:700">📋 최근필요 '+d.recent+'</span>'+(dm?' ('+dm+')':'')+'</div></div>'
+        +'<div class="alert-qty" style="color:var(--acc4)">'+d.raw+'<span class="alert-unit">원유리·부족 '+d.shortage+'</span></div></div></div>';
+    }).join('');
+  }
+  if(baseUrg.length){
+    urgentHtml+=baseUrg.map(m=>{const s=getStock(m.code);const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';return '<div class="alert-box" onclick="openSModal(\''+m.code+'\')">'
+      +'<div class="alert-inner"><div><div class="alert-name">'+hlName(m.short,m.color)+'</div><div class="alert-meta">'+m.code+' | '+sz+' '+colorBadge(m.color)+'</div></div>'
+      +'<div class="alert-qty">'+s.raw+'<span class="alert-unit">원유리</span></div></div></div>';}).join('');
+  }
+  document.getElementById('d-urgent').innerHTML = urgentHtml ||
+    '<div class="empty-sm" style="color:var(--acc3)">✅ 긴급 부족 없음</div>';
+  if(!tl||!tl.items.length){document.getElementById('d-work').innerHTML='<div class="empty-sm">오늘 작업 기록 없음</div>';}
+  else{
+    const wcQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etpQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    document.getElementById('d-work').innerHTML='<div class="work-stats"><div class="ws"><div class="ws-l">총계</div><div class="ws-v acc3">'+tw+'장</div></div><div class="ws"><div class="ws-l wc">웜코튼</div><div class="ws-v wc">'+wcQ+'</div></div><div class="ws"><div class="ws-l etp">에토프</div><div class="ws-v etp">'+etpQ+'</div></div></div>';
+  }
+  // ── 고빈도 TOP 10 (라이브: 업로드된 납품서 누적 기준, 데이터 없으면 기존 6개월값 폴백) ──
+  const aggT=delivModelAgg(6);
+  let top10;
+  if(aggT.size){
+    top10=MODELS.map(m=>{
+      const e=aggT.get(m.code);
+      return {m, qty: e?e.total:0, live: !!e};
+    }).filter(x=>x.qty>0).sort((a,b)=>b.qty-a.qty).slice(0,10);
+    // 라이브 데이터가 10개 미만이면 기존 값으로 채움
+    if(top10.length<10){
+      const have=new Set(top10.map(x=>x.m.code));
+      MODELS.filter(m=>!have.has(m.code)).sort((a,b)=>(b.total_6m||0)-(a.total_6m||0))
+        .slice(0,10-top10.length).forEach(m=>top10.push({m, qty:m.total_6m||0, live:false}));
+    }
+  } else {
+    top10=MODELS.slice(0,10).map(m=>({m, qty:m.total_6m||0, live:false}));
+  }
+  document.getElementById('d-top10').innerHTML=top10.map((x,i)=>{const m=x.m;const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';return '<div class="top10-row" onclick="openSModal(\''+m.code+'\')">'
+    +'<div class="top10-rank">'+(i+1)+'</div>'
+    +'<div class="top10-info"><div class="top10-name">'+hlName(m.short,m.color)+'</div><div class="top10-meta">'+sz+' '+colorBadge(m.color)+' '+doorBadge(m.door_type)+'</div></div>'
+    +'<div class="top10-right"><div class="top10-qty">'+x.qty+'<span class="top10-unit">장</span></div><div class="trend">'+miniTrend(m.monthly||{})+'</div></div></div>';}).join('');
+}
+
+// ── WORK LOG ──
+function renderWorkLog(){
+  let total=0,wcQ=0,etpQ=0,etcQ=0;
+  workLog.forEach(day=>day.items.forEach(it=>{total+=it.qty;const ic=it.color||(MODELS.find(x=>x.code===it.code)||{}).color;if(ic==='WC')wcQ+=it.qty;else if(ic==='ETP')etpQ+=it.qty;else etcQ+=it.qty;}));
+  document.getElementById('wl-days').textContent=workLog.length;
+  document.getElementById('wl-total').textContent=total;
+  document.getElementById('wl-wc').textContent=wcQ;
+  document.getElementById('wl-etp').textContent=etpQ;
+  document.getElementById('wl-etc').textContent=etcQ;
+  const el=document.getElementById('wl-list');
+  if(!workLog.length){el.innerHTML='<div class="empty"><div class="empty-ico">📝</div>기록 없음<br><span style="font-size:11px">+ 버튼으로 입력</span></div>';return;}
+  el.innerHTML=[...workLog].sort((a,b)=>b.date.localeCompare(a.date)).map(day=>{
+    const dt=day.items.reduce((a,i)=>a+i.qty,0);
+    const wc=day.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etp=day.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    const dl=new Date(day.date+'T00:00:00').toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+    return '<div class="day-card">'
+      +'<div class="day-hdr"><div><div class="day-date">'+dl+'</div><div class="day-color-sum"><span class="wc">웜코튼 '+wc+'장</span> <span class="etp">에토프 '+etp+'장</span></div></div>'
+      +'<div class="day-total">'+dt+'<span class="day-unit">장</span></div></div>'
+      +day.items.map(it=>{const m=MODELS.find(x=>x.code===it.code);const ic=it.color||(m&&m.color)||'';const sz=m&&m.glass_w?m.glass_w+'x'+m.glass_h:(it.sizeKey?it.sizeKey.replace('sz_','').replace('x','x'):'');const szDisp=m&&m.glass_w?m.glass_w+'×'+m.glass_h:(it.sizeKey?it.sizeKey.replace('sz_','').replace('x','×'):'');const dot=ic==='WC'?'var(--wc)':ic==='ETP'?'var(--etp)':'var(--tx2)';const nm=m?hlName(m.short,ic):(it.short||it.sizeKey||it.code||'');return '<div class="day-item"><div class="dot" style="background:'+dot+'"></div><div class="day-item-info"><div class="day-item-name">'+nm+'</div><div class="day-item-meta">'+(it.code||it.sizeKey||'')+(szDisp?' | 📐 '+szDisp:'')+' '+(ic?colorBadge(ic):'')+' '+(m?doorBadge(m.door_type):'')+'</div></div><div class="day-item-qty">'+it.qty+'<span class="day-unit">장</span></div></div>';}).join('')
+      +'</div>';
+  }).join('');
+}
+
+// ── INK ──
+function renderInk(){
+  ['WC','ETP'].forEach(color=>{
+    const id=color.toLowerCase();
+    const calc=calcInkStock(color);
+    const rate=inkRates[color]||1.5;
+    const daysLeft=rate>0?Math.round(calc.kgLeft/rate):99;
+    const pct=Math.min(100,calc.inTotal>0?Math.round(calc.remaining/calc.inTotal*100):0);
+    const isLow=calc.remaining<=5;
+    document.getElementById('ink-'+id+'-stock').textContent=calc.remaining;
+    document.getElementById('ink-'+id+'-kg').textContent='≈ '+calc.kgLeft.toFixed(1)+'KG';
+    document.getElementById('ink-'+id+'-bar').style.width=pct+'%';
+    document.getElementById('ink-'+id+'-bar').className='ink-bar '+(isLow?'low':id);
+    document.getElementById('ink-'+id+'-days').textContent=calc.remaining>0?(daysLeft>99?'충분':daysLeft+'일 예상'):'소진';
+    const logs=inkLog.filter(l=>l.color===color).slice(-6).reverse();
+    document.getElementById('ink-'+id+'-log').innerHTML=!logs.length?'<div class="empty-sm">입고 기록 없음</div>':logs.map(l=>'<div class="ink-log-row"><span class="ink-log-date">'+l.date.slice(5).replace('-','/')+'</span><span class="ink-log-type" style="color:'+(l.type==='in'?'var(--acc3)':'var(--acc)')+'">'+( l.type==='in'?'입고':'설정')+'</span><span class="ink-log-qty" style="color:'+(l.type==='in'?'var(--acc3)':'var(--acc)')+'">'+( l.type==='in'?'+':'=')+l.qty+'통</span>'+(l.by?'<span style="margin-left:6px">'+actorBadge(l.by,l.byAt)+'</span>':'')+'</div>').join('');
+  });
+  document.getElementById('ink-rate-wc').value=inkRates.WC;
+  document.getElementById('ink-rate-etp').value=inkRates.ETP;
+}
+function saveInkRates(){inkRates.WC=parseFloat(document.getElementById('ink-rate-wc').value)||1.5;inkRates.ETP=parseFloat(document.getElementById('ink-rate-etp').value)||1.5;saveAll();renderInk();if(typeof autoSync==='function')autoSync();showToast('설정 저장됨');}
+let inkColor='WC',inkTab='in',inkQty=1;
+function openInkModal(color){
+  inkColor=color; inkTab='in'; inkQty=0;
+  const label=color==='WC'?'웜코튼':'에토프';
+  const info=color==='WC'?{bg:'rgba(121,192,255,.15)',color:'var(--wc)'}:{bg:'rgba(255,166,87,.15)',color:'var(--etp)'};
+  document.getElementById('im-title').textContent='🪣 '+label+' 잉크 입고';
+  const subEl=document.getElementById('im-sub');
+  subEl.textContent='현재 재고: '+calcInkStock(color).remaining+'통';
+  subEl.style.background=info.bg;
+  subEl.style.color=info.color;
+  const qtyEl=document.getElementById('im-qty');
+  if(qtyEl) qtyEl.value=0;
+  inkQty=0;
+  document.getElementById('im-date').value=todayStr();
+  document.getElementById('itab-in').classList.add('on');
+  document.getElementById('itab-set').classList.remove('on');
+  document.getElementById('ink-modal').classList.add('on');
+}
+function setInkTab(t){
+  inkTab=t;
+  inkQty=t==='in'?0:Math.round(calcInkStock(inkColor).remaining);
+  const el=document.getElementById('im-qty');
+  if(el) el.value=inkQty;
+  document.getElementById('itab-in').classList.toggle('on',t==='in');
+  document.getElementById('itab-set').classList.toggle('on',t==='set');
+}
+function confirmInk(){
+  const dateVal=document.getElementById('im-date')?.value||todayStr();
+  inkQty=parseInt(document.getElementById('im-qty')?.value)||inkQty||0;
+  if(inkQty<=0){showToast('수량을 입력하세요');return;}
+  // 같은 날짜+색상 기록이 이미 있어도 별도 행으로 추가 (누적)
+  inkLog.push({date:dateVal, color:inkColor, type:inkTab, qty:inkQty, ...actorTag()});
+  meta.lastInk=new Date().toISOString();
+  saveAll(); renderInk(); renderDash();
+  showToast(inkTab==='in'?'✓ '+inkQty+'통 입고':'✓ '+inkQty+'통 설정');
+  autoSync();
+  // 모달 닫기
+  closeM('ink-modal');
+}
+
+// ── STOCK LIST ──
+let stockFilter='all';
+// ── 변경이력 (활동 피드) ──
+let actFilterType='all', actFilterActor='all';
+function setActFilter(kind,val,btn){
+  if(kind==='type'){ actFilterType=val; document.querySelectorAll('#act-type-filter .f-btn').forEach(b=>b.classList.remove('on')); }
+  else { actFilterActor=val; document.querySelectorAll('#act-actor-filter .f-btn').forEach(b=>b.classList.remove('on')); }
+  btn.classList.add('on');
+  renderActivityFeed();
+}
+const ACT_META={
+  count:{ico:'🔢',label:'실측',color:'var(--acc)'},
+  in:{ico:'📦',label:'입고',color:'var(--acc3)'},
+  print:{ico:'🖨',label:'인쇄',color:'var(--acc2)'},
+  out:{ico:'📤',label:'출고',color:'#e3a008'},
+  defect:{ico:'🚫',label:'불량',color:'var(--acc4)'},
+  adjust:{ico:'⚙️',label:'조정',color:'var(--tx2)'}
+};
+function renderActivityFeed(){
+  const host=document.getElementById('activity-feed');
+  if(!host) return;
+  // 모든 stockEvents를 평탄화. key에서 사이즈/색상 추출
+  const all=[];
+  Object.entries(stockEvents).forEach(([key,evs])=>{
+    const m=key.match(/^(\d+)x(\d+)(?:_(WC|ETP))?$/);
+    const sizeLabel = m ? `${m[1]}×${m[2]}` : key;
+    const color = m && m[3] ? m[3] : '';
+    (evs||[]).forEach(e=>{
+      all.push({...e, key, sizeLabel, color});
+    });
+  });
+  // 작업자 목록 추출 → 작업자 필터 버튼 생성
+  const actors=[...new Set(all.map(e=>e.by).filter(Boolean))].sort();
+  const afHost=document.getElementById('act-actor-filter');
+  if(afHost){
+    if(actors.length){
+      afHost.style.display='flex';
+      afHost.innerHTML=`<button class="f-btn ${actFilterActor==='all'?'on':''}" onclick="setActFilter('actor','all',this)">👥 전체</button>`+
+        actors.map(a=>`<button class="f-btn ${actFilterActor===a?'on':''}" onclick="setActFilter('actor','${a.replace(/'/g,"")}',this)">${a}</button>`).join('');
+    } else afHost.style.display='none';
+  }
+  // 필터 적용
+  const q=(document.getElementById('act-search')?.value||'').trim().toLowerCase();
+  let list=all.filter(e=>{
+    if(actFilterType!=='all' && e.type!==actFilterType) return false;
+    if(actFilterActor!=='all' && e.by!==actFilterActor) return false;
+    if(q && !((e.sizeLabel||'').toLowerCase().includes(q) || (e.note||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  // 최신순 정렬 (at 기준, 없으면 byAt)
+  list.sort((a,b)=>String(b.at||b.byAt).localeCompare(String(a.at||a.byAt)));
+  if(!list.length){ host.innerHTML='<div class="empty"><div class="empty-ico">🕓</div>변경 이력이 없어요</div>'; return; }
+  // 날짜별 그룹
+  const groups={};
+  list.forEach(e=>{ const d=String(e.at||e.byAt).slice(0,10); (groups[d]=groups[d]||[]).push(e); });
+  const today=todayStr();
+  const yest=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);})();
+  let html='';
+  Object.keys(groups).sort((a,b)=>b.localeCompare(a)).forEach(date=>{
+    const evs=groups[date];
+    const dLabel = date===today?'오늘':date===yest?'어제':fmtDateSafe(date);
+    const dayQty=evs.reduce((a,e)=>a+(e.qty||0),0);
+    html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin:16px 2px 8px;padding-bottom:5px;border-bottom:2px solid var(--b1)">
+      <span style="font-size:13px;font-weight:800">${dLabel} <span style="font-size:10px;color:var(--tx3);font-weight:400">${date}</span></span>
+      <span style="font-size:11px;color:var(--tx3)">${evs.length}건</span></div>`;
+    evs.forEach(e=>{
+      const meta=ACT_META[e.type]||{ico:'•',label:e.type,color:'var(--tx2)'};
+      const t=String(e.at||e.byAt).slice(11,16);
+      const colorDot=e.color==='WC'?'🔵':e.color==='ETP'?'🟠':'';
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--b1);background:var(--s1);border-radius:8px;margin-bottom:4px" onclick="actGoToSize('${e.key}')" >
+        <span style="font-size:9px;background:${meta.color};color:#fff;padding:3px 7px;border-radius:7px;font-weight:700;flex-shrink:0;min-width:38px;text-align:center">${meta.ico} ${meta.label}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.sizeLabel} ${colorDot}${e.note?`<span style="font-weight:400;color:var(--tx2);font-size:10px"> · ${e.note}</span>`:''}</div>
+          <div style="font-size:10px;color:var(--tx3)">${t}${e.by?' · '+e.by:''}${e.source==='auto-adjust'?' · 자동조정':''}</div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${meta.color};flex-shrink:0">${e.qty}<span style="font-size:9px;color:var(--tx3)">장</span></span>
+      </div>`;
+    });
+  });
+  host.innerHTML=html;
+}
+function actGoToSize(key){
+  // 해당 사이즈 검색으로 이동
+  const m=key.match(/^(\d+)x(\d+)/);
+  if(!m) return;
+  showSub('stocklist');
+  setTimeout(()=>{
+    const s=document.getElementById('stock-search');
+    if(s){ s.value=`${m[1]}*${m[2]}`; renderStockList(); }
+  },60);
+}
+
+function setStockFilter(f,btn){stockFilter=f;document.querySelectorAll('#sp-stocklist .f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStockList();}
+function renderStockList(){
+  let q=(document.getElementById('stock-search')?.value||'').toLowerCase().trim();
+  const qNorm = q.replace(/[×x*\s]/g,'');
+  const qDigits = q.replace(/[^0-9]/g,'');
+
+  const el=document.getElementById('stock-list');
+  const miscEl=document.getElementById('stock-misc-section');
+  if(!el) return;
+
+  const groups = (typeof SIZE_GROUPS !== 'undefined') ? [...SIZE_GROUPS] : [];
+
+  function getAsmInfo(sg){
+    if(typeof ASSEMBLY_MODELS === 'undefined') return null;
+    const hnum = sg.hnum || (typeof sg.h==='number'?sg.h:parseInt(sg.h));
+    const lr = sg.lr || '';
+    return ASSEMBLY_MODELS.filter(a=>a.glass_w===sg.w && a.glass_h===hnum && (!lr || (a.short||'').trim().endsWith(' '+lr)));
+  }
+
+  // ── 원유리/인쇄유리 (이벤트 기반 우선, 없으면 구버전 stock 호환) ──
+  function getRawTotal(sg){
+    // 이벤트 기반 값 우선
+    if(stockEvents[`${sg.w}x${sg.h}`] && stockEvents[`${sg.w}x${sg.h}`].length){
+      return getRawQty(sg.w, sg.h);
+    }
+    // 구버전 호환: WC.raw + ETP.raw
+    const wc = getSzStock(sg.w, sg.h, 'WC');
+    const etp = getSzStock(sg.w, sg.h, 'ETP');
+    return (wc.raw||0) + (etp.raw||0);
+  }
+  function getPrintedWC(sg){
+    if(stockEvents[`${sg.w}x${sg.h}_WC`] && stockEvents[`${sg.w}x${sg.h}_WC`].length){
+      return getPrintedQty(sg.w, sg.h, 'WC');
+    }
+    return getSzStock(sg.w, sg.h, 'WC').printed || 0;
+  }
+  function getPrintedETP(sg){
+    if(stockEvents[`${sg.w}x${sg.h}_ETP`] && stockEvents[`${sg.w}x${sg.h}_ETP`].length){
+      return getPrintedQty(sg.w, sg.h, 'ETP');
+    }
+    return getSzStock(sg.w, sg.h, 'ETP').printed || 0;
+  }
+
+  // 가장 최근 실측 정보
+  function getLastCount(key){
+    const evs = stockEvents[key] || [];
+    let last = null;
+    evs.forEach(e=>{ if(e.type==='count' && (!last || String(e.at)>String(last.at))) last = e; });
+    return last;
+  }
+  // 가장 최근 입고 정보
+  function getLastIn(key){
+    const evs = stockEvents[key] || [];
+    let last = null;
+    evs.forEach(e=>{ if(e.type==='in' && (!last || String(e.at)>String(last.at))) last = e; });
+    return last;
+  }
+  // 미기록 손실 감지 (가장 최근 count 또는 in 이후 작업일지 외 손실)
+  function getMismatchInfo(key){
+    const lastCount = getLastCount(key);
+    if(!lastCount) return null;
+    const evs = (stockEvents[key]||[]).slice().sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+    let autoAdj = 0;
+    evs.forEach(e=>{
+      if(e.source==='auto-adjust' && String(e.at) >= String(lastCount.at)){
+        autoAdj += parseInt(e.qty)||0;
+      }
+    });
+    return autoAdj !== 0 ? autoAdj : null;
+  }
+
+  // ── 빈도별 차등 경고 기준 ──
+  // 고빈도 (월20장+): 월평균*30% 미만 비상
+  // 중빈도 (월5-20장): 월평균*60% 미만 비상
+  // 저빈도 (월1-5장): 3장 미만 비상
+  // 희귀 (월1장 미만): 1장 미만 비상
+  function getRawWarnLevel(sg){
+    const raw = getRawTotal(sg);
+    const am = sg.avg_monthly || 0;
+    let urgent, warn;
+    if(am >= 20){
+      urgent = Math.max(5, Math.round(am * 0.3));
+      warn = Math.max(10, Math.round(am * 0.5));
+    } else if(am >= 5){
+      urgent = Math.max(3, Math.round(am * 0.6));
+      warn = Math.round(am * 1.0);
+    } else if(am >= 1){
+      urgent = 3;
+      warn = 5;
+    } else {
+      // 희귀: 안 쓰는 사이즈
+      return raw === 0 ? 'none' : 'ok';
+    }
+    if(raw < urgent) return 'urgent';
+    if(raw < warn) return 'warn';
+    return 'ok';
+  }
+
+  function sgHasStock(sg){
+    const raw = getRawTotal(sg);
+    const pwc = getPrintedWC(sg);
+    const petp = getPrintedETP(sg);
+    return raw>0 || pwc!==0 || petp!==0;
+  }
+  function sgIsUrgent(sg){ return getRawWarnLevel(sg) === 'urgent'; }
+  function sgHasMinus(sg){
+    return getPrintedWC(sg) < 0 || getPrintedETP(sg) < 0;
+  }
+  function sgBrand(sg){
+    if(!sg.models || !sg.models.length) return '';
+    if(sg.models.every(m=>m.startsWith('HD'))) return 'HD';
+    if(sg.models.every(m=>m.startsWith('OB'))) return 'OB';
+    return 'MIX';
+  }
+
+  // 검색 필터
+  let filtered = groups;
+  if(q){
+    filtered = groups.filter(sg=>{
+      if(sg.label && sg.label.toLowerCase().includes(q)) return true;
+      if(sg.key && sg.key.toLowerCase().includes(q)) return true;
+      if(sg.models && sg.models.some(mn=>String(mn).toLowerCase().includes(q))) return true;
+      if(sg.tags && sg.tags.some(t=>String(t).toLowerCase().includes(q))) return true;
+      if(qDigits.length >= 3){
+        const wh = String(sg.w) + String(sg.h);
+        if(wh === qDigits || wh.startsWith(qDigits) || wh.includes(qDigits)) return true;
+        if(String(sg.w).includes(qDigits)) return true;
+        if(String(sg.h).includes(qDigits)) return true;
+      }
+      const asms = getAsmInfo(sg);
+      if(asms && asms.length){
+        for(const a of asms){
+          const aWh = String(a.asm_w) + String(a.asm_h);
+          if(qDigits.length >= 3 && aWh.includes(qDigits)) return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  // 필터 적용
+  if(stockFilter==='has') filtered = filtered.filter(sgHasStock);
+  else if(stockFilter==='urgent') filtered = filtered.filter(sg=>sgIsUrgent(sg)||sgHasMinus(sg));
+  else if(stockFilter==='WC') filtered = filtered.filter(sg=>{const s=getSzStock(sg.w,sg.h,'WC');return s.printed!==0;});
+  else if(stockFilter==='ETP') filtered = filtered.filter(sg=>{const s=getSzStock(sg.w,sg.h,'ETP');return s.printed!==0;});
+  else if(stockFilter==='HD') filtered = filtered.filter(sg=>sgBrand(sg)==='HD' || sgBrand(sg)==='MIX');
+  else if(stockFilter==='OB') filtered = filtered.filter(sg=>sgBrand(sg)==='OB' || sgBrand(sg)==='MIX');
+  else if(stockFilter==='high') filtered = filtered.filter(sg=>(sg.avg_monthly||0)>=20);
+
+  // 정렬: 마이너스(출고초과) → 부족 → 재고있음 → 사용량 많은 순
+  filtered.sort((a,b)=>{
+    const ap = sgHasMinus(a) ? 3 : sgIsUrgent(a) ? 2 : sgHasStock(a) ? 1 : 0;
+    const bp = sgHasMinus(b) ? 3 : sgIsUrgent(b) ? 2 : sgHasStock(b) ? 1 : 0;
+    if(ap !== bp) return bp - ap;
+    return (b.total_6m||0) - (a.total_6m||0);
+  });
+
+  if(!filtered.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>검색 결과 없음</div>';
+    if(miscEl) miscEl.innerHTML='';
+    return;
+  }
+
+  // 집계 기간 안내 배너 갱신
+  (function(){
+    const pn=document.getElementById('stock-period-range');
+    if(!pn) return;
+    const now=new Date();
+    const cut=new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
+    const fmt=d=>`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+    const histTxt = '폴백: 2025.11~2026.04';
+    pn.textContent = `🟢 최근 6개월 ${fmt(cut)} ~ ${fmt(now)} (납품서 ${typeof delivLog!=='undefined'&&delivLog?delivLog.length:0}건) · ${histTxt}`;
+  })();
+
+  el.innerHTML = filtered.map(sg=>{
+    const raw = getRawTotal(sg);
+    const pwc = getPrintedWC(sg);
+    const petp = getPrintedETP(sg);
+    const warnLevel = getRawWarnLevel(sg);
+    const brand = sgBrand(sg);
+    const asms = getAsmInfo(sg);
+    // 월평균: delivLog 기반 최근 6개월 롤링 우선, 데이터 부족하면 기존 분석값 폴백
+    const roll = (typeof rollingShipStats==='function') ? rollingShipStats(sg.w, sg.h, 6) : null;
+    const useRoll = roll && roll.hasEnoughData;
+    const am = useRoll ? roll.monthlyAvg : (sg.avg_monthly || 0);
+    const amSource = useRoll ? 'live' : 'hist';
+
+    // 경고 텍스트
+    let warnTxt = '';
+    if(warnLevel === 'urgent'){
+      warnTxt = `🚨 부족 (월평균 ${am.toFixed(1)}장)`;
+    } else if(warnLevel === 'warn'){
+      warnTxt = `⚠️ 주의 (월평균 ${am.toFixed(1)}장)`;
+    }
+
+    // 조립실 사이즈
+    let asmSizeHtml = '';
+    if(asms && asms.length){
+      const uniqueAsm = [...new Set(asms.map(a=>a.asm_w+'×'+a.asm_h))];
+      if(uniqueAsm.length === 1 && uniqueAsm[0] !== sg.w+'×'+sg.h){
+        asmSizeHtml = `<span style="font-size:10px;color:var(--tx2);margin-left:6px">🔧조립 ${uniqueAsm[0]}</span>`;
+      } else if(uniqueAsm.length > 1){
+        asmSizeHtml = `<span style="font-size:10px;color:var(--tx2);margin-left:6px">🔧조립 ${uniqueAsm.length}종</span>`;
+      }
+    }
+
+    // 모델명 태그 (L/R 통합)
+    const modelTags = (sg.models||[]).map(mn=>String(mn).replace(/\s+[LR]$/,''));
+    const uniqueModels = [...new Set(modelTags)];
+    const tagsHtml = uniqueModels.slice(0,4).map(mn=>
+      `<span style="display:inline-block;padding:2px 7px;background:var(--s2);border:1px solid var(--b2);border-radius:10px;font-size:10px;color:var(--tx1);margin:1px 2px 1px 0">${mn}</span>`
+    ).join('') + (uniqueModels.length>4 ? `<span style="font-size:10px;color:var(--tx2);margin-left:4px">+${uniqueModels.length-4}</span>` : '');
+
+    // 경고 노트 (조립모델의 warning)
+    let asmWarnHtml = '';
+    if(asms && asms.length){
+      const warns = asms.filter(a=>a.warning).map(a=>a.warning);
+      if(warns.length){
+        asmWarnHtml = `<div style="font-size:10px;color:var(--acc4);margin-top:4px;background:rgba(248,81,73,.08);padding:4px 8px;border-radius:6px">⚠️ ${[...new Set(warns)].join(' / ')}</div>`;
+      }
+    }
+
+    // 카드 스타일 (마이너스가 가장 위험, 그다음 부족, 주의)
+    let cardCls = 'model-card';
+    if(sgHasMinus(sg)) cardCls += ' urgent';
+    else if(warnLevel === 'urgent') cardCls += ' urgent';
+    else if(warnLevel === 'warn') cardCls += ' warn';
+
+    // 마지막 수정자 (WC/ETP 중 더 최근 것)
+    let lastBy = null, lastByAt = '';
+    if(stock._meta){
+      const wcMeta = stock._meta[`sz_${sg.w}x${sg.h}_WC`];
+      const etpMeta = stock._meta[`sz_${sg.w}x${sg.h}_ETP`];
+      if(wcMeta && etpMeta){
+        const winner = new Date(wcMeta.byAt) > new Date(etpMeta.byAt) ? wcMeta : etpMeta;
+        lastBy = winner.by; lastByAt = winner.byAt;
+      } else if(wcMeta){ lastBy = wcMeta.by; lastByAt = wcMeta.byAt; }
+      else if(etpMeta){ lastBy = etpMeta.by; lastByAt = etpMeta.byAt; }
+    }
+
+    // 원유리 색상: 부족=빨강, 주의=주황, 정상=평소
+    const rawColor = warnLevel==='urgent' ? '#f85149' : warnLevel==='warn' ? '#d29922' : 'var(--acc)';
+    // 인쇄유리 색상: 마이너스=빨강
+    const pwcColor = pwc < 0 ? '#f85149' : pwc === 0 ? 'var(--tx3)' : 'var(--acc3)';
+    const petpColor = petp < 0 ? '#f85149' : petp === 0 ? 'var(--tx3)' : 'var(--acc3)';
+
+    return `
+    <div class="${cardCls}" style="cursor:pointer;position:relative" onclick="openSizeModal('${sg.key}')">
+      <div class="ml" style="flex:1">
+        <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;padding-right:4px">
+          <div class="mn" style="font-size:16px;font-weight:800;color:var(--tx1)">📐 ${sg.label}</div>
+          <button onclick="event.stopPropagation();openSizeEditModal('${sg.key}')" title="사이즈 편집" style="width:22px;height:22px;border-radius:6px;background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;opacity:.5;padding:0">✏️</button>
+          ${asmSizeHtml}
+          ${brand?`<span style="font-size:10px;padding:1px 6px;background:var(--s2);border-radius:8px;color:var(--tx2);margin-left:6px">${brand}</span>`:''}
+          ${lastBy?actorBadge(lastBy, lastByAt):''}
+        </div>
+        <div style="margin-top:6px">${tagsHtml}</div>
+        ${asmWarnHtml}
+        ${warnTxt?`<div style="font-size:11px;color:${warnLevel==='urgent'?'#f85149':'#d29922'};margin-top:4px;font-weight:700">${warnTxt}</div>`:''}
+
+        ${(()=>{
+          // 최신 실측/입고 요약
+          const rawKey = `${sg.w}x${sg.h}`;
+          const wcKey = `${sg.w}x${sg.h}_WC`;
+          const etpKey = `${sg.w}x${sg.h}_ETP`;
+          const lastRawIn = getLastIn(rawKey);
+          const lastRawCount = getLastCount(rawKey);
+          const lastWcCount = getLastCount(wcKey);
+          const lastEtpCount = getLastCount(etpKey);
+          const rawMismatch = getMismatchInfo(rawKey);
+          const wcMismatch = getMismatchInfo(wcKey);
+          const etpMismatch = getMismatchInfo(etpKey);
+
+          // 모든 키 중 가장 최근 실측 (대표 배지)
+          const rawAge = daysSinceLastCount(rawKey);
+          const wcAge = daysSinceLastCount(wcKey);
+          const etpAge = daysSinceLastCount(etpKey);
+          const ages = [rawAge, wcAge, etpAge].filter(d=>d!==null);
+          let html = '';
+          if(ages.length){
+            const oldestAge = Math.max(...ages);
+            // 가장 오래된 실측 기준으로 배지
+            const dummy = { 'raw':rawKey,'wc':wcKey,'etp':etpKey };
+            const oldestKey = oldestAge === rawAge ? rawKey : oldestAge === wcAge ? wcKey : etpKey;
+            const badge = countAgeBadge(oldestKey);
+            html += `<div style="font-size:10px;color:${badge.color};margin-top:4px;font-weight:${badge.urgent?'700':'500'}">🔢 ${badge.text}</div>`;
+          } else {
+            html += `<div style="font-size:10px;color:var(--tx3);margin-top:4px">🔢 아직 실측 없음 - 실측 권장</div>`;
+          }
+
+          if(lastRawIn){
+            html += `<div style="font-size:10px;color:var(--tx2);margin-top:2px">📦 최근입고: ${formatEventDate(lastRawIn.at)} +${lastRawIn.qty}장${lastRawIn.note?' · '+lastRawIn.note:''}</div>`;
+          }
+          if(lastRawCount){
+            html += `<div style="font-size:10px;color:var(--acc2);margin-top:2px">🔢 원유리 실측: ${formatEventDate(lastRawCount.at)} ${lastRawCount.qty}장</div>`;
+          }
+          if(lastWcCount){
+            html += `<div style="font-size:10px;color:var(--acc2);margin-top:2px">🔢 WC 실측: ${formatEventDate(lastWcCount.at)} ${lastWcCount.qty}장</div>`;
+          }
+          if(lastEtpCount){
+            html += `<div style="font-size:10px;color:var(--acc2);margin-top:2px">🔢 ETP 실측: ${formatEventDate(lastEtpCount.at)} ${lastEtpCount.qty}장</div>`;
+          }
+          // 미기록 손실 경고 (원유리/WC/ETP 모두)
+          const mismatchMsgs = [];
+          if(rawMismatch && rawMismatch < 0) mismatchMsgs.push(`⚠️ 원유리 미기록 손실 ${Math.abs(rawMismatch)}장`);
+          else if(rawMismatch && rawMismatch > 0) mismatchMsgs.push(`ℹ️ 원유리 미기록 입고 +${rawMismatch}장`);
+          if(wcMismatch && wcMismatch < 0) mismatchMsgs.push(`⚠️ WC 미기록 손실 ${Math.abs(wcMismatch)}장`);
+          else if(wcMismatch && wcMismatch > 0) mismatchMsgs.push(`ℹ️ WC 미기록 입고 +${wcMismatch}장`);
+          if(etpMismatch && etpMismatch < 0) mismatchMsgs.push(`⚠️ ETP 미기록 손실 ${Math.abs(etpMismatch)}장`);
+          else if(etpMismatch && etpMismatch > 0) mismatchMsgs.push(`ℹ️ ETP 미기록 입고 +${etpMismatch}장`);
+          if(mismatchMsgs.length){
+            html += `<div style="font-size:11px;color:#a371f7;margin-top:4px;background:rgba(163,113,247,.1);padding:6px 10px;border-radius:6px">${mismatchMsgs.join('<br>')}</div>`;
+          }
+          return html;
+        })()}
+
+        <!-- 원유리 (사이즈만, 색상 통합) -->
+        <div style="margin-top:10px;background:var(--s2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border:2px solid ${warnLevel==='urgent'?'#f85149':warnLevel==='warn'?'#d29922':'transparent'}">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:18px">📦</span>
+            <span style="font-size:12px;color:var(--tx1);font-weight:700">원유리</span>
+            <span style="font-size:9px;color:var(--tx3)">(인쇄 전)</span>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:${rawColor}">${raw}<span style="font-size:11px;color:var(--tx2);font-weight:400">장</span></div>
+        </div>
+
+        <!-- 인쇄유리 칸 숨김: 인쇄유리는 작업일지에서 인쇄→조립실에서 관리. 데이터(pwc/petp)·납품출고 로직은 그대로 유지(내부 장부). -->
+      </div>
+      <div class="mr">
+        ${am>=0.1
+          ? `<div class="mr-qty" style="color:var(--acc)">${am.toFixed(1)}<span class="mr-unit">장</span></div>
+             <div class="mr-sub">월평균</div>
+             ${(sg.recent_6m!=null||sg.total_11m!=null)?`<div style="font-size:10px;color:var(--tx3);font-weight:500;margin-top:3px;line-height:1.4">${sg.recent_6m!=null?`최근 6개월 ${sg.recent_6m}장`:''}${(sg.recent_6m!=null&&sg.total_11m!=null)?'<br>':''}${sg.total_11m!=null?`누적 ${sg.total_11m}장`:''}</div>`:''}
+             <div class="mr-src ${amSource==='live'?'live':'hist'}">${amSource==='live'?'🟢 최근 6개월':'과거 분석'}</div>`
+          : `<div class="mr-qty" style="color:var(--tx3)">${sg.total_6m||0}<span class="mr-unit">장</span></div>
+             <div class="mr-sub">6개월 합계</div>
+             ${(sg.recent_6m!=null||sg.total_11m!=null)?`<div style="font-size:10px;color:var(--tx3);font-weight:500;margin-top:3px;line-height:1.4">${sg.recent_6m!=null?`최근 6개월 ${sg.recent_6m}장`:''}${(sg.recent_6m!=null&&sg.total_11m!=null)?'<br>':''}${sg.total_11m!=null?`누적 ${sg.total_11m}장`:''}</div>`:''}`}
+      </div>
+    </div>`;
+  }).join('');
+
+  // ── 비규격 섹션 ──
+  if(miscEl){
+    const miscAsm = (typeof ASSEMBLY_MODELS!=='undefined' ? ASSEMBLY_MODELS : [])
+      .filter(a=>String(a.short).includes('비규격'));
+    let miscFiltered = miscAsm;
+    if(q) miscFiltered = miscAsm.filter(a=>String(a.short).toLowerCase().includes(q));
+
+    if(miscFiltered.length && stockFilter==='all'){
+      miscEl.innerHTML = `
+        <div style="border-top:1px dashed var(--b2);padding-top:14px;margin-top:14px">
+          <div style="font-size:12px;color:var(--tx2);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+            <span style="font-size:14px">🔲</span>
+            <span>비규격 (사이즈 미등록)</span>
+            <span style="color:var(--tx3);font-size:10px">${miscFiltered.length}건</span>
+          </div>
+          ${miscFiltered.map(a=>{
+            const raw = (getSzStock(a.glass_w,a.glass_h,'WC').raw||0) + (getSzStock(a.glass_w,a.glass_h,'ETP').raw||0);
+            const pwc = getSzStock(a.glass_w,a.glass_h,'WC').printed||0;
+            const petp = getSzStock(a.glass_w,a.glass_h,'ETP').printed||0;
+            return `<div class="model-card" style="cursor:pointer;opacity:.85" onclick="openSizeModal('${a.glass_w}x${a.glass_h}')">
+              <div class="ml" style="flex:1">
+                <div class="mn" style="font-size:14px;font-weight:700">${a.short}</div>
+                <div style="font-size:10px;color:var(--tx2);margin-top:2px">조립 ${a.asm_w}×${a.asm_h} → 유리 ${a.glass_w}×${a.glass_h}</div>
+                ${a.note?`<div style="font-size:10px;color:var(--tx2);margin-top:2px">📌 ${a.note}</div>`:''}
+                <div style="display:flex;gap:8px;margin-top:6px;font-size:11px">
+                  <span>📦 원유리 ${raw}</span>
+                  <span style="color:${pwc<0?'#f85149':'var(--tx2)'}">🔵 WC ${pwc}</span>
+                  <span style="color:${petp<0?'#f85149':'var(--tx2)'}">🟠 ETP ${petp}</span>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`;
+    } else {
+      miscEl.innerHTML='';
+    }
+  }
+}
+
+// ── STOCK MODAL ──
+let sCode='',sTab='raw',sQty=0,sMode='set'; // sMode: 'set'(직접수정) 또는 'move'(인쇄→조립 이동)
+function openSModal(code){
+  const m=MODELS.find(x=>x.code===code);if(!m)return;
+  sCode=code;sTab='raw';sMode='set';
+  const s=getStock(code);
+  sQty=s.raw;
+  document.getElementById('sm-name').textContent=m.short;
+  document.getElementById('sm-sub').textContent=code+(m.glass_w?' | '+m.glass_w+'×'+m.glass_h+'mm':'');
+  document.getElementById('sm-cur-raw').textContent=s.raw;
+  document.getElementById('sm-cur-printed').textContent=s.printed;
+  document.getElementById('sm-qty').value=sQty;
+  document.getElementById('stab-raw').classList.add('on');
+  document.getElementById('stab-printed').classList.remove('on');
+  document.getElementById('smode-set').classList.add('on');
+  document.getElementById('smode-move').classList.remove('on');
+  _updateSModalUI();
+  document.getElementById('stock-modal').classList.add('on');
+}
+function setSTab(t){
+  sTab=t;
+  const s=getStock(sCode);
+  // 직접수정 모드에선 해당 탭의 현재값을 보여주고, 이동 모드에선 0에서 시작
+  if(sMode==='set'){
+    sQty = (t==='raw' ? s.raw : s.printed);
+  } else {
+    sQty = 0;
+  }
+  document.getElementById('sm-qty').value=sQty;
+  document.getElementById('stab-raw').classList.toggle('on',t==='raw');
+  document.getElementById('stab-printed').classList.toggle('on',t==='printed');
+  _updateSModalUI();
+}
+function setSMode(mode){
+  sMode = mode;
+  document.getElementById('smode-set').classList.toggle('on', mode==='set');
+  document.getElementById('smode-move').classList.toggle('on', mode==='move');
+  const s=getStock(sCode);
+  if(mode==='set'){
+    sQty = (sTab==='raw' ? s.raw : s.printed);
+  } else {
+    // 이동 모드는 항상 인쇄실 탭(원유리)이 출발지
+    sTab = 'raw';
+    document.getElementById('stab-raw').classList.add('on');
+    document.getElementById('stab-printed').classList.remove('on');
+    sQty = 0;
+  }
+  document.getElementById('sm-qty').value=sQty;
+  _updateSModalUI();
+}
+function _updateSModalUI(){
+  const lbl=document.getElementById('sm-qty-label');
+  const desc=document.getElementById('sm-confirm-desc');
+  const btn=document.getElementById('sm-confirm-btn');
+  if(sMode==='set'){
+    lbl.textContent = (sTab==='raw'?'인쇄실 원유리':'조립실 인쇄유리') + ' 현재 재고';
+    desc.textContent = '입력한 값으로 직접 변경';
+    btn.textContent = '✓ 재고 저장';
+  } else {
+    lbl.textContent = '인쇄실 → 조립실로 이동할 수량';
+    desc.textContent = '인쇄실 원유리 차감 → 조립실 인쇄유리 증가';
+    btn.textContent = '🔄 인쇄→조립 이동';
+  }
+}
+function sQtyD(d){sQty=Math.max(0,sQty+d);document.getElementById('sm-qty').value=sQty;}
+function addSQ(d){sQty=Math.max(0,sQty+d);document.getElementById('sm-qty').value=sQty;}
+function setSQ(n){sQty=Math.max(0,n);document.getElementById('sm-qty').value=n;}
+function confirmStock(){
+  const s=getStock(sCode);
+  if(sMode==='move'){
+    // 인쇄실 → 조립실 이동
+    if(sQty<=0){showToast('이동 수량 입력');return;}
+    if(sQty>s.raw){
+      if(!confirm(`인쇄실 원유리(${s.raw}장)보다 많은 ${sQty}장을 이동하려고 합니다. 계속할까요?`))return;
+    }
+    s.raw = Math.max(0, s.raw - sQty);
+    s.printed = (s.printed||0) + sQty;
+    stock[sCode]=s;
+    meta.lastStock=new Date().toISOString();
+    saveAll();closeM('stock-modal');showToast(`✓ ${sQty}장 인쇄→조립 이동`);
+    renderDash();
+    if(document.getElementById('sp-stocklist').style.display!=='none')renderStockList();
+    autoSync();
+    return;
+  }
+  // 직접 수정
+  if(sTab==='raw')s.raw=sQty;else s.printed=sQty;
+  stock[sCode]=s;meta.lastStock=new Date().toISOString();
+  saveAll();closeM('stock-modal');showToast('✓ 재고 저장');renderDash();
+  if(document.getElementById('sp-stocklist').style.display!=='none')renderStockList();
+  autoSync();
+}
+
+// ── SIZE STOCK MODAL (입고/실측/인쇄/출고 + 이벤트 이력) ──
+// szmMode: 'in'(입고), 'count'(실측), 'print'(인쇄), 'out'(출고)
+// szmTarget: 'raw'(원유리), 'WC', 'ETP' - 실측 모드에서만 사용
+let szmKey='', szmW=0, szmH=0, szmColor='WC', szmMode='in', szmTarget='raw', szQty=0;
+let szmDateStr='', szmAmpm='AM', szmHistoryOpen=false;
+
+function openSizeModal(sizeKey){
+  let key = String(sizeKey);
+  if(key.startsWith('sz_')) key = key.substring(3).split('_')[0];
+  const parts = key.split('x');
+  if(parts.length !== 2) { showToast('잘못된 사이즈 키'); return; }
+  szmW = parseInt(parts[0]);
+  szmH = parts[1];                 // 문자열 유지 (예: "693", "693L", "693R")
+  const szmHnum = parseInt(parts[1]);  // 표시·매칭용 숫자
+  const szmLR = /[LR]$/.test(parts[1]) ? parts[1].slice(-1) : '';
+  szmKey = key;
+  szmColor = 'WC';
+  szmMode = 'in';
+  szmTarget = 'raw';
+  szQty = 0;
+  szmHistoryOpen = false;
+
+  // 일시 기본값 = 오늘
+  const now = new Date();
+  szmDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  szmAmpm = now.getHours() < 12 ? 'AM' : 'PM';
+  document.getElementById('szm-date').value = szmDateStr;
+  document.getElementById('szm-am').classList.toggle('on', szmAmpm==='AM');
+  document.getElementById('szm-pm').classList.toggle('on', szmAmpm==='PM');
+  document.getElementById('szm-note').value = '';
+
+  // 사이즈/조립 정보
+  const sg = (typeof SIZE_GROUPS!=='undefined') ? SIZE_GROUPS.find(s=>s.key===szmKey) : null;
+  const asms = (typeof ASSEMBLY_MODELS!=='undefined') ? ASSEMBLY_MODELS.filter(a=>a.glass_w===szmW && a.glass_h===szmHnum && (!szmLR || (a.short||'').trim().endsWith(' '+szmLR))) : [];
+
+  const lrLabel = szmLR==='L' ? ' (좌·L)' : szmLR==='R' ? ' (우·R)' : '';
+  document.getElementById('szm-title').textContent = `📐 ${szmW} × ${szmHnum} mm${lrLabel}`;
+
+  let subText = '';
+  if(asms.length){
+    const uniqueAsm = [...new Set(asms.map(a=>a.asm_w+'×'+a.asm_h))];
+    if(uniqueAsm.length === 1) subText = `🔧 조립실: ${uniqueAsm[0]} mm`;
+    else if(uniqueAsm.length > 1) subText = `🔧 조립실: ${uniqueAsm.join(', ')} mm`;
+  }
+  if(sg && sg.avg_monthly){
+    subText += (subText?' · ':'') + `월평균 ${sg.avg_monthly.toFixed(1)}장`;
+  }
+  document.getElementById('szm-sub').textContent = subText;
+
+  // 모델명 태그
+  const modelsEl = document.getElementById('szm-models');
+  if(sg && sg.models && sg.models.length){
+    const uniqueModels = [...new Set(sg.models.map(m=>String(m).replace(/\s+[LR]$/,'')))];
+    modelsEl.innerHTML = uniqueModels.map(mn=>
+      `<span style="display:inline-block;padding:3px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:12px;font-size:11px;color:var(--tx1);margin:2px 3px 2px 0">${mn}</span>`
+    ).join('');
+  } else if(asms.length){
+    const ms = [...new Set(asms.map(a=>a.short))];
+    modelsEl.innerHTML = ms.map(mn=>
+      `<span style="display:inline-block;padding:3px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:12px;font-size:11px;color:var(--tx1);margin:2px 3px 2px 0">${mn}</span>`
+    ).join('');
+  } else {
+    modelsEl.innerHTML = '<span style="font-size:11px;color:var(--tx3)">매핑된 모델 없음</span>';
+  }
+
+  // 경고/노트
+  const warnEl = document.getElementById('szm-warning');
+  const warns = asms.filter(a=>a.warning).map(a=>a.warning);
+  const notes = asms.filter(a=>a.note).map(a=>a.note);
+  let warnHtml = '';
+  if(warns.length){
+    warnHtml += `<div style="font-size:11px;color:var(--acc4);background:rgba(248,81,73,.1);padding:6px 10px;border-radius:6px;margin-bottom:4px">⚠️ ${[...new Set(warns)].join(' / ')}</div>`;
+  }
+  if(notes.length){
+    warnHtml += `<div style="font-size:10px;color:var(--tx2);background:var(--s2);padding:6px 10px;border-radius:6px">📌 ${[...new Set(notes)].join(' / ')}</div>`;
+  }
+  warnEl.innerHTML = warnHtml;
+
+  document.getElementById('szm-history').style.display='none';
+  document.getElementById('szm-history-toggle').textContent='📜 이력 보기 ▼';
+
+  _refreshSzmModal();
+  document.getElementById('size-modal').classList.add('on');
+}
+
+function setSzmColor(color){
+  szmColor = color;
+  document.getElementById('szm-tab-WC').classList.toggle('on', color==='WC');
+  document.getElementById('szm-tab-ETP').classList.toggle('on', color==='ETP');
+  _refreshSzmInput();
+}
+
+function setSzmAmpm(v){
+  szmAmpm = v;
+  document.getElementById('szm-am').classList.toggle('on', v==='AM');
+  document.getElementById('szm-pm').classList.toggle('on', v==='PM');
+}
+
+function setSzmMode(mode){
+  szmMode = mode;
+  ['in','count','print','out'].forEach(m=>{
+    const btn = document.getElementById('szm-mode-'+m);
+    if(btn) btn.classList.toggle('on', mode===m);
+  });
+  // 실측 모드: 대상 선택 행 표시 (원유리/WC/ETP)
+  // 인쇄/출고: 색상 선택 행 표시 (WC/ETP)
+  // 입고: 둘 다 숨김
+  document.getElementById('szm-target-row').style.display = (mode==='count') ? 'block' : 'none';
+  document.getElementById('szm-color-row').style.display = (mode==='print' || mode==='out') ? 'block' : 'none';
+  // 인쇄실 = 원유리만 관리. 실측대상은 항상 원유리로 고정(색상 선택지 노출 안 함).
+  if(mode==='count'){ szmTarget='raw'; }
+  _refreshSzmInput();
+}
+
+function setSzmTarget(target){
+  szmTarget = target;
+  ['raw','WC','ETP'].forEach(t=>{
+    const btn = document.getElementById('szm-target-'+t);
+    if(btn) btn.classList.toggle('on', target===t);
+  });
+  _refreshSzmInput();
+}
+
+function _refreshSzmSummary(){
+  const raw = getRawQty(szmW, szmH);
+  const pwc = getPrintedQty(szmW, szmH, 'WC');
+  const petp = getPrintedQty(szmW, szmH, 'ETP');
+  const pwcCol = pwc < 0 ? '#f85149' : pwc === 0 ? 'var(--tx3)' : 'var(--acc3)';
+  const petpCol = petp < 0 ? '#f85149' : petp === 0 ? 'var(--tx3)' : 'var(--acc3)';
+
+  // 인쇄실 = 원유리만 표시. (인쇄유리 WC/ETP는 조립실/작업일지에서 관리)
+  document.getElementById('szm-summary').innerHTML = `
+    <div style="display:flex;justify-content:center;align-items:center">
+      <div style="text-align:center">
+        <div style="color:var(--tx3);font-size:11px;margin-bottom:2px">📦 원유리 재고</div>
+        <div style="font-weight:700;color:var(--acc);font-family:'JetBrains Mono',monospace;font-size:24px">${raw}<span style="font-size:12px;color:var(--tx3);font-weight:400"> 장</span></div>
+      </div>
+    </div>`;
+}
+
+function _refreshSzmMismatch(){
+  // 가장 최근 실측이 있고, 그 이후 변동 없는데 이론과 실제가 다르면 표시
+  // (현재는 _refreshSzmSummary가 이미 이벤트 기반이라 별도 처리 불필요)
+  document.getElementById('szm-mismatch').innerHTML = '';
+}
+
+function _refreshSzmInput(){
+  _refreshSzmSummary();
+  _refreshSzmMismatch();
+  if(szmHistoryOpen) _renderSzmHistory();
+
+  const lbl = document.getElementById('szm-qty-label');
+  const desc = document.getElementById('szm-confirm-desc');
+  const btn = document.getElementById('szm-confirm-btn');
+  const colorLabel = szmColor==='WC' ? '웜코튼' : '에토프';
+  const raw = getRawQty(szmW, szmH);
+  const pcur = getPrintedQty(szmW, szmH, szmColor);
+  szQty = 0;
+
+  if(szmMode === 'in'){
+    lbl.textContent = '📦 원유리 입고 수량';
+    desc.textContent = '유리업체 입고 (사이즈만, 색상 무관) - 발주서 기반 입력 가능';
+    btn.textContent = '📦 원유리 입고 기록';
+  } else if(szmMode === 'count'){
+    // 실측 - 대상에 따라 다름 (원유리 / WC / ETP)
+    if(szmTarget === 'raw'){
+      szQty = raw;
+      lbl.textContent = `🔢 원유리 실측 수량 (현재 이론: ${raw}장)`;
+      desc.textContent = '눈으로 직접 센 원유리 수량 (차이는 자동 조정 이력 생성)';
+      btn.textContent = `🔢 원유리 실측 등록`;
+    } else {
+      const cur = getPrintedQty(szmW, szmH, szmTarget);
+      szQty = cur;
+      const tLabel = szmTarget==='WC' ? '🔵 WC 인쇄유리' : '🟠 ETP 인쇄유리';
+      lbl.textContent = `🔢 ${tLabel} 실측 수량 (현재 이론: ${cur}장)`;
+      desc.textContent = '눈으로 직접 센 정확한 수량 (차이는 자동 조정 이력 생성)';
+      btn.textContent = `🔢 ${tLabel} 실측 등록`;
+    }
+  } else if(szmMode === 'print'){
+    lbl.textContent = `🖨 ${colorLabel}로 인쇄할 수량 (원유리 ${raw}장 보유)`;
+    desc.textContent = `원유리 차감 → ${colorLabel} 인쇄유리 증가`;
+    btn.textContent = `🖨 ${colorLabel} 인쇄`;
+  } else { // out
+    lbl.textContent = `📤 ${colorLabel} 인쇄유리 출고 (현재 ${pcur}장)`;
+    desc.textContent = '재고 부족 시 마이너스로 기록';
+    btn.textContent = `📤 ${colorLabel} 출고`;
+  }
+  document.getElementById('szm-qty').value = szQty;
+}
+
+function _refreshSzmModal(){ _refreshSzmInput(); }
+
+function szmQtyD(d){ szQty = (parseInt(szQty)||0) + d; szQty=Math.max(0,szQty); document.getElementById('szm-qty').value = szQty; }
+function szmAddQ(d){ szQty = (parseInt(szQty)||0) + d; szQty=Math.max(0,szQty); document.getElementById('szm-qty').value = szQty; }
+
+function confirmSizeStock(){
+  szQty = parseInt(document.getElementById('szm-qty').value) || 0;
+  const colorLabel = szmColor==='WC' ? '웜코튼' : '에토프';
+  const dateVal = document.getElementById('szm-date').value || szmDateStr;
+  const noteVal = (document.getElementById('szm-note').value || '').trim();
+  const atIso = dateAmPmToIso(dateVal, szmAmpm);
+
+  if(szQty <= 0 && szmMode !== 'count'){ showToast('수량 입력'); return; }
+
+  if(szmMode === 'in'){
+    // 원유리 입고
+    addStockEvent(`${szmW}x${szmH}`, {at: atIso, type:'in', qty: szQty, note: noteVal, source:'manual'});
+    showToast(`📦 원유리 ${szQty}장 입고 (${formatEventDate(atIso)})`);
+  } else if(szmMode === 'count'){
+    // 실측 - 대상(원유리/WC/ETP)에 따라 다른 키
+    let countKey, targetLabel;
+    if(szmTarget === 'raw'){
+      countKey = `${szmW}x${szmH}`;
+      targetLabel = '원유리';
+    } else {
+      countKey = `${szmW}x${szmH}_${szmTarget}`;
+      targetLabel = (szmTarget==='WC'?'🔵 WC':'🟠 ETP') + ' 인쇄유리';
+    }
+    const result = addCountWithAutoAdjust(countKey, {at: atIso, qty: szQty, note: noteVal});
+    if(result.diff === 0){
+      showToast(`✓ ${targetLabel} 실측 ${szQty}장 (이론과 일치)`);
+    } else if(result.diff > 0){
+      showToast(`⚠️ ${targetLabel} 실측 ${szQty}장 (+${result.diff}장 미기록 입고 추정)`);
+    } else {
+      showToast(`⚠️ ${targetLabel} 실측 ${szQty}장 (${result.diff}장 미기록 손실 추정)`);
+    }
+  } else if(szmMode === 'print'){
+    // 인쇄: 원유리 차감 + 인쇄유리(색) 증가
+    const curRaw = getRawQty(szmW, szmH);
+    if(szQty > curRaw){
+      if(!confirm(`원유리 ${curRaw}장보다 많은 ${szQty}장 인쇄. 계속할까요? (원유리가 마이너스 됩니다)`)) return;
+    }
+    addStockEvent(`${szmW}x${szmH}`, {at: atIso, type:'print', qty: szQty, note: noteVal || `→ ${colorLabel} 인쇄`, source:'manual'});
+    addStockEvent(`${szmW}x${szmH}_${szmColor}`, {at: atIso, type:'in', qty: szQty, note: noteVal || '인쇄완료', source:'manual'});
+    showToast(`🖨 ${colorLabel} ${szQty}장 인쇄`);
+  } else { // out
+    const curP = getPrintedQty(szmW, szmH, szmColor);
+    if(szQty > curP){
+      if(!confirm(`${colorLabel} ${curP}장보다 많은 ${szQty}장 출고. 재고가 ${curP - szQty}장으로 마이너스 됩니다. 계속할까요?`)) return;
+    }
+    addStockEvent(`${szmW}x${szmH}_${szmColor}`, {at: atIso, type:'out', qty: szQty, note: noteVal, source:'manual'});
+    const newQ = curP - szQty;
+    showToast(newQ<0 ? `⚠️ ${colorLabel} 출고 (재고 ${newQ}장)` : `📤 ${colorLabel} ${szQty}장 출고`);
+  }
+
+  // 옛 stock 객체도 동기화 (호환성 - 카드/홈 렌더용)
+  _syncOldStockFromEvents(szmW, szmH);
+
+  meta.lastStock = new Date().toISOString();
+  saveAll();
+  _refreshSzmInput();
+  renderDash();
+  if(document.getElementById('sp-stocklist').style.display !== 'none') renderStockList();
+  autoSync();
+}
+
+// 새 이벤트 기반 데이터 → 옛 stock 객체 동기화 (카드/홈 화면 호환성)
+function _syncOldStockFromEvents(w, h){
+  const raw = getRawQty(w, h);
+  const wcP = getPrintedQty(w, h, 'WC');
+  const etpP = getPrintedQty(w, h, 'ETP');
+  // 원유리는 WC.raw에 모두 저장 (구버전 표시는 합산이라 무관)
+  stock[`sz_${w}x${h}_WC`] = { raw: raw, printed: wcP };
+  stock[`sz_${w}x${h}_ETP`] = { raw: 0, printed: etpP };
+}
+
+// 이력 토글
+function toggleSzmHistory(){
+  szmHistoryOpen = !szmHistoryOpen;
+  const el = document.getElementById('szm-history');
+  const tg = document.getElementById('szm-history-toggle');
+  el.style.display = szmHistoryOpen ? 'block' : 'none';
+  tg.textContent = szmHistoryOpen ? '📜 이력 닫기 ▲' : '📜 이력 보기 ▼';
+  if(szmHistoryOpen) _renderSzmHistory();
+}
+
+function _renderSzmHistory(){
+  // 원유리 + WC인쇄유리 + ETP인쇄유리 이력을 통합해서 시간 역순으로 표시
+  const all = [];
+  (stockEvents[`${szmW}x${szmH}`]||[]).forEach(e=>all.push({...e, kind:'원유리'}));
+  (stockEvents[`${szmW}x${szmH}_WC`]||[]).forEach(e=>all.push({...e, kind:'WC인쇄'}));
+  (stockEvents[`${szmW}x${szmH}_ETP`]||[]).forEach(e=>all.push({...e, kind:'ETP인쇄'}));
+  all.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+
+  if(!all.length){
+    document.getElementById('szm-history').innerHTML = '<div style="text-align:center;color:var(--tx3);font-size:11px;padding:14px">이력이 없습니다</div>';
+    return;
+  }
+
+  const typeIcon = { in:'📦', count:'🔢', print:'🖨', out:'📤', adjust:'🔧', defect:'🚫' };
+  const typeLabel = { in:'입고', count:'실측', print:'인쇄', out:'출고', adjust:'자동조정', defect:'불량' };
+  const typeColor = { in:'var(--acc3)', count:'var(--acc2)', print:'var(--acc)', out:'#d29922', adjust:'#a371f7', defect:'var(--acc4)' };
+
+  const kindColor = { '원유리':'var(--tx1)', 'WC인쇄':'#1f6feb', 'ETP인쇄':'#d29922' };
+
+  document.getElementById('szm-history').innerHTML = `
+    <div style="max-height:360px;overflow-y:auto">
+    ${all.map(e=>{
+      // 부호 결정: adjust는 실제 부호 따라감, 나머지는 타입별
+      let sign;
+      if(e.type==='count') sign = '=';
+      else if(e.type==='adjust') sign = (e.qty>=0 ? '+' : '−');
+      else if(e.type==='print' || e.type==='out' || e.type==='defect') sign = '−';
+      else sign = '+'; // in
+      const isAuto = e.source==='auto-adjust';
+      const isWorklog = e.source==='worklog';
+      // 배경: 자동조정은 보라색, 작업일지는 살짝 어둡게
+      const bg = isAuto ? 'background:rgba(163,113,247,.08);border-left:3px solid #a371f7;' : (isWorklog?'background:rgba(88,166,255,.04);':'');
+      return `<div style="display:flex;align-items:center;gap:6px;padding:8px 8px;border-bottom:1px solid var(--b1);font-size:11px;${bg}">
+        <div style="font-size:14px">${typeIcon[e.type]||'•'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+            <span style="font-weight:700;color:${typeColor[e.type]||'var(--tx1)'}">${typeLabel[e.type]||e.type}</span>
+            <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:var(--s2);color:${kindColor[e.kind]||'var(--tx2)'}">${e.kind}</span>
+            ${isWorklog?'<span style="font-size:9px;color:var(--acc);font-weight:700">← 작업일지</span>':''}
+            ${isAuto?'<span style="font-size:9px;color:#a371f7;font-weight:700;background:rgba(163,113,247,.15);padding:1px 5px;border-radius:6px">🤖 자동계산</span>':''}
+          </div>
+          <div style="font-size:10px;color:var(--tx2);margin-top:1px">${formatEventDate(e.at)}${e.by?' · '+e.by:''}</div>
+          ${e.note?`<div style="font-size:10px;color:var(--tx3);margin-top:1px">${e.note}</div>`:''}
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:${isAuto?'#a371f7':(typeColor[e.type]||'var(--tx1)')}">${sign}${Math.abs(e.qty)}</div>
+        ${e.source!=='worklog' && e.source!=='auto-adjust' ? `<button onclick="deleteSzmEvent('${e.kind==='원유리'?szmW+'x'+szmH:szmW+'x'+szmH+'_'+(e.kind==='WC인쇄'?'WC':'ETP')}','${e.id}')" style="padding:3px 6px;background:none;border:1px solid var(--b2);border-radius:6px;color:var(--acc4);font-size:10px;cursor:pointer">🗑</button>` : ''}
+      </div>`;
+    }).join('')}
+    </div>`;
+}
+
+function deleteSzmEvent(key, evId){
+  if(!confirm('이 이력을 삭제할까요?\n(연관된 자동 조정 이력도 같이 사라질 수 있습니다)')) return;
+  // 같은 이벤트와 연관된 자동 조정 이력도 같이 삭제
+  if(stockEvents[key]){
+    const target = stockEvents[key].find(e=>e.id===evId);
+    if(target && target.type==='count'){
+      // count 삭제 시 연관된 auto-adjust도 삭제
+      stockEvents[key] = stockEvents[key].filter(e => e.id !== evId && e.relatedCountId !== evId);
+    } else {
+      stockEvents[key] = stockEvents[key].filter(e => e.id !== evId);
+    }
+  }
+  _syncOldStockFromEvents(szmW, szmH);
+  saveAll();
+  _refreshSzmInput();
+  renderDash();
+  if(document.getElementById('sp-stocklist').style.display !== 'none') renderStockList();
+  autoSync();
+  showToast('🗑 이력 삭제됨');
+}
+
+// ══════════════════════════════════════════════════
+//  사이즈 편집 UI (ASSEMBLY_MODELS / SIZE_GROUPS / MODELS / stockEvents 동기화)
+// ══════════════════════════════════════════════════
+let szeOrigW = 0, szeOrigH = 0, szeOrigKey = '';
+
+function openSizeEditModal(sizeKey){
+  let key = String(sizeKey);
+  if(key.startsWith('sz_')) key = key.substring(3).split('_')[0];
+  const parts = key.split('x');
+  if(parts.length !== 2){ showToast('잘못된 사이즈 키'); return; }
+  szeOrigW = parseInt(parts[0]);
+  szeOrigH = parseInt(parts[1]);
+  szeOrigKey = key;
+
+  // 매핑된 ASSEMBLY_MODELS 찾기 (같은 유리 사이즈 가진 모든 모델)
+  const asms = (typeof ASSEMBLY_MODELS!=='undefined')
+    ? ASSEMBLY_MODELS.filter(a => a.glass_w===szeOrigW && a.glass_h===szeOrigH)
+    : [];
+  const sg = (typeof SIZE_GROUPS!=='undefined')
+    ? SIZE_GROUPS.find(s => s.w===szeOrigW && s.h===szeOrigH)
+    : null;
+
+  // 현재 사이즈 표시
+  let curText = `유리 ${szeOrigW} × ${szeOrigH} mm`;
+  if(asms.length){
+    const uniqueAsm = [...new Set(asms.map(a => `${a.asm_w}×${a.asm_h}`))];
+    curText += `<br><span style="font-size:11px;color:var(--tx2);font-weight:400">🔧 조립 ${uniqueAsm.join(', ')} mm</span>`;
+  }
+  document.getElementById('sze-current').innerHTML = curText;
+
+  // 매핑된 모델 표시
+  const modelsEl = document.getElementById('sze-models');
+  if(asms.length){
+    const uniqueModels = [...new Set(asms.map(a => a.short))];
+    modelsEl.innerHTML = uniqueModels.map(m =>
+      `<div style="padding:3px 0;color:var(--tx1)">• ${m}</div>`
+    ).join('');
+  } else if(sg && sg.models && sg.models.length){
+    modelsEl.innerHTML = sg.models.map(m =>
+      `<div style="padding:3px 0;color:var(--tx1)">• ${m}</div>`
+    ).join('');
+  } else {
+    modelsEl.innerHTML = '<div style="color:var(--tx3)">매핑된 모델 없음</div>';
+  }
+
+  // 입력 필드 초기값
+  document.getElementById('sze-glass-w').value = szeOrigW;
+  document.getElementById('sze-glass-h').value = szeOrigH;
+  const firstAsm = asms[0];
+  if(firstAsm){
+    document.getElementById('sze-asm-w').value = firstAsm.asm_w;
+    document.getElementById('sze-asm-h').value = firstAsm.asm_h;
+  } else {
+    document.getElementById('sze-asm-w').value = szeOrigW + 3;
+    document.getElementById('sze-asm-h').value = szeOrigH + 3;
+  }
+
+  document.getElementById('sze-preview').style.display = 'none';
+
+  // 변경 미리보기
+  ['sze-glass-w','sze-glass-h','sze-asm-w','sze-asm-h'].forEach(id=>{
+    document.getElementById(id).oninput = _updateSzePreview;
+  });
+  _updateSzePreview();
+
+  document.getElementById('size-edit-modal').classList.add('on');
+}
+
+function _updateSzePreview(){
+  const newGlassW = parseInt(document.getElementById('sze-glass-w').value) || 0;
+  const newGlassH = parseInt(document.getElementById('sze-glass-h').value) || 0;
+  const newAsmW = parseInt(document.getElementById('sze-asm-w').value) || 0;
+  const newAsmH = parseInt(document.getElementById('sze-asm-h').value) || 0;
+
+  const previewEl = document.getElementById('sze-preview');
+  if(newGlassW === szeOrigW && newGlassH === szeOrigH){
+    previewEl.style.display = 'none';
+    return;
+  }
+
+  // 새 사이즈로 stockEvents 이전 시 충돌 체크
+  const newKey = `${newGlassW}x${newGlassH}`;
+  const oldKey = `${szeOrigW}x${szeOrigH}`;
+  const hasConflict = stockEvents[newKey] && stockEvents[newKey].length > 0;
+
+  // 기존 이력 개수
+  const oldEventCount = (stockEvents[oldKey]||[]).length
+    + (stockEvents[`${oldKey}_WC`]||[]).length
+    + (stockEvents[`${oldKey}_ETP`]||[]).length;
+
+  let html = `📐 <b>변경 미리보기</b><br>`;
+  html += `유리: ${szeOrigW}×${szeOrigH} → <b style="color:var(--acc)">${newGlassW}×${newGlassH}</b><br>`;
+  html += `조립: → <b style="color:var(--acc)">${newAsmW}×${newAsmH}</b><br>`;
+  if(oldEventCount > 0){
+    html += `<br>📦 이전될 재고 이력: <b>${oldEventCount}건</b>`;
+  }
+  if(hasConflict){
+    html += `<br><span style="color:#f85149;font-weight:700">⚠️ 새 사이즈 ${newKey}에 이미 ${stockEvents[newKey].length}건의 이력이 있습니다. 병합됩니다.</span>`;
+  }
+  previewEl.innerHTML = html;
+  previewEl.style.display = 'block';
+}
+
+function confirmSizeEdit(){
+  const newGlassW = parseInt(document.getElementById('sze-glass-w').value) || 0;
+  const newGlassH = parseInt(document.getElementById('sze-glass-h').value) || 0;
+  const newAsmW = parseInt(document.getElementById('sze-asm-w').value) || 0;
+  const newAsmH = parseInt(document.getElementById('sze-asm-h').value) || 0;
+
+  if(newGlassW <= 0 || newGlassH <= 0){
+    showToast('유리 사이즈를 입력하세요'); return;
+  }
+  if(newAsmW <= 0 || newAsmH <= 0){
+    showToast('조립 사이즈를 입력하세요'); return;
+  }
+
+  // 변경 없으면 조립 사이즈만 변경
+  const glassChanged = (newGlassW !== szeOrigW) || (newGlassH !== szeOrigH);
+  const oldKey = `${szeOrigW}x${szeOrigH}`;
+  const newKey = `${newGlassW}x${newGlassH}`;
+
+  // 영향 받는 모델 개수 안내
+  const asms = (typeof ASSEMBLY_MODELS!=='undefined')
+    ? ASSEMBLY_MODELS.filter(a => a.glass_w===szeOrigW && a.glass_h===szeOrigH)
+    : [];
+  const sg = (typeof SIZE_GROUPS!=='undefined')
+    ? SIZE_GROUPS.find(s => s.w===szeOrigW && s.h===szeOrigH)
+    : null;
+  const affectedModels = [...new Set(asms.map(a => a.short))].length;
+
+  let confirmMsg = `변경 사항:\n\n`;
+  confirmMsg += `• 유리 사이즈: ${szeOrigW}×${szeOrigH} → ${newGlassW}×${newGlassH}\n`;
+  confirmMsg += `• 조립 사이즈: → ${newAsmW}×${newAsmH}\n`;
+  confirmMsg += `• 영향 받는 모델: ${affectedModels}개\n`;
+  if(glassChanged){
+    const evCount = (stockEvents[oldKey]||[]).length
+      + (stockEvents[`${oldKey}_WC`]||[]).length
+      + (stockEvents[`${oldKey}_ETP`]||[]).length;
+    confirmMsg += `• 이전될 재고 이력: ${evCount}건\n`;
+  }
+  confirmMsg += `\n진행할까요?`;
+  if(!confirm(confirmMsg)) return;
+
+  // ── 1) ASSEMBLY_MODELS 업데이트 ──
+  if(typeof ASSEMBLY_MODELS !== 'undefined'){
+    ASSEMBLY_MODELS.forEach(a => {
+      if(a.glass_w === szeOrigW && a.glass_h === szeOrigH){
+        a.glass_w = newGlassW;
+        a.glass_h = newGlassH;
+        a.asm_w = newAsmW;
+        a.asm_h = newAsmH;
+      }
+    });
+  }
+
+  // ── 2) SIZE_GROUPS 업데이트 ──
+  if(typeof SIZE_GROUPS !== 'undefined' && glassChanged){
+    const existingNew = SIZE_GROUPS.find(s => s.w===newGlassW && s.h===newGlassH);
+    if(existingNew && sg){
+      // 새 사이즈에 이미 그룹이 있으면 모델 병합
+      existingNew.models = [...new Set([...(existingNew.models||[]), ...(sg.models||[])])];
+      existingNew.tags = [...new Set([...(existingNew.tags||[]), ...(sg.tags||[])])];
+      existingNew.total_6m = (existingNew.total_6m||0) + (sg.total_6m||0);
+      existingNew.avg_monthly = (existingNew.avg_monthly||0) + (sg.avg_monthly||0);
+      // 기존 sg 제거
+      const idx = SIZE_GROUPS.indexOf(sg);
+      if(idx >= 0) SIZE_GROUPS.splice(idx, 1);
+    } else if(sg){
+      // 새 키로 갱신
+      sg.w = newGlassW;
+      sg.h = newGlassH;
+      sg.key = newKey;
+      sg.label = `${newGlassW} × ${newGlassH}`;
+      // tags도 갱신
+      sg.tags = (sg.tags||[]).map(t => {
+        if(t === String(szeOrigW)) return String(newGlassW);
+        if(t === String(szeOrigH)) return String(newGlassH);
+        if(t === `${szeOrigW}x${szeOrigH}`) return newKey;
+        return t;
+      });
+    }
+  }
+
+  // ── 3) MODELS 업데이트 ──
+  if(typeof MODELS !== 'undefined'){
+    MODELS.forEach(m => {
+      if(m.glass_w === szeOrigW && m.glass_h === szeOrigH){
+        m.glass_w = newGlassW;
+        m.glass_h = newGlassH;
+      }
+    });
+  }
+
+  // ── 4) stockEvents 키 마이그레이션 ──
+  if(glassChanged){
+    ['', '_WC', '_ETP'].forEach(suffix => {
+      const oldK = oldKey + suffix;
+      const newK = newKey + suffix;
+      if(stockEvents[oldK] && stockEvents[oldK].length > 0){
+        if(!stockEvents[newK]) stockEvents[newK] = [];
+        stockEvents[newK] = stockEvents[newK].concat(stockEvents[oldK]);
+        stockEvents[newK].sort((a,b) => String(a.at).localeCompare(String(b.at)));
+        delete stockEvents[oldK];
+        // 새 키에 count가 있으면 auto-adjust 재계산
+        if(stockEvents[newK].some(e => e.type === 'count')){
+          recalcAutoAdjusts(newK);
+        }
+      }
+    });
+
+    // ── 5) 구버전 stock 객체도 마이그레이션 ──
+    ['_WC', '_ETP', '_X'].forEach(suffix => {
+      const oldStockKey = `sz_${szeOrigW}x${szeOrigH}${suffix}`;
+      const newStockKey = `sz_${newGlassW}x${newGlassH}${suffix}`;
+      if(stock[oldStockKey]){
+        if(stock[newStockKey]){
+          // 병합
+          stock[newStockKey] = {
+            raw: (stock[newStockKey].raw||0) + (stock[oldStockKey].raw||0),
+            printed: (stock[newStockKey].printed||0) + (stock[oldStockKey].printed||0)
+          };
+        } else {
+          stock[newStockKey] = stock[oldStockKey];
+        }
+        delete stock[oldStockKey];
+      }
+    });
+  }
+
+  // ── 6) 작업일지 항목의 sizeKey도 업데이트 ──
+  if(glassChanged && typeof workLog !== 'undefined'){
+    const oldSizeKey = `sz_${szeOrigW}x${szeOrigH}`;
+    const newSizeKey = `sz_${newGlassW}x${newGlassH}`;
+    workLog.forEach(day => {
+      (day.items||[]).forEach(it => {
+        if(it.sizeKey === oldSizeKey){
+          it.sizeKey = newSizeKey;
+        }
+      });
+    });
+  }
+
+  meta.lastStock = new Date().toISOString();
+  saveAll();
+  closeM('size-edit-modal');
+  renderDash();
+  if(document.getElementById('sp-stocklist').style.display !== 'none') renderStockList();
+  autoSync();
+  showToast(glassChanged ? `✅ 사이즈 변경 완료 (${oldKey} → ${newKey})` : `✅ 조립 사이즈 변경 완료`);
+}
+
+// ══════════════════════════════════════════════════
+// ── WORK MODAL ──
+let wSelCode=null,wQty=1,wMode='normal',wDefectReason='파손/크랙',wDefectLoc='print';
+
+function setWorkTab(mode){
+  wMode=mode;
+  const isDefect=mode==='defect';
+  document.getElementById('wtab-normal').classList.toggle('on',!isDefect);
+  document.getElementById('wtab-defect').classList.toggle('on',isDefect);
+  if(isDefect){
+    document.getElementById('wtab-defect').style.background='var(--acc4)';
+    document.getElementById('wtab-defect').style.color='#fff';
+    document.getElementById('wtab-normal').style.background='';
+    document.getElementById('wtab-normal').style.color='';
+  } else {
+    document.getElementById('wtab-normal').style.background='var(--acc)';
+    document.getElementById('wtab-normal').style.color='#0d1117';
+    document.getElementById('wtab-defect').style.background='';
+    document.getElementById('wtab-defect').style.color='var(--acc4)';
+  }
+  // 색상박스: 정상작업에서만 표시
+  const colorBox=document.getElementById('wm-color-box');
+  if(colorBox) colorBox.style.display=isDefect?'none':'block';
+  // 불량사유: 불량탭에서만 표시
+  const defectBox=document.getElementById('wm-defect-reason');
+  if(defectBox) defectBox.style.display=isDefect?'block':'none';
+  // 버튼/라벨 복원
+  if(!isDefect){
+    const btn=document.getElementById('wm-confirm-btn');
+    const desc=document.getElementById('wm-confirm-desc');
+    const lbl=document.getElementById('wm-qty-label');
+    if(btn){btn.style.background='var(--acc3)';btn.textContent='➕ 목록에 담기';}
+    if(desc) desc.textContent='담은 뒤 아래에서 계속 추가 → 마지막에 한 번에 올리기';
+    if(lbl) lbl.textContent='작업 수량';
+  }
+  updateDefectUI();
+}
+
+function setDefectLoc(loc, btn){
+  wDefectLoc=loc;
+  document.querySelectorAll('.defect-loc-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  btn.style.background='var(--acc4)';btn.style.color='#fff';btn.style.borderColor='var(--acc4)';
+  updateDefectUI();
+}
+
+function updateDefectUI(){
+  if(wMode!=='defect') return;
+  const btn=document.getElementById('wm-confirm-btn');
+  const desc=document.getElementById('wm-confirm-desc');
+  const lbl=document.getElementById('wm-qty-label');
+  if(wDefectLoc==='print'){
+    if(btn){btn.style.background='var(--acc4)';btn.textContent='➕ 인쇄실 불량 담기';}
+    if(desc) desc.innerHTML='<span style="color:var(--acc4)">원유리</span>에서 차감 (인쇄 전/후 불량)';
+    if(lbl) lbl.textContent='불량 수량 (원유리)';
+  } else {
+    if(btn){btn.style.background='var(--acc4)';btn.textContent='➕ 조립실 불량 담기';}
+    if(desc) desc.innerHTML='<span style="color:var(--acc4)">인쇄유리</span>에서 차감 (조립 중 불량)';
+    if(lbl) lbl.textContent='불량 수량 (인쇄유리)';
+  }
+}
+
+function setDefectReason(reason, btn){
+  wDefectReason=reason;
+  document.querySelectorAll('.defect-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  btn.style.background='var(--acc4)';btn.style.color='#fff';btn.style.borderColor='var(--acc4)';
+}
+
+function setWlColor(color, btn){
+  wlColor=color;
+  document.querySelectorAll('.wc-btn,.etp-btn').forEach(b=>{
+    b.style.background=''; b.style.borderColor=''; b.style.color='';
+  });
+  if(color==='WC'){
+    btn.style.background='rgba(121,192,255,.25)';
+    btn.style.borderColor='var(--wc)'; btn.style.color='var(--wc)';
+  } else {
+    btn.style.background='rgba(255,166,87,.25)';
+    btn.style.borderColor='var(--etp)'; btn.style.color='var(--etp)';
+  }
+  if(wSelSize){
+    const s=getSzStock(wSelSize.w,wSelSize.h,color);
+    const el=document.getElementById('wm-size-stock');
+    if(el) el.textContent=(color==='WC'?'🔵 웜코튼':'🟠 에토프')+' — 원유리 '+s.raw+'장 | 인쇄유리 '+s.printed+'장';
+  }
+}
+function clearWlSelection(){
+  // 선택만 해제하고 검색 화면으로 복귀 (모달은 유지)
+  wSelCode=null; wSelSize=null; wSelModel=null; wQty=1;
+  const qb=document.getElementById('wm-qty-box'); if(qb) qb.style.display='none';
+  const sel=document.getElementById('wm-selected'); if(sel) sel.style.display='none';
+  const qn=document.getElementById('wm-qty'); if(qn) qn.value=1;
+  const sr=document.getElementById('wm-search'); if(sr){ sr.value=''; sr.focus(); }
+  const res=document.getElementById('wm-results'); if(res) res.innerHTML='';
+  if(typeof renderWorkSearch==='function') renderWorkSearch();
+}
+function openWorkModal(){
+  wSelCode=null; wSelSize=null; wSelModel=null; wQty=1; wMode='normal';
+  wDefectReason='파손/크랙'; wDefectLoc='print'; wlColor='WC';
+  document.getElementById('wm-search').value='';
+  document.getElementById('wm-results').innerHTML='';
+  document.getElementById('wm-selected').style.display='none';
+  document.getElementById('wm-qty-box').style.display='none';
+  document.getElementById('wm-qty').value=1;
+  document.getElementById('wm-date').value=todayStr();
+
+  // 인쇄실/조립실 모드에 따라 힌트 + 검색 플레이스홀더 변경
+  const hintEl=document.getElementById('wm-mode-hint');
+  const searchEl=document.getElementById('wm-search');
+  const lblEl=document.getElementById('wm-search-label');
+  if(wlRoom==='print'){
+    if(hintEl){hintEl.style.background='rgba(37,99,235,.08)';hintEl.style.color='var(--acc)';hintEl.textContent='🖨️ 인쇄실 — 사이즈 기준으로 입력 (모델명으로도 검색 가능)';}
+    if(searchEl) searchEl.placeholder='사이즈(예: 595 729) 또는 모델명(예: 6073)...';
+    if(lblEl) lblEl.textContent='사이즈 검색';
+  } else {
+    if(hintEl){hintEl.style.background='rgba(248,81,73,.06)';hintEl.style.color='var(--acc4)';hintEl.textContent='🔧 조립실 — 모델명 기준으로 입력';}
+    if(searchEl) searchEl.placeholder='모델명(예: OB M 6073, HD B 4591)...';
+    if(lblEl) lblEl.textContent='모델 검색';
+  }
+
+  setWorkTab('normal');
+  const wcBtn=document.getElementById('wcolor-wc');
+  const etpBtn=document.getElementById('wcolor-etp');
+  if(wcBtn){wcBtn.style.background='rgba(121,192,255,.25)';wcBtn.style.borderColor='var(--wc)';wcBtn.style.color='var(--wc)';}
+  if(etpBtn){etpBtn.style.background='';etpBtn.style.borderColor='';etpBtn.style.color='';}
+  document.querySelectorAll('.defect-loc-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  const printBtn=document.getElementById('dloc-print');
+  if(printBtn){printBtn.style.background='var(--acc4)';printBtn.style.color='#fff';printBtn.style.borderColor='var(--acc4)';}
+  document.querySelectorAll('.defect-btn').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  const firstBtn=document.getElementById('dr-crack');
+  if(firstBtn){firstBtn.style.background='var(--acc4)';firstBtn.style.color='#fff';firstBtn.style.borderColor='var(--acc4)';}
+  document.getElementById('work-modal').classList.add('on');
+  wlCart=[]; renderCart();
+}
+// ── 검색어에 가장 잘 맞는 대표 모델명 선택 ──
+// 예) 445×729 그룹 [BDI1R 4591, M 4573(공용), WMLDT 4573] 에서
+//     "4573" 검색 → "OB M 4573(공용) M" 선택 (models[0] 강제선택 버그 수정)
+function pickBestModel(models, raw){
+  if(!models||!models.length) return '';
+  if(models.length===1) return models[0];
+  const r=(raw||'').trim().toLowerCase();
+  const rDigits=r.replace(/\D/g,'');
+  // 검색어의 "번호" 토큰 (4573, 6073 등 3자리 이상 숫자)
+  const rNumTokens=(r.match(/\d{3,}/g)||[]);
+  let best=null, bestScore=-1;
+  models.forEach((m,idx)=>{
+    const ml=m.toLowerCase();
+    const mDigits=ml.replace(/\D/g,'');
+    let score=0;
+    // 1) 모델명 전체가 검색어를 그대로 포함 (가장 강함)
+    if(r && ml.includes(r)) score+=100;
+    // 2) 검색어의 번호 토큰이 모델명 번호에 포함 (4573 → "4573(공용)")
+    rNumTokens.forEach(tok=>{ if(mDigits.includes(tok)) score+=60; });
+    // 3) 숫자만 입력한 경우도 위와 동일 처리
+    if(!rNumTokens.length && rDigits.length>=3 && mDigits.includes(rDigits)) score+=60;
+    // 4) 동점 시 배열 앞 순서 유지 (미세 가중치)
+    score-=idx*0.01;
+    if(score>bestScore){ bestScore=score; best=m; }
+  });
+  // 아무 번호도 안 맞으면(사이즈만 검색 등) 첫 모델 유지
+  return bestScore>0 ? best : models[0];
+}
+
+// ── 사이즈 그룹의 검색 정확도 점수 (정렬용) ──
+function sizeMatchScore(sg, raw, q, qDigits){
+  const szKey=`${sg.w}x${sg.h}`;
+  const szDigits=`${sg.w}${sg.h}`;
+  let s=0;
+  // 사이즈 자체 완전일치 (445x729 == 445x729)
+  if(szKey===q) s+=1000;
+  // 숫자연결 완전일치 (445729)
+  if(szDigits===qDigits && qDigits.length>=5) s+=900;
+  // 숫자연결 앞부분 일치
+  if(qDigits.length>=4 && szDigits.startsWith(qDigits)) s+=500;
+  // 모델 번호 토큰 일치 (4573 → 445×729 그룹의 M 4573)
+  const rNumTokens=(raw.toLowerCase().match(/\d{3,}/g)||[]);
+  if(sg.models){
+    sg.models.forEach(m=>{
+      const md=m.toLowerCase().replace(/\D/g,'');
+      rNumTokens.forEach(tok=>{ if(md.includes(tok)) s+=300; });
+      if(m.toLowerCase().includes(raw.toLowerCase()) && raw.length>=2) s+=250;
+    });
+  }
+  // 가로 또는 세로 부분일치 (약함)
+  if(String(sg.w).includes(q)||String(sg.h).includes(q)) s+=10;
+  return s;
+}
+
+function renderWorkSearch(){
+  const raw=(document.getElementById('wm-search').value||'').trim();
+  // 정규화: *, ×, 공백 → x
+  const q=raw.toLowerCase().replace(/[*×\s]+/g,'x').replace(/xx+/g,'x');
+  // 숫자만 추출 (445729 → "445729")
+  const qDigits=raw.replace(/\D/g,'');
+  const el=document.getElementById('wm-results');
+  if(!q){el.innerHTML='';return;}
+
+  const CC={'WC':'var(--wc)','ETP':'var(--etp)','':'var(--tx2)'};
+  const CL={'WC':'웜코튼','ETP':'에토프','':'미지정'};
+
+  if(wlRoom==='print'){
+    // ── 인쇄실: 사이즈 카드 기준, 모델명 태그 표시 ──
+    const sizeResults=(typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS:[]).filter(sg=>{
+      const szKey=`${sg.w}x${sg.h}`;
+      const szDigits=`${sg.w}${sg.h}`;   // 숫자 연결 "445729"
+      if(szKey.includes(q)) return true;
+      // 구분자 없이 숫자만 입력한 경우 (445729, 595377 등)
+      if(qDigits.length>=4 && szDigits.startsWith(qDigits)) return true;
+      if(String(sg.w).includes(q)||String(sg.h).includes(q)) return true;
+      if(sg.models&&sg.models.some(m=>m.toLowerCase().replace(/\s+/g,'').includes(q.replace(/x/g,''))||m.toLowerCase().includes(raw.toLowerCase()))) return true;
+      if(sg.tags&&sg.tags.some(t=>t.replace(/[*×\s]/g,'x').includes(q)||t.includes(raw.toLowerCase()))) return true;
+      return false;
+    })
+    // 검색 정확도순 정렬 (검색한 사이즈/번호가 맨 위로)
+    .sort((a,b)=>sizeMatchScore(b,raw,q,qDigits)-sizeMatchScore(a,raw,q,qDigits))
+    .slice(0,6);
+
+    if(!sizeResults.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
+
+    // 사이즈 카드: 사이즈 크게 + 모델명 태그들 + 웜코튼/에토프 버튼
+    el.innerHTML=sizeResults.map(sg=>{
+      const wcS=getSzStock(sg.w,sg.h,'WC');
+      const etpS=getSzStock(sg.w,sg.h,'ETP');
+      const modelTags=sg.models.map(mn=>`<span style="display:inline-block;font-size:10px;background:var(--s2);border:1px solid var(--b2);border-radius:4px;padding:2px 7px;margin:2px 2px 0 0;color:var(--tx2)">${mn}</span>`).join('');
+      // 대표 모델명: 검색어에 가장 잘 맞는 모델 (models[0] 강제선택 버그 수정)
+      // 색상 버튼 클릭 시 해당 색상으로 selectWorkModel 호출
+      const firstModel=pickBestModel(sg.models, raw)||`${sg.w}×${sg.h}`;
+      const safeFirst=firstModel.replace(/'/g,"\\'");
+      // L/R 그룹은 h가 "693L" 같은 문자열 → 숫자 hnum을 넘겨야 재고키가 어긋나지 않음
+      const hNumForClick = (sg.hnum!=null?sg.hnum:sg.h);
+      const dispH = (sg.hnum!=null?sg.hnum:sg.h);
+      return `<div style="padding:12px 14px;border-bottom:1px solid var(--b1)">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc)">${sg.w} × ${dispH}${sg.lr?` <span style="font-size:12px;color:${sg.lr==='L'?'var(--acc)':'var(--acc4)'}">(${sg.lr==='L'?'좌·L':'우·R'})</span>`:''}</span>
+          <span style="font-size:10px;color:var(--tx3)">mm</span>
+        </div>
+        <div style="margin-bottom:8px;line-height:1.6">${modelTags}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${hNumForClick},'WC')"
+            style="padding:9px 12px;background:rgba(121,192,255,.12);border:1.5px solid var(--wc);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:var(--wc)">🔵 웜코튼</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${wcS.raw>0?'var(--acc)':'var(--tx3)'}">
+              ${wcS.raw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
+            </span>
+          </div>
+          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${hNumForClick},'ETP')"
+            style="padding:9px 12px;background:rgba(255,166,87,.12);border:1.5px solid var(--etp);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:var(--etp)">🟠 에토프</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${etpS.raw>0?'var(--acc)':'var(--tx3)'}">
+              ${etpS.raw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
+            </span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+  } else {
+    // ── 조립실: ASSEMBLY_MODELS 기준 검색 (조립 사이즈 + 모델명) ──
+    const asmResults=(typeof ASSEMBLY_MODELS!=='undefined'?ASSEMBLY_MODELS:[]).filter(a=>{
+      const sl=a.short.toLowerCase().replace(/\s+/g,'');
+      const ql2=q.replace(/x/g,'').replace(/\*/g,'');
+      // 모델명 검색
+      if(sl.includes(ql2)||a.short.toLowerCase().includes(raw.toLowerCase())) return true;
+      // 조립실 사이즈로 검색
+      const asmKey=`${a.asm_w}x${a.asm_h}`;
+      const asmDigits=`${a.asm_w}${a.asm_h}`;
+      if(asmKey.includes(q)) return true;
+      if(qDigits.length>=4 && asmDigits.startsWith(qDigits)) return true;
+      if(String(a.asm_w).includes(q)||String(a.asm_h).includes(q)) return true;
+      // 인쇄 사이즈로도 검색 가능
+      const glKey=`${a.glass_w}x${a.glass_h}`;
+      const glDigits=`${a.glass_w}${a.glass_h}`;
+      if(glKey.includes(q)) return true;
+      if(qDigits.length>=4 && glDigits.startsWith(qDigits)) return true;
+      return false;
+    }).slice(0,12);
+
+    if(!asmResults.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
+    el.innerHTML=asmResults.map(a=>{
+      const safeShort=a.short.replace(/'/g,"\\'");
+      const asmSz=`${a.asm_w}×${a.asm_h}`;
+      const glassSz=`${a.glass_w}×${a.glass_h}`;
+      const _hk=`${a.glass_h}${lrGlassSuffix(a.short)}`;
+      const wcS=getSzStock(a.glass_w,_hk,'WC');
+      const etpS=getSzStock(a.glass_w,_hk,'ETP');
+      const isBd3u=a.is_bd3u||false;
+      const isLong=a.is_longdoor||false;
+      const warning=a.warning||'';
+      const note=a.note||'';
+
+      // BD3U 라벨
+      const bd3uTag=isBd3u?`<span style="font-size:9px;background:rgba(88,166,255,.15);color:var(--acc);padding:1px 6px;border-radius:4px;margin-left:4px">3장합적</span>`:'';
+      // 롱도어 라벨
+      const longTag=isLong?`<span style="font-size:9px;background:rgba(255,166,87,.15);color:var(--etp);padding:1px 6px;border-radius:4px;margin-left:4px">롱도어</span>`:'';
+      // 경고 라벨
+      const warnTag=warning?`<div style="font-size:10px;color:#e3b341;background:rgba(227,179,65,.12);border-radius:4px;padding:3px 8px;margin:4px 0">⚠️ ${warning}</div>`:'';
+      // 노트
+      const noteTag=note?`<div style="font-size:10px;color:var(--tx3);margin-top:2px">📌 ${note}</div>`:'';
+      // 롱도어 유리 설명
+      const longGlassTag=isLong?`<div style="font-size:10px;color:var(--tx2);margin:3px 0">유리: 상부 ${a.glass_w}×${a.glass_h} + 하부 ${a.glass_w}×${a.glass_h_bot||761}</div>`:'';
+
+      return `<div style="padding:12px 14px;border-bottom:1px solid var(--b1)">
+        <div style="font-size:14px;font-weight:800;margin-bottom:2px">${hlName(a.short,'')}${bd3uTag}${longTag}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+          <span style="font-size:10px;color:var(--tx3);font-family:'JetBrains Mono',monospace">🔧 조립 ${asmSz}</span>
+          <span style="font-size:10px;color:var(--tx3)">→</span>
+          <span style="font-size:10px;color:var(--tx2);font-family:'JetBrains Mono',monospace">🔲 유리 ${glassSz}</span>
+        </div>
+        ${longGlassTag}${warnTag}${noteTag}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+          <div onclick="selectWorkModel('${safeShort}','WC',${a.glass_w},${a.glass_h})"
+            style="padding:9px 12px;background:rgba(121,192,255,.12);border:1.5px solid var(--wc);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:var(--wc)">🔵 웜코튼</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:${wcS.printed>0?'var(--acc3)':'var(--tx3)'}">
+              ${wcS.printed}<span style="font-size:9px;font-weight:400;color:var(--tx3)">장</span>
+            </span>
+          </div>
+          <div onclick="selectWorkModel('${safeShort}','ETP',${a.glass_w},${a.glass_h})"
+            style="padding:9px 12px;background:rgba(255,166,87,.12);border:1.5px solid var(--etp);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:var(--etp)">🟠 에토프</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:${etpS.printed>0?'var(--acc3)':'var(--tx3)'}">
+              ${etpS.printed}<span style="font-size:9px;font-weight:400;color:var(--tx3)">장</span>
+            </span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+// 인쇄실 사이즈+색상 선택
+function selectPrintSizeNamed(short, w, h, color){
+  // 사이즈 카드에서 색상 선택 시: 모델명(short) + 색상 + 사이즈 모두 저장
+  selectWorkModel(short, color, w, h);
+}
+function selectPrintSize(w, h, color){
+  const sg=typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS.find(s=>s.w===w&&s.h===h):null;
+  wSelSize={w,h,label:`${w}×${h}`};
+  wSelModel=null; wSelCode=null;
+  wlColor=color; wQty=1;
+
+  const s=getSzStock(w,h,color);
+  const colorLabel=color==='WC'?'🔵 웜코튼':'🟠 에토프';
+  const colorDot=color==='WC'?'var(--wc)':'var(--etp)';
+
+  document.getElementById('wm-size-label').innerHTML=
+    `<span style="font-size:18px;font-weight:900">${w} × ${h}</span> <span style="font-size:11px;font-weight:400;color:var(--tx3)">mm</span>`;
+  const modelTagsHtml=sg?sg.models.map(m=>`<span style="display:inline-block;background:var(--s2);border:1px solid var(--b2);border-radius:4px;padding:2px 7px;font-size:10px;margin:2px 2px 0 0">${m}</span>`).join(''):'';
+  document.getElementById('wm-size-models').innerHTML=modelTagsHtml;
+  document.getElementById('wm-size-stock').innerHTML=
+    `<span style="font-weight:700;color:${colorDot}">${colorLabel}</span> — 원유리 <b>${s.raw}</b>장 | 인쇄유리 <b>${s.printed}</b>장`;
+
+  // 색상 버튼 업데이트
+  const wcBtn=document.getElementById('wcolor-wc');
+  const etpBtn=document.getElementById('wcolor-etp');
+  if(color==='WC'){
+    if(wcBtn){wcBtn.style.background='rgba(121,192,255,.25)';wcBtn.style.borderColor='var(--wc)';wcBtn.style.color='var(--wc)';}
+    if(etpBtn){etpBtn.style.background='';etpBtn.style.borderColor='';etpBtn.style.color='';}
+  } else {
+    if(etpBtn){etpBtn.style.background='rgba(255,166,87,.25)';etpBtn.style.borderColor='var(--etp)';etpBtn.style.color='var(--etp)';}
+    if(wcBtn){wcBtn.style.background='';wcBtn.style.borderColor='';wcBtn.style.color='';}
+  }
+
+  document.getElementById('wm-selected').style.display='none';
+  document.getElementById('wm-qty-box').style.display='block';
+  document.getElementById('wm-qty').value=1;
+  document.getElementById('wm-results').innerHTML='';
+  document.getElementById('wm-search').value='';
+  updateDefectUI();
+}
+
+// 관통 손잡이 3종(BTARG 6070, WTARG 60141, WTARG 60154)은 좌우 유리가 다름 → 재고키 분리
+function lrGlassSuffix(short){
+  const s=(short||'').trim();
+  if(/\b(BTARG 6070|WTARG 60141|WTARG 60154)\b/.test(s)){
+    if(s.endsWith(' L')) return 'L';
+    if(s.endsWith(' R')) return 'R';
+  }
+  return '';
+}
+function selectWorkModel(short, color, w, h){
+  // h가 "693L" 같은 문자열로 들어와도 숫자만 사용 (L/R 접미사 중복 방지)
+  h = parseInt(h,10);
+  const lr=lrGlassSuffix(short);
+  wSelModel={short, color, w, h, lr};
+  wSelSize={w,h,label:`${w}×${h}`,lr};
+  wSelCode=null;
+  wlColor=color||'WC';
+  wQty=1;
+
+  const s=getSzStock(w,`${h}${lr}`,color);
+  const colorLabel=color==='WC'?'🔵 웜코튼':color==='ETP'?'🟠 에토프':'';
+  document.getElementById('wm-size-label').textContent=short;
+  document.getElementById('wm-size-models').innerHTML=
+    `<span style="font-size:11px;color:var(--tx2)">${w}×${h} mm &nbsp;|&nbsp; </span>`+
+    `<span style="font-size:11px;font-weight:700;color:${color==='WC'?'var(--wc)':'var(--etp)'}">${colorLabel}</span>`;
+  document.getElementById('wm-size-stock').textContent=`원유리 ${s.raw}장 | 인쇄유리 ${s.printed}장`;
+
+  // 색상 버튼도 맞게 설정
+  const wcBtn=document.getElementById('wcolor-wc');
+  const etpBtn=document.getElementById('wcolor-etp');
+  if(wcBtn&&etpBtn){
+    if(color==='WC'){
+      wcBtn.style.background='rgba(121,192,255,.25)';wcBtn.style.borderColor='var(--wc)';wcBtn.style.color='var(--wc)';
+      etpBtn.style.background='';etpBtn.style.borderColor='';etpBtn.style.color='';
+    } else if(color==='ETP'){
+      etpBtn.style.background='rgba(255,166,87,.25)';etpBtn.style.borderColor='var(--etp)';etpBtn.style.color='var(--etp)';
+      wcBtn.style.background='';wcBtn.style.borderColor='';wcBtn.style.color='';
+    }
+  }
+
+  document.getElementById('wm-selected').style.display='none';
+  document.getElementById('wm-qty-box').style.display='block';
+  const qEl=document.getElementById('wm-qty');
+  if(qEl) qEl.value=1;
+  document.getElementById('wm-results').innerHTML='';
+  document.getElementById('wm-search').value='';
+  updateDefectUI();
+}
+
+function selectWorkSize(w,h){
+  const sg=typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS.find(s=>s.w===w&&s.h===h):null;
+  if(!sg) return;
+  wSelSize={w,h,label:`${w}×${h}`,models:sg.models};
+  wSelCode=null; wQty=1;
+
+  document.getElementById('wm-size-label').textContent=`${w} × ${h} mm`;
+  const modelTagsHtml=sg.models.map(m=>`<span style="display:inline-block;background:var(--s2);border:1px solid var(--b2);border-radius:4px;padding:2px 7px;font-size:10px;margin:2px 2px 0 0">${m}</span>`).join('');
+  document.getElementById('wm-size-models').innerHTML=modelTagsHtml;
+
+  const s=getSzStock(w,h,wlColor);
+  const colorLabel=wlColor==='WC'?'🔵 웜코튼':'🟠 에토프';
+  document.getElementById('wm-size-stock').textContent=colorLabel+' — 원유리 '+s.raw+'장 | 인쇄유리 '+s.printed+'장';
+
+  document.getElementById('wm-selected').style.display='none';
+  document.getElementById('wm-qty-box').style.display='block';
+  const qEl=document.getElementById('wm-qty');
+  if(qEl) qEl.value=1;
+  document.getElementById('wm-results').innerHTML='';
+  document.getElementById('wm-search').value='';
+  updateDefectUI();
+}
+
+function selectWork(code){
+  // 기존 호환성 유지 - 코드로 선택 시 사이즈 그룹으로 전환
+  const m=MODELS.find(x=>x.code===code);
+  if(m&&m.glass_w&&m.glass_h){
+    selectWorkSize(m.glass_w,m.glass_h);
+  } else {
+    wSelCode=code; wQty=1;
+    document.getElementById('wm-qty-box').style.display='block';
+    const qEl=document.getElementById('wm-qty');
+    if(qEl) qEl.value=1;
+  }
+}
+function wQtyD(d){
+  const el=document.getElementById('wm-qty');
+  wQty=Math.max(1,(parseInt(el?.value)||wQty)+d);
+  if(el) el.value=wQty;
+}
+function setWQ(n){wQty=n;const el=document.getElementById('wm-qty');if(el)el.value=n;}
+
+// ══════════════════════════════════════════════════
+//  작업 담기(장바구니) 방식
+//  선택 → 담기 → 담기 → … → 전체 올리기
+// ══════════════════════════════════════════════════
+
+// 현재 모달에서 선택된 항목을 장바구니에 담는다 (재고는 아직 안 건드림)
+function addToCart(){
+  if(!wSelModel&&!wSelSize&&!wSelCode){showToast('먼저 모델을 선택하세요');return;}
+  const qtyEl=document.getElementById('wm-qty');
+  wQty=qtyEl?Math.max(1,parseInt(qtyEl.value)||wQty):wQty;
+  if(wQty<=0){showToast('수량을 입력하세요');return;}
+
+  const mdl=wSelModel||null;
+  const w=mdl?mdl.w:(wSelSize?wSelSize.w:0);
+  const h=mdl?mdl.h:(wSelSize?wSelSize.h:0);
+  const lr=(mdl&&mdl.lr)||(wSelSize&&wSelSize.lr)||'';
+  const hk=`${h}${lr}`;
+  const color=wlColor||(mdl?mdl.color:'WC');
+  const shortName=mdl?mdl.short:`${w}×${h}`;
+
+  // 장바구니 항목 (재고 반영은 submitCart에서)
+  const cartItem={
+    cid:'c_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    w, h, hk, lr, color, shortName,
+    qty:wQty,
+    mode:wMode,                    // 'normal' | 'defect'
+    defectLoc:wMode==='defect'?wDefectLoc:null,
+    defectReason:wMode==='defect'?wDefectReason:null,
+    code:(!w||!h)?wSelCode:null,   // 사이즈 없는 코드 기반 항목
+  };
+
+  // 같은 항목이면 수량 합치기 (정상: 같은 사이즈+색상 / 불량: 같은 위치+사유까지)
+  const ex=wlCart.find(c=>{
+    if(c.mode!==cartItem.mode) return false;
+    if(c.code||cartItem.code) return c.code===cartItem.code && c.color===cartItem.color;
+    const same=c.w===cartItem.w && c.hk===cartItem.hk && c.color===cartItem.color;
+    if(cartItem.mode==='defect') return same && c.defectLoc===cartItem.defectLoc && c.defectReason===cartItem.defectReason;
+    return same;
+  });
+  if(ex) ex.qty+=cartItem.qty;
+  else wlCart.push(cartItem);
+
+  renderCart();
+  showToast(`🧺 담김 — ${shortName} ${color==='WC'?'웜코튼':'에토프'} ${wQty}장`);
+
+  // 검색화면으로 복귀 (모달은 유지)
+  clearWlSelection();
+}
+
+// 장바구니 목록 렌더
+function renderCart(){
+  const box=document.getElementById('wm-cart-box');
+  const listEl=document.getElementById('wm-cart-list');
+  const cntEl=document.getElementById('wm-cart-count');
+  document.querySelectorAll('.wm-cart-count2').forEach(e=>e.textContent=wlCart.length);
+  if(cntEl) cntEl.textContent=wlCart.length;
+  if(!box||!listEl) return;
+  if(!wlCart.length){ box.style.display='none'; listEl.innerHTML=''; return; }
+  box.style.display='block';
+
+  listEl.innerHTML=wlCart.map((c,i)=>{
+    const isDefect=c.mode==='defect';
+    const dot=isDefect?'var(--acc4)':c.color==='WC'?'var(--wc)':c.color==='ETP'?'var(--etp)':'var(--tx2)';
+    const colorLbl=c.color==='WC'?'웜코튼':c.color==='ETP'?'에토프':'';
+    const sz=(c.w&&c.h)?`${c.w}×${c.h}${c.lr||''}`:'';
+    const defBadge=isDefect?`<span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:4px">🚫 ${c.defectLoc==='assembly'?'조립실':'인쇄실'}·${c.defectReason||''}</span>`:'';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--b1)">
+      <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.shortName}${defBadge}</div>
+        <div style="font-size:10px;color:var(--tx2);margin-top:2px">${sz?'📐 '+sz+'  ':''}${colorLbl&&!isDefect?colorLbl:''}</div>
+      </div>
+      <div class="qty-ctrl" style="width:120px;flex-shrink:0;margin:0">
+        <button class="qty-btn" style="width:30px;height:30px;font-size:16px" onclick="cartQty(${i},-1)">−</button>
+        <input type="number" value="${c.qty}" min="1" onchange="cartSetQty(${i},this.value)"
+          style="border:none;width:100%;text-align:center;font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;color:${isDefect?'var(--acc4)':'var(--acc)'};background:var(--s2)">
+        <button class="qty-btn" style="width:30px;height:30px;font-size:16px" onclick="cartQty(${i},1)">＋</button>
+      </div>
+      <button onclick="cartRemove(${i})" style="width:30px;height:30px;flex-shrink:0;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:6px;color:var(--acc4);font-size:14px;cursor:pointer">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function cartQty(i,d){
+  if(!wlCart[i]) return;
+  wlCart[i].qty=Math.max(1,wlCart[i].qty+d);
+  renderCart();
+}
+function cartSetQty(i,v){
+  if(!wlCart[i]) return;
+  wlCart[i].qty=Math.max(1,parseInt(v)||1);
+  renderCart();
+}
+function cartRemove(i){
+  wlCart.splice(i,1);
+  renderCart();
+}
+function clearCart(){
+  if(wlCart.length && !confirm('담은 목록을 전부 비울까요?')) return;
+  wlCart=[]; renderCart();
+}
+
+// 장바구니 항목 1건을 실제 재고/작업일지에 반영 (기존 confirmWork 로직 재사용)
+function applyCartItem(c, td, dl){
+  const w=c.w, h=c.h, hk=c.hk, color=c.color, shortName=c.shortName;
+  const colorLabel=color==='WC'?'웜코튼':color==='ETP'?'에토프':'';
+  const workAtIso=`${td}T14:00:00.000Z`;
+
+  if(w&&h){
+    const s=getSzStock(w,hk,color);
+    const itemKey=`sz_${w}x${hk}`;
+    if(c.mode==='defect'){
+      if(c.defectLoc==='print'){
+        setSzStock(w,hk,color,s.raw-c.qty,s.printed);
+        const ev1=addStockEvent(`${w}x${hk}`, {at:workAtIso, type:'defect', qty:c.qty, note:`인쇄실 불량 (${c.defectReason}) ${shortName} ${colorLabel}`, source:'worklog'});
+        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='print'&&i.reason===c.defectReason&&i.short===shortName);
+        if(ex){ ex.qty+=c.qty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
+        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:c.qty,type:'defect',loc:'print',reason:c.defectReason,eventIds:[ev1.id],...actorTag()});
+      } else {
+        setSzStock(w,hk,color,s.raw,s.printed-c.qty);
+        const ev1=addStockEvent(`${w}x${hk}_${color}`, {at:workAtIso, type:'defect', qty:c.qty, note:`조립실 불량 (${c.defectReason}) ${shortName}`, source:'worklog'});
+        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='assembly'&&i.reason===c.defectReason&&i.short===shortName);
+        if(ex){ ex.qty+=c.qty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
+        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:c.qty,type:'defect',loc:'assembly',reason:c.defectReason,eventIds:[ev1.id],...actorTag()});
+      }
+    } else {
+      setSzStock(w,hk,color,s.raw-c.qty,s.printed+c.qty);
+      const ev1=addStockEvent(`${w}x${hk}`, {at:workAtIso, type:'print', qty:c.qty, note:`인쇄작업 ${shortName} → ${colorLabel}`, source:'worklog'});
+      const ev2=addStockEvent(`${w}x${hk}_${color}`, {at:workAtIso, type:'in', qty:c.qty, note:`인쇄완료 ${shortName}`, source:'worklog'});
+      const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='work'&&i.short===shortName);
+      if(ex){ ex.qty+=c.qty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id, ev2.id]); Object.assign(ex, actorTag()); }
+      else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:c.qty,type:'work',eventIds:[ev1.id, ev2.id],...actorTag()});
+    }
+  } else if(c.code){
+    const s=getStock(c.code);
+    if(c.mode==='defect'){
+      if(c.defectLoc==='print') stock[c.code]={raw:Math.max(0,s.raw-c.qty),printed:s.printed};
+      else stock[c.code]={raw:s.raw,printed:Math.max(0,s.printed-c.qty)};
+      dl.items.push({code:c.code,qty:c.qty,type:'defect',loc:c.defectLoc,reason:c.defectReason,...actorTag()});
+    } else {
+      stock[c.code]={raw:Math.max(0,s.raw-c.qty),printed:s.printed+c.qty};
+      const wScMdl=MODELS.find(x=>x.code===c.code)||CODE_MODEL_MAP[c.code]||{};
+      const wScColor=color||wScMdl.color||'WC';
+      const exCode=dl.items.find(i=>i.code===c.code&&i.color===wScColor&&i.type==='work');
+      if(exCode){ exCode.qty+=c.qty; Object.assign(exCode, actorTag()); }
+      else dl.items.push({code:c.code,color:wScColor,qty:c.qty,type:'work',...actorTag()});
+      if(typeof asmOnPrint==='function') asmOnPrint(c.code, c.qty);
+    }
+  }
+}
+
+// 담은 목록 전체를 선택한 날짜에 한 번에 반영
+function submitCart(){
+  if(!wlCart.length){showToast('담은 항목이 없습니다');return;}
+  const td=document.getElementById('wm-date')?.value||todayStr();
+  let dl=workLog.find(d=>d.date===td);
+  if(!dl){dl={date:td,items:[]};workLog.push(dl);}
+
+  const totalQty=wlCart.reduce((a,c)=>a+c.qty,0);
+  const cnt=wlCart.length;
+  wlCart.forEach(c=>applyCartItem(c, td, dl));
+
+  meta.lastWork=meta.lastStock=new Date().toISOString();
+  wlCart=[];
+  saveAll(); closeM('work-modal');
+  renderWorklogMain(); renderDash(); renderHome(); autoSync();
+  showToast(`✅ ${cnt}건 · 총 ${totalQty}장 기록됨`);
+}
+
+// (구) confirmWork — 단건 즉시 기록. 담기 방식으로 대체되었으나 호환 위해 유지
+function confirmWork(){
+  addToCart();
+  if(wlCart.length){ submitCart(); }
+}
+function _confirmWork_legacy(){
+  if(!wSelModel&&!wSelSize&&!wSelCode){showToast('먼저 모델을 선택하세요');return;}
+  const qtyEl=document.getElementById('wm-qty');
+  wQty=qtyEl?Math.max(1,parseInt(qtyEl.value)||wQty):wQty;
+  if(wQty<=0){showToast('수량을 입력하세요');return;}
+
+  const td=document.getElementById('wm-date')?.value||todayStr();
+  let dl=workLog.find(d=>d.date===td);
+  if(!dl){dl={date:td,items:[]};workLog.push(dl);}
+
+  // wSelModel 우선 사용
+  const mdl=wSelModel||null;
+  const w=mdl?mdl.w:(wSelSize?wSelSize.w:0);
+  const h=mdl?mdl.h:(wSelSize?wSelSize.h:0);
+  const lr=(mdl&&mdl.lr)||(wSelSize&&wSelSize.lr)||'';
+  const hk=`${h}${lr}`;   // 관통 모델이면 693L / 693R, 아니면 그냥 693
+  const color=wlColor||(mdl?mdl.color:'WC');
+  const shortName=mdl?mdl.short:`${w}×${h}`;
+  const colorLabel=color==='WC'?'웜코튼':color==='ETP'?'에토프':'';
+
+  if(w&&h){
+    const s=getSzStock(w,hk,color);
+    const itemKey=`sz_${w}x${hk}`;
+    // 작업일지 입력 일자 ISO 시간 (한국시간 그날 23시 = UTC 14시)
+    // → 같은 날 입고(한국 오전 09시 / 오후 15시)보다 뒤에 발생한 것으로 처리
+    const workAtIso = `${td}T14:00:00.000Z`;
+
+    if(wMode==='defect'){
+      if(wDefectLoc==='print'){
+        setSzStock(w,hk,color,s.raw-wQty,s.printed);
+        // stockEvents: 인쇄실 불량 = 원유리에서 차감 (defect)
+        const ev1 = addStockEvent(`${w}x${hk}`, {at:workAtIso, type:'defect', qty:wQty, note:`인쇄실 불량 (${wDefectReason}) ${shortName} ${colorLabel}`, source:'worklog'});
+        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='print'&&i.reason===wDefectReason&&i.short===shortName);
+        if(ex){ ex.qty+=wQty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
+        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'defect',loc:'print',reason:wDefectReason,eventIds:[ev1.id],...actorTag()});
+        showToast(`🚫 인쇄실 불량 ${wQty}장 (${shortName} ${colorLabel})`);
+      } else {
+        setSzStock(w,hk,color,s.raw,s.printed-wQty);
+        // stockEvents: 조립실 불량 = 인쇄유리에서 차감 (defect)
+        const ev1 = addStockEvent(`${w}x${hk}_${color}`, {at:workAtIso, type:'defect', qty:wQty, note:`조립실 불량 (${wDefectReason}) ${shortName}`, source:'worklog'});
+        const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='assembly'&&i.reason===wDefectReason&&i.short===shortName);
+        if(ex){ ex.qty+=wQty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
+        else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'defect',loc:'assembly',reason:wDefectReason,eventIds:[ev1.id],...actorTag()});
+        showToast(`🚫 조립실 불량 ${wQty}장 (${shortName} ${colorLabel})`);
+      }
+    } else {
+      setSzStock(w,hk,color,s.raw-wQty,s.printed+wQty);
+      // stockEvents: 인쇄작업 = 원유리에서 차감 + 인쇄유리(해당 색) 추가
+      const ev1 = addStockEvent(`${w}x${hk}`, {at:workAtIso, type:'print', qty:wQty, note:`인쇄작업 ${shortName} → ${colorLabel}`, source:'worklog'});
+      const ev2 = addStockEvent(`${w}x${hk}_${color}`, {at:workAtIso, type:'in', qty:wQty, note:`인쇄완료 ${shortName}`, source:'worklog'});
+      const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='work'&&i.short===shortName);
+      if(ex){ ex.qty+=wQty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id, ev2.id]); Object.assign(ex, actorTag()); }
+      else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'work',eventIds:[ev1.id, ev2.id],...actorTag()});
+      showToast(`✓ ${shortName} ${colorLabel} ${wQty}장`);
+    }
+  } else if(wSelCode){
+    const s=getStock(wSelCode);
+    if(wMode==='defect'){
+      if(wDefectLoc==='print') stock[wSelCode]={raw:Math.max(0,s.raw-wQty),printed:s.printed};
+      else stock[wSelCode]={raw:s.raw,printed:Math.max(0,s.printed-wQty)};
+      dl.items.push({code:wSelCode,qty:wQty,type:'defect',loc:wDefectLoc,reason:wDefectReason,...actorTag()});
+    } else {
+      stock[wSelCode]={raw:Math.max(0,s.raw-wQty),printed:s.printed+wQty};
+      const wScMdl=MODELS.find(x=>x.code===wSelCode)||CODE_MODEL_MAP[wSelCode]||{};
+      const wScColor=wlColor||wScMdl.color||'WC';
+      const exCode=dl.items.find(i=>i.code===wSelCode&&i.color===wScColor&&i.type==='work');
+      if(exCode){ exCode.qty+=wQty; Object.assign(exCode, actorTag()); }
+      else dl.items.push({code:wSelCode,color:wScColor,qty:wQty,type:'work',...actorTag()});
+      // 인쇄실→조립실 자동연결: EURO700 정규격이면 조립실 인쇄유리 +wQty
+      if(typeof asmOnPrint==='function') asmOnPrint(wSelCode, wQty);
+    }
+    showToast('✓ '+wQty+'장 기록');
+  }
+
+  meta.lastWork=meta.lastStock=new Date().toISOString();
+  saveAll(); closeM('work-modal');
+  renderWorklogMain(); renderDash(); renderHome(); autoSync();
+}
+
+let trendFilter='all';
+let trendCat='all';
+function setTrendFilter(f,btn){trendFilter=f;if(btn&&btn.parentElement){btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}renderTrend();}
+function setTrendCat(c,btn){trendCat=c;if(btn&&btn.parentElement){btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}renderTrend();}
+
+// "YYYY-MM" -> "26.5월"
+function trendMonthLabel(ym){const[y,m]=ym.split('-');return y.slice(2)+'.'+parseInt(m,10)+'월';}
+// 월평균 → 빈도 등급
+function trendTier(avg){ if(avg>=10) return 'high'; if(avg>=5) return 'mid'; if(avg>0) return 'low'; return 'none'; }
+
+// ── FLIP 애니메이션: 재렌더 전 카드 위치 기록 → 후 위치와 비교해 부드럽게 이동 ──
+function trendCapturePositions(el){
+  const map=new Map();
+  el.querySelectorAll('[data-tk]').forEach(c=>{ map.set(c.getAttribute('data-tk'), c.getBoundingClientRect().top); });
+  return map;
+}
+function trendPlayFlip(el, prev){
+  if(!prev||!prev.size) return;
+  el.querySelectorAll('[data-tk]').forEach(c=>{
+    const k=c.getAttribute('data-tk');
+    if(!prev.has(k)) return;
+    const dy=prev.get(k)-c.getBoundingClientRect().top;
+    if(!dy) return;
+    c.style.transform='translateY('+dy+'px)';
+    c.style.transition='none';
+    requestAnimationFrame(()=>{ c.style.transition='transform .42s cubic-bezier(.22,.61,.36,1)'; c.style.transform=''; });
+  });
+}
+
+function renderTrend(){
+  const el=document.getElementById('trend-list');
+  const rgEl=document.getElementById('trend-range');
+  if(!el)return;
+  const prevPos=trendCapturePositions(el); // FLIP: 이전 위치 기록
+  const q=(document.getElementById('trend-search')?.value||'').toLowerCase();
+  const {rows, monthKeys, minDate, maxDate, nMonths}=trendAgg();
+
+  // 날짜 범위 헤더
+  if(rgEl){
+    if(monthKeys.length){
+      rgEl.innerHTML='<span>집계 기간 <span class="rg-period">'+(minDate||'')+' ~ '+(maxDate||'')+'</span> · '+nMonths+'개월</span><span style="color:var(--tx3)">납품서 '+ (delivLog?delivLog.length:0) +'건 기준</span>';
+    } else {
+      rgEl.innerHTML='<span style="color:var(--tx3)">아직 집계할 납품서가 없습니다</span>';
+    }
+  }
+
+  // 검색 필터
+  let list=rows.filter(g=>!q || g.short.toLowerCase().includes(q) || (g.code||'').toLowerCase().includes(q));
+
+  // 카테고리 필터
+  if(trendCat!=='all') list=list.filter(g=>g.cat===trendCat);
+
+  // 색상 필터 (해당 색상이 있는 제품만, 그리고 그 색상만 표시)
+  let colorOnly=null;
+  if(trendFilter==='WC') colorOnly='WC';
+  else if(trendFilter==='ETP') colorOnly='ETP';
+  if(colorOnly) list=list.filter(g=>g.byColor[colorOnly]);
+
+  // 빈도 필터
+  if(trendFilter==='high') list=list.filter(g=>trendTier(g.avg)==='high');
+  else if(trendFilter==='mid') list=list.filter(g=>trendTier(g.avg)==='mid');
+  else if(trendFilter==='none'){
+    renderTrendNone(el, rows.map(g=>g.short), q);
+    return;
+  }
+
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>해당 제품 없음</div>';return;}
+
+  // 빈도 등급별 섹션 (고→중→저). 각 섹션 내부는 출고량(total) 많은 순.
+  const tierLabel={high:'🔥 고빈도 (월평균 10장↑)',mid:'⚡ 중빈도 (월평균 5~10장)',low:'· 저빈도 (월평균 5장 미만)'};
+  const buckets={high:[],mid:[],low:[]};
+  list.forEach(g=>{const t=trendTier(g.avg); if(t!=='none') buckets[t].push(g);});
+  // 각 버킷 많은 순 정렬 보장
+  ['high','mid','low'].forEach(t=>buckets[t].sort((a,b)=>b.total-a.total));
+
+  let html='';
+  ['high','mid','low'].forEach(t=>{
+    const arr=buckets[t]; if(!arr.length) return;
+    html+='<div class="trend-sec-hdr">'+tierLabel[t]+'<span class="cnt">'+arr.length+'종</span></div>';
+    // 월 라벨 헤더 (이름폭 비워두고 월 칸만)
+    html+='<div class="num-mhead"><span class="nh-name"></span>'+monthKeys.map(ym=>'<span class="nh-m">'+trendMonthLabel(ym)+'</span>').join('')+'<span class="nh-avg">월평균</span></div>';
+    html+=arr.map((g,i)=>trendCardHtml(g, monthKeys, colorOnly, i+1)).join('');
+  });
+  el.innerHTML=html||'<div class="empty"><div class="empty-ico">📭</div>해당 제품 없음</div>';
+  trendPlayFlip(el, prevPos); // FLIP: 새 위치로 부드럽게
+}
+
+// 색상 한 줄 (WC / ETP) — 월별 숫자 + 직전월 대비 ↑↓ + 월평균(본체)
+function trendColorRow(label,cls,monthsObj,monthKeys,avg){
+  const vals=monthKeys.map(ym=>monthsObj[ym]||0);
+  const cells=vals.map((v,i)=>{
+    let arrow='';
+    if(i>0){
+      const prev=vals[i-1], diff=v-prev;
+      if(prev===0&&v===0) arrow='';
+      else if(diff>0) arrow='<span class="nv-up">▲'+diff+'</span>';
+      else if(diff<0) arrow='<span class="nv-dn">▼'+(-diff)+'</span>';
+      else arrow='<span class="nv-eq">–</span>';
+    }
+    return '<span class="nv-cell"><span class="nv-q'+(v===0?' z':'')+'">'+(v||'·')+'</span>'+arrow+'</span>';
+  }).join('');
+  return '<div class="nrow"><span class="nr-lbl '+cls+'">'+label+'</span>'
+    +cells
+    +'<span class="nr-avg '+cls+'">'+(Math.round(avg*10)/10)+'<span class="nr-avg-un">장/월</span></span></div>';
+}
+
+function trendCardHtml(g, monthKeys, colorOnly, rank){
+  const sz=g.glass_w?g.glass_w+'×'+g.glass_h:'';
+  let rowsHtml='';
+  ['WC','ETP'].forEach(col=>{
+    if(colorOnly && col!==colorOnly) return;
+    const c=g.byColor[col]; if(!c) return;
+    rowsHtml+=trendColorRow(col==='WC'?'웜코튼':'에토프', col==='WC'?'wc':'etp', c.months, monthKeys, c.avg);
+  });
+  if(!colorOnly){
+    Object.keys(g.byColor).forEach(col=>{
+      if(col==='WC'||col==='ETP'||col==='-') return;
+      rowsHtml+=trendColorRow(col, '', g.byColor[col].months, monthKeys, g.byColor[col].avg);
+    });
+  }
+  if(!rowsHtml){ const c=g.byColor['-']; if(c) rowsHtml=trendColorRow('전체','',c.months,monthKeys,c.avg); }
+  const catTag=g.cat&&g.cat!=='기타'?'<span class="cat-tag">'+(g.cat==='글래스도어'?'시그니처':g.cat)+'</span>':'';
+  const rankTag=rank?'<span class="rank-tag">'+rank+'</span>':'';
+  return '<div class="trend-card" data-tk="'+(g.short||g.code)+'"><div class="trend-hdr"><div style="min-width:0"><div class="trend-name">'+rankTag+g.short+'</div>'
+    +'<div class="trend-meta">'+catTag+(g.code||'')+(sz?' | '+sz:'')+' '+(g.door_type?doorBadge(g.door_type):'')+'</div></div>'
+    +'<div style="text-align:right;flex:0 0 auto"><div style="font-size:11px;color:var(--tx2)">총 '+g.total+'장</div></div></div>'
+    +rowsHtml+'</div>';
+}
+
+// 아예없음 리스트: 마스터(MODELS)에는 있으나 집계 기간 출고가 0인 제품명
+function renderTrendNone(el, orderedShorts, q){
+  const shipped=new Set(orderedShorts);
+  const seen=new Set();
+  const none=[];
+  (typeof MODELS!=='undefined'?MODELS:[]).forEach(m=>{
+    if(!m.short) return;
+    if(q && !(m.short.toLowerCase().includes(q)||(m.code||'').toLowerCase().includes(q))) return;
+    if(shipped.has(m.short)) return;
+    if(seen.has(m.short)) return;
+    // 카테고리 필터도 적용 (모델 코드로 분류)
+    if(trendCat!=='all'){
+      let cat='기타';
+      try{ const dg=(typeof delivLookup==='function'?(delivLookup(m.code).daegubun||''):'')||''; if(typeof classifyDelivItem==='function') cat=classifyDelivItem(m.short,dg).cat||'기타'; }catch(e){}
+      if(cat!==trendCat) return;
+    }
+    seen.add(m.short);
+    none.push(m);
+  });
+  if(!none.length){el.innerHTML='<div class="empty"><div class="empty-ico">✅</div>집계 기간 내 모든 제품이 한 번 이상 출고됐습니다</div>';return;}
+  el.innerHTML='<div class="trend-sec-hdr">🚫 아예없음 (집계 기간 출고 0)<span class="cnt">'+none.length+'종</span></div>'
+    +'<div class="filter-hint" style="margin-top:0">미리 만들면 색 변해 폐기될 위험이 큰 후보들입니다.</div>'
+    +none.map(m=>{
+      const sz=m.glass_w?m.glass_w+'×'+m.glass_h:'';
+      return '<div class="trend-card" style="opacity:.7" data-tk="'+(m.short||m.code)+'"><div class="trend-name">'+m.short+'</div>'
+        +'<div class="trend-meta">'+(m.code||'')+(sz?' | '+sz:'')+' '+colorBadge(m.color)+' '+(m.door_type?doorBadge(m.door_type):'')+'</div></div>';
+    }).join('');
+}
+
+// ── NONSPEC ──
+// ════════════════════════════════════════════════════════════════
+//  📐 제품규격 (SPEC) 탭 — 한샘 AL 발주 규격 마스터
+//  엑셀 「한샘_AL_발주_현황」 기반. 프레임 W×H + 유리 W×H.
+//  납품서(delivLog) 연결: 유리사이즈 매칭으로 최근 발주빈도 표시.
+// ════════════════════════════════════════════════════════════════
+
+// 제품군(series) → 모델 목록. fw/fh=프레임, gw/gh=유리.
+// match: 납품서 연결 기준 (대구분 daegubun 우선, 없으면 유리사이즈)
+const SPEC_SERIES = [
+  {
+    key:'EURO700', name:'EURO700', sub:'유리장식장 도어', vendor:'',
+    glass:'5T', color:'그레이스 / 베일', offset:'',
+    cat:'EURO700',           // classifyDelivItem 카테고리와 동일 → 발주빈도 연결
+    note:'세부 집계(HPM/유리/73/비규격)는 일일 브리핑·추이 탭에서 확인',
+    models:[]                 // 사이즈 마스터는 추이 탭(delivLog)에서 자동 집계
+  },
+  {
+    key:'SIG', name:'시그니처', sub:'글래스 도어', vendor:'아름유리',
+    glass:'5T 투명/반강화', color:'', offset:'-5 × -5',
+    cat:'글래스도어',
+    note:'시그니처 정규격 프레임 발주시 H 2270mm',
+    models:[
+      {name:'글래스 도어 450', fw:446, fh:2170, gw:441, gh:2165},
+      {name:'글래스 도어 500', fw:496, fh:2170, gw:491, gh:2165},
+    ]
+  },
+  {
+    key:'TWOWAY', name:'투웨이', sub:'유리장식장 도어', vendor:'현성유리',
+    glass:'5T 백유리 투명/반강화', color:'', offset:'-24 × -24',
+    cat:'유리장식장',
+    note:'',
+    models:[
+      {name:'60222 (ME1TM0001)', fw:595, fh:2113, gw:571, gh:2089},
+      {name:'60235 (ME1TM0002)', fw:595, fh:2241, gw:571, gh:2217},
+      {name:'45222 (ME1TM0003)', fw:445, fh:2113, gw:421, gh:2089},
+      {name:'45235 (ME1TM0004)', fw:445, fh:2241, gw:421, gh:2217},
+      {name:'4586 (ME1WM0001)',  fw:445, fh:860,  gw:421, gh:836},
+      {name:'5086 (ME1WM0002)',  fw:495, fh:860,  gw:471, gh:836},
+      {name:'6086 (ME1WM0003)',  fw:595, fh:860,  gw:571, gh:836},
+    ]
+  },
+  {
+    key:'KB_AIR', name:'키친바흐 · 에어힌지', sub:'AL 프레임 에어힌지', vendor:'아름유리',
+    glass:'5T 투명/강화', color:'비산방지필름', offset:'-41 × -40',
+    cat:'에어힌지',
+    note:'',
+    models:[
+      {name:'벽장 유리도어',   fw:495, fh:738,  gw:455, gh:698},
+      {name:'벽장 유리도어',   fw:445, fh:738,  gw:405, gh:698},
+      {name:'분리장 유리도어', fw:595, fh:1345, gw:555, gh:1305},
+      {name:'키큰장 유리도어', fw:545, fh:2113, gw:505, gh:2073},
+    ]
+  },
+  {
+    key:'KB_MIR', name:'키친바흐 · 미러장식장', sub:'KB 미러장식장', vendor:'아름유리',
+    glass:'5T 브론즈/강화', color:'비산방지필름', offset:'-95 × -10 (빗면)',
+    cat:'KB',
+    note:'빗면 가공 — 좌우 구분 있는 모델 주의',
+    models:[
+      {name:'키큰장용 빗면 60211', fw:595, fh:2113, gw:500, gh:2103, lr:'좌우 있음'},
+      {name:'벽장용 빗면 4574',    fw:445, fh:738,  gw:350, gh:728},
+      {name:'벽장용 빗면 5074',    fw:495, fh:738,  gw:400, gh:728},
+      {name:'플랩장용 빗면 10054', fw:995, fh:538,  gw:900, gh:528},
+      {name:'플랩장용 빗면 12054', fw:1195, fh:538, gw:1100, gh:528},
+    ]
+  },
+];
+
+// 필터 순서: 메인 EURO700부터. '전체'는 연달아 보기.
+const SPEC_ORDER = ['all','EURO700','SIG','TWOWAY','KB_AIR','KB_MIR'];
+let specCat = 'all';
+
+function setSpecCat(c, btn){
+  specCat = c;
+  if(btn && btn.parentElement){
+    btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+  }
+  renderSpec();
+}
+
+// 납품서(delivLog) 기반: 유리사이즈 "gw×gh" → 최근집계 월평균 발주량.
+// 추이 탭의 trendAgg()를 재사용해 동일 기준으로 연결.
+function specBuildShipMap(){
+  const map = {}; // "gw×gh" -> {total, avg, byColor:{WC,ETP}}
+  try{
+    if(typeof trendAgg !== 'function') return map;
+    const {rows, nMonths} = trendAgg();
+    rows.forEach(g=>{
+      if(!g.glass_w) return;
+      const k = g.glass_w+'×'+g.glass_h;
+      if(!map[k]) map[k]={total:0, avg:0, wc:0, etp:0};
+      map[k].total += g.total||0;
+      map[k].avg   += g.avg||0;
+      const wc=g.byColor && g.byColor.WC, etp=g.byColor && g.byColor.ETP;
+      if(wc) map[k].wc += wc.total||0;
+      if(etp) map[k].etp += etp.total||0;
+    });
+  }catch(e){}
+  return map;
+}
+
+// 카테고리(cat) 기반 6개월 총 발주 — EURO700처럼 사이즈 마스터가 비어있는 시리즈용
+function specCatTotal(cat){
+  try{
+    if(typeof trendAgg !== 'function') return null;
+    const {rows} = trendAgg();
+    let t=0, found=false;
+    rows.forEach(g=>{ if(g.cat===cat){ t+=g.total||0; found=true; } });
+    return found ? t : null;
+  }catch(e){ return null; }
+}
+
+function specFreqBadge(avg){
+  if(avg==null) return '';
+  if(avg>=10) return '<span class="cat-tag" style="background:rgba(220,38,38,.12);color:var(--acc4)">🔥 고빈도</span>';
+  if(avg>=5)  return '<span class="cat-tag" style="background:rgba(234,108,0,.12);color:var(--acc2)">⚡ 중빈도</span>';
+  if(avg>0)   return '<span class="cat-tag">· 저빈도</span>';
+  return '<span class="cat-tag" style="color:var(--tx3)">집계 0</span>';
+}
+
+function specModelRow(m, shipMap){
+  const gk = m.gw+'×'+m.gh;
+  const ship = shipMap[gk];
+  const avg = ship ? Math.round(ship.avg*10)/10 : null;
+  const freqTag = specFreqBadge(avg);
+  const shipTxt = ship
+    ? `<span style="font-size:10px;color:var(--tx2)">📦 6개월 ${ship.total}장 · 월평균 ${avg}장</span>`
+    : `<span style="font-size:10px;color:var(--tx3)">납품서 연결 대기</span>`;
+  const lrTag = m.lr ? `<span style="font-size:9px;color:var(--acc4);font-weight:700;margin-left:4px">${m.lr}</span>` : '';
+  return `
+  <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:10px 12px;margin-bottom:6px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div style="font-size:13px;font-weight:700;color:var(--tx1)">${m.name}${lrTag}</div>
+      <div>${freqTag}</div>
+    </div>
+    <div style="display:flex;gap:14px;margin-top:6px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;color:var(--tx3);font-weight:700">프레임</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;color:var(--tx1)">${m.fw}<span style="color:var(--tx3);font-weight:400">×</span>${m.fh}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;color:var(--wc);font-weight:700">유리</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;color:var(--wc)">${m.gw}<span style="color:var(--tx3);font-weight:400">×</span>${m.gh}</span>
+      </div>
+    </div>
+    <div style="margin-top:5px">${shipTxt}</div>
+  </div>`;
+}
+
+function specSeriesCard(s, shipMap){
+  let body='';
+  if(s.models && s.models.length){
+    body = s.models.map(m=>specModelRow(m, shipMap)).join('');
+  } else {
+    // EURO700: 사이즈 마스터 비어있음 → 카테고리 총량만 표시 + 안내
+    const ct = specCatTotal(s.cat);
+    body = `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:12px">
+      <div style="font-size:12px;color:var(--tx1);font-weight:700;margin-bottom:4px">📦 최근 6개월 발주 ${ct!=null?ct+'장':'집계 없음'}</div>
+      <div style="font-size:11px;color:var(--tx2)">사이즈별 규격은 추이 탭에서 EURO700 분류로 확인하세요.</div>
+    </div>`;
+  }
+  const meta = [s.vendor, s.glass, s.color, s.offset?('offset '+s.offset):''].filter(Boolean).join(' · ');
+  return `
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:2px">
+      <div style="font-size:16px;font-weight:800;color:var(--tx1)">📐 ${s.name}</div>
+      <div style="font-size:12px;color:var(--tx2)">${s.sub}</div>
+    </div>
+    ${meta?`<div style="font-size:10px;color:var(--tx3);margin-bottom:10px">${meta}</div>`:''}
+    ${body}
+    ${s.note?`<div style="font-size:10px;color:var(--acc2);margin-top:8px;background:rgba(234,108,0,.07);padding:6px 9px;border-radius:6px">💡 ${s.note}</div>`:''}
+  </div>`;
+}
+
+function renderSpec(){
+  const el=document.getElementById('spec-list');
+  if(!el) return;
+  const shipMap = specBuildShipMap();
+  const q=(document.getElementById('spec-search')?.value||'').toLowerCase().trim();
+  const qd = q.replace(/[^0-9]/g,'');
+
+  let series = SPEC_ORDER.filter(k=>k!=='all').map(k=>SPEC_SERIES.find(s=>s.key===k)).filter(Boolean);
+  if(specCat!=='all') series = series.filter(s=>s.key===specCat);
+
+  // 검색: 시리즈명/모델명/사이즈
+  if(q){
+    series = series.map(s=>{
+      if(s.name.toLowerCase().includes(q) || s.sub.toLowerCase().includes(q)) return s;
+      const ms=(s.models||[]).filter(m=>{
+        if(m.name.toLowerCase().includes(q)) return true;
+        if(qd.length>=3){
+          const f=String(m.fw)+String(m.fh), g=String(m.gw)+String(m.gh);
+          if(f.includes(qd)||g.includes(qd)||String(m.fw).includes(qd)||String(m.gw).includes(qd)) return true;
+        }
+        return false;
+      });
+      if(ms.length) return {...s, models:ms};
+      return null;
+    }).filter(Boolean);
+  }
+
+  if(!series.length){ el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>검색 결과 없음</div>'; return; }
+  el.innerHTML = series.map(s=>specSeriesCard(s, shipMap)).join('');
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  🔧 조립실 재고 (ASSEMBLY) v2 — 인쇄 안 하는 제품 + EURO700 인쇄유리
+//  흐름: (인쇄실 원유리 −) → 인쇄 → 조립실 인쇄유리(+) → 조립(유리−/완제품+) → 납품(완제품−)
+//  대분류: [유리]/[완제품]   유리 소분류: [일반유리]/[인쇄유리]
+//  창고: EURO700(인쇄,색상별) / 시그니처·투웨이·키친(일반,색상없음)
+//  ⚠️ 규격은 ASM_ITEMS(일반유리) + HANSAEM_CATALOG(EURO700) 단일출처 참조. 복붙 없음.
+// ════════════════════════════════════════════════════════════════
+
+// ── 일반유리 품목 마스터 (시그니처/투웨이/키친) — 색상 없음 ──
+// glassType:'plain'. 코드는 납품서 실제 표기 기준.
+const ASM_ITEMS = [
+  // 시그니처 글래스도어 (납품서 확인: CAIB13894/13895)
+  { id:'sig450', series:'시그니처', name:'글래스 도어 450', fw:446, fh:2170, gw:441, gh:2165, codes:['CAIB13894'], confirmed:true },
+  { id:'sig500', series:'시그니처', name:'글래스 도어 500', fw:496, fh:2170, gw:491, gh:2165, codes:['CAIB13895'], confirmed:true },
+  // 투웨이 유리장식장 — 납품서: ME1TM0001=45222, ME1TM0004=60235 (확인)
+  { id:'tw45222', series:'투웨이', name:'유리장식 45222', fw:445, fh:2113, gw:421, gh:2089, codes:['ME1TM0001'], confirmed:true },
+  { id:'tw60235', series:'투웨이', name:'유리장식 60235', fw:595, fh:2241, gw:571, gh:2217, codes:['ME1TM0004'], confirmed:true },
+  { id:'tw45235', series:'투웨이', name:'유리장식 45235', fw:445, fh:2241, gw:421, gh:2217, codeGuess:['ME1TM0002'] },
+  { id:'tw60222', series:'투웨이', name:'유리장식 60222', fw:595, fh:2113, gw:571, gh:2089, codeGuess:['ME1TM0003'] },
+  { id:'tw4586',  series:'투웨이', name:'유리장식 4586',  fw:445, fh:860,  gw:421, gh:836,  codes:['ME1WM0001'], confirmed:true },
+  { id:'tw5086',  series:'투웨이', name:'유리장식 5086',  fw:495, fh:860,  gw:471, gh:836,  codes:['ME1WM0002'], confirmed:true },
+  { id:'tw6086',  series:'투웨이', name:'유리장식 6086',  fw:595, fh:860,  gw:571, gh:836,  codes:['ME1WM0003'], confirmed:true },
+  // 키친 에어힌지 — 납품서: MK1MM0001=분리장. 벽장/키큰장 코드 카탈로그 확인.
+  { id:'kbair_bunli',   series:'키친·에어힌지', name:'분리장 유리도어', fw:595, fh:1345, gw:555, gh:1305, codes:['MK1MM0001'], confirmed:true },
+  { id:'kbair_byeokr4', series:'키친·에어힌지', name:'벽장 유리도어 (445)', fw:445, fh:738,  gw:405, gh:698, codes:['MK1WM0001'], confirmed:true },
+  { id:'kbair_byeokr5', series:'키친·에어힌지', name:'벽장 유리도어 (495)', fw:495, fh:738,  gw:455, gh:698, codes:['MK1WM0002'], confirmed:true },
+  { id:'kbair_kikun',   series:'키친·에어힌지', name:'키큰장 유리도어', fw:545, fh:2113, gw:505, gh:2073, codes:['MK1TM0005'], confirmed:true },
+  // 키친 미러 (KB 빗면) — 납품서: 4574/10054 확인. 5074/60211/12054 카탈로그 확인.
+  { id:'kbmir_4574',  series:'키친·미러', name:'벽장 빗면 4574',    fw:445, fh:738,  gw:350, gh:728,  codes:['MK1WM0004'], confirmed:true },
+  { id:'kbmir_5074',  series:'키친·미러', name:'벽장 빗면 5074',    fw:495, fh:738,  gw:400, gh:728,  codes:['MK1WM0005'], confirmed:true },
+  { id:'kbmir_10054', series:'키친·미러', name:'플랩장 빗면 10054', fw:995, fh:538,  gw:900, gh:528,  codes:['MK1WM0006'], confirmed:true },
+  { id:'kbmir_12054', series:'키친·미러', name:'플랩장 빗면 12054', fw:1195, fh:538, gw:1100, gh:528,  codes:['MK1WM0007'], confirmed:true },
+  { id:'kbmir_60211', series:'키친·미러', name:'키큰장 빗면 60211', fw:595, fh:2113, gw:500, gh:2103, codes:['MK1TM0006','MK1TM0007'], confirmed:true, lr:'좌우' },
+];
+
+// 유리 종류/거래처 표기. ybn-data.js에 GLASS_SPEC가 있으면 그걸 우선 사용,
+// 없으면 아래 기본값 사용. (발주현황 엑셀 기준)
+const ASM_GLASS_SPEC_FALLBACK = {
+  '시그니처':      {glass:'5T 투명/반강화', vendor:'아름유리'},
+  '투웨이':        {glass:'5T 백유리 투명/반강화', vendor:'현성유리'},
+  '키친·에어힌지': {glass:'5T 투명/강화·비산방지필름', vendor:'아름유리'},
+  '키친·미러':     {glass:'5T 브론즈/강화·비산방지필름', vendor:'아름유리'},
+  'EURO700':       {glass:'인쇄유리(실크인쇄)', vendor:''},
+};
+function asmGlassSpec(series){
+  if(typeof GLASS_SPEC!=='undefined' && GLASS_SPEC[series]) return GLASS_SPEC[series];
+  return ASM_GLASS_SPEC_FALLBACK[series] || {glass:'', vendor:''};
+}
+
+// 창고(시리즈) 표시 순서: EURO700 먼저
+const ASM_WH_ORDER = ['전체','EURO700','시그니처','투웨이','키친·에어힌지','키친·미러'];
+let asmWarehouse = '전체';      // 창고 필터
+let asmMainCat = 'glass';       // 'glass' | 'done'  대분류
+let asmGlassSub = 'all';        // 'all' | 'plain' | 'printed'  유리 소분류
+
+// 색상 라벨
+const ASM_COLOR_LABEL = {WC:'웜코튼', ETP:'에토프', BRZ:'베일브론즈', SHD:'베일셰이드'};
+
+// ── EURO700 인쇄유리 품목: HANSAEM_CATALOG에서 실시간 생성 (복붙 없음) ──
+// 정규격만 (비규격 '비규격' 제외). 색상은 카탈로그 [2](WC/ETP) + 제품명(Veil BRZ/Shade) 판별.
+// id: 'euro|<코드>'  → 코드 자체가 색상·모델 유니크키.
+function euroColorOf(code, name, catColor){
+  if(catColor==='WC') return 'WC';
+  if(catColor==='ETP') return 'ETP';
+  if(/Veil\s*BRZ/i.test(name)) return 'BRZ';
+  if(/Veil\s*Shade/i.test(name)) return 'SHD';
+  return '';
+}
+// 코드 → 유리사이즈 (MODELS/SIZE_GROUPS 통해). 없으면 빈값.
+function euroGlassSize(code){
+  if(typeof findModel==='function'){
+    const m=findModel(code);
+    if(m && m.glass_w) return {gw:m.glass_w, gh:m.glass_h};
+  }
+  return {gw:null, gh:null};
+}
+// EURO700 정규격 1개 품목 메타 생성
+function euroItemFromCode(code){
+  if(typeof HANSAEM_CATALOG==='undefined' || !HANSAEM_CATALOG[code]) return null;
+  const a=HANSAEM_CATALOG[code];
+  if(a[1]!=='EURO700') return null;
+  const name=a[0]||'';
+  if(/비규격/.test(name)) return null;       // 정규격만
+  if(/Veil/i.test(name)) return null;        // 베일(HPM)은 조립실 제외 — 원장관리에서 관리. 그레이스만.
+  const color=euroColorOf(code, name, a[2]);
+  const sz=euroGlassSize(code);
+  // 표시 이름: 'OB M 6073(공용) M' 등 핵심부만 (Euro700 Grace ... 접두 제거)
+  let shortName = name.replace(/^Euro700\s+(Grace\s+(W\/Cotton|ETP)|Veil\s+(BRZ|Shade|DW|LW)|Grace\s+\S+)\s*/i,'').trim();
+  if(!shortName) shortName=name;
+  return { id:'euro|'+code, series:'EURO700', glassType:'printed',
+           code, name:shortName, fullName:name, color,
+           gw:sz.gw, gh:sz.gh };
+}
+
+// ── 데이터: assemblyStock 배열 ──
+// {id, glass, done, events:[...], updatedAt, by}
+// glass=조립실 유리재고, done=완제품재고
+let assemblyStock = (typeof J==='function' ? J(localStorage.getItem('ybn-asm-v1')) : null) || [];
+function saveAssembly(){
+  try{ localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock)); }catch(e){}
+  if(typeof saveAll==='function') saveAll();
+}
+function asmFind(itemId){ return assemblyStock.find(a=>a.id===itemId); }
+function asmGet(itemId){
+  let a=asmFind(itemId);
+  if(!a){
+    a={ id:itemId, glass:0, done:0, events:[], updatedAt:new Date().toISOString(), by:(typeof getActor==='function'?getActor():'') };
+    assemblyStock.unshift(a);
+  }
+  return a;
+}
+
+// 품목 메타 조회 (일반유리=ASM_ITEMS, 인쇄유리=euro|코드)
+function asmItemMeta(itemId){
+  if(itemId && itemId.startsWith('euro|')){
+    return euroItemFromCode(itemId.slice(5));
+  }
+  const it=ASM_ITEMS.find(x=>x.id===itemId);
+  if(it) return {...it, glassType:'plain', color:''};
+  return null;
+}
+function asmItemName(itemId){
+  const m=asmItemMeta(itemId);
+  if(!m) return itemId;
+  if(m.series==='EURO700') return (ASM_COLOR_LABEL[m.color]||m.color||'')+' '+m.name;
+  return m.name;
+}
+
+// 핵심 적용 함수
+function asmApply(itemId, opt){
+  const a=asmGet(itemId);
+  const now=new Date().toISOString();
+  const by=(typeof getActor==='function'?getActor():'')||'';
+  const t=opt.type; let delta=0;
+  const q=Math.max(0, parseInt(opt.qty)||0);
+  if(t==='glass_in'){ a.glass += q; delta=q; }
+  else if(t==='assemble'){ a.glass = Math.max(0, a.glass - q); a.done += q; delta=q; } // 권장량 표시만, 입력 자유
+  else if(t==='defect'){ a.glass = Math.max(0, a.glass - q); delta=-q; }
+  else if(t==='ship'){ a.done = Math.max(0, a.done - q); delta=-q; }
+  else if(t==='glass_count'){ const target=Math.max(0, parseInt(opt.absGlass)||0); delta=target-a.glass; a.glass=target; }
+  else if(t==='done_count'){ const target=Math.max(0, parseInt(opt.absDone)||0); delta=target-a.done; a.done=target; }
+  else if(t==='print_in'){ a.glass += q; delta=q; } // 인쇄실→조립실 자동 입고 (인쇄유리)
+  a.updatedAt=now; a.by=by;
+  a.events.push({ id:'ae_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
+    type:t, delta, at:now, by, memo:(opt.memo||'').trim(), cause:opt.cause||'', source:opt.source||'manual' });
+  saveAssembly();
+  return a;
+}
+
+// ── 이벤트 1건의 재고 영향을 역산(원복) ──
+// 되돌리기/삭제 공통. 이벤트 type별로 glass·done에 줬던 영향을 반대로 적용.
+function asmReverseImpact(a, ev){
+  if(!a||!ev) return;
+  const d=ev.delta||0;
+  switch(ev.type){
+    case 'glass_in':
+    case 'print_in':   a.glass = Math.max(0, a.glass - d); break;          // 입고 취소: glass -d
+    case 'defect':     a.glass = a.glass - d; break;                        // defect는 d<0 → glass +|d| 복원
+    case 'assemble':   a.glass = a.glass + d; a.done = Math.max(0, a.done - d); break; // 유리+d복원, 완제품-d
+    case 'ship':       a.done = a.done - d; break;                          // ship은 d<0 → done +|d| 복원
+    case 'glass_count':a.glass = Math.max(0, a.glass - d); break;           // 실측: 직전값으로 복원(차이 d만큼 되돌림)
+    case 'done_count': a.done = Math.max(0, a.done - d); break;
+  }
+  if(a.glass<0) a.glass=0; if(a.done<0) a.done=0;
+}
+
+// 마지막 이벤트 1건 되돌리기
+function asmUndoLast(itemId){
+  const a=asmFind(itemId);
+  if(!a || !a.events || !a.events.length){ showToast('되돌릴 입력이 없어요'); return; }
+  const ev=a.events[a.events.length-1];
+  asmReverseImpact(a, ev);
+  a.events.pop();
+  a.updatedAt=new Date().toISOString();
+  saveAssembly();
+  renderAssembly();
+  showToast('↩️ 마지막 입력을 되돌렸어요');
+}
+
+// 특정 이벤트 삭제 (이력 모달에서)
+function asmDeleteEvent(itemId, evId){
+  const a=asmFind(itemId);
+  if(!a || !a.events) return;
+  const i=a.events.findIndex(e=>e.id===evId);
+  if(i<0){ showToast('이벤트를 찾을 수 없어요'); return; }
+  asmReverseImpact(a, a.events[i]);
+  a.events.splice(i,1);
+  a.updatedAt=new Date().toISOString();
+  saveAssembly();
+  asmOpenHistory(itemId); // 모달 갱신
+  renderAssembly();
+  showToast('🗑 입력을 삭제했어요');
+}
+
+// 거래처 불량 누적
+function asmDefectStats(){
+  let us=0, vendor=0;
+  assemblyStock.forEach(a=>(a.events||[]).forEach(e=>{
+    if(e.type==='defect'){ if(e.cause==='vendor') vendor+=Math.abs(e.delta); else us+=Math.abs(e.delta); }
+  }));
+  return {us, vendor, total:us+vendor};
+}
+
+// ── 빵꾸 분석: 마지막 실측 이후 미기록 손실 (유리/완제품 각각) ──
+function asmMismatch(itemId, which){ // which:'glass'|'done'
+  const a=asmFind(itemId); if(!a) return null;
+  const evs=(a.events||[]).slice().sort((x,y)=>String(x.at).localeCompare(String(y.at)));
+  const countType = which==='glass'?'glass_count':'done_count';
+  let lastCountIdx=-1;
+  for(let i=evs.length-1;i>=0;i--){ if(evs[i].type===countType){ lastCountIdx=i; break; } }
+  if(lastCountIdx<0) return null;
+  // 실측 이후 auto-adjust(자동보정)만 미기록으로 간주 (현재 수동 흐름엔 거의 없음 — 자리 확보)
+  let auto=0;
+  for(let i=lastCountIdx+1;i<evs.length;i++){ if(evs[i].source==='auto-adjust') auto+=evs[i].delta||0; }
+  return auto!==0?auto:null;
+}
+
+// ── 납품서 연결 (코드 매칭) ──
+// 일반유리: asmMatchItem(code) → ASM_ITEMS id
+// 인쇄유리(EURO700): code가 카탈로그 EURO700 정규격이면 'euro|코드'
+function asmMatchItem(code){
+  if(!code) return null;
+  const c=String(code).trim().toUpperCase();
+  for(const it of ASM_ITEMS){ if(it.codes && it.codes.some(x=>x.toUpperCase()===c)) return it; }
+  return null;
+}
+function asmMatchAnyId(code){
+  if(!code) return null;
+  const it=asmMatchItem(code);
+  if(it) return it.id;
+  const e=euroItemFromCode(String(code).trim()); // EURO700 정규격이면
+  if(e) return e.id;
+  return null;
+}
+function asmIsManaged(code){ return !!asmMatchAnyId(code); }
+
+// 전체 납품서에서 품목별 미납 합계
+function asmNeedMap(){
+  const map={};
+  (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return; // AS 제외
+    (d.items||[]).forEach(it=>{
+      const id=asmMatchAnyId(it.code);
+      if(id) map[id]=(map[id]||0)+(it.qty||0);
+    });
+  });
+  return map;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  렌더
+// ════════════════════════════════════════════════════════════════
+function setAsmMainCat(cat, btn){
+  asmMainCat=cat;
+  document.querySelectorAll('#asm-maincat-row .f-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  // 유리 소분류 행 표시/숨김
+  const sub=document.getElementById('asm-glasssub-row');
+  if(sub) sub.style.display = cat==='glass' ? 'flex' : 'none';
+  renderAssembly();
+}
+function setAsmGlassSub(sub, btn){
+  asmGlassSub=sub;
+  document.querySelectorAll('#asm-glasssub-row .f-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderAssembly();
+}
+function setAsmWarehouse(w, btn){
+  asmWarehouse=w;
+  document.querySelectorAll('#asm-wh-row .f-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderAssembly();
+}
+
+// 화면에 보일 품목 목록 구성
+// - 일반유리: ASM_ITEMS 전부
+// - 인쇄유리(EURO700): assemblyStock에 실재고가 있거나, 납품서에 잡힌 것만 (A안)
+function asmVisibleItems(needMap){
+  const items=[];
+  // 일반유리
+  ASM_ITEMS.forEach(it=>items.push({...it, glassType:'plain', color:''}));
+  // EURO700 인쇄유리 — 재고 있거나 납품요청 있는 코드만
+  const euroCodes=new Set();
+  assemblyStock.forEach(a=>{ if(a.id.startsWith('euro|')) euroCodes.add(a.id.slice(5)); });
+  Object.keys(needMap).forEach(id=>{ if(id.startsWith('euro|')) euroCodes.add(id.slice(5)); });
+  euroCodes.forEach(code=>{ const e=euroItemFromCode(code); if(e) items.push(e); });
+  return items;
+}
+
+function asmItemCard(it, needMap){
+  const a=asmFind(it.id);
+  const glass=a?a.glass:0;
+  const done=a?a.done:0;
+  const need=needMap[it.id]||0;
+  const short=Math.max(0, need-done);
+  const isEuro=it.series==='EURO700';
+  const spec=asmGlassSpec(it.series);
+  // 색상 형광펜 박스 스타일 (웜코튼=흰색솔리드 / 에토프=황색 / 셰이드=초록 / 브론즈=검정)
+  // ※ 베일(BRZ/SHD)은 현재 조립실 제외라 안 쓰이지만, 나중에 대비해 정의는 유지
+  const COLOR_STYLE = {
+    WC:  {bg:'#ffffff', fg:'#1a1a1a', bd:'#d0d0d0', bar:'#e8e8e8'},
+    ETP: {bg:'#f0b429', fg:'#3a2a00', bd:'#d99a10', bar:'#f0b429'},
+    SHD: {bg:'#2e9e5b', fg:'#ffffff', bd:'#247a47', bar:'#2e9e5b'},
+    BRZ: {bg:'#1a1a1a', fg:'#ffffff', bd:'#000000', bar:'#1a1a1a'},
+  };
+  const cs = (isEuro && it.color && COLOR_STYLE[it.color]) ? COLOR_STYLE[it.color] : null;
+  // 제품명 위 형광펜 띠 (색상 박스)
+  const colorBand = cs
+    ? `<div style="display:inline-block;background:${cs.bg};color:${cs.fg};border:1.5px solid ${cs.bd};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:800;margin-bottom:6px;letter-spacing:.3px">${ASM_COLOR_LABEL[it.color]||it.color}</div>`
+    : '';
+  const colorTag = '';  // 띠로 대체
+  const lrTag = it.lr ? `<span style="font-size:9px;color:var(--acc4);font-weight:700;margin-left:4px">${it.lr}</span>` : '';
+  const unconfTag = (!isEuro && !it.confirmed) ? `<span style="font-size:9px;color:var(--acc2);font-weight:700;margin-left:4px;background:rgba(234,108,0,.1);padding:1px 5px;border-radius:6px">코드 확인필요</span>` : '';
+  const glassLabel = isEuro ? '인쇄유리' : '일반유리';
+  const sizeStr = it.gw ? `${it.gw}×${it.gh}` : '';
+  const specStr = spec.glass ? `${spec.glass}${spec.vendor?' · '+spec.vendor:''}` : '';
+
+  // 납품 알림
+  let needBox='';
+  if(need>0){
+    const ok=done>=need;
+    needBox=`<div style="margin-top:8px;background:${ok?'rgba(22,163,74,.08)':'rgba(220,38,38,.08)'};border:1px solid ${ok?'rgba(22,163,74,.3)':'rgba(220,38,38,.3)'};border-radius:8px;padding:8px 10px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;font-weight:700;color:${ok?'var(--acc3)':'var(--acc4)'}">${ok?'✅ 납품 준비됨':'🔴 작업 필요'}</span>
+        <span style="font-size:11px;color:var(--tx2)">납품서 ${need} · 완제품 ${done}</span>
+      </div>
+      ${short>0?`<div style="font-size:12px;font-weight:800;color:var(--acc4);margin-top:4px">조립 필요(권장): ${short}개${glass<short?` <span style="font-weight:600;color:var(--acc2)">(유리 ${short-glass}장 부족)</span>`:''}</div>`:''}
+      <button onclick="event.stopPropagation();asmOpenShip('${it.id}',${need})" style="width:100%;margin-top:6px;padding:7px;background:${ok?'var(--acc3)':'var(--s2)'};border:none;border-radius:6px;color:${ok?'#fff':'var(--tx2)'};font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🚚 납품 처리 (완제품 −)</button>
+    </div>`;
+  }
+
+  // 빵꾸 표시
+  const gMis=asmMismatch(it.id,'glass'), dMis=asmMismatch(it.id,'done');
+  let misBox='';
+  if(gMis||dMis){
+    const msgs=[];
+    if(gMis) msgs.push(`유리 ${gMis>0?'+':''}${gMis}`);
+    if(dMis) msgs.push(`완제품 ${dMis>0?'+':''}${dMis}`);
+    misBox=`<div style="font-size:10px;color:#a371f7;margin-top:4px;background:rgba(163,113,247,.08);padding:4px 8px;border-radius:6px">⚠️ 미기록 차이: ${msgs.join(' / ')}</div>`;
+  }
+
+  // 대분류에 따라 유리칸/완제품칸 강조
+  const showGlass = asmMainCat==='glass';
+  const stockBoxes = `
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <div style="flex:1;background:${showGlass?'var(--s2)':'transparent'};border:1px solid ${showGlass?'transparent':'var(--b1)'};border-radius:8px;padding:8px 10px;text-align:center;opacity:${showGlass?1:.55}">
+        <div style="font-size:10px;color:var(--tx2);font-weight:600">📦 조립실 ${glassLabel}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:${isEuro?(it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'#7a5a3a'):'var(--wc)'}">${glass}<span style="font-size:10px;color:var(--tx3);font-weight:400">장</span></div>
+      </div>
+      <div style="flex:1;background:${!showGlass?'var(--s2)':'transparent'};border:1px solid ${!showGlass?'transparent':'var(--b1)'};border-radius:8px;padding:8px 10px;text-align:center;opacity:${!showGlass?1:.55}">
+        <div style="font-size:10px;color:var(--tx2);font-weight:600">🚪 완제품</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:var(--acc3)">${done}<span style="font-size:10px;color:var(--tx3);font-weight:400">개</span></div>
+      </div>
+    </div>`;
+
+  // 버튼: 대분류에 맞춰
+  let btns='';
+  if(showGlass){
+    btns=`
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button onclick="event.stopPropagation();asmOpenGlassIn('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:rgba(29,111,181,.1);border:1px solid rgba(29,111,181,.3);border-radius:6px;color:var(--wc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">＋ 입고</button>
+      <button onclick="event.stopPropagation();asmOpenGlassCount('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔢 실측</button>
+      <button onclick="event.stopPropagation();asmOpenAssemble('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);border-radius:6px;color:var(--acc3);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔧 조립</button>
+      <button onclick="event.stopPropagation();asmOpenDefect('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:rgba(163,113,247,.1);border:1px solid rgba(163,113,247,.3);border-radius:6px;color:#a371f7;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⚠️ 불량</button>
+    </div>`;
+  } else {
+    btns=`
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button onclick="event.stopPropagation();asmOpenAssemble('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.3);border-radius:6px;color:var(--acc3);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔧 조립(완제품+)</button>
+      <button onclick="event.stopPropagation();asmOpenDoneCount('${it.id}')" style="flex:1;min-width:64px;padding:8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔢 실측</button>
+      <button onclick="event.stopPropagation();asmOpenShip('${it.id}',${need})" style="flex:1;min-width:64px;padding:8px;background:rgba(234,108,0,.1);border:1px solid rgba(234,108,0,.3);border-radius:6px;color:var(--acc2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🚚 출고</button>
+    </div>`;
+  }
+
+  const hasEv = !!(a && a.events && a.events.length);
+  const histRow = hasEv ? `
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button onclick="event.stopPropagation();asmUndoLast('${it.id}')" style="flex:1;padding:6px;background:transparent;border:1px dashed var(--b2);border-radius:6px;color:var(--tx2);font-size:10.5px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">↩️ 마지막 입력 되돌리기</button>
+      <button onclick="event.stopPropagation();asmOpenHistory('${it.id}')" style="flex:1;padding:6px;background:transparent;border:1px dashed var(--b2);border-radius:6px;color:var(--tx2);font-size:10.5px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📜 이력 보기 / 삭제</button>
+    </div>` : '';
+
+  return `
+  <div class="card" style="margin-bottom:10px;padding:12px 14px${cs?`;border-left:5px solid ${cs.bar}`:''}">
+    ${colorBand?`<div>${colorBand}</div>`:''}
+    <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:2px">
+      <span style="font-size:15px;font-weight:800;color:var(--tx1)">${it.name}${lrTag}</span>${colorTag}${unconfTag}
+    </div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:3px">
+      ${sizeStr?`프레임 ${it.fw?it.fw+'×'+it.fh:'-'} · 유리 ${sizeStr}`:(it.fw?`프레임 ${it.fw}×${it.fh} · 유리 ${it.gw}×${it.gh}`:'')}
+      ${specStr?` <span style="color:var(--tx2)">| ${specStr}</span>`:''}
+    </div>
+    ${stockBoxes}
+    ${misBox}
+    ${needBox}
+    ${btns}
+    ${histRow}
+  </div>`;
+}
+
+function renderAssembly(){
+  const el=document.getElementById('asm-list');
+  if(!el) return;
+  const q=(document.getElementById('asm-search')?.value||'').toLowerCase().trim();
+  const qd=q.replace(/[^0-9]/g,'');
+  const needMap=asmNeedMap();
+  let items=asmVisibleItems(needMap);
+
+  // 창고 필터
+  if(asmWarehouse!=='전체') items=items.filter(it=>it.series===asmWarehouse);
+  // 유리 소분류 (대분류가 유리일 때만)
+  if(asmMainCat==='glass' && asmGlassSub!=='all'){
+    items=items.filter(it=> asmGlassSub==='printed' ? it.glassType==='printed' : it.glassType==='plain');
+  }
+  // 검색
+  if(q){
+    items=items.filter(it=>{
+      if((it.name||'').toLowerCase().includes(q)||(it.series||'').toLowerCase().includes(q)) return true;
+      if((it.code||'').toLowerCase().includes(q)) return true;
+      if((it.color&&(ASM_COLOR_LABEL[it.color]||'').toLowerCase().includes(q))) return true;
+      if(qd.length>=3 && it.gw){
+        const g=String(it.gw)+String(it.gh);
+        if(g.includes(qd)||String(it.gw).includes(qd)) return true;
+      }
+      if((it.codes||[]).some(c=>c.toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }
+
+  // 상단 요약
+  const totalNeed=Object.values(needMap).reduce((a,b)=>a+b,0);
+  const totalDone=assemblyStock.reduce((s,a)=>s+(a.done||0),0);
+  const totalGlass=assemblyStock.reduce((s,a)=>s+(a.glass||0),0);
+  const def=asmDefectStats();
+  let summary=`<div class="g3" style="margin-bottom:12px">
+    <div class="stat"><div class="stat-l">납품서 요청</div><div class="stat-v" style="color:var(--acc4)">${totalNeed}</div><div class="stat-s">개</div></div>
+    <div class="stat"><div class="stat-l">완제품 보유</div><div class="stat-v" style="color:var(--acc3)">${totalDone}</div><div class="stat-s">개</div></div>
+    <div class="stat"><div class="stat-l">조립실 유리</div><div class="stat-v" style="color:var(--wc)">${totalGlass}</div><div class="stat-s">장</div></div>
+  </div>`;
+  if(def.total>0){
+    summary+=`<div style="font-size:11px;color:var(--tx2);margin-bottom:10px;background:var(--s2);border-radius:7px;padding:7px 10px">⚠️ 유리불량 누적 — 거래처 <b style="color:var(--acc4)">${def.vendor}</b>장 · 우리 <b>${def.us}</b>장</div>`;
+  }
+
+  if(!items.length){ el.innerHTML=summary+'<div class="empty"><div class="empty-ico">📭</div>해당 품목 없음<div style="font-size:11px;color:var(--tx3);margin-top:6px">EURO700 인쇄유리는 입고/인쇄하면 여기 나타나요</div></div>'; return; }
+
+  // 창고(시리즈)별 그룹
+  const bySeries={};
+  items.forEach(it=>{ (bySeries[it.series]=bySeries[it.series]||[]).push(it); });
+  let html=summary;
+  ASM_WH_ORDER.filter(s=>s!=='전체').forEach(s=>{
+    const arr=bySeries[s]; if(!arr||!arr.length) return;
+    arr.sort((x,y)=>{
+      const nx=Math.max(0,(needMap[x.id]||0)-((asmFind(x.id)||{}).done||0));
+      const ny=Math.max(0,(needMap[y.id]||0)-((asmFind(y.id)||{}).done||0));
+      if(ny!==nx) return ny-nx;
+      return (x.name||'').localeCompare(y.name||'');
+    });
+    const spec=asmGlassSpec(s);
+    html+=`<div style="font-size:13px;font-weight:800;color:var(--tx1);margin:14px 0 8px">📐 ${s} <span style="font-size:10px;color:var(--tx3);font-weight:400">${arr.length}종${spec.glass?' · '+spec.glass:''}</span></div>`;
+    html+=arr.map(it=>asmItemCard(it, needMap)).join('');
+  });
+  el.innerHTML=html;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  모달 (prompt 방식)
+// ════════════════════════════════════════════════════════════════
+function asmOpenGlassIn(itemId){
+  const n=prompt(`📦 ${asmItemName(itemId)}\n유리 입고 수량 (장):`, '');
+  if(n===null) return;
+  const q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
+  asmApply(itemId,{type:'glass_in', qty:q, memo:'유리 입고'});
+  renderAssembly();
+}
+function asmOpenGlassCount(itemId){
+  const a=asmGet(itemId);
+  const g=prompt(`🔢 ${asmItemName(itemId)}\n조립실 유리 실측값 (현재 ${a.glass}장):`, String(a.glass));
+  if(g===null) return;
+  const gv=parseInt(g); if(isNaN(gv)){ alert('숫자를 입력하세요'); return; }
+  asmApply(itemId,{type:'glass_count', absGlass:gv, memo:'유리 실측'});
+  renderAssembly();
+}
+function asmOpenAssemble(itemId){
+  const a=asmGet(itemId); const have=a.glass;
+  const need=asmNeedMap()[itemId]||0;
+  const rec = need>0 ? Math.max(0, need-a.done) : have; // 권장량(납품 부족분)
+  const msg=`🔧 ${asmItemName(itemId)}\n조립 수량 (유리 ${have}장 보유${need>0?` · 권장 ${rec}개`:''}):\n※ 권장보다 많이 찍어도 됩니다`;
+  const n=prompt(msg, String(rec||have||0));
+  if(n===null) return;
+  const q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
+  if(q>have){ if(!confirm(`보유 유리(${have})보다 많이 조립합니다. 유리는 0이 되고 완제품 ${q}개로 기록할까요?\n(유리 재고 음수는 0으로 처리)`)) return; }
+  asmApply(itemId,{type:'assemble', qty:q, memo:'조립 완료'});
+  renderAssembly();
+}
+function asmOpenDoneCount(itemId){
+  const a=asmGet(itemId);
+  const d=prompt(`🔢 ${asmItemName(itemId)}\n완제품 실측값 (현재 ${a.done}개):`, String(a.done));
+  if(d===null) return;
+  const dv=parseInt(d); if(isNaN(dv)){ alert('숫자를 입력하세요'); return; }
+  asmApply(itemId,{type:'done_count', absDone:dv, memo:'완제품 실측'});
+  renderAssembly();
+}
+function asmOpenDefect(itemId){
+  const a=asmFind(itemId); const have=a?a.glass:0;
+  const n=prompt(`⚠️ ${asmItemName(itemId)}\n불량으로 뺄 유리 수량 (현재 ${have}장):`, '1');
+  if(n===null) return;
+  const q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
+  const cause=confirm(`불량 원인:\n\n[확인] = 거래처 불량\n[취소] = 우리 실수`) ? 'vendor' : 'us';
+  const memo=prompt('메모 (선택):','')||'';
+  asmApply(itemId,{type:'defect', qty:q, cause, memo});
+  renderAssembly();
+}
+function asmOpenShip(itemId, need){
+  const a=asmFind(itemId); const have=a?a.done:0;
+  const n=prompt(`🚚 ${asmItemName(itemId)}\n납품 출고 수량 (요청 ${need}개 · 완제품 ${have}개 보유):`, String(Math.min(need||have,have)));
+  if(n===null) return;
+  let q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
+  if(q>have){ if(!confirm(`완제품 보유(${have})보다 많습니다. ${have}개만 출고할까요?`)) return; q=have; }
+  asmApply(itemId,{type:'ship', qty:q, memo:'납품 출고'});
+  renderAssembly();
+}
+
+// ── 인쇄실→조립실 자동 연결 (작업일지 인쇄 시 호출) ──
+// code=인쇄한 모델코드, qty=인쇄 장수. EURO700 정규격이면 해당 인쇄유리 +qty.
+function asmOnPrint(code, qty){
+  const e=euroItemFromCode(String(code||'').trim());
+  if(!e) return false; // EURO700 정규격 아님 → 무시
+  asmApply(e.id, {type:'print_in', qty:parseInt(qty)||0, memo:'인쇄실 인쇄분 자동입고', source:'print'});
+  return true;
+}
+
+// ── 입력 이력 모달 (이벤트 개별 삭제) ──
+const ASM_EV_LABEL = {
+  glass_in:'＋ 유리 입고', print_in:'🖨 인쇄 자동입고', assemble:'🔧 조립',
+  defect:'⚠️ 불량', ship:'🚚 출고', glass_count:'🔢 유리 실측', done_count:'🔢 완제품 실측'
+};
+function asmOpenHistory(itemId){
+  const a=asmFind(itemId);
+  const ttl=document.getElementById('asm-hist-ttl');
+  const body=document.getElementById('asm-hist-body');
+  if(!ttl||!body) return;
+  ttl.textContent=`📜 ${asmItemName(itemId)} 이력`;
+  const evs=(a&&a.events?a.events:[]).slice().reverse(); // 최신 먼저
+  if(!evs.length){
+    body.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:24px">아직 입력 이력이 없어요</div>';
+  } else {
+    body.innerHTML=evs.map(ev=>{
+      const lbl=ASM_EV_LABEL[ev.type]||ev.type;
+      const d=ev.delta||0;
+      const sign=d>0?`+${d}`:`${d}`;
+      const which = (ev.type==='ship'||ev.type==='done_count') ? '완제품'
+                  : (ev.type==='assemble') ? '유리↓완제품↑' : '유리';
+      const dt=(ev.at||'').replace('T',' ').slice(5,16); // MM-DD HH:MM
+      const causeTxt = ev.cause==='vendor'?' · 거래처불량':ev.cause==='us'?' · 우리실수':'';
+      const memoTxt = ev.memo?` · ${ev.memo}`:'';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--b1)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--tx1)">${lbl} <span style="font-family:'JetBrains Mono',monospace;color:${d>0?'var(--acc3)':'var(--acc4)'};font-weight:800">${sign}</span> <span style="font-size:10px;color:var(--tx3);font-weight:400">${which}</span></div>
+          <div style="font-size:10.5px;color:var(--tx3);margin-top:2px">${dt}${ev.by?' · '+ev.by:''}${causeTxt}${memoTxt}</div>
+        </div>
+        <button onclick="asmDeleteEvent('${itemId}','${ev.id}')" style="flex-shrink:0;padding:7px 11px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:7px;color:var(--acc4);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑 삭제</button>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('asm-hist-modal').classList.add('on');
+}
+
+
+function renderNonspec(){
+  document.getElementById('nonspec-list').innerHTML=NONSPEC_GROUPS.map(g=>{
+    const mx=Math.max(...g.sizes.map(s=>s.qty));
+    return '<div class="nonspec-card"><div class="nonspec-name">'+g.group+'</div><div class="nonspec-total">6개월 총 '+g.total+'장</div>'+g.sizes.map(s=>'<div class="size-row"><div class="size-dim">'+s.w+'×'+s.h+'</div><div class="size-bar-wrap"><div class="size-bar" style="width:'+Math.round(s.qty/mx*100)+'%"></div></div><div class="size-qty">'+s.qty+'장</div></div>').join('')+'</div>';
+  }).join('');
+}
+
+// ── GOOGLE SHEETS ──
+function initGsUI(){
+  if(gsUrl)document.getElementById('gs-url-input').value=gsUrl;
+  updateGsStatus(gsUrl?'ok':'idle');
+  updateGsSyncTime();
+  // 작성자 정보 입력란도 함께 채움
+  const ai = document.getElementById('actor-input');
+  const ac = document.getElementById('actor-current');
+  if(ai) ai.value = actor || '';
+  if(ac) ac.textContent = actor ? `현재: ${actor}` : '아직 이름이 설정되지 않았습니다';
+  renderStorageBar();
+}
+
+// ── 저장 용량 배터리 바 ──
+function renderStorageBar(){
+  const host=document.getElementById('storage-bar-host');
+  if(!host) return;
+  // localStorage 항목별 바이트 계산 (UTF-16 기준 2바이트/문자)
+  const CAP = 5*1024*1024; // 보수적으로 5MB 기준
+  const labels={ 'ybn-deliv-log':'📦 납품서','ybn-stock':'📊 재고','ybn-stock-events':'📈 재고이력',
+    'ybn-worklog':'📋 작업일지','ybn-todos':'✅ 할일','ybn-order-history':'🧾 발주이력',
+    'ybn-ink':'🖋 잉크','ybn-ledger':'💰 매입매출','ybn-vendors':'🏢 거래처' };
+  let total=0; const parts=[];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      const v=localStorage.getItem(k)||'';
+      const bytes=(k.length+v.length)*2;
+      total+=bytes;
+      parts.push({key:k, bytes, label:labels[k]||('· '+k)});
+    }
+  }catch(e){ host.innerHTML='<div style="font-size:11px;color:var(--acc4)">용량 확인 불가</div>'; return; }
+  parts.sort((a,b)=>b.bytes-a.bytes);
+  const pct=Math.min(100, total/CAP*100);
+  const fmt=b=> b>1048576 ? (b/1048576).toFixed(2)+' MB' : b>1024 ? (b/1024).toFixed(1)+' KB' : b+' B';
+  // 바 색상: 60%↓ 초록, 80%↓ 주황, 그 이상 빨강
+  const barColor = pct<60?'var(--acc3)' : pct<80?'#e3a008' : 'var(--acc4)';
+  const statusMsg = pct<60?'여유 있어요' : pct<80?'절반 넘었어요' : pct<92?'정리를 권장해요' : '⚠ 곧 가득 차요';
+  // 주요 항목만 (상위 6개, 1KB 이상)
+  const rows=parts.filter(p=>p.bytes>1024).slice(0,6).map(p=>{
+    const w=Math.max(2, p.bytes/total*100);
+    return `<div style="display:flex;align-items:center;gap:8px;font-size:11px;margin-top:5px">
+      <span style="flex:1;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.label}</span>
+      <span style="font-family:'JetBrains Mono',monospace;color:var(--tx3);flex-shrink:0">${fmt(p.bytes)}</span>
+    </div>`;
+  }).join('');
+  host.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+      <span style="font-size:22px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${barColor}">${pct.toFixed(1)}<span style="font-size:13px">%</span></span>
+      <span style="font-size:11px;color:var(--tx2)">${fmt(total)} / ${fmt(CAP)} · ${statusMsg}</span>
+    </div>
+    <div style="width:100%;height:18px;background:var(--s2);border:1px solid var(--b2);border-radius:9px;overflow:hidden;position:relative">
+      <div style="width:${pct}%;height:100%;background:${barColor};border-radius:9px 0 0 9px;transition:width .4s ease"></div>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--tx1);mix-blend-mode:difference">${pct>=8?'':''}</div>
+    </div>
+    <div style="margin-top:10px">${rows||'<div style="font-size:11px;color:var(--tx3)">저장된 데이터가 거의 없어요</div>'}</div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.6">브라우저 저장 공간 기준이며, 구글 시트에는 별도로 백업됩니다. 80%를 넘으면 오래된 납품서를 정리하는 걸 권장해요.</div>`;
+}
+function updateGsStatus(state){
+  const dot=document.getElementById('gs-dot');
+  const txt=document.getElementById('gs-txt');
+  const sub=document.getElementById('gs-sub');
+  const S={idle:['var(--tx3)','연동 미설정','URL을 입력하세요'],testing:['var(--acc2)','테스트 중...',''],ok:['var(--acc3)','✅ 연동 완료','구글 시트와 연결됨'],error:['var(--acc4)','❌ 연결 실패','URL 확인 필요'],syncing:['var(--acc)','동기화 중...','']};
+  const [c,l,h]=S[state]||S.idle;
+  if(dot)dot.style.background=c;
+  if(txt)txt.textContent=l;
+  if(sub)sub.textContent=h;
+  const hel=document.getElementById('hdr-gs');
+  if(hel)hel.textContent=state==='ok'?'🟢':gsUrl?'🟡':'';
+}
+function updateGsSyncTime(){
+  const el=document.getElementById('gs-sync-time');
+  if(el&&meta.lastGsSync){const d=new Date(meta.lastGsSync);el.textContent=d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}
+}
+// ══════════════════════════════════════════════════
+//  ░░ 받기 병합 헬퍼 ░░
+//  시트에서 받은 데이터로 덮어쓰지 않고, 로컬과 합친다.
+//  → 받기 전 이 기기에만 있던 변경분이 사라지지 않음.
+//  규칙: 같은 id면 더 최근 것, 다른 id면 둘 다 유지.
+// ══════════════════════════════════════════════════
+function _mTs(o){
+  if(!o) return 0;
+  const t=o.updatedAt||o.byAt||o.deletedAt||o.createdAt||o.at||o.uploadedAt||'';
+  const n=new Date(t).getTime();
+  return isNaN(n)?0:n;
+}
+function mergeById(localArr, remoteArr, idKey){
+  idKey=idKey||'id';
+  localArr=Array.isArray(localArr)?localArr:[];
+  remoteArr=Array.isArray(remoteArr)?remoteArr:[];
+  const map=new Map(), order=[], noId=[];
+  function take(it){
+    const id=it&&it[idKey];
+    if(id==null||id===''){ noId.push(it); return; }
+    if(!map.has(id)){ order.push(id); map.set(id,it); }
+    else { const c=map.get(id); map.set(id, _mTs(it)>=_mTs(c)?it:c); }
+  }
+  localArr.forEach(take); remoteArr.forEach(take);
+  return order.map(id=>map.get(id)).concat(noId);
+}
+function mergeStockEventsLocal(localObj, remoteObj){
+  localObj=(localObj&&typeof localObj==='object')?localObj:{};
+  remoteObj=(remoteObj&&typeof remoteObj==='object')?remoteObj:{};
+  const out={}, keys=new Set([...Object.keys(localObj),...Object.keys(remoteObj)]);
+  keys.forEach(k=>{
+    out[k]=mergeById(localObj[k], remoteObj[k], 'id');
+    out[k].sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
+  });
+  return out;
+}
+function mergeWorkLogLocal(localArr, remoteArr){
+  localArr=Array.isArray(localArr)?localArr:[];
+  remoteArr=Array.isArray(remoteArr)?remoteArr:[];
+  const byDate={}, order=[];
+  function addDay(day){
+    if(!day||!day.date) return;
+    if(!byDate[day.date]){ byDate[day.date]={date:day.date,items:[]}; order.push(day.date); }
+    const b=byDate[day.date];
+    (day.items||[]).forEach(it=>{
+      const sig=(it.eventIds&&it.eventIds.length)?it.eventIds.slice().sort().join(','):null;
+      if(sig){ const dup=b.items.find(x=>x.eventIds&&x.eventIds.slice().sort().join(',')===sig); if(dup) return; }
+      b.items.push(it);
+    });
+  }
+  localArr.forEach(addDay); remoteArr.forEach(addDay);
+  return order.map(d=>byDate[d]).sort((a,b)=>a.date.localeCompare(b.date));
+}
+function mergeOdVendorsLocal(localObj, remoteObj){
+  localObj=(localObj&&typeof localObj==='object')?localObj:{};
+  remoteObj=(remoteObj&&typeof remoteObj==='object')?remoteObj:{};
+  const out={}, keys=new Set([...Object.keys(localObj),...Object.keys(remoteObj)]);
+  keys.forEach(k=>{
+    const a=Array.isArray(localObj[k])?localObj[k]:[];
+    const b=Array.isArray(remoteObj[k])?remoteObj[k]:[];
+    out[k]=Array.from(new Set([...a,...b]));
+  });
+  return out;
+}
+// 받은 data를 현재 로컬 변수들에 병합 적용
+function applyMergedFromSheet(data){
+  if(data.worklog!==undefined) workLog=mergeWorkLogLocal(workLog, data.worklog);
+  if(data.delivDeleted!==undefined && data.delivDeleted && typeof data.delivDeleted==='object'){
+    for(const k in data.delivDeleted){ if(!delivDeleted[k]) delivDeleted[k]=data.delivDeleted[k]; }
+  }
+  if(data.delivLog!==undefined){
+    delivLog=mergeById(delivLog, data.delivLog, 'id');
+    delivLog=delivLog.filter(d=>!delivDeleted[d && d.id]); // 삭제된 납품서는 부활 금지
+    if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
+  if(typeof invalidateTrendAgg==="function") invalidateTrendAgg();
+  }
+  if(data.noticeState!==undefined && data.noticeState && typeof data.noticeState==='object'){
+    for(const k in data.noticeState){
+      const r=data.noticeState[k], l=noticeState[k];
+      if(!l || _mTs({at:r.at}) >= _mTs({at:l.at})) noticeState[k]=r; // 더 최근 상태 채택
+    }
+  }
+  if(data.notices!==undefined) notices=mergeById(notices, data.notices, 'id');
+  // 공지 묘비 강제 적용: 보관/삭제 상태는 타임스탬프 충돌과 무관하게 항상 이김
+  for(const id in noticeState){
+    const st=noticeState[id];
+    if(st.deleted){ notices=notices.filter(n=>n.id!==id); continue; }
+    const n=notices.find(x=>x.id===id);
+    if(n) n.archived=!!st.archived;
+  }
+  if(data.schedules!==undefined) schedules=mergeById(schedules, data.schedules, 'id');
+  if(data.todos!==undefined) todos=mergeById(todos, data.todos, 'id');
+  if(data.matLog!==undefined) matLog=mergeById(matLog, data.matLog, 'id');
+  if(data.sheetLog!==undefined && typeof sheetLog!=='undefined') sheetLog=mergeById(sheetLog, data.sheetLog, 'id');
+  if(data.vendorBook!==undefined) vendorBook=mergeById(vendorBook, data.vendorBook, 'id');
+  if(data.stockEvents!==undefined) stockEvents=mergeStockEventsLocal(stockEvents, data.stockEvents);
+  if(data.odCustomVendors!==undefined) odCustomVendors=mergeOdVendorsLocal(odCustomVendors, data.odCustomVendors);
+  if(data.wkExamples!==undefined && Array.isArray(data.wkExamples)){ wkExamples=mergeById(wkExamples, data.wkExamples, 'id'); localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples)); }
+  if(data.assemblyStock!==undefined && Array.isArray(data.assemblyStock)){ assemblyStock=mergeById(assemblyStock, data.assemblyStock, 'id'); localStorage.setItem('ybn-asm-v1',JSON.stringify(assemblyStock)); }
+  if(data.ledgerLog!==undefined) mergeLedgerFromSheet(data.ledgerLog);
+  // ── 완제품 재고 병합 (id 기준 최신 우선) ──
+  if(data.finishedStock!==undefined && Array.isArray(data.finishedStock) && typeof finishedStock!=='undefined'){
+    finishedStock=mergeById(finishedStock, data.finishedStock, 'id');
+    if(typeof saveFinished==='function') saveFinished();
+  }
+  // ── 인쇄 단가: 받은 값 채택 (비어있지 않을 때만) ──
+  if(data.inkRates!==undefined && data.inkRates && typeof data.inkRates==='object' && typeof inkRates!=='undefined'){
+    Object.assign(inkRates, data.inkRates);
+  }
+  // ── 작업 미룬 항목 병합 ──
+  if(data.wlPostponed!==undefined && Array.isArray(data.wlPostponed) && typeof wlPostponed!=='undefined'){
+    wlPostponed=mergeById(wlPostponed, data.wlPostponed, 'id');
+    localStorage.setItem('ybn-wl-postponed',JSON.stringify(wlPostponed));
+  }
+  // ── 발주(orderLog) 병합: id 기준 최신 우선, 삭제 묘비로 부활 방지 ──
+  if(data.orderDeleted!==undefined && data.orderDeleted && typeof data.orderDeleted==='object'){
+    for(const k in data.orderDeleted){ if(!orderDeleted[k]) orderDeleted[k]=data.orderDeleted[k]; }
+  }
+  if(data.orderLog!==undefined && typeof orderLog!=='undefined'){
+    orderLog=mergeById(orderLog, data.orderLog, 'id');
+    orderLog=orderLog.filter(o=>!orderDeleted[o && o.id]); // 삭제된 발주는 부활 금지
+    saveOrderLog();
+  }
+  // 스냅샷 값: 받은 쪽 채택 (서버가 이미 병합본을 보내줌)
+  if(data.stock!==undefined) stock=data.stock;
+  if(data.matStock!==undefined) matStock=data.matStock;
+  if(data.inklog!==undefined) inkLog=data.inklog;
+  if(data.meta!==undefined) Object.assign(meta, data.meta);
+}
+
+async function gsFetch(method,body,qs=''){
+  if(!gsUrl)throw new Error('URL 없음');
+  try{
+    if(method==='GET'){
+      const res=await fetch(gsUrl+qs,{method:'GET'});
+      const json=await res.json();
+      if(!json.ok)throw new Error(json.error||'서버 오류');
+      return json.data;
+    } else {
+      // POST 방식 - 데이터 크기 제한 없음
+      const res=await fetch(gsUrl,{
+        method:'POST',
+        headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify(body)
+      });
+      const json=await res.json();
+      if(!json.ok)throw new Error(json.error||'서버 오류');
+      return json.data;
+    }
+  }catch(e){
+    throw new Error(e.message);
+  }
+}
+function saveGsUrl(){
+  const val=document.getElementById('gs-url-input').value.trim();
+  if(!val||!val.startsWith('https://script.google.com')){showToast('올바른 URL을 입력하세요');return;}
+  gsUrl=val;localStorage.setItem(LS.gsUrl,gsUrl);
+  updateGsStatus('testing');
+  gsFetch('GET',null,'?action=ping').then(()=>{updateGsStatus('ok');showToast('✓ 연결 성공!');}).catch(()=>{updateGsStatus('error');showToast('❌ 연결 실패');});
+}
+
+// ── 안전 가드: 현재 로컬 데이터가 "거의 비어있는지" 판단 ──
+function _localDataSize(){
+  let n=0;
+  n+=Object.keys(stock||{}).length;
+  n+=(workLog||[]).reduce((a,d)=>a+(d.items?d.items.length:0),0);
+  n+=(inkLog||[]).length;
+  n+=(notices||[]).length;
+  n+=(schedules||[]).length;
+  n+=(todos||[]).length;
+  n+=Object.keys(matStock||{}).length;
+  n+=(matLog||[]).length;
+  n+=(sheetLog||[]).length;
+  n+=(delivLog||[]).length;
+  n+=(typeof orderLog!=='undefined'?(orderLog||[]).length:0);
+  return n;
+}
+function _isLocalEmpty(){ return _localDataSize() === 0; }
+
+// 동기화 잠금 (중복 호출 방지)
+let _syncBusy = false;
+
+// 페이지가 막 로드되어 아직 시트→앱을 한 번도 못한 상태인지
+// (lastGsSync가 없으면 위험 - 시트가 비어있다 단정하고 덮어쓰면 안됨)
+function _neverSyncedYet(){ return !meta || !meta.lastGsSync; }
+
+async function autoSync(){
+  if(!gsUrl)return;
+  if(_syncBusy)return; // 중복 방지
+
+  // ── 핵심 가드 1: 로컬이 완전히 비어있으면 자동 업로드 금지 ──
+  // (이게 빈 페이지가 시트를 덮어쓴 원인이었음)
+  if(_isLocalEmpty()){
+    console.warn('[autoSync] 로컬 데이터가 비어있어 자동 동기화를 건너뜁니다.');
+    updateGsStatus('error');
+    showToast('⚠️ 데이터 없음 - 자동 동기화 보류');
+    return;
+  }
+
+  _syncBusy = true;
+  try{
+    // 충돌 감지: 시트의 lastGsSync가 내 기록보다 최신이면 다른 기기가 더 최근에 올린 상태
+    const ts = new Date().toISOString();
+    const result = await gsFetch('POST',{
+      action:'saveAll',
+      clientLastSync: meta.lastGsSync || null,
+      clientTs: ts,
+      actor: getActor(),
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[])}
+    });
+    // 서버가 충돌을 알려주면 result.conflict === true (서버 가드 추가 시)
+    if(result && result.conflict){
+      updateGsStatus('error');
+      showToast('⚠️ 다른 기기가 더 최근 데이터 - 자동 업로드 보류. [시트→앱]으로 먼저 받아주세요');
+      return;
+    }
+    meta.lastGsSync=new Date().toISOString();saveAll();
+    updateGsStatus('ok');updateGsSyncTime();
+    showToast('✅ 저장 완료 (구글 시트 연동)');
+  }catch(e){updateGsStatus('error');showToast('⚠️ 기기엔 저장됨 / 시트 연동 실패');}
+  finally{ _syncBusy = false; }
+}
+
+async function syncToSheet(){
+  if(!gsUrl){showToast('URL 설정 필요');return;}
+  if(_syncBusy){showToast('동기화 진행 중...');return;}
+
+  // ── 핵심 가드 2: 로컬이 비어있으면 수동 업로드도 확인 받음 ──
+  if(_isLocalEmpty()){
+    if(!confirm('⚠️ 현재 앱에 데이터가 비어있습니다.\n\n이 상태로 [앱→시트]를 진행하면 시트의 모든 데이터가 삭제될 수 있습니다.\n\n정말 빈 상태를 시트에 덮어쓸까요?\n\n(아니오를 누르고 [시트→앱]을 먼저 누르시는 걸 강력 권장합니다)')){
+      updateGsStatus(gsUrl?'ok':'idle');
+      showToast('취소됨');
+      return;
+    }
+  }
+
+  // ── 핵심 가드 3: 한 번도 동기화 안 한 상태에서 업로드는 위험 ──
+  if(_neverSyncedYet()){
+    if(!confirm('⚠️ 이 기기는 아직 [시트→앱]으로 시트 데이터를 받은 적이 없습니다.\n\n시트에 다른 기기에서 올린 데이터가 있다면 덮어써질 수 있습니다.\n\n그래도 업로드할까요?\n\n(아니오를 누르고 [시트→앱]을 먼저 누르시는 걸 권장합니다)')){
+      updateGsStatus(gsUrl?'ok':'idle');
+      showToast('취소됨');
+      return;
+    }
+  }
+
+  _syncBusy = true;
+  updateGsStatus('syncing');
+  try{
+    const result = await gsFetch('POST',{
+      action:'saveAll',
+      clientLastSync: meta.lastGsSync || null,
+      clientTs: new Date().toISOString(),
+      actor: getActor(),
+      force: true, // 사용자가 직접 누른 경우 force 플래그
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[])}
+    });
+    if(result && result.conflict && !result.forced){
+      updateGsStatus('error');
+      showToast('⚠️ 충돌 감지됨 - 다시 시도해주세요');
+      return;
+    }
+    meta.lastGsSync=new Date().toISOString();saveAll();updateGsStatus('ok');updateGsSyncTime();showToast('✅ 시트 저장 완료');
+  }catch(e){updateGsStatus('error');showToast('❌ 저장 실패: '+e.message);}
+  finally{ _syncBusy = false; }
+}
+
+// 시트→앱 받은 뒤, 현재 보고 있는 탭과 주요 화면을 모두 다시 그림
+function rerenderAfterSync(){
+  try{ renderHome(); }catch(e){}
+  try{ if(curMain==='stock'){ renderSub(curSub); } }catch(e){}
+  try{ if(curMain==='todo') renderTodo(); }catch(e){}
+  try{ if(curMain==='board'){ renderNotices(); renderSchedules(); } }catch(e){}
+  try{ if(curMain==='mat') renderMat(); }catch(e){}
+  try{ if(typeof renderDelivery==='function') renderDelivery(); }catch(e){}
+  try{ if(typeof renderLedger==='function') renderLedger(); }catch(e){}
+  try{ if(typeof renderVendors==='function') renderVendors(); }catch(e){}
+  try{ if(typeof renderOrderHistory==='function') renderOrderHistory(); }catch(e){}
+  try{ if(typeof renderOrderList==='function') renderOrderList(); }catch(e){}
+  try{ if(typeof renderFinished==='function') renderFinished(); }catch(e){}
+  try{ if(typeof renderInk==='function') renderInk(); }catch(e){}
+  try{ if(typeof renderStorageBar==='function') renderStorageBar(); }catch(e){}
+}
+
+async function syncFromSheet(){
+  if(!gsUrl){showToast('URL 설정 필요');return;}
+  if(_syncBusy){showToast('동기화 진행 중...');return;}
+
+  // 로컬에 변경사항이 있는데 아직 시트에 안 올린 상태인지 경고
+  // (lastGsSync 이후 saveAll 호출이 있었으면 위험)
+  if(!_isLocalEmpty() && meta.lastLocalChange && meta.lastGsSync &&
+     new Date(meta.lastLocalChange) > new Date(meta.lastGsSync)){
+    if(!confirm('⚠️ 이 기기에 아직 시트로 안 올린 변경사항이 있습니다.\n\n[시트→앱]을 누르면 현재 변경사항이 사라질 수 있습니다.\n\n계속할까요?\n\n(아니오 → 먼저 [앱→시트]로 올리세요)')){
+      showToast('취소됨');
+      return;
+    }
+  }
+
+  _syncBusy = true;
+  updateGsStatus('syncing');
+  try{
+    const data=await gsFetch('GET',null,'?action=read');
+    applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
+    meta.lastGsSync=new Date().toISOString();
+    meta.lastLocalChange=meta.lastGsSync; // 방금 받았으니 로컬변경=시트와 동일
+    window._skipLocalChange = true;
+    saveAll();
+    window._skipLocalChange = false;
+    updateGsStatus('ok');updateGsSyncTime();
+    // 받은 데이터로 현재 보고 있는 화면 전체 갱신 (renderHome만으로는 다른 탭이 안 바뀜)
+    rerenderAfterSync();
+    // 받은 주요 데이터 건수 안내 (빈 시트 받았는지 진단)
+    const cnt = (Object.keys(stock||{}).length) + (workLog||[]).length + (delivLog||[]).length;
+    if(cnt===0){
+      showToast('⚠️ 시트에서 받았지만 데이터가 비어 있어요. 시트에 데이터가 있는지 확인하세요');
+    } else {
+      showToast(`✅ 불러오기 완료 (재고 ${Object.keys(stock||{}).length} · 작업 ${(workLog||[]).length} · 납품 ${(delivLog||[]).length})`);
+    }
+  }catch(e){updateGsStatus('error');showToast('❌ 실패: '+e.message);}
+  finally{ _syncBusy = false; }
+}
+
+// ── EXPORT ──
+function dl(content,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();}
+function exportCSV(){
+  const h=['제품코드','모델명','색상','도어타입','유리가로','유리세로','6개월출고','월평균','인쇄실재고','조립실재고'];
+  const rows=MODELS.map(m=>{const s=getStock(m.code);return[m.code,m.short,m.color,m.door_type,m.glass_w||'',m.glass_h||'',m.total_6m,m.avg_monthly,s.raw,s.printed];});
+  dl('\uFEFF'+[h,...rows].map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),'재고현황_'+todayStr()+'.csv','text/csv;charset=utf-8');showToast('📊 CSV 저장됨');
+}
+function exportWorkLog(){
+  const h=['날짜','제품코드','모델명','색상','유리사이즈','작업수량'];
+  const rows=[];[...workLog].sort((a,b)=>a.date.localeCompare(b.date)).forEach(day=>day.items.forEach(it=>{const m=MODELS.find(x=>x.code===it.code);rows.push([day.date,it.code,m?m.short:it.code,m?m.color:'',m&&m.glass_w?m.glass_w+'×'+m.glass_h:'',it.qty]);}));
+  dl('\uFEFF'+[h,...rows].map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),'작업일지_'+todayStr()+'.csv','text/csv;charset=utf-8');showToast('📋 작업일지 저장됨');
+}
+function exportTodoCSV(){
+  const h=['할일','담당자','업체','우선순위','상태','날짜','마감일'];
+  dl('\uFEFF'+[h,...todos.map(t=>[t.content,t.assignee||'',t.company||'',t.priority,t.status,t.date,t.dueDate||''])].map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),'할일목록_'+todayStr()+'.csv','text/csv;charset=utf-8');showToast('✅ 할일 저장됨');
+}
+function exportBackup(){dl(JSON.stringify({stock,meta,workLog,inkLog,inkRates,notices,schedules,todos},null,2),'ybn_backup_'+todayStr()+'.json','application/json');showToast('💾 백업 저장됨');}
+function importBackup(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{try{const d=JSON.parse(ev.target.result);stock=d.stock||{};meta=d.meta||{};workLog=d.workLog||[];inkLog=d.inkLog||[];inkRates=d.inkRates||{WC:1.5,ETP:1.5};notices=d.notices||[];schedules=d.schedules||[];todos=d.todos||[];saveAll();renderHome();showToast('✓ 복원 완료');}catch{showToast('파일 오류');}};
+  r.readAsText(f);
+}
+function clearStock(){if(!confirm('재고 초기화?'))return;stock={};meta.lastStock=null;saveAll();renderDash();renderStockList();showToast('초기화');}
+function clearWorkLog(){if(!confirm('작업일지 전체 삭제?'))return;workLog=[];meta.lastWork=null;saveAll();renderWorkLog();renderHome();showToast('작업일지 초기화');}
+function clearInk(){if(!confirm('잉크 이력 삭제?'))return;inkLog=[];meta.lastInk=null;saveAll();renderInk();showToast('잉크 이력 초기화');}
+
+// ── INIT ──
+renderHome();
+initGsUI();
+
+// 첫 진입 시 작성자 이름 미설정 안내 (살짝 부드럽게)
+if(!getActor()){
+  setTimeout(()=>{
+    showToast('👤 설정 → "내 이름"을 등록하세요 (동시 작업 시 식별용)');
+  }, 1200);
+}
+
+// ══════════════════════════════════════════════════
+//  자재 관리 (HPM Veil - 브리즈/쉐이드/사하라)
+// ══════════════════════════════════════════════════
+
+// 자재 종류 정의
+const MAT_TYPES = {
+  breeze: {label:'브리즈(Breeze)', color:'#2563eb', bg:'rgba(37,99,235,.1)', border:'rgba(37,99,235,.3)'},
+  shade:  {label:'쉐이드(Shade)',  color:'#7c3aed', bg:'rgba(124,58,237,.1)', border:'rgba(124,58,237,.3)'},
+  sahara: {label:'사하라(Sahara)', color:'#b45309', bg:'rgba(180,83,9,.1)',   border:'rgba(180,83,9,.3)'},
+};
+
+// matStock: {modelCode: {breeze:0, shade:0, sahara:0}}
+// matLog: [{date, type:'in'|'out'|'adjust', mat, modelCode, qty, note}]
+if(!window._matInit){
+  window._matInit=true;
+  if(!matStock) matStock={};
+  if(!matLog) matLog=[];
+}
+
+function getMatStock(code, mat){ return (matStock[code]||{})[mat]||0; }
+function setMatStock(code, mat, qty){
+  if(!matStock[code]) matStock[code]={};
+  matStock[code][mat]=qty;
+}
+
+// 자재 탭 렌더링
+let matFilter='all', matSearch='';
+function renderMat(){
+  renderSheetSummary();
+  renderSheetLog();
+  renderYieldTable();
+}
+
+function renderMatSummary(){
+  // 자재별 총계
+  let totals={breeze:0, shade:0, sahara:0};
+  Object.values(matStock).forEach(s=>{
+    totals.breeze+=(s.breeze||0);
+    totals.shade+=(s.shade||0);
+    totals.sahara+=(s.sahara||0);
+  });
+  const el=document.getElementById('mat-summary');
+  if(!el)return;
+  el.innerHTML=Object.entries(MAT_TYPES).map(([key,info])=>`
+    <div class="stat" style="border-left:3px solid ${info.color}">
+      <div class="stat-l" style="color:${info.color}">${info.label}</div>
+      <div class="stat-v" style="color:${info.color}">${totals[key]}</div>
+      <div class="stat-s">장 재고</div>
+    </div>`).join('');
+}
+
+function renderMatList(){
+  const el=document.getElementById('mat-list');
+  if(!el)return;
+  const q=(document.getElementById('mat-search')?.value||'').toLowerCase();
+
+  let models=[...MODELS];
+  if(q) models=models.filter(m=>m.short.toLowerCase().includes(q)||m.code.toLowerCase().includes(q)||(m.glass_w&&(m.glass_w+'x'+m.glass_h).includes(q)));
+  if(matFilter==='breeze') models=models.filter(m=>getMatStock(m.code,'breeze')>0);
+  if(matFilter==='shade')  models=models.filter(m=>getMatStock(m.code,'shade')>0);
+  if(matFilter==='sahara') models=models.filter(m=>getMatStock(m.code,'sahara')>0);
+  if(matFilter==='low')    models=models.filter(m=>Object.keys(MAT_TYPES).some(t=>getMatStock(m.code,t)>0&&getMatStock(m.code,t)<3));
+
+  // 재고 있는 것 먼저
+  models.sort((a,b)=>{
+    const at=Object.keys(MAT_TYPES).reduce((s,t)=>s+getMatStock(a.code,t),0);
+    const bt=Object.keys(MAT_TYPES).reduce((s,t)=>s+getMatStock(b.code,t),0);
+    return bt-at||b.total_6m-a.total_6m;
+  });
+
+  if(!models.length){el.innerHTML='<div class="empty"><div class="empty-ico">📦</div>검색 결과 없음</div>';return;}
+
+  el.innerHTML=models.slice(0,80).map(m=>{
+    const sz=m.glass_w?`${m.glass_w}×${m.glass_h}mm`:'미등록';
+    const matCols=Object.entries(MAT_TYPES).map(([key,info])=>{
+      const qty=getMatStock(m.code,key);
+      const isLow=qty>0&&qty<3;
+      return `<div class="mat-stock-box" onclick="openMatModal('${m.code}','${key}')" style="border-color:${qty>0?info.border:'var(--b2)'}">
+        <div class="mat-stock-lbl" style="color:${info.color}">${info.label.split('(')[0]}</div>
+        <div class="mat-stock-val" style="color:${qty===0?'var(--tx3)':isLow?'var(--acc4)':info.color}">${qty}</div>
+      </div>`;
+    }).join('');
+    return `<div class="mat-item">
+      <div class="mat-item-info">
+        <div class="mc">${m.code}</div>
+        <div class="mn">${hlName(m.short,m.color)}</div>
+        <div class="mt">${colorBadge(m.color)} ${doorBadge(m.door_type)}</div>
+        <div class="ms">📐 ${sz}</div>
+      </div>
+      <div class="mat-stocks">${matCols}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderMatLog(){
+  const el=document.getElementById('mat-log');
+  if(!el)return;
+  const recent=[...matLog].reverse().slice(0,30);
+  if(!recent.length){el.innerHTML='<div class="empty-sm">입출고 기록 없음</div>';return;}
+  const typeLabel={'in':'입고','out':'출고','adjust':'조정'};
+  const typeColor={'in':'var(--acc3)','out':'var(--acc4)','adjust':'var(--acc2)'};
+  el.innerHTML=recent.map(l=>{
+    const m=MODELS.find(x=>x.code===l.modelCode);
+    const info=MAT_TYPES[l.mat];
+    return `<div class="mat-log-row">
+      <div class="mat-log-date">${l.date.slice(5).replace('-','/')}</div>
+      <div class="mat-log-info">
+        <span class="badge" style="background:${info?.bg};color:${info?.color};border:1px solid ${info?.border}">${info?.label.split('(')[0]||l.mat}</span>
+        <span style="font-size:11px;color:var(--tx2);margin-left:4px">${m?m.short:l.modelCode}</span>
+        ${l.note?`<span style="font-size:10px;color:var(--tx3);margin-left:4px">${l.note}</span>`:''}
+      </div>
+      <div class="mat-log-qty" style="color:${typeColor[l.type]}">${l.type==='in'?'+':l.type==='out'?'-':'±'}${l.qty}</div>
+    </div>`;
+  }).join('');
+}
+
+function setMatFilter(f,btn){
+  matFilter=f;
+  if(btn&&btn.parentElement){btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+  renderMatList();
+}
+
+// 자재 입출고 모달
+let matModalCode='', matModalType='breeze', matModalAction='in', matModalQty=0;
+function openMatModal(code, matType){
+  matModalCode=code; matModalType=matType; matModalAction='in';
+  const m=MODELS.find(x=>x.code===code);
+  const info=MAT_TYPES[matType];
+  document.getElementById('mm-title').textContent=`📦 ${info.label} 재고 입력`;
+  document.getElementById('mm-sub').textContent=`${code} | ${m?m.short:''} | 현재: ${getMatStock(code,matType)}장`;
+  document.getElementById('mm-qty').textContent='0';
+  matModalQty=0;
+  // 탭 초기화
+  document.getElementById('mmtab-in').classList.add('on');
+  document.getElementById('mmtab-out').classList.remove('on');
+  document.getElementById('mmtab-set').classList.remove('on');
+  document.getElementById('mm-note').value='';
+  document.getElementById('mat-modal').classList.add('on');
+}
+function setMatAction(action, btn){
+  matModalAction=action;
+  document.querySelectorAll('#mat-modal .m-tab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+function mmQtyD(d){matModalQty=Math.max(0,matModalQty+d);document.getElementById('mm-qty').textContent=matModalQty;}
+function setMMQ(n){matModalQty=n;document.getElementById('mm-qty').textContent=n;}
+function confirmMat(){
+  const code=matModalCode, mat=matModalType, action=matModalAction;
+  const cur=getMatStock(code,mat);
+  let newQty=cur;
+  if(action==='in')     newQty=cur+matModalQty;
+  else if(action==='out') newQty=Math.max(0,cur-matModalQty);
+  else if(action==='set') newQty=matModalQty;
+
+  setMatStock(code,mat,newQty);
+  matLog.push({
+    date:todayStr(), type:action, mat, modelCode:code,
+    qty:matModalQty, note:document.getElementById('mm-note').value.trim()
+  });
+  saveAll(); closeM('mat-modal'); renderMat();
+  showToast(`✓ ${MAT_TYPES[mat].label.split('(')[0]} ${action==='in'?'입고':action==='out'?'출고':'조정'} ${matModalQty}장`);
+  autoSync();
+}
+
+// 일괄 입고 (원판 재단 기준)
+function openBulkMatModal(){
+  document.getElementById('bulk-mat-modal').classList.add('on');
+  document.getElementById('bm-search').value='';
+  document.getElementById('bm-results').innerHTML='';
+  document.getElementById('bm-selected-info').style.display='none';
+}
+let bulkSelCode='';
+function renderBulkSearch(){
+  const q=(document.getElementById('bm-search').value||'').toLowerCase();
+  const el=document.getElementById('bm-results');
+  if(!q){el.innerHTML='';return;}
+  const res=MODELS.filter(m=>m.code.toLowerCase().includes(q)||m.short.toLowerCase().includes(q)).slice(0,6);
+  if(!res.length){el.innerHTML='<div class="empty-sm">검색 결과 없음</div>';return;}
+  el.innerHTML=res.map(m=>{
+    const sz=m.glass_w?`${m.glass_w}×${m.glass_h}`:'미등록';
+    return `<div class="wresult-item" onclick="selectBulkModel('${m.code}')">
+      <div class="wr-name">${hlName(m.short,m.color)}</div>
+      <div class="wr-meta">${m.code} | 📐 ${sz} ${colorBadge(m.color)}</div>
+    </div>`;
+  }).join('');
+}
+function selectBulkModel(code){
+  bulkSelCode=code;
+  const m=MODELS.find(x=>x.code===code);
+  const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+  document.getElementById('bm-search').value='';
+  document.getElementById('bm-results').innerHTML='';
+  const infoEl=document.getElementById('bm-selected-info');
+  infoEl.style.display='block';
+  infoEl.innerHTML=`<div class="sel-box">
+    <div class="sel-label">✓ 선택됨</div>
+    <div style="font-size:13px;font-weight:700">${m?m.short:code}</div>
+    <div style="font-size:10px;color:var(--tx2);margin-top:2px">${code} | 📐 ${sz}</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      ${Object.entries(MAT_TYPES).map(([key,info])=>`
+        <div style="text-align:center">
+          <div style="font-size:10px;color:${info.color};margin-bottom:4px">${info.label.split('(')[0]}</div>
+          <div style="font-size:11px;color:var(--tx2)">현재: ${getMatStock(code,key)}장</div>
+        </div>`).join('')}
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+    ${Object.entries(MAT_TYPES).map(([key,info])=>`
+      <div>
+        <span class="lbl" style="color:${info.color}">${info.label.split('(')[0]}</span>
+        <input type="number" id="bm-${key}" min="0" value="0" class="inp" style="margin-bottom:0;text-align:center;font-size:16px;font-weight:700">
+      </div>`).join('')}
+  </div>
+  <button class="act-btn green" onclick="confirmBulkMat()" style="margin-top:12px">✓ 입고 등록</button>`;
+}
+function confirmBulkMat(){
+  if(!bulkSelCode){showToast('모델을 선택하세요');return;}
+  let any=false;
+  Object.keys(MAT_TYPES).forEach(key=>{
+    const qty=parseInt(document.getElementById('bm-'+key)?.value||0);
+    if(qty>0){
+      const cur=getMatStock(bulkSelCode,key);
+      setMatStock(bulkSelCode,key,cur+qty);
+      matLog.push({date:todayStr(),type:'in',mat:key,modelCode:bulkSelCode,qty,note:'일괄입고'});
+      any=true;
+    }
+  });
+  if(!any){showToast('수량을 입력하세요');return;}
+  saveAll();closeM('bulk-mat-modal');renderMat();
+  showToast('✅ 자재 입고 등록됨');autoSync();
+}
+
+// ══════════════════════════════════════════════════
+//  발주서 엑셀 업로드 & 자동 반영
+// ══════════════════════════════════════════════════
+
+// SheetJS 로드 확인용
+function checkSheetJS(){
+  return typeof XLSX !== 'undefined';
+}
+
+function openOrderUpload(){
+  document.getElementById('order-upload-modal').classList.add('on');
+  document.getElementById('ou-result').innerHTML='';
+  document.getElementById('ou-file-name').textContent='파일을 선택하세요';
+  document.getElementById('ou-confirm-btn').style.display='none';
+  window._orderParsed=null;
+}
+
+function handleOrderFile(e){
+  const file=e.target.files[0];
+  if(!file){return;}
+  document.getElementById('ou-file-name').textContent=file.name;
+  document.getElementById('ou-result').innerHTML='<div style="color:var(--tx2);font-size:12px;padding:8px 0">⏳ 파일 분석 중...</div>';
+
+  if(!checkSheetJS()){
+    document.getElementById('ou-result').innerHTML='<div style="color:var(--acc4);font-size:12px">❌ SheetJS 라이브러리 로드 필요. 잠시 후 다시 시도하세요.</div>';
+    return;
+  }
+
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+
+      // 발주서 시트 자동 감지 (출고, 발주, 오더 포함된 시트 우선)
+      let targetSheet=wb.SheetNames[0];
+      for(const name of wb.SheetNames){
+        if(name.includes('출고') || name.includes('발주') || name.includes('오더')){
+          targetSheet=name; break;
+        }
+      }
+      const ws=wb.Sheets[targetSheet];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+
+      // 헤더 찾기 (최대 5행 탐색)
+      let headerRow=-1, colMap={};
+      for(let i=0;i<Math.min(rows.length,5);i++){
+        const r=rows[i];
+        if(r.some(c=>String(c).includes('제품코드'))){
+          headerRow=i;
+          r.forEach((c,j)=>{
+            const s=String(c).trim();
+            if(s.includes('구매오더발행일')||s.includes('발행일')) colMap.poDate=j;
+            if(s.includes('납품요청일')||s.includes('납품')) colMap.delivDate=j;
+            if(s.includes('제품코드')) colMap.code=j;
+            if(s.includes('제품명')) colMap.name=j;
+            if(s.includes('좌우')) colMap.lr=j;
+            if(s.includes('제품수량')||s.includes('수량')) colMap.qty=j;
+            if(s.includes('오더번호')&&!s.includes('구매')) colMap.orderNo=j;
+            if(s.includes('구매오더번호')) colMap.poNo=j;
+          });
+          break;
+        }
+      }
+
+      if(headerRow<0||colMap.code===undefined){
+        document.getElementById('ou-result').innerHTML=`<div style="color:var(--acc4);font-size:12px">❌ 발주서 형식을 인식할 수 없습니다.<br><span style="color:var(--tx3)">읽은 시트: ${targetSheet}</span><br>제품코드, 제품명, 제품수량 컬럼이 있는지 확인하세요.</div>`;
+        return;
+      }
+
+      // ── 중복 체크용 기존 처리 이력 로드 ──
+      const orderHistory=JSON.parse(localStorage.getItem('ybn-order-history')||'[]');
+      const processedKeys=new Set(orderHistory.map(h=>`${h.poNo}_${h.code}_${h.delivDate}`));
+
+      // 전체 데이터 파싱 (Grace + Veil 모두 포함)
+      const dataRows=rows.slice(headerRow+1).filter(r=>r[colMap.code]&&r[colMap.qty]);
+      const targetRows=dataRows.filter(r=>{
+        const name=String(r[colMap.name]||'');
+        return name.includes('Grace')||name.includes('Veil');
+      });
+      const nonTargetRows=dataRows.filter(r=>{
+        const name=String(r[colMap.name]||'');
+        return !name.includes('Grace')&&!name.includes('Veil');
+      });
+
+      // 행 단위로 중복 체크 후 집계
+      const newRows=[], dupRows=[];
+      targetRows.forEach(r=>{
+        const code=String(r[colMap.code]).trim();
+        const poNo=colMap.poNo!==undefined?String(r[colMap.poNo]||'').trim():'';
+        const delivDate=colMap.delivDate!==undefined?String(r[colMap.delivDate]||'').trim().slice(0,10):'';
+        const key=`${poNo}_${code}_${delivDate}`;
+        if(processedKeys.has(key)) dupRows.push(r);
+        else newRows.push({r, code, poNo, delivDate});
+      });
+
+      // 새 행만 제품코드+납품일 기준으로 집계
+      const codeMap={};
+      newRows.forEach(({r,code,poNo,delivDate})=>{
+        const qty=parseInt(r[colMap.qty])||0;
+        const name=String(r[colMap.name]||'').trim();
+        const mapKey=code+'_'+delivDate;
+        if(!codeMap[mapKey]) codeMap[mapKey]={code,name,qty:0,poNo,delivDate};
+        codeMap[mapKey].qty+=qty;
+      });
+
+      const parsed=Object.values(codeMap);
+      const matched=parsed.filter(p=>MODELS.find(m=>m.code===p.code));
+      const unmatched=parsed.filter(p=>!MODELS.find(m=>m.code===p.code));
+      const newTotal=newRows.reduce((a,{r})=>a+(parseInt(r[colMap.qty])||0),0);
+
+      window._orderParsed={matched, unmatched, newRows,
+        nonTargetCount:nonTargetRows.length, totalRows:dataRows.length,
+        dupCount:dupRows.length, newCount:newRows.length};
+
+      // 결과 미리보기
+      let html=`<div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--acc3);margin-bottom:4px">📊 분석 결과</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.9">
+          읽은 시트: <b>${targetSheet}</b><br>
+          전체 행: <b>${dataRows.length}행</b><br>
+          Grace+Veil: <b>${targetRows.length}행</b>
+          ${dupRows.length>0?`&nbsp;/ <span style="color:var(--tx3)">이미 반영됨: ${dupRows.length}행 (스킵)</span>`:''}
+          <br>새로 반영될 행: <b style="color:var(--acc3)">${newRows.length}행 / ${newTotal}장</b><br>
+          DB 매칭: <b style="color:var(--acc3)">${matched.length}종</b>
+          ${unmatched.length>0?`&nbsp;/ 미매칭: <b style="color:var(--acc4)">${unmatched.length}종</b>`:''}
+          ${nonTargetRows.length>0?`<br>기타 품목: <b>${nonTargetRows.length}행</b> (제외)`:''}
+        </div>
+      </div>`;
+
+      if(newRows.length===0){
+        html+='<div style="background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--acc)">✅ 모든 행이 이미 반영된 상태입니다. 새로 처리할 내용이 없습니다.</div>';
+        document.getElementById('ou-result').innerHTML=html;
+        document.getElementById('ou-confirm-btn').style.display='none';
+        return;
+      }
+
+      if(matched.length>0){
+        html+=`<div style="font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px">반영될 항목:</div>`;
+        html+=matched.slice(0,10).map(p=>{
+          const m=MODELS.find(x=>x.code===p.code);
+          const cur=getStock(p.code).printed;
+          const delivStr=p.delivDate?` | 납품일: ${p.delivDate.slice(5).replace('-','/')}` :'';
+          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b1)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m?hlName(m.short,m.color):p.code}</div>
+              <div style="font-size:10px;color:var(--tx2)">${p.code}${delivStr} | 조립실재고: ${cur}장</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--acc4)">-${p.qty}장</div>
+              <div style="font-size:9px;color:var(--tx3)">출고</div>
+            </div>
+          </div>`;
+        }).join('');
+        if(matched.length>10) html+=`<div style="font-size:11px;color:var(--tx3);text-align:center;padding:8px">... 외 ${matched.length-10}종</div>`;
+      }
+      if(unmatched.length>0){
+        html+=`<div style="margin-top:8px;font-size:11px;color:var(--acc4)">⚠️ DB 미매칭 (반영 불가): ${unmatched.map(p=>p.code).join(', ')}</div>`;
+      }
+
+      document.getElementById('ou-result').innerHTML=html;
+      document.getElementById('ou-confirm-btn').style.display=matched.length>0?'block':'none';
+    }catch(err){
+      document.getElementById('ou-result').innerHTML=`<div style="color:var(--acc4);font-size:12px">❌ 파일 읽기 오류: ${err.message}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function confirmOrderUpload(){
+  const parsed=window._orderParsed;
+  if(!parsed||!parsed.matched.length){showToast('반영할 데이터 없음');return;}
+
+  const orderHistory=JSON.parse(localStorage.getItem('ybn-order-history')||'[]');
+
+  let applied=0, totalQty=0;
+  // 납품일별 집계 (delivLog용)
+  const delivByDate={};
+
+  parsed.matched.forEach(p=>{
+    const s=getStock(p.code);
+    const newPrinted=Math.max(0, s.printed-p.qty);
+    stock[p.code]={...s, printed:newPrinted};
+    applied++; totalQty+=p.qty;
+
+    // 작업로그 기록
+    const td=todayStr();
+    let dayLog=workLog.find(d=>d.date===td);
+    if(!dayLog){dayLog={date:td,items:[]};workLog.push(dayLog);}
+    const ex=dayLog.items.find(i=>i.code===p.code&&i.type==='order');
+    if(ex) ex.qty+=p.qty;
+    else dayLog.items.push({code:p.code,qty:p.qty,type:'order'});
+
+    // 납품일별 delivLog 집계
+    const ddate=p.delivDate||td;
+    if(!delivByDate[ddate]) delivByDate[ddate]={};
+    if(!delivByDate[ddate][p.code]) delivByDate[ddate][p.code]=0;
+    delivByDate[ddate][p.code]+=p.qty;
+  });
+
+  // delivLog 업데이트 (날짜별로 병합)
+  Object.entries(delivByDate).forEach(([ddate, codeQtyMap])=>{
+    let existing=delivLog.find(d=>d.delivDate===ddate);
+    if(!existing){
+      existing={delivDate:ddate, items:[], uploadedAt:new Date().toISOString()};
+      delivLog.push(existing);
+    }
+    Object.entries(codeQtyMap).forEach(([code,qty])=>{
+      const m=MODELS.find(x=>x.code===code);
+      const sz=m&&m.glass_w?m.glass_w+'×'+m.glass_h+'mm':'';
+      const ex=existing.items.find(i=>i.code===code);
+      if(ex) ex.qty+=qty;
+      else existing.items.push({
+        code, qty,
+        short: m?m.short:code,
+        size: sz,
+        color: m?m.color:'',
+      });
+    });
+  });
+
+  // 중복 방지 이력 저장
+  parsed.newRows.forEach(({code,poNo,delivDate})=>{
+    orderHistory.push({poNo,code,delivDate,processedAt:new Date().toISOString()});
+  });
+  localStorage.setItem('ybn-order-history',JSON.stringify(orderHistory));
+
+  meta.lastStock=new Date().toISOString();
+  saveAll(); closeM('order-upload-modal');
+  renderHome(); renderDash();
+  autoSync();
+  showToast(`✅ ${applied}종 / ${totalQty}장 출고 반영 (중복 ${parsed.dupCount}건 스킵)`);
+  window._orderParsed=null;
+}
+
+// ══════════════════════════════════════════════════
+//  원장 관리 (1200×2400 원판)
+//  sheetLog: [{id, date, mat, type:'in'|'out', qty, note, modelCode, orderId}]
+// ══════════════════════════════════════════════════
+
+const SHEET_W=1200, SHEET_H=2400;
+
+// 원판 1장에서 해당 사이즈 몇 개 나오는지
+function calcYield(gw, gh){
+  if(!gw||!gh) return 1;
+  const n1=Math.floor(SHEET_W/gw)*Math.floor(SHEET_H/gh);
+  const n2=Math.floor(SHEET_W/gh)*Math.floor(SHEET_H/gw);
+  return Math.max(n1,n2)||1;
+}
+
+// 원판 소요량 계산 (올림)
+function calcSheetsNeeded(gw, gh, qty){
+  const perSheet=calcYield(gw,gh);
+  return Math.ceil(qty/perSheet);
+}
+
+function getSheetStock(mat){
+  if(!window.sheetLog && typeof sheetLog==='undefined') return 0;
+  const logs=typeof sheetLog!=='undefined'?sheetLog:[];
+  let total=0;
+  logs.filter(l=>l.mat===mat).forEach(l=>{
+    if(l.type==='in') total+=l.qty;
+    else if(l.type==='out') total-=l.qty;
+    else if(l.type==='adjust') total=l.qty;
+  });
+  return Math.max(0,total);
+}
+
+// 원장 탭 렌더
+function renderSheetMgr(){
+  renderSheetSummary();
+  renderSheetLog();
+}
+
+function renderSheetSummary(){
+  const el=document.getElementById('sheet-summary');
+  if(!el) return;
+  el.innerHTML=Object.entries(MAT_TYPES).map(([key,info])=>{
+    const stock=Math.max(0,getSheetStock(key));
+    const isLow=stock<=3;
+    return `<div class="stat" style="border-left:3px solid ${info.color}">
+      <div class="stat-l" style="color:${info.color}">${info.label.split('(')[0]}</div>
+      <div class="stat-v" style="color:${isLow?'var(--acc4)':info.color}">${stock}</div>
+      <div class="stat-s">장 ${isLow?'⚠️ 부족':''}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderSheetLog(){
+  const el=document.getElementById('sheet-log-list');
+  if(!el) return;
+  if(!sheetLog||!sheetLog.length){
+    el.innerHTML='<div class="empty-sm">입출고 기록 없음</div>';return;
+  }
+  const sorted=[...sheetLog].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30);
+  const TL={'in':'입고','out':'출고','adjust':'조정'};
+  const TC={'in':'var(--acc3)','out':'var(--acc4)','adjust':'var(--acc2)'};
+  el.innerHTML=sorted.map(l=>{
+    const info=MAT_TYPES[l.mat];
+    const m=l.modelCode?MODELS.find(x=>x.code===l.modelCode):null;
+    return `<div class="mat-log-row" id="slog-${l.id}">
+      <div style="min-width:70px">
+        <div class="mat-log-date">${l.date.slice(0,10).slice(5).replace('-','/')}</div>
+        <div style="font-size:9px;color:var(--tx3)">${l.date.slice(11,16)||''}</div>
+      </div>
+      <div class="mat-log-info" style="flex:1">
+        <span class="badge" style="background:${info?.bg};color:${info?.color};border:1px solid ${info?.border}">${info?.label.split('(')[0]||l.mat}</span>
+        <span style="font-size:11px;color:var(--tx2);margin-left:4px">${TL[l.type]}</span>
+        ${m?`<div style="font-size:10px;color:var(--tx3);margin-top:2px">${m.short}</div>`:''}
+        ${l.note?`<div style="font-size:10px;color:var(--tx3)">${l.note}</div>`:''}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="mat-log-qty" style="color:${TC[l.type]}">${l.type==='in'?'+':l.type==='out'?'-':'='}${l.qty}장</div>
+        <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px">
+          <button onclick="editSheetLog('${l.id}')" class="icon-btn" style="font-size:12px">✏️</button>
+          <button onclick="deleteSheetLog('${l.id}')" class="icon-btn del" style="font-size:12px">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 원장 입출고 모달
+let sheetModalMat='breeze', sheetModalAction='in', sheetModalQty=0, sheetEditId=null;
+
+function openSheetModal(action='in', mat='breeze'){
+  sheetModalAction=action; sheetModalMat=mat; sheetModalQty=0; sheetEditId=null;
+  document.getElementById('shm-title').textContent=action==='in'?'📦 원장 입고':'📤 원장 출고';
+  document.getElementById('shm-qty').textContent='0';
+  document.getElementById('shm-date').value=todayStr();
+  document.getElementById('shm-time').value=new Date().toTimeString().slice(0,5);
+  document.getElementById('shm-note').value='';
+  // 색상 탭 초기화
+  ['breeze','shade','sahara'].forEach(m=>{
+    const btn=document.getElementById('shm-mat-'+m);
+    if(btn){btn.style.background='';btn.style.color='';btn.style.borderColor='';}
+  });
+  const selInfo=MAT_TYPES[mat];
+  const selBtn=document.getElementById('shm-mat-'+mat);
+  if(selBtn){selBtn.style.background=selInfo.color;selBtn.style.color='#fff';selBtn.style.borderColor=selInfo.color;}
+  document.getElementById('sheet-modal').classList.add('on');
+}
+
+function setSheetMat(mat, btn){
+  sheetModalMat=mat;
+  ['breeze','shade','sahara'].forEach(m=>{
+    const b=document.getElementById('shm-mat-'+m);
+    if(b){b.style.background='';b.style.color='';b.style.borderColor='';}
+  });
+  const info=MAT_TYPES[mat];
+  btn.style.background=info.color;btn.style.color='#fff';btn.style.borderColor=info.color;
+}
+function shmQtyD(d){sheetModalQty=Math.max(0,sheetModalQty+d);document.getElementById('shm-qty').textContent=sheetModalQty;}
+function setShmQ(n){sheetModalQty=n;document.getElementById('shm-qty').textContent=n;}
+
+function confirmSheetModal(){
+  const date=document.getElementById('shm-date').value;
+  const time=document.getElementById('shm-time').value;
+  const note=document.getElementById('shm-note').value.trim();
+  if(!date){showToast('날짜를 입력하세요');return;}
+  if(sheetModalQty<=0){showToast('수량을 입력하세요');return;}
+  const fullDate=date+(time?'T'+time+':00':'T00:00:00');
+  if(sheetEditId){
+    const log=sheetLog.find(l=>l.id===sheetEditId);
+    if(log){log.date=fullDate;log.mat=sheetModalMat;log.type=sheetModalAction;log.qty=sheetModalQty;log.note=note;}
+  } else {
+    sheetLog.push({id:Date.now().toString(),date:fullDate,mat:sheetModalMat,type:sheetModalAction,qty:sheetModalQty,note});
+  }
+  saveSheetData();closeM('sheet-modal');renderSheetMgr();
+  showToast(`✅ 원장 ${sheetModalAction==='in'?'입고':'출고'} ${sheetModalQty}장`);
+}
+
+function editSheetLog(id){
+  const l=sheetLog.find(x=>x.id===id);if(!l)return;
+  sheetEditId=id;sheetModalAction=l.type;sheetModalMat=l.mat;sheetModalQty=l.qty;
+  document.getElementById('shm-title').textContent='✏️ 기록 수정';
+  document.getElementById('shm-qty').textContent=l.qty;
+  document.getElementById('shm-date').value=l.date.slice(0,10);
+  document.getElementById('shm-time').value=l.date.slice(11,16)||'';
+  document.getElementById('shm-note').value=l.note||'';
+  ['breeze','shade','sahara'].forEach(m=>{
+    const b=document.getElementById('shm-mat-'+m);
+    if(b){b.style.background='';b.style.color='';b.style.borderColor='';}
+  });
+  const info=MAT_TYPES[l.mat];
+  const btn=document.getElementById('shm-mat-'+l.mat);
+  if(btn){btn.style.background=info.color;btn.style.color='#fff';btn.style.borderColor=info.color;}
+  document.getElementById('sheet-modal').classList.add('on');
+}
+
+function deleteSheetLog(id){
+  if(!confirm('이 기록을 삭제합니까?'))return;
+  sheetLog=sheetLog.filter(l=>l.id!==id);
+  saveSheetData();renderSheetMgr();showToast('삭제됨');
+}
+
+// 원판 소요량 계산기
+function calcSheetNeeds(){
+  const el=document.getElementById('sheet-calc-result');
+  if(!el)return;
+  // 최근 미반영 발주 기준으로 계산 (조립실 재고 기준)
+  const needs={breeze:{},shade:{},sahara:{}};
+  // 재고 있는 모델 중 조립실 재고 기준 소요 계산 예시
+  // 실제는 발주서 업로드 시 연동
+  el.innerHTML='<div style="font-size:11px;color:var(--tx2)">발주서 업로드 후 소요량이 자동 계산됩니다.</div>';
+}
+
+function saveSheetData(){
+  localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
+  saveAll();
+}
+
+// ── 자재탭 서브탭 전환 ──
+// setMatSub 제거됨 - 자재재고 탭 삭제로 불필요
+
+// 취득수 테이블 렌더
+function renderYieldTable(){
+  const el=document.getElementById('sheet-yield-table');
+  if(!el)return;
+  // 자주 나오는 사이즈 top 20
+  const sizeMap={};
+  MODELS.forEach(m=>{
+    if(!m.glass_w||!m.glass_h)return;
+    const key=m.glass_w+'x'+m.glass_h;
+    if(!sizeMap[key]) sizeMap[key]={w:m.glass_w,h:m.glass_h,total:0};
+    sizeMap[key].total+=m.total_6m;
+  });
+  const sizes=Object.values(sizeMap).sort((a,b)=>b.total-a.total).slice(0,15);
+  el.innerHTML=`<div style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:1px;background:var(--b1);border-radius:8px;overflow:hidden;font-size:11px">
+    <div style="background:var(--s2);padding:8px;font-weight:700;color:var(--tx2)">사이즈</div>
+    <div style="background:var(--s2);padding:8px;font-weight:700;text-align:center;color:var(--tx2)">취득수/장</div>
+    <div style="background:var(--s2);padding:8px;font-weight:700;text-align:center;color:var(--tx2)">로스율</div>
+    <div style="background:var(--s2);padding:8px;font-weight:700;text-align:center;color:var(--tx2)">6개월출고</div>
+    ${sizes.map(s=>{
+      const n=calcYield(s.w,s.h);
+      const loss=((1-(s.w*s.h*n)/(SHEET_W*SHEET_H))*100).toFixed(1);
+      const lossColor=parseFloat(loss)>30?'var(--acc4)':parseFloat(loss)>15?'var(--acc2)':'var(--acc3)';
+      return `<div style="background:var(--s1);padding:8px;font-family:'JetBrains Mono',monospace;font-weight:600">${s.w}×${s.h}</div>
+        <div style="background:var(--s1);padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--acc)">${n}개</div>
+        <div style="background:var(--s1);padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;color:${lossColor}">${loss}%</div>
+        <div style="background:var(--s1);padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;color:var(--tx2)">${s.total}장</div>`;
+    }).join('')}
+  </div>`;
+}
+
+// sheetLog 초기화 (전역)
+// sheetLog는 app_template2.html에서 초기화됨
+
+// ══════════════════════════════════════════════════
+//  달력
+// ══════════════════════════════════════════════════
+function moveCalMonth(d){
+  calMonth+=d;
+  if(calMonth>11){calMonth=0;calYear++;}
+  if(calMonth<0){calMonth=11;calYear--;}
+  renderCal();
+}
+
+function renderCal(){
+  const el=document.getElementById('cal-grid');
+  const titleEl=document.getElementById('cal-title');
+  if(!el) return;
+
+  titleEl.textContent=calYear+'년 '+(calMonth+1)+'월';
+
+  const today=todayStr();
+  const firstDay=new Date(calYear,calMonth,1).getDay(); // 0=일
+  const lastDate=new Date(calYear,calMonth+1,0).getDate();
+  const prevLastDate=new Date(calYear,calMonth,0).getDate();
+
+  // 일정 날짜 맵
+  const schDateMap={};
+  schedules.forEach(s=>{
+    if(!schDateMap[s.date]) schDateMap[s.date]=[];
+    schDateMap[s.date].push(s);
+  });
+
+  const CC={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
+  let html='';
+
+  // 이전달 날짜
+  for(let i=0;i<firstDay;i++){
+    const d=prevLastDate-firstDay+1+i;
+    const dateStr=(calYear)+'-'+String(calMonth===0?12:calMonth).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    html+=`<div class="cal-day other-month"><div class="cal-day-num">${d}</div></div>`;
+  }
+
+  // 이번달 날짜
+  for(let d=1;d<=lastDate;d++){
+    const dateStr=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const isToday=dateStr===today;
+    const isSelected=dateStr===calSelectedDate;
+    const dayOfWeek=new Date(calYear,calMonth,d).getDay();
+    const events=schDateMap[dateStr]||[];
+    const numClass=isToday?'today-num':dayOfWeek===0?'sun':dayOfWeek===6?'sat':'';
+
+    const dots=events.slice(0,3).map(s=>`<div class="cal-dot" style="background:${CC[s.cat]||'var(--tx3)'}"></div>`).join('');
+    const chips=events.slice(0,2).map(s=>`<div class="cal-event-chip" style="background:${CC[s.cat]}22;color:${CC[s.cat]}">${s.content.slice(0,6)}</div>`).join('');
+
+    html+=`<div class="cal-day${isToday?' today':''}${isSelected?' selected':''}" onclick="selectCalDate('${dateStr}')">
+      <div class="cal-day-num ${numClass}">${isToday?`<span style="background:var(--acc);color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">${d}</span>`:d}</div>
+      ${events.length>0?`<div class="cal-dot-wrap">${dots}</div>${chips}`:''}
+    </div>`;
+  }
+
+  // 다음달 날짜
+  const remaining=(7-((firstDay+lastDate)%7))%7;
+  for(let d=1;d<=remaining;d++){
+    html+=`<div class="cal-day other-month"><div class="cal-day-num">${d}</div></div>`;
+  }
+
+  el.innerHTML=html;
+  renderCalDayDetail(calSelectedDate);
+}
+
+function selectCalDate(dateStr){
+  calSelectedDate=dateStr;
+  // 선택 표시 업데이트
+  document.querySelectorAll('.cal-day').forEach(el=>el.classList.remove('selected'));
+  renderCal();
+}
+
+function renderCalDayDetail(dateStr){
+  const el=document.getElementById('cal-day-detail');
+  if(!el) return;
+  const events=schedules.filter(s=>s.date===dateStr);
+  const d=new Date(dateStr+'T00:00:00');
+  const dateLabel=d.toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+  const CC={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
+  const CL={work:'작업',delivery:'납품',order:'발주',etc:'기타'};
+
+  if(!events.length){
+    el.innerHTML=`<div style="padding:10px 0;font-size:12px;color:var(--tx3);border-top:1px solid var(--b1)">${dateLabel} — 일정 없음 <button onclick="openSchModalWithDate('${dateStr}')" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline">+ 추가</button></div>`;
+    return;
+  }
+
+  el.innerHTML=`<div style="border-top:1px solid var(--b1);padding-top:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:700">${dateLabel}</div>
+      <button onclick="openSchModalWithDate('${dateStr}')" style="padding:3px 10px;background:var(--acc2);border:none;border-radius:12px;color:#0d1117;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">+ 추가</button>
+    </div>
+    ${events.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--s2);border-radius:8px;margin-bottom:5px;border-left:3px solid ${CC[s.cat]}">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600">${s.content}</div>
+        <div style="font-size:10px;color:var(--tx3)">${CL[s.cat]}</div>
+      </div>
+      <button onclick="deleteSch('${s.id}')" class="icon-btn del" style="font-size:12px">🗑</button>
+      <button onclick="editSch('${s.id}')" class="icon-btn" style="font-size:12px">✏️</button>
+    </div>`).join('')}
+  </div>`;
+}
+
+function openSchModalWithDate(dateStr){
+  editSchId=null;
+  schCat='work';
+  document.getElementById('sm-date').value=dateStr;
+  document.getElementById('sm-content').value='';
+  const pin=document.getElementById('sm-pin'); if(pin)pin.checked=false;
+  document.getElementById('sch-modal-title').textContent='📅 일정 추가';
+  document.getElementById('sch-confirm-btn').textContent='✓ 저장';
+  setSchCat('work',document.getElementById('scat-work'));
+  document.getElementById('sch-modal').classList.add('on');
+}
+
+// ── 수량 누적 버튼 함수 ──
+function _updEl(id, val){ const el=document.getElementById(id); if(el) el.value=val; }
+
+// 작업 모달
+function addWQ(n){ wQty=Math.max(0,(wQty||0)+n); _updEl('wm-qty',wQty); }
+function wQtyD(d){ wQty=Math.max(0,(wQty||0)+d); _updEl('wm-qty',wQty); }
+function setWQ(n){ wQty=n; _updEl('wm-qty',n); }
+
+// 재고 모달
+function addSQ(n){ sQty=Math.max(0,(sQty||0)+n); _updEl('sm-qty',sQty); }
+function sQtyD(d){ sQty=Math.max(0,(sQty||0)+d); _updEl('sm-qty',sQty); }
+function setSQ(n){ sQty=n; _updEl('sm-qty',n); }
+
+// 잉크 모달
+function addIQ(n){ inkQty=Math.max(0,(inkQty||0)+n); _updEl('im-qty',inkQty); }
+function inkQtyD(d){ inkQty=Math.max(0,(inkQty||0)+d); _updEl('im-qty',inkQty); }
+function setIQ(n){ inkQty=n; _updEl('im-qty',n); }
+
+// 원장 모달
+function addShmQ(n){ sheetModalQty=Math.max(0,(sheetModalQty||0)+n); _updEl('shm-qty',sheetModalQty); }
+function shmQtyD(d){ sheetModalQty=Math.max(0,(sheetModalQty||0)+d); _updEl('shm-qty',sheetModalQty); }
+function setShmQ(n){ sheetModalQty=n; _updEl('shm-qty',n); }
+
+// 자재 모달
+function addMMQ(n){ matModalQty=Math.max(0,(matModalQty||0)+n); _updEl('mm-qty',matModalQty); }
+function mmQtyD(d){ matModalQty=Math.max(0,(matModalQty||0)+d); _updEl('mm-qty',matModalQty); }
+function setMMQ(n){ matModalQty=n; _updEl('mm-qty',n); }
+
+
+// ══════════════════════════════════════════════════
+//  발주 분석
+// ══════════════════════════════════════════════════
+let analysisFilter='all';
+
+function setAnalysisFilter(f,btn){
+  analysisFilter=f;
+  document.querySelectorAll('#analysis-model-filters .f-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderAnalysis();
+}
+
+let odStatPeriod=1; // 1=이번달, 3, 6, 0=전체
+function setOdStatPeriod(n,btn){
+  odStatPeriod=n;
+  document.querySelectorAll('[id^="ods-p-"]').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  renderOdStat();
+}
+
+function renderOdStat(){
+  const host=document.getElementById('od-stat-body');
+  if(!host) return;
+  const orders=(typeof orderLog!=='undefined'?orderLog:[]);
+  if(!orders.length){
+    host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:18px">아직 앱에서 기록한 발주가 없어요.<br>발주 탭에서 발주서를 작성·기록하면 여기에 통계가 쌓여요.</div>';
+    return;
+  }
+  // 기간 필터: 최근 N개월 (이번달 포함). 0이면 전체.
+  const now=new Date();
+  let cutoff=null;
+  if(odStatPeriod>0){
+    cutoff=new Date(now.getFullYear(), now.getMonth()-(odStatPeriod-1), 1); // N개월 전 1일
+  }
+  const inRange=o=>{
+    if(!cutoff) return true;
+    const d=new Date((o.date||o.createdAt||'').slice(0,10));
+    return !isNaN(d) && d>=cutoff;
+  };
+  const sel=orders.filter(inRange);
+  // 집계
+  let totalQty=0, totalLines=0;
+  const byMonth={}, byVendor={}, byModel={}, byCat={};
+  sel.forEach(o=>{
+    const ym=(o.date||o.createdAt||'').slice(0,7)||'기타';
+    (o.items||[]).forEach(it=>{
+      const q=parseInt(it.qty)||0;
+      totalQty+=q; totalLines++;
+      byMonth[ym]=(byMonth[ym]||0)+q;
+      byVendor[o.vendor||'(미지정)']=(byVendor[o.vendor||'(미지정)']||0)+q;
+      byCat[o.cat||'유리']=(byCat[o.cat||'유리']||0)+q;
+      const key=(it.pname||'(품명없음)')+(it.w&&it.h?` ${it.w}×${it.h}`:'');
+      byModel[key]=(byModel[key]||0)+q;
+    });
+  });
+  const won=n=>n.toLocaleString('ko-KR');
+  const periodLabel=odStatPeriod===1?'이번 달':odStatPeriod===0?'전체 기간':`최근 ${odStatPeriod}개월`;
+
+  // 상단 요약
+  let html=`<div style="display:flex;gap:8px;margin-bottom:12px">
+    <div style="flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:var(--tx3)">${periodLabel} 발주건</div>
+      <div style="font-size:18px;font-weight:900;color:var(--acc3)">${sel.length}<span style="font-size:11px;font-weight:400">건</span></div>
+    </div>
+    <div style="flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:var(--tx3)">총 수량</div>
+      <div style="font-size:18px;font-weight:900;color:var(--acc)">${won(totalQty)}<span style="font-size:11px;font-weight:400">장</span></div>
+    </div>
+    <div style="flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:10px;text-align:center">
+      <div style="font-size:10px;color:var(--tx3)">품목 줄</div>
+      <div style="font-size:18px;font-weight:900;color:var(--tx1)">${totalLines}<span style="font-size:11px;font-weight:400">개</span></div>
+    </div>
+  </div>`;
+
+  // 월별 막대
+  const yms=Object.keys(byMonth).sort();
+  if(yms.length){
+    const mx=Math.max(...yms.map(m=>byMonth[m]),1);
+    html+='<div style="font-size:11px;font-weight:700;margin:6px 0 4px">월별 발주 수량</div><div style="display:flex;gap:4px;align-items:flex-end;padding:4px 0 2px">';
+    html+=yms.map(m=>{
+      const v=byMonth[m];
+      const h=Math.max(Math.round(v/mx*60),v>0?4:0);
+      return `<div style="flex:1;text-align:center">
+        <div style="font-size:9px;color:var(--tx2);font-family:'JetBrains Mono',monospace">${won(v)}</div>
+        <div style="height:60px;display:flex;align-items:flex-end;justify-content:center"><div style="width:70%;background:var(--acc3);border-radius:3px 3px 0 0;height:${h}px"></div></div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:2px">${m.slice(2).replace('-','/')}</div>
+      </div>`;
+    }).join('');
+    html+='</div>';
+  }
+
+  // 대분류별
+  const cats=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  if(cats.length>1 || (cats.length===1 && cats[0][0]!=='유리')){
+    html+='<div style="font-size:11px;font-weight:700;margin:12px 0 4px">대분류별</div>';
+    html+=cats.map(c=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--b1)"><span>${c[0]}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">${won(c[1])}장</span></div>`).join('');
+  }
+
+  // 발주처별
+  const vendors=Object.entries(byVendor).sort((a,b)=>b[1]-a[1]);
+  if(vendors.length){
+    html+='<div style="font-size:11px;font-weight:700;margin:12px 0 4px">발주처별</div>';
+    html+=vendors.map(v=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--b1)"><span>${v[0]}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">${won(v[1])}장</span></div>`).join('');
+  }
+
+  // 많이 발주한 품목 TOP 10
+  const models=Object.entries(byModel).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(models.length){
+    html+='<div style="font-size:11px;font-weight:700;margin:12px 0 4px">많이 발주한 품목 TOP 10</div>';
+    html+=models.map((m,i)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--b1)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:var(--tx3)">${i+1}.</span> ${m[0]}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;flex-shrink:0;margin-left:8px">${won(m[1])}장</span></div>`).join('');
+  }
+
+  host.innerHTML=html;
+}
+
+function renderAnalysis(){
+  renderOdStat();
+  renderWeekStat();
+  renderWeekPattern();
+  renderWkExample();
+  const el=document.getElementById('analysis-list');
+  if(!el||typeof ANALYSIS==='undefined') return;
+
+  const q=(document.getElementById('analysis-search')?.value||'').toLowerCase();
+  let list=[...ANALYSIS];
+
+  if(q) list=list.filter(a=>a.code.toLowerCase().includes(q)||a.short.toLowerCase().includes(q));
+  if(analysisFilter==='high')  list=list.filter(a=>a.avg_monthly>=10);
+  if(analysisFilter==='mid')   list=list.filter(a=>a.avg_monthly>=5&&a.avg_monthly<10);
+  if(analysisFilter==='low')   list=list.filter(a=>a.avg_monthly<5);
+  if(analysisFilter==='WC')    list=list.filter(a=>a.color==='WC');
+  if(analysisFilter==='ETP')   list=list.filter(a=>a.color==='ETP');
+
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-ico">📊</div>데이터 없음</div>';return;}
+
+  const MONTHS_LOCAL=typeof MONTHS!=='undefined'?MONTHS:[];
+  const monthShort=MONTHS_LOCAL.map(m=>m.slice(2,4)+'/'+m.slice(5,7));
+
+  el.innerHTML=list.slice(0,100).map(a=>{
+    const freqColor=a.avg_monthly>=10?'var(--acc4)':a.avg_monthly>=5?'var(--acc2)':'var(--acc)';
+    const freqLabel=a.avg_monthly>=10?'고빈도':a.avg_monthly>=5?'중빈도':'저빈도';
+    const sz=a.glass_w?`${a.glass_w}×${a.glass_h}`:'';
+
+    // 월별 바 차트
+    const vals=MONTHS_LOCAL.map(m=>a.monthly[m]||0);
+    const mx=Math.max(...vals,1);
+    const bars=vals.map((v,i)=>`
+      <div style="flex:1;text-align:center">
+        <div style="height:32px;display:flex;align-items:flex-end;justify-content:center">
+          <div style="width:100%;background:${v===0?'var(--b2)':'var(--acc)'};border-radius:2px 2px 0 0;height:${Math.max(Math.round(v/mx*32),v>0?3:0)}px;opacity:.8"></div>
+        </div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:2px">${monthShort[i]||''}</div>
+        <div style="font-size:9px;color:var(--tx2);font-family:'JetBrains Mono',monospace">${v||''}</div>
+      </div>`).join('');
+
+    return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;margin-bottom:3px">${hlName(a.short,a.color)}</div>
+          <div style="font-size:10px;color:var(--tx2)">${a.code} ${sz?'| 📐 '+sz:''} ${colorBadge(a.color)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:10px">
+          <span class="badge" style="background:${freqColor}22;color:${freqColor}">${freqLabel}</span>
+        </div>
+      </div>
+      <!-- 통계 -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:8px">
+        <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center">
+          <div style="font-size:9px;color:var(--tx3)">6개월 합계</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--acc2)">${a.total_6m}</div>
+        </div>
+        <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center">
+          <div style="font-size:9px;color:var(--tx3)">월평균</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:${freqColor}">${a.avg_monthly}</div>
+        </div>
+        <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center">
+          <div style="font-size:9px;color:var(--tx3)">최소</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--tx2)">${a.min_monthly}</div>
+        </div>
+        <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center">
+          <div style="font-size:9px;color:var(--tx3)">최대</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--acc4)">${a.max_monthly}</div>
+        </div>
+      </div>
+      <!-- 월별 바차트 -->
+      <div style="display:flex;gap:3px;align-items:flex-end">${bars}</div>
+    </div>`;
+  }).join('');
+
+  if(list.length>100) el.innerHTML+=`<div style="text-align:center;padding:12px;color:var(--tx3);font-size:12px">필터로 범위를 좁혀보세요 (총 ${list.length}개)</div>`;
+}
+
+// ══════════════════════════════════════════════════
+//  📅 주차별 누적 (납품서 delivLog · 발주일 기준)
+// ══════════════════════════════════════════════════
+let wkView='total';     // 'total' | 'size'
+let wkMonths=3;         // 3,6,12,0(전체)
+
+function setWkView(v,btn){
+  wkView=v;
+  document.querySelectorAll('#wkv-total,#wkv-size').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  const srch=document.getElementById('wk-size-search');
+  if(srch) srch.style.display = (v==='size')?'block':'none';
+  renderWeekStat();
+}
+function setWkMonths(n,btn){
+  wkMonths=n;
+  document.querySelectorAll('#wkp-3,#wkp-6,#wkp-12,#wkp-0').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  renderWeekStat(); renderWeekPattern(); renderWkExample();
+}
+
+// 달력주: 1~7=1주, 8~14=2주, 15~21=3주, 22~28=4주, 29~31=5주
+function _weekOfMonth(ymd){ const day=parseInt(ymd.slice(8,10),10); return Math.floor((day-1)/7)+1; }
+function _wkLabel(w){ return w+'주'; }
+function _wkRange(w){ return ['1~7','8~14','15~21','22~28','29~31'][w-1]||''; }
+
+// delivLog → 발주일 기준 주차 집계
+// 반환: { months:[ym...], data:{ ym:{ 1:{total,bySize:{key:{label,qty}}}, ... } }, monthTotals:{ym:total} }
+function buildWeekAgg(){
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  const out={}; const monthTotals={};
+  // 기간 컷오프
+  let cutoff='';
+  if(wkMonths>0){
+    const now=new Date();
+    const c=new Date(now.getFullYear(), now.getMonth()-(wkMonths-1), 1);
+    cutoff=c.toISOString().slice(0,7); // YYYY-MM
+  }
+  log.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return; // AS 제외
+    const dt=d.orderDate||d.delivReqDate; // 발주일 우선
+    if(!dt||dt.length<10) return;
+    const ym=dt.slice(0,7);
+    if(cutoff && ym<cutoff) return;
+    const wk=_weekOfMonth(dt);
+    out[ym]=out[ym]||{};
+    out[ym][wk]=out[ym][wk]||{total:0,bySize:{}};
+    monthTotals[ym]=monthTotals[ym]||0;
+    (d.items||[]).forEach(it=>{
+      const q=it.qty||0; if(!q) return;
+      out[ym][wk].total+=q;
+      monthTotals[ym]+=q;
+      // 사이즈/모델 키
+      let key, label;
+      const m=(typeof findModel==='function')?findModel(it.code):null;
+      if(m && m.glass_w && m.glass_h){ key=`${m.glass_w}x${m.glass_h}`; label=`${m.glass_w}×${m.glass_h} ${it.short||m.short||''}`.trim(); }
+      else if(it.size){ const s=String(it.size).replace(/[×x*]/g,'x'); key=s; label=`${s} ${it.short||''}`.trim(); }
+      else { key=(it.short||it.code||'기타'); label=key; }
+      out[ym][wk].bySize[key]=out[ym][wk].bySize[key]||{label,qty:0};
+      out[ym][wk].bySize[key].qty+=q;
+    });
+  });
+  const months=Object.keys(out).sort();
+  return {months, data:out, monthTotals};
+}
+
+function _ymKor(ym){ return ym.slice(0,4)+'.'+ym.slice(5,7); }
+
+function renderWeekStat(){
+  const host=document.getElementById('wk-stat-body'); if(!host) return;
+  const agg=buildWeekAgg();
+  if(!agg.months.length){
+    host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:18px">집계할 납품서가 없어요.<br>납품서 탭에서 PDF를 올리면 발주일 기준으로 주차가 쌓여요.</div>';
+    return;
+  }
+  // 최신 월이 위로
+  const months=[...agg.months].reverse();
+  if(wkView==='total'){
+    host.innerHTML=months.map(ym=>{
+      const wks=agg.data[ym];
+      const mTot=agg.monthTotals[ym]||0;
+      // 1~5주 막대
+      const weekVals=[1,2,3,4,5].map(w=>wks[w]?wks[w].total:0);
+      const mx=Math.max(...weekVals,1);
+      const peakWk=weekVals.indexOf(Math.max(...weekVals))+1;
+      const bars=weekVals.map((v,i)=>{
+        const w=i+1; const isPeak=(v>0&&w===peakWk);
+        return `<div style="flex:1;text-align:center">
+          <div style="height:48px;display:flex;align-items:flex-end;justify-content:center">
+            <div style="width:78%;background:${v===0?'var(--b2)':(isPeak?'var(--acc2)':'var(--acc5)')};border-radius:3px 3px 0 0;height:${Math.max(Math.round(v/mx*48),v>0?4:0)}px"></div>
+          </div>
+          <div style="font-size:9px;color:var(--tx3);margin-top:3px">${w}주</div>
+          <div style="font-size:8px;color:var(--tx3)">${_wkRange(w)}</div>
+          <div style="font-size:11px;color:${isPeak?'var(--acc2)':'var(--tx1)'};font-family:'JetBrains Mono',monospace;font-weight:${isPeak?700:400}">${v||''}</div>
+        </div>`;
+      }).join('');
+      return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:800">${_ymKor(ym)}</div>
+          <div style="font-size:11px;color:var(--tx2)">월 합계 <b style="font-family:'JetBrains Mono',monospace;color:var(--acc5);font-size:14px">${mTot}</b> 장 · 피크 <b style="color:var(--acc2)">${peakWk}주</b></div>
+        </div>
+        <div style="display:flex;gap:4px;align-items:flex-end">${bars}</div>
+      </div>`;
+    }).join('');
+  } else {
+    // 사이즈/모델별 — 검색어 필터
+    const q=(document.getElementById('wk-size-search')?.value||'').toLowerCase().replace(/[×x*\s]/g,'x');
+    host.innerHTML=months.map(ym=>{
+      const wks=agg.data[ym];
+      // 사이즈별로 주차 배열 만들기: {key:{label, w:[1..5]}}
+      const sizeMap={};
+      [1,2,3,4,5].forEach(w=>{
+        if(!wks[w]) return;
+        Object.entries(wks[w].bySize).forEach(([k,o])=>{
+          sizeMap[k]=sizeMap[k]||{label:o.label,w:[0,0,0,0,0],tot:0};
+          sizeMap[k].w[w-1]=o.qty; sizeMap[k].tot+=o.qty;
+        });
+      });
+      let rows=Object.entries(sizeMap);
+      if(q) rows=rows.filter(([k,o])=>k.toLowerCase().replace(/[×x*\s]/g,'x').includes(q)||o.label.toLowerCase().includes(q));
+      rows.sort((a,b)=>b[1].tot-a[1].tot);
+      if(!rows.length) return '';
+      const body=rows.slice(0,40).map(([k,o])=>{
+        const cells=o.w.map((v,i)=>`<td style="text-align:center;padding:3px 2px;font-family:'JetBrains Mono',monospace;font-size:11px;color:${v?'var(--tx1)':'var(--tx3)'}">${v||'·'}</td>`).join('');
+        return `<tr style="border-top:1px solid var(--b1)">
+          <td style="padding:4px 6px;font-size:10.5px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.label}</td>
+          ${cells}
+          <td style="text-align:right;padding:4px 6px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--acc5)">${o.tot}</td>
+        </tr>`;
+      }).join('');
+      return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:800;margin-bottom:6px">${_ymKor(ym)} <span style="font-weight:400;color:var(--tx3);font-size:10px">· 월 ${agg.monthTotals[ym]||0}장</span></div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:340px">
+          <thead><tr style="font-size:9px;color:var(--tx3)">
+            <th style="text-align:left;padding:2px 6px;font-weight:600">사이즈/모델</th>
+            <th style="padding:2px">1주</th><th style="padding:2px">2주</th><th style="padding:2px">3주</th><th style="padding:2px">4주</th><th style="padding:2px">5주</th>
+            <th style="text-align:right;padding:2px 6px;font-weight:600">합계</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table></div>
+        ${rows.length>40?`<div style="font-size:10px;color:var(--tx3);text-align:center;margin-top:6px">상위 40개 표시 (총 ${rows.length}개) · 검색으로 좁혀보세요</div>`:''}
+      </div>`;
+    }).join('')||'<div style="font-size:11px;color:var(--tx3);padding:14px;text-align:center">검색 결과가 없어요.</div>';
+  }
+}
+
+// 📈 주차 패턴 — 같은 주차끼리 평균 → 예상수량
+function renderWeekPattern(){
+  const host=document.getElementById('wk-pattern-body'); if(!host) return;
+  const agg=buildWeekAgg();
+  if(!agg.months.length){ host.innerHTML='<div style="font-size:11px;color:var(--tx3)">데이터가 쌓이면 주차별 평균이 표시됩니다.</div>'; return; }
+  // 각 주차별: 해당 주차가 존재했던 월들의 수량 평균
+  const wkSum=[0,0,0,0,0], wkCnt=[0,0,0,0,0];
+  agg.months.forEach(ym=>{
+    for(let w=1;w<=5;w++){
+      const cell=agg.data[ym][w];
+      // 5주는 29~31일이라 없는 달이 많음 → 존재한 달만 카운트
+      if(cell){ wkSum[w-1]+=cell.total; wkCnt[w-1]++; }
+    }
+  });
+  const nMonths=agg.months.length;
+  const wkAvg=wkSum.map((s,i)=> wkCnt[i]? Math.round(s/wkCnt[i]) : 0);
+  const monthAvg=Math.round(Object.values(agg.monthTotals).reduce((a,b)=>a+b,0)/nMonths);
+  const mx=Math.max(...wkAvg,1);
+  const peak=wkAvg.indexOf(Math.max(...wkAvg))+1;
+  const bars=wkAvg.map((v,i)=>{
+    const w=i+1; const isPeak=(w===peak&&v>0);
+    const share=monthAvg? Math.round(v/monthAvg*100):0;
+    return `<div style="flex:1;text-align:center">
+      <div style="height:50px;display:flex;align-items:flex-end;justify-content:center">
+        <div style="width:76%;background:${v===0?'var(--b2)':(isPeak?'var(--acc2)':'var(--acc)')};border-radius:3px 3px 0 0;height:${Math.max(Math.round(v/mx*50),v>0?4:0)}px"></div>
+      </div>
+      <div style="font-size:9px;color:var(--tx3);margin-top:3px">${w}주</div>
+      <div style="font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:${isPeak?700:400};color:${isPeak?'var(--acc2)':'var(--tx1)'}">${v||'·'}</div>
+      <div style="font-size:8px;color:var(--tx3)">${v?share+'%':''}</div>
+    </div>`;
+  }).join('');
+  host.innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div class="stat" style="flex:1;text-align:center"><div class="stat-l">집계 개월수</div><div class="stat-v" style="font-size:18px">${nMonths}</div></div>
+      <div class="stat" style="flex:1;text-align:center"><div class="stat-l">월 평균 수량</div><div class="stat-v" style="font-size:18px;color:var(--acc5)">${monthAvg}</div></div>
+      <div class="stat" style="flex:1;text-align:center"><div class="stat-l">몰리는 주</div><div class="stat-v" style="font-size:18px;color:var(--acc2)">${peak}주</div></div>
+    </div>
+    <div style="font-size:10px;color:var(--tx2);margin-bottom:6px">주차별 평균 (막대) · % = 월 평균 대비 비중 · <b>다음 달 각 주차 예상치</b>로 봐도 돼요</div>
+    <div style="display:flex;gap:4px;align-items:flex-end;background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:10px 8px">${bars}</div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.5">💡 ${peak}주차에 발주가 가장 몰려요 (평균 ${wkAvg[peak-1]}장). 원유리·잉크는 ${peak>1?peak-1:1}주차 전까지 채워두면 안전해요.</div>
+  `;
+}
+
+// 🎯 예시표 대조 (엑셀 붙여넣기 → 품목별 적중/헛예측 분석)
+function openWkExampleModal(){
+  const now=new Date();
+  document.getElementById('wke-ym').value=now.toISOString().slice(0,7);
+  document.getElementById('wke-week').value='0';
+  document.getElementById('wke-paste').value='';
+  document.getElementById('wke-note').value='';
+  document.getElementById('wke-paste-preview').textContent='';
+  document.getElementById('wk-example-modal').classList.add('on');
+}
+// 붙여넣은 엑셀 텍스트 → [{raw, code, short, qty}]
+// 각 줄에서 마지막 숫자를 수량으로, 코드(영문+숫자 토큰 또는 4자리 숫자)를 추출
+function parseWkPaste(text){
+  const out=[];
+  (text||'').split(/\r?\n/).forEach(line=>{
+    const t=line.trim();
+    if(!t) return;
+    // 헤더로 보이는 줄 스킵
+    if(/^(모델|코드|품목|수량|색상|구분|no\.?)/i.test(t) && !/\d{3,}/.test(t)) return;
+    const cells=t.split(/\t|\s{2,}|,|\|/).map(s=>s.trim()).filter(Boolean);
+    const flat=cells.length>1?cells:t.split(/\s+/);
+    // 수량: 줄에서 마지막으로 나오는 정수
+    let qty=0;
+    for(let i=flat.length-1;i>=0;i--){ const n=flat[i].replace(/[^0-9]/g,''); if(/^\d{1,3}$/.test(flat[i].replace(/,/g,'')) && parseInt(n)>0 && parseInt(n)<1000){ qty=parseInt(n); break; } }
+    // 코드: BUIF/영문+숫자 혼합 토큰 우선, 없으면 4자리 숫자 모델
+    let code='';
+    for(const c of flat){ if(/[A-Za-z]/.test(c) && /\d/.test(c)){ code=c.toUpperCase(); break; } }
+    if(!code){ const fd=flat.find(c=>/^\d{4}$/.test(c)); if(fd) code=fd; }
+    // 표시용 이름: 코드 외 한글/영문 토큰
+    const nameTok=flat.filter(c=>c!==code && !/^\d+$/.test(c)).join(' ').trim();
+    const lk=(typeof delivLookup==='function'&&code)?delivLookup(code):{short:'',color:''};
+    const short=lk.short||nameTok||code;
+    if(!code && !qty) return;
+    out.push({raw:t, code, short, color:lk.color||'', qty});
+  });
+  return out;
+}
+function previewWkPaste(){
+  const items=parseWkPaste(document.getElementById('wke-paste').value);
+  const el=document.getElementById('wke-paste-preview');
+  if(!items.length){ el.textContent=''; return; }
+  const tot=items.reduce((a,i)=>a+i.qty,0);
+  const known=items.filter(i=>i.code).length;
+  el.innerHTML=`✓ ${items.length}개 품목 인식 · 총 ${tot}장 · 코드매칭 ${known}/${items.length}`;
+}
+function confirmWkExample(){
+  const ym=document.getElementById('wke-ym').value;
+  const week=parseInt(document.getElementById('wke-week').value,10);
+  const note=document.getElementById('wke-note').value.trim();
+  const items=parseWkPaste(document.getElementById('wke-paste').value);
+  if(!ym){ showToast('연·월을 입력하세요'); return; }
+  if(!items.length){ showToast('예시표를 붙여넣어 주세요'); return; }
+  const qty=items.reduce((a,i)=>a+i.qty,0);
+  wkExamples.push({id:'wke_'+Date.now(), ym, week, qty, note, items});
+  localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples));
+  closeM('wk-example-modal');
+  renderWkExample();
+  showToast('🎯 예시표 저장됨 ('+items.length+'품목)');
+  if(typeof autoSync==='function') autoSync();
+}
+function delWkExample(id){
+  if(!confirm('이 예시표를 삭제할까요?')) return;
+  wkExamples=wkExamples.filter(e=>e.id!==id);
+  localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples));
+  renderWkExample();
+  if(typeof autoSync==='function') autoSync();
+}
+// 특정 ym/week에서 실제 납품된 코드별 수량 맵
+function _actualMapFor(ym,week){
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  const map={}; let total=0;
+  log.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return;
+    const dt=d.orderDate||d.delivReqDate; if(!dt||dt.length<10) return;
+    if(dt.slice(0,7)!==ym) return;
+    if(week!==0 && _weekOfMonth(dt)!==week) return;
+    (d.items||[]).forEach(it=>{ const c=(it.code||'').toUpperCase(); map[c]=(map[c]||0)+(it.qty||0); total+=(it.qty||0); });
+  });
+  return {map,total};
+}
+function renderWkExample(){
+  const host=document.getElementById('wk-example-body'); if(!host) return;
+  if(!wkExamples.length){ host.innerHTML='<div style="font-size:11px;color:var(--tx3)">＋ 예시 입력으로 엑셀 예시표를 붙여넣어 보세요.</div>'; return; }
+  const rows=[...wkExamples].sort((a,b)=> (b.ym+(''+(9-b.week))).localeCompare(a.ym+(''+(9-a.week))) );
+  host.innerHTML=rows.map(e=>{
+    const wkTxt = e.week===0?'월 전체':e.week+'주';
+    const hasItems = Array.isArray(e.items) && e.items.length;
+    // 구버전(단일 수량) 호환
+    if(!hasItems){
+      const {total:actual}=_actualMapFor(e.ym,e.week);
+      const diff=actual-e.qty; const errPct=e.qty?Math.round(Math.abs(diff)/e.qty*100):(actual?100:0);
+      const hasData=actual>0;
+      const accColor=!hasData?'var(--tx3)':errPct<=10?'var(--acc3)':errPct<=25?'var(--acc2)':'var(--acc4)';
+      const accLabel=!hasData?'실측 없음':errPct<=10?'정확':'오차 '+errPct+'%';
+      return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:9px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:12px;font-weight:700">${_ymKor(e.ym)} · ${wkTxt}</div>
+          <div style="display:flex;align-items:center;gap:8px"><span class="badge" style="background:${accColor}22;color:${accColor}">${accLabel}</span>
+          <button onclick="delWkExample('${e.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px">🗑</button></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">예상</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700">${e.qty}</div></div>
+          <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">실제</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc5)">${hasData?actual:'-'}</div></div>
+          <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">차이</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700">${hasData?(diff>0?'+':'')+diff:'-'}</div></div>
+        </div>${e.note?`<div style="font-size:10px;color:var(--tx3);margin-top:6px">📝 ${e.note}</div>`:''}</div>`;
+    }
+    // 신버전: 품목별 적중 분석
+    const {map:actMap}=_actualMapFor(e.ym,e.week);
+    let hit=0, miss=0, hitQty=0, falseQty=0;
+    const detail=e.items.map(it=>{
+      const code=(it.code||'').toUpperCase();
+      const act = code && actMap[code]!==undefined ? actMap[code] : 0;
+      const isHit = act>0;
+      if(isHit){ hit++; hitQty+=Math.min(it.qty,act); }
+      else { miss++; falseQty+=it.qty; }
+      return {it, act, isHit};
+    });
+    const n=e.items.length;
+    const hitRate=n?Math.round(hit/n*100):0;
+    const faRate=n?Math.round(miss/n*100):0;
+    const rateColor=hitRate>=70?'var(--acc3)':hitRate>=40?'var(--acc2)':'var(--acc4)';
+    const detailRows=detail.map(d=>`<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:4px 0;border-top:1px solid var(--b1)">
+      <span style="color:${d.isHit?'var(--tx2)':'var(--tx3)'}">${d.isHit?'✅':'⬜'} ${d.it.short||d.it.code||'?'}${d.it.code?` <span style="color:var(--tx3)">(${d.it.code})</span>`:''}</span>
+      <span style="font-family:'JetBrains Mono',monospace;color:${d.isHit?'var(--acc3)':'var(--acc4)'}">예${d.it.qty}${d.isHit?` · 실${d.act}`:' · 헛예측'}</span></div>`).join('');
+    return `<div style="background:var(--s1);border:1px solid var(--b1);border-radius:9px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:700">${_ymKor(e.ym)} · ${wkTxt} <span style="color:var(--tx3);font-weight:400">· ${n}품목</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><span class="badge" style="background:${rateColor}22;color:${rateColor}">적중 ${hitRate}%</span>
+        <button onclick="delWkExample('${e.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px">🗑</button></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">적중 품목</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc3)">${hit}</div></div>
+        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">헛예측</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc4)">${miss}</div></div>
+        <div style="background:var(--s2);border-radius:6px;padding:7px;text-align:center"><div style="font-size:9px;color:var(--tx3)">헛예측 수량</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc4)">${falseQty}</div></div>
+      </div>
+      <details style="margin-top:4px"><summary style="font-size:10px;color:var(--acc);cursor:pointer">품목별 상세 보기</summary><div style="margin-top:4px">${detailRows}</div></details>
+      ${e.note?`<div style="font-size:10px;color:var(--tx3);margin-top:6px">📝 ${e.note}</div>`:''}
+      <div style="font-size:9.5px;color:var(--tx3);margin-top:6px;line-height:1.4">💡 헛예측 품목은 미리 만들지 말고 확정 후 생산하면 재고 적체·변색 폐기를 줄일 수 있어요.</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+//  재고 편집 탭
+// ══════════════════════════════════════════════════
+let seFilter='all';
+function setSeFilter(f,btn){
+  seFilter=f;
+  document.querySelectorAll('#sp-stockedit .f-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderStockEdit();
+}
+
+function renderStockEdit(){
+  // 전체 합계
+  let rawTotal=0, printedTotal=0;
+  MODELS.forEach(m=>{
+    const s=getStock(m.code);
+    rawTotal+=s.raw; printedTotal+=s.printed;
+  });
+  const seRaw=document.getElementById('se-raw-total');
+  const sePrinted=document.getElementById('se-printed-total');
+  if(seRaw) seRaw.textContent=rawTotal;
+  if(sePrinted) sePrinted.textContent=printedTotal;
+
+  const el=document.getElementById('se-list');
+  if(!el) return;
+
+  const q=(document.getElementById('se-search')?.value||'').toLowerCase();
+  let ms=[...MODELS];
+  if(q) ms=ms.filter(m=>m.code.toLowerCase().includes(q)||m.short.toLowerCase().includes(q));
+  if(seFilter==='has') ms=ms.filter(m=>{const s=getStock(m.code);return s.raw>0||s.printed>0;});
+  if(seFilter==='WC') ms=ms.filter(m=>m.color==='WC');
+  if(seFilter==='ETP') ms=ms.filter(m=>m.color==='ETP');
+
+  ms.sort((a,b)=>{
+    const as=getStock(a.code),bs=getStock(b.code);
+    const at=as.raw+as.printed, bt=bs.raw+bs.printed;
+    return bt-at||b.total_6m-a.total_6m;
+  });
+
+  if(!ms.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>검색 결과 없음</div>';return;}
+
+  el.innerHTML=ms.map(m=>{
+    const s=getStock(m.code);
+    const sz=m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+    return `<div class="model-card" style="flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div class="mc">${m.code}</div>
+          <div class="mn">${hlName(m.short,m.color)} ${colorBadge(m.color)}</div>
+          <div style="font-size:10px;color:var(--tx2)">${sz}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:10px;color:var(--tx2);margin-bottom:4px">인쇄실 원유리</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onclick="adjustStock('${m.code}','raw',-1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:16px;cursor:pointer;flex-shrink:0">−</button>
+            <div style="flex:1;text-align:center;font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:${s.raw>0?'var(--acc)':'var(--tx3)'}" id="se-raw-${m.code}">${s.raw}</div>
+            <button onclick="adjustStock('${m.code}','raw',1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:16px;cursor:pointer;flex-shrink:0">＋</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--tx2);margin-bottom:4px">조립실 인쇄유리</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onclick="adjustStock('${m.code}','printed',-1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:16px;cursor:pointer;flex-shrink:0">−</button>
+            <div style="flex:1;text-align:center;font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:${s.printed>0?'var(--acc3)':'var(--tx3)'}" id="se-printed-${m.code}">${s.printed}</div>
+            <button onclick="adjustStock('${m.code}','printed',1)" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:16px;cursor:pointer;flex-shrink:0">＋</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="setStockDirect('${m.code}')" style="flex:1;padding:7px;background:var(--acc);border:none;border-radius:6px;color:#fff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">직접 입력</button>
+        <button onclick="clearModelStock('${m.code}')" style="flex:1;padding:7px;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:6px;color:var(--acc4);font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">이 모델 0으로</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function adjustStock(code, type, delta){
+  const s=getStock(code);
+  if(type==='raw') s.raw=Math.max(0,s.raw+delta);
+  else s.printed=Math.max(0,s.printed+delta);
+  stock[code]=s;
+  // 화면 즉시 업데이트
+  const el=document.getElementById('se-'+type+'-'+code);
+  if(el){el.textContent=type==='raw'?s.raw:s.printed;el.style.color=(type==='raw'?s.raw:s.printed)>0?(type==='raw'?'var(--acc)':'var(--acc3)'):'var(--tx3)';}
+  // 합계 업데이트
+  let rawT=0,printT=0;
+  MODELS.forEach(m=>{const st=getStock(m.code);rawT+=st.raw;printT+=st.printed;});
+  const seRaw=document.getElementById('se-raw-total');
+  const sePrinted=document.getElementById('se-printed-total');
+  if(seRaw) seRaw.textContent=rawT;
+  if(sePrinted) sePrinted.textContent=printT;
+  saveAll();autoSync();
+}
+
+function setStockDirect(code){
+  const s=getStock(code);
+  const m=MODELS.find(x=>x.code===code);
+  const raw=prompt(`${m?m.short:code}\n인쇄실 원유리 수량 입력:`, s.raw);
+  if(raw===null) return;
+  const printed=prompt(`조립실 인쇄유리 수량 입력:`, s.printed);
+  if(printed===null) return;
+  stock[code]={raw:Math.max(0,parseInt(raw)||0), printed:Math.max(0,parseInt(printed)||0)};
+  saveAll(); renderStockEdit(); renderDash(); autoSync();
+  showToast('✅ 재고 수정됨');
+}
+
+function clearModelStock(code){
+  const m=MODELS.find(x=>x.code===code);
+  if(!confirm(`${m?m.short:code} 재고를 0으로 초기화합니까?`)) return;
+  stock[code]={raw:0, printed:0};
+  saveAll(); renderStockEdit(); renderDash(); autoSync();
+  showToast('초기화됨');
+}
+
+function resetAllStock(){
+  if(!confirm('⚠️ 전체 재고를 0으로 초기화합니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  stock={};
+  saveAll(); renderStockEdit(); renderDash(); autoSync();
+  showToast('전체 재고 초기화됨');
+}
+
+// ══════════════════════════════════════════════════
+//  작업일지 메인 페이지
+// ══════════════════════════════════════════════════
+let wlMainFilter='all';
+function setWlMainFilter(f,btn){
+  wlMainFilter=f;
+  document.querySelectorAll('#pg-worklog .f-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderWorklogMain();
+}
+
+// renderWorklogMain v1 removed
+
+// ══════════════════════════════════════════════════
+//  납품서 탭
+// ══════════════════════════════════════════════════
+
+function toggleDelivDetail(id, hdr){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  const arrow=hdr.querySelector('.deliv-arrow');
+  if(arrow) arrow.textContent=isOpen?'▼':'▲';
+}
+
+// ══════════════════════════════════════════════════
+//  작업일지 - 인쇄실/조립실 탭 + 납품서 체크리스트
+// ══════════════════════════════════════════════════
+
+let wlRoom = 'print'; // 'print' | 'assembly'
+// checklist: {code, qty, checked} 형태로 오늘 납품서 기반
+let wlChecklist = []; // 오늘 체크리스트 상태
+// postponed: [{code, short, size, qty, fromDate}]
+let wlPostponed = JSON.parse(localStorage.getItem('ybn-wl-postponed')||'[]');
+
+function savePostponed(){
+  localStorage.setItem('ybn-wl-postponed', JSON.stringify(wlPostponed));
+}
+
+function setWlRoom(room, btn){
+  wlRoom = room;
+  document.querySelectorAll('.wl-room-btn').forEach(b=>{
+    b.style.color='var(--tx3)';
+    b.style.borderBottomColor='transparent';
+    b.style.background='none';
+  });
+  btn.style.color = room==='print'?'var(--acc3)':'var(--acc4)';
+  btn.style.borderBottomColor = room==='print'?'var(--acc3)':'var(--acc4)';
+
+  document.getElementById('wl-panel-print').style.display = room==='print'?'block':'none';
+  document.getElementById('wl-panel-assembly').style.display = room==='assembly'?'block':'none';
+
+  if(room==='print') renderWlPrint();
+  else renderWlAssembly();
+}
+
+// ── 인쇄실 패널 렌더 ──
+function renderWlPrint(){
+  renderWlRecommend();
+  renderWlPostponed();
+  renderWlTodayList();
+}
+
+// 납품서 기반 추천 체크리스트
+function renderWlRecommend(){
+  const el = document.getElementById('wl-recommend-list');
+  if(!el) return;
+
+  const td = todayStr();
+
+  // 오늘 납품서 + 미뤄진 항목 합치기
+  // 납품서에서 오늘 또는 가장 최근 납품일 찾기
+  let targetDelivItems = [];
+  if(delivLog && delivLog.length){
+    const _dkey = d => d.delivDate || d.delivReqDate || d.orderDate || '';
+    const sorted = [...delivLog].sort((a,b)=>String(_dkey(b)).localeCompare(String(_dkey(a))));
+    // 오늘 납품일이 있으면 오늘 것, 없으면 가장 최근
+    const target = sorted.find(d=>_dkey(d)===td) || sorted[0];
+    if(target){
+      targetDelivItems = target.items.filter(i=>{
+        // Grace 모델만 (DB에 있는 것)
+        return MODELS.find(m=>m.code===i.code);
+      });
+    }
+  }
+
+  // 체크리스트 초기화 (납품서 기준, 이미 있으면 유지)
+  if(wlChecklist.length === 0 && targetDelivItems.length > 0){
+    wlChecklist = targetDelivItems.map(i=>({
+      code: i.code,
+      short: i.short || (MODELS.find(m=>m.code===i.code)||{}).short || i.code,
+      size: i.size || '',
+      qty: i.qty,
+      checked: false,
+      done: false, // 이미 작업 완료된 것
+    }));
+  }
+
+  // 이미 오늘 작업된 항목 done 표시
+  const td2 = todayStr();
+  const todayLog = workLog.find(d=>d.date===td2);
+  if(todayLog){
+    wlChecklist.forEach(item=>{
+      const worked = todayLog.items.find(i=>i.code===item.code && i.type==='work');
+      if(worked && worked.qty >= item.qty) item.done = true;
+    });
+  }
+
+  if(!wlChecklist.length && !wlPostponed.filter(p=>p.targetDate===td).length){
+    el.innerHTML = `<div class="empty-sm" style="padding:12px 0;text-align:center">
+      오늘 납품서 데이터 없음<br>
+      <span style="font-size:11px;color:var(--tx3)">발주서 엑셀 업로드 후 자동 표시됩니다</span>
+    </div>`;
+    document.getElementById('wl-checklist-actions').style.display='none';
+    return;
+  }
+
+  // 체크된 수량 계산
+  const checkedItems = wlChecklist.filter(i=>i.checked && !i.done);
+  const checkedQty = checkedItems.reduce((a,i)=>a+i.qty, 0);
+
+  // 버튼 영역 표시
+  const actEl = document.getElementById('wl-checklist-actions');
+  const sumEl = document.getElementById('wl-checked-summary');
+  if(checkedItems.length > 0){
+    actEl.style.display='block';
+    if(sumEl) sumEl.textContent = `${checkedItems.length}개 모델 / ${checkedQty}장 선택됨`;
+  } else {
+    actEl.style.display='none';
+  }
+
+  el.innerHTML = wlChecklist.map((item, idx)=>{
+    const m = MODELS.find(x=>x.code===item.code);
+    const dot = m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
+    const doneStyle = item.done ? 'opacity:.4;text-decoration:line-through' : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1);${doneStyle}"
+      onclick="${item.done?'':` toggleWlCheck(${idx})`}">
+      <div style="width:22px;height:22px;border-radius:6px;border:2px solid ${item.checked||item.done?'var(--acc3)':'var(--b2)'};background:${item.checked||item.done?'var(--acc3)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff">
+        ${item.checked||item.done?'✓':''}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${m?hlName(item.short,m.color):item.short||item.code}
+          ${item.done?'<span style="font-size:10px;color:var(--acc3);margin-left:4px">완료</span>':''}
+        </div>
+        <div style="font-size:10px;color:var(--tx2)">${item.code} ${item.size?'| 📐 '+item.size:''}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc2);flex-shrink:0">${item.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleWlCheck(idx){
+  if(!wlChecklist[idx]) return;
+  wlChecklist[idx].checked = !wlChecklist[idx].checked;
+  renderWlRecommend();
+}
+
+function checkAllWork(){
+  wlChecklist.forEach(i=>{ if(!i.done) i.checked=true; });
+  renderWlRecommend();
+}
+
+function uncheckAllWork(){
+  wlChecklist.forEach(i=>{ i.checked=false; });
+  renderWlRecommend();
+}
+
+// 선택 항목 작업 완료 처리
+function confirmCheckedWork(){
+  const checked = wlChecklist.filter(i=>i.checked && !i.done);
+  if(!checked.length){showToast('선택된 항목이 없습니다');return;}
+
+  const td = todayStr();
+  let dl = workLog.find(d=>d.date===td);
+  if(!dl){dl={date:td,items:[]};workLog.push(dl);}
+
+  checked.forEach(item=>{
+    const s = getStock(item.code);
+    stock[item.code] = {raw:Math.max(0,s.raw-item.qty), printed:s.printed+item.qty};
+    const ex = dl.items.find(i=>i.code===item.code && i.type==='work');
+    if(ex) ex.qty+=item.qty;
+    else dl.items.push({code:item.code, qty:item.qty, type:'work'});
+    item.done = true;
+    item.checked = false;
+  });
+
+  meta.lastWork = meta.lastStock = new Date().toISOString();
+  saveAll(); renderWorklogMain(); renderDash(); renderHome(); autoSync();
+  showToast(`✅ ${checked.length}개 모델 / ${checked.reduce((a,i)=>a+i.qty,0)}장 작업 완료`);
+}
+
+// 선택 항목 내일로 미루기
+function postponeCheckedWork(){
+  const checked = wlChecklist.filter(i=>i.checked && !i.done);
+  if(!checked.length){showToast('선택된 항목이 없습니다');return;}
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate()+1);
+  const tomorrowStr = tomorrow.toISOString().slice(0,10);
+
+  checked.forEach(item=>{
+    wlPostponed.push({
+      id: 'wp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+      code: item.code,
+      short: item.short,
+      size: item.size,
+      qty: item.qty,
+      fromDate: todayStr(),
+      targetDate: tomorrowStr,
+    });
+    item.checked = false;
+    // 체크리스트에서 제거
+    item.postponed = true;
+  });
+  wlChecklist = wlChecklist.filter(i=>!i.postponed);
+
+  savePostponed();
+  renderWlPrint();
+  showToast(`📅 ${checked.length}개 항목 내일로 미뤄짐`);
+}
+
+// 미뤄진 작업 렌더
+function renderWlPostponed(){
+  const el = document.getElementById('wl-postponed-list');
+  const card = document.getElementById('wl-postponed-card');
+  if(!el||!card) return;
+
+  const td = todayStr();
+  const todayPostponed = wlPostponed.filter(p=>p.targetDate===td);
+
+  if(!todayPostponed.length){
+    card.style.display='none';
+    return;
+  }
+  card.style.display='block';
+
+  el.innerHTML = todayPostponed.map((p,idx)=>{
+    const m = MODELS.find(x=>x.code===p.code);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--b1)">
+      <div style="font-size:14px">📅</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700">${m?hlName(p.short,m.color):p.short||p.code}</div>
+        <div style="font-size:10px;color:var(--tx3)">${p.fromDate.slice(5).replace('-','/')} 에서 미뤄짐 | ${p.size||''}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--acc2)">${p.qty}장</div>
+      <button onclick="addPostponedToChecklist(${idx})" style="padding:4px 8px;background:var(--acc);border:none;border-radius:6px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;flex-shrink:0">추가</button>
+      <button onclick="dismissPostponed(${idx})" style="padding:4px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function addPostponedToChecklist(idx){
+  const td = todayStr();
+  const todayPostponed = wlPostponed.filter(p=>p.targetDate===td);
+  const p = todayPostponed[idx];
+  if(!p) return;
+  wlChecklist.push({code:p.code, short:p.short, size:p.size, qty:p.qty, checked:false, done:false});
+  // 미뤄진 목록에서 제거
+  const globalIdx = wlPostponed.findIndex(x=>x===p);
+  if(globalIdx>=0) wlPostponed.splice(globalIdx,1);
+  savePostponed();
+  renderWlPrint();
+  showToast('체크리스트에 추가됨');
+}
+
+function dismissPostponed(idx){
+  const td = todayStr();
+  const todayPostponed = wlPostponed.filter(p=>p.targetDate===td);
+  const p = todayPostponed[idx];
+  if(!p) return;
+  const globalIdx = wlPostponed.findIndex(x=>x===p);
+  if(globalIdx>=0) wlPostponed.splice(globalIdx,1);
+  savePostponed();
+  renderWlPostponed();
+}
+
+// 오늘 완료 목록
+function renderWlTodayList(){
+  const el = document.getElementById('wl-today-list');
+  if(!el) return;
+  const td = todayStr();
+  const tl = workLog.find(d=>d.date===td);
+  const normalItems = tl ? tl.items.filter(i=>i.type==='work') : [];
+  if(!normalItems.length){
+    el.innerHTML='<div class="empty-sm" style="padding:8px 0;text-align:center;font-size:11px;color:var(--tx3)">아직 완료된 작업 없음</div>';
+    return;
+  }
+  el.innerHTML = normalItems.map(it=>{
+    const di = wlItemDisplay(it);
+    const colorDot = it.color==='WC'?'var(--wc)':it.color==='ETP'?'var(--etp)':'var(--acc)';
+    const colorTag = it.color ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${it.color==='WC'?'rgba(121,192,255,.2)':'rgba(255,166,87,.2)'};color:${colorDot}">${it.color==='WC'?'웜코튼':'에토프'}</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1)">
+      <div style="width:8px;height:8px;border-radius:50%;background:${colorDot};flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${di.label} ${colorTag} ${it.by?actorBadge(it.by, it.byAt):''}
+        </div>
+        <div style="font-size:10px;color:var(--tx2)">${di.sz}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc3)">${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+    </div>`;
+  }).join('');
+}
+
+// 조립실 패널
+function renderWlAssembly(){
+  const el = document.getElementById('wl-assembly-list');
+  if(!el) return;
+  const td = todayStr();
+  const tl = workLog.find(d=>d.date===td);
+  const assemblyItems = tl ? tl.items.filter(i=>i.type==='defect'&&i.loc==='assembly') : [];
+  if(!assemblyItems.length){
+    el.innerHTML='<div class="empty-sm" style="padding:8px 0;text-align:center;font-size:11px;color:var(--tx3)">오늘 조립실 기록 없음</div>';
+    return;
+  }
+  el.innerHTML = assemblyItems.map(it=>{
+    const m = MODELS.find(x=>x.code===it.code);
+    const sz = m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1)">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--acc4);flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600">${m?hlName(m.short,m.color):it.code}
+          <span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:3px">🚫 ${it.reason||'불량'}</span>
+        </div>
+        <div style="font-size:10px;color:var(--tx2)">${sz}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc4)">-${it.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+    </div>`;
+  }).join('');
+}
+
+// 조립실 불량 모달 열기
+function openWorkModalAssembly(){
+  openWorkModal();
+  setTimeout(()=>setWorkTab('defect'), 50);
+  setTimeout(()=>{
+    const assemblyBtn = document.getElementById('dloc-assembly');
+    if(assemblyBtn) setDefectLoc('assembly', assemblyBtn);
+  }, 100);
+}
+
+// renderWorklogMain 오버라이드
+function renderWorklogMain(){
+  const td = todayStr();
+  const tl = workLog.find(d=>d.date===td);
+  const normalItems = tl ? tl.items.filter(i=>i.type==='work') : [];
+  const defectItems = tl ? tl.items.filter(i=>i.type==='defect') : [];
+  const tw = normalItems.reduce((a,i)=>a+i.qty, 0);
+  const defectTotal = defectItems.reduce((a,i)=>a+i.qty, 0);
+
+  // 색상 집계: sizeKey 방식(color 필드) + 기존 코드 방식 모두 처리
+  const wcQ = normalItems.filter(i=>{
+    if(i.color) return i.color==='WC';
+    const m=MODELS.find(x=>x.code===i.code); return m&&m.color==='WC';
+  }).reduce((a,i)=>a+i.qty,0);
+  const etpQ = normalItems.filter(i=>{
+    if(i.color) return i.color==='ETP';
+    const m=MODELS.find(x=>x.code===i.code); return m&&m.color==='ETP';
+  }).reduce((a,i)=>a+i.qty,0);
+
+  const totalEl = document.getElementById('wl-today-total');
+  if(totalEl) totalEl.innerHTML = tw+'<span style="font-size:13px;margin-left:2px">장</span>'+(defectTotal>0?'<span style="font-size:11px;color:rgba(255,255,255,.7);margin-left:6px">불량 -'+defectTotal+'</span>':'');
+  const dateEl = document.getElementById('wl-today-date');
+  if(dateEl) dateEl.textContent = new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+  const wcEl = document.getElementById('wl-today-wc');
+  const etpEl = document.getElementById('wl-today-etp');
+  if(wcEl) wcEl.textContent = '웜코튼 '+wcQ+'장';
+  if(etpEl) etpEl.textContent = '에토프 '+etpQ+'장';
+  const defEl = document.getElementById('wl-today-defect');
+  if(defEl) defEl.textContent = defectTotal>0 ? '🚫 불량 '+defectTotal+'장' : '';
+
+  if(wlRoom==='print') renderWlPrint();
+  else renderWlAssembly();
+
+  renderWlHistory();
+}
+
+
+// ── 작업일지 아이템 표시 헬퍼 ──
+function wlItemDisplay(it){
+  // sizeKey 기반 (새 방식) - short 필드 우선
+  if(it.sizeKey){
+    const label=it.short||it.sizeLabel||it.sizeKey;
+    const isDefect=it.type==='defect';
+    const color=it.color||'';
+    const colorDot=color==='WC'?'var(--wc)':color==='ETP'?'var(--etp)':'var(--acc)';
+    const dot=isDefect?'var(--acc4)':colorDot;
+    const colorTag=color?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${color==='WC'?'rgba(121,192,255,.2)':'rgba(255,166,87,.2)'};color:${colorDot};margin-left:4px">${color==='WC'?'웜코튼':'에토프'}</span>`:'';
+    return {label, tags:colorTag, dot, sz:'', isDefect, modelName:label};
+  }
+  // 코드 기반 (기존 방식 호환)
+  const m=MODELS.find(x=>x.code===it.code);
+  const isDefect=it.type==='defect';
+  const color=m?m.color:'';
+  const dot=isDefect?'var(--acc4)':color==='WC'?'var(--wc)':color==='ETP'?'var(--etp)':'var(--tx2)';
+  const sz=m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:'';
+  const label=m?m.short:(it.code||'?');
+  const colorTag=color?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${color==='WC'?'rgba(121,192,255,.2)':'rgba(255,166,87,.2)'};color:${dot};margin-left:4px">${color==='WC'?'웜코튼':'에토프'}</span>`:'';
+  return {label, tags:colorTag, dot, sz, isDefect, modelName:m?hlName(m.short,m.color):it.code};
+}
+function renderWlHistory(){
+  const listEl = document.getElementById('wl-main-list');
+  if(!listEl) return;
+
+  const td = todayStr();
+  const now = new Date();
+  const weekAgo = new Date(now-7*86400000).toISOString().slice(0,10);
+
+  let logs = [...workLog].sort((a,b)=>b.date.localeCompare(a.date));
+  if(wlMainFilter==='today') logs = logs.filter(d=>d.date===td);
+  else if(wlMainFilter==='week') logs = logs.filter(d=>d.date>=weekAgo);
+
+  if(!logs.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📝</div>기록 없음</div>';return;}
+
+  const allNormal = workLog.flatMap(d=>d.items.filter(i=>i.type==='work'));
+  const allDefect = workLog.flatMap(d=>d.items.filter(i=>i.type==='defect'));
+  const totalAll = allNormal.reduce((a,i)=>a+i.qty,0);
+  const totalDefect = allDefect.reduce((a,i)=>a+i.qty,0);
+  const totalDays = workLog.filter(d=>d.items.some(i=>i.type==='work')).length;
+
+  // 선택 상태 초기화
+  if(!window.wlChecked) window.wlChecked = new Set();
+
+  const summaryHtml = `
+  <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,var(--s2),var(--s1))">
+    <div style="font-size:11px;font-weight:700;color:var(--tx2);margin-bottom:8px">📊 누적 작업 현황</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <div style="text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--acc3)">${totalAll}</div>
+        <div style="font-size:10px;color:var(--tx2)">총 작업량</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--acc)">${totalDays}</div>
+        <div style="font-size:10px;color:var(--tx2)">작업일수</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--acc4)">${totalDefect}</div>
+        <div style="font-size:10px;color:var(--tx2)">누적 불량</div>
+      </div>
+    </div>
+  </div>`;
+
+  // 일괄 액션 바 (선택 시 표시) + 항상 보이는 전체선택 바
+  const allCheckBarHtml = `
+  <div style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:8px 12px;margin-bottom:10px">
+    <input type="checkbox" id="wl-check-all" onchange="wlToggleAll(this.checked)" style="width:18px;height:18px;accent-color:var(--acc);cursor:pointer">
+    <label for="wl-check-all" style="font-size:12px;font-weight:700;color:var(--tx1);cursor:pointer;flex:1">전체선택</label>
+    <button onclick="wlClearCheck()" style="padding:5px 10px;background:none;border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체해제</button>
+    <span style="font-size:11px;color:var(--tx2)" id="wl-check-status">표시된 ${logs.reduce((a,d)=>a+d.items.length,0)}개 항목</span>
+  </div>`;
+
+  const actionBarHtml = `
+  <div id="wl-bulk-bar" style="display:none;position:sticky;top:0;z-index:10;background:var(--s1);border:1px solid var(--b2);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span id="wl-bulk-count" style="font-size:12px;font-weight:700;color:var(--acc);flex:1;min-width:80px">0개 선택</span>
+    <input type="date" id="wl-bulk-date" style="padding:7px 10px;background:var(--bg);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-family:'Noto Sans KR',sans-serif">
+    <button onclick="wlBulkDate()" style="padding:7px 14px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">📅 날짜변경</button>
+    <button onclick="wlBulkDelete()" style="padding:7px 14px;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.3);border-radius:8px;color:var(--acc4);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">🗑 삭제</button>
+    <button onclick="wlClearCheck()" style="padding:7px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:12px;cursor:pointer">✕ 해제</button>
+  </div>`;
+
+  const cardsHtml = logs.map(day=>{
+    const normalIt = day.items.filter(i=>i.type!=='defect');
+    const defectIt = day.items.filter(i=>i.type==='defect');
+    const dayTotal = normalIt.reduce((a,i)=>a+i.qty,0);
+    const dayDefect = defectIt.reduce((a,i)=>a+i.qty,0);
+    const wc = normalIt.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
+    const etp = normalIt.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
+    const isToday = day.date===td;
+    const dl = fmtDateSafe(day.date);
+
+    return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div style="flex:1;display:flex;align-items:flex-start;gap:8px">
+          <input type="checkbox" class="wl-day-check" data-date="${day.date}" data-count="${day.items.length}"
+            onchange="wlToggleDayAll('${day.date}',${day.items.length},this.checked)"
+            style="width:18px;height:18px;accent-color:var(--acc);cursor:pointer;margin-top:2px;flex-shrink:0">
+          <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700">${isToday?'🟢 ':''} ${dl}</span>
+            <button onclick="editWlDate('${day.date}')" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--acc);cursor:pointer;font-family:'Noto Sans KR',sans-serif">날짜수정</button>
+          </div>
+          <div style="font-size:10px;color:var(--tx2);margin-top:3px">
+            <span style="color:var(--wc)">웜코튼 ${wc}장</span> &nbsp;
+            <span style="color:var(--etp)">에토프 ${etp}장</span>
+            ${dayDefect>0?`&nbsp; <span style="color:var(--acc4)">🚫 불량 ${dayDefect}장</span>`:''}
+          </div>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:900;color:var(--acc3)">${dayTotal}</div>
+          <div style="font-size:10px;color:var(--tx3)">정상작업</div>
+        </div>
+      </div>
+      ${day.items.map((it,itIdx)=>{
+        const m = MODELS.find(x=>x.code===it.code);
+        const ic = it.color||(m&&m.color)||'';
+        const isDefect = it.type==='defect';
+        const dot = isDefect?'var(--acc4)':ic==='WC'?'var(--wc)':ic==='ETP'?'var(--etp)':'var(--tx2)';
+        const sz = m&&m.glass_w?`${m.glass_w}×${m.glass_h}`:(it.sizeKey?it.sizeKey.replace('sz_','').replace('x','×'):'');
+        const isSzOnly = it.short && /^\d+[x×]\d+$/.test(it.short.trim());
+        let modelName = '';
+        if(it.short && !isSzOnly) modelName = it.short;
+        else if(m) modelName = m.short;
+        else if(it.sizeKey){
+          const sgKey = it.sizeKey.replace('sz_','');
+          const sg2 = (typeof SIZE_GROUPS!=='undefined') ? SIZE_GROUPS.find(s=>s.key===sgKey) : null;
+          if(sg2 && sg2.models && sg2.models.length===1) modelName = sg2.models[0];
+        }
+        const nm = modelName ? hlName(modelName,ic) : (sz?`<span style="font-family:'JetBrains Mono',monospace">${sz}</span>`:(it.code||'?'));
+        const colorBg = ic==='WC'?'rgba(121,192,255,.15)':ic==='ETP'?'rgba(255,166,87,.15)':'transparent';
+        const colorTx = ic==='WC'?'var(--wc)':ic==='ETP'?'var(--etp)':'var(--tx3)';
+        const colorLbl = ic==='WC'?'웜코튼':ic==='ETP'?'에토프':'';
+        const ckId = `wlck_${day.date}_${itIdx}`;
+        const isCked = window.wlChecked && window.wlChecked.has(ckId);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--b1);${isCked?'background:rgba(88,166,255,.06);border-radius:6px;padding:10px 6px;':''}">
+          <input type="checkbox" id="${ckId}" ${isCked?'checked':''} onchange="wlToggleCheck('${ckId}',this.checked)"
+            style="width:18px;height:18px;accent-color:var(--acc);flex-shrink:0;cursor:pointer">
+          <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px">
+              ${nm}${isDefect?` <span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 5px;border-radius:6px;margin-left:3px">🚫 ${it.loc==='assembly'?'조립실':'인쇄실'}</span>`:''}
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:2px">
+              ${sz?`<span style="font-size:10px;color:var(--tx3);font-family:'JetBrains Mono',monospace">📐 ${sz}</span>`:''}
+              ${colorLbl&&!isDefect?`<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${colorBg};color:${colorTx};font-weight:600">${colorLbl}</span>`:''}
+              ${it.by?actorBadge(it.by, it.byAt):''}
+              ${(()=>{
+                if(!modelName&&it.sizeKey){
+                  const sgKey2=it.sizeKey.replace('sz_','');
+                  const sg3=(typeof SIZE_GROUPS!=='undefined')?SIZE_GROUPS.find(s=>s.key===sgKey2):null;
+                  if(sg3&&sg3.models&&sg3.models.length>0) return sg3.models.map(mn=>`<span style="font-size:10px;color:var(--tx2);background:var(--s2);border:1px solid var(--b2);border-radius:4px;padding:1px 5px">${mn}</span>`).join('');
+                }
+                return '';
+              })()}
+            </div>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:900;color:${isDefect?'var(--acc4)':'var(--acc3)'};flex-shrink:0">
+            ${isDefect?'-':''}${it.qty}<span style="font-size:10px;color:var(--tx3);font-weight:400">장</span>
+          </div>
+          <div style="display:flex;flex-direction:row;gap:4px;flex-shrink:0">
+            <button onclick="editWlItem('${day.date}',${itIdx})" style="width:32px;height:32px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--acc);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center">✏️</button>
+            <button onclick="deleteWlItem('${day.date}',${itIdx})" style="width:32px;height:32px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:6px;color:var(--acc4);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center">🗑</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+
+  listEl.innerHTML = summaryHtml + allCheckBarHtml + actionBarHtml + cardsHtml;
+
+  // 전체선택 체크박스 상태 갱신
+  _wlSyncMasterCheckbox();
+
+  // 액션바 표시 업데이트
+  wlUpdateBulkBar();
+}
+
+// ── 일괄 선택/액션 함수 ──
+function wlToggleCheck(id, checked){
+  if(!window.wlChecked) window.wlChecked = new Set();
+  if(checked) window.wlChecked.add(id);
+  else window.wlChecked.delete(id);
+  wlUpdateBulkBar();
+  _wlSyncMasterCheckbox();
+}
+
+// 표시된 모든 체크박스를 한 번에 토글
+function wlToggleAll(checked){
+  const boxes = document.querySelectorAll('#wl-main-list input[type="checkbox"][id^="wlck_"]');
+  if(!window.wlChecked) window.wlChecked = new Set();
+  boxes.forEach(b=>{
+    b.checked = checked;
+    const id = b.id;
+    if(checked) window.wlChecked.add(id);
+    else window.wlChecked.delete(id);
+    // 체크된 행 하이라이트 토글
+    const row = b.closest('div[style*="border-top"]');
+    if(row){
+      if(checked){
+        row.style.background = 'rgba(88,166,255,.06)';
+        row.style.borderRadius = '6px';
+        row.style.padding = '10px 6px';
+      } else {
+        row.style.background = '';
+        row.style.borderRadius = '';
+        row.style.padding = '10px 0';
+      }
+    }
+  });
+  // 날짜 단위 체크박스도 모두 토글
+  document.querySelectorAll('.wl-day-check').forEach(b=>{ b.checked = checked; b.indeterminate = false; });
+  wlUpdateBulkBar();
+  const statusEl = document.getElementById('wl-check-status');
+  if(statusEl) statusEl.textContent = checked ? `${boxes.length}개 모두 선택됨` : `표시된 ${boxes.length}개 항목`;
+}
+
+// 특정 날짜의 모든 항목 토글
+function wlToggleDayAll(date, count, checked){
+  if(!window.wlChecked) window.wlChecked = new Set();
+  for(let i=0;i<count;i++){
+    const id = `wlck_${date}_${i}`;
+    const box = document.getElementById(id);
+    if(box){
+      box.checked = checked;
+      const row = box.closest('div[style*="border-top"]');
+      if(row){
+        if(checked){
+          row.style.background = 'rgba(88,166,255,.06)';
+          row.style.borderRadius = '6px';
+          row.style.padding = '10px 6px';
+        } else {
+          row.style.background = '';
+          row.style.borderRadius = '';
+          row.style.padding = '10px 0';
+        }
+      }
+    }
+    if(checked) window.wlChecked.add(id);
+    else window.wlChecked.delete(id);
+  }
+  wlUpdateBulkBar();
+  _wlSyncMasterCheckbox();
+}
+
+// 마스터(전체선택) 체크박스와 날짜 단위 체크박스 상태 동기화
+function _wlSyncMasterCheckbox(){
+  const master = document.getElementById('wl-check-all');
+  const boxes = document.querySelectorAll('#wl-main-list input[type="checkbox"][id^="wlck_"]');
+  if(!boxes.length) return;
+  const checkedCnt = window.wlChecked ? window.wlChecked.size : 0;
+  if(master){
+    if(checkedCnt === 0){ master.checked = false; master.indeterminate = false; }
+    else if(checkedCnt === boxes.length){ master.checked = true; master.indeterminate = false; }
+    else { master.checked = false; master.indeterminate = true; }
+  }
+  // 날짜 단위 체크박스도 동기화
+  document.querySelectorAll('.wl-day-check').forEach(b=>{
+    const date = b.dataset.date;
+    const count = parseInt(b.dataset.count);
+    let cnt = 0;
+    for(let i=0;i<count;i++){ if(window.wlChecked.has(`wlck_${date}_${i}`)) cnt++; }
+    if(cnt === 0){ b.checked = false; b.indeterminate = false; }
+    else if(cnt === count){ b.checked = true; b.indeterminate = false; }
+    else { b.checked = false; b.indeterminate = true; }
+  });
+}
+
+function wlUpdateBulkBar(){
+  const bar = document.getElementById('wl-bulk-bar');
+  const countEl = document.getElementById('wl-bulk-count');
+  if(!bar || !countEl) return;
+  const cnt = window.wlChecked ? window.wlChecked.size : 0;
+  bar.style.display = cnt > 0 ? 'flex' : 'none';
+  countEl.textContent = cnt + '개 선택됨';
+  // 오늘 날짜 기본값
+  const dateInput = document.getElementById('wl-bulk-date');
+  if(dateInput && !dateInput.value) dateInput.value = todayStr();
+}
+
+function wlClearCheck(){
+  window.wlChecked = new Set();
+  renderWlHistory();
+}
+
+function wlBulkDate(){
+  if(!window.wlChecked || !window.wlChecked.size){showToast('선택된 항목이 없습니다');return;}
+  const newDate = document.getElementById('wl-bulk-date')?.value;
+  if(!newDate){showToast('날짜를 선택하세요');return;}
+
+  // ckId 형식: wlck_2026-05-20_0
+  const targets = [...window.wlChecked].map(ckId=>{
+    const parts = ckId.replace('wlck_','').split('_');
+    // 날짜는 YYYY-MM-DD 형식이라 언더스코어가 없음 → parts[0]~[2]가 날짜, 마지막이 인덱스
+    const idx = parseInt(parts[parts.length-1]);
+    const date = parts.slice(0,-1).join('-');
+    return {date, idx};
+  });
+
+  // 날짜 내림차순 인덱스로 처리 (splice 시 인덱스 밀림 방지)
+  const grouped = {};
+  targets.forEach(({date,idx})=>{
+    if(!grouped[date]) grouped[date]=[];
+    grouped[date].push(idx);
+  });
+
+  let newDayLog = workLog.find(d=>d.date===newDate);
+  if(!newDayLog){newDayLog={date:newDate,items:[]};workLog.push(newDayLog);}
+
+  Object.entries(grouped).forEach(([date, idxArr])=>{
+    if(date===newDate) return; // 같은 날짜면 스킵
+    const dayLog = workLog.find(d=>d.date===date);
+    if(!dayLog) return;
+    // 내림차순으로 splice (인덱스 밀림 방지)
+    idxArr.sort((a,b)=>b-a).forEach(idx=>{
+      const it = dayLog.items[idx];
+      if(!it) return;
+      // stockEvents 시간 변경 (eventIds로 추적)
+      if(it.eventIds && it.eventIds.length){
+        const newAtIso = `${newDate}T14:00:00.000Z`;
+        Object.keys(stockEvents).forEach(k=>{
+          stockEvents[k].forEach(e=>{
+            if(it.eventIds.includes(e.id)){
+              e.at = newAtIso;
+            }
+          });
+          // 정렬 다시
+          stockEvents[k].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+        });
+      }
+      // 중복 체크 후 이동
+      const ex = newDayLog.items.find(i=>(i.sizeKey&&i.sizeKey===it.sizeKey||i.code&&i.code===it.code)&&i.color===it.color&&i.type===it.type&&i.short===it.short);
+      if(ex){
+        ex.qty+=it.qty;
+        ex.eventIds = (ex.eventIds||[]).concat(it.eventIds||[]);
+      } else {
+        newDayLog.items.push({...it});
+      }
+      dayLog.items.splice(idx,1);
+    });
+    if(!dayLog.items.length) workLog=workLog.filter(d=>d.date!==date);
+  });
+
+  window.wlChecked = new Set();
+  saveAll(); renderWorklogMain(); autoSync();
+  showToast(`📅 ${window.wlChecked?.size||'선택'} 항목 → ${newDate} 이동됨`);
+}
+
+function wlBulkDelete(){
+  if(!window.wlChecked || !window.wlChecked.size){showToast('선택된 항목이 없습니다');return;}
+
+  const targets = [...window.wlChecked].map(ckId=>{
+    const parts = ckId.replace('wlck_','').split('_');
+    const idx = parseInt(parts[parts.length-1]);
+    const date = parts.slice(0,-1).join('-');
+    return {date, idx};
+  });
+
+  const grouped = {};
+  targets.forEach(({date,idx})=>{
+    if(!grouped[date]) grouped[date]=[];
+    grouped[date].push(idx);
+  });
+
+  Object.entries(grouped).forEach(([date, idxArr])=>{
+    const dayLog = workLog.find(d=>d.date===date);
+    if(!dayLog) return;
+    idxArr.sort((a,b)=>b-a).forEach(idx=>{
+      const it = dayLog.items[idx];
+      if(!it) return;
+      // 재고 복원
+      if(it.sizeKey){
+        const parts2=it.sizeKey.replace('sz_','').split('x');
+        const w=parseInt(parts2[0]),h=parts2[1],col=it.color||"WC";
+        const s=getSzStock(w,h,col);
+        if(it.type==='work') setSzStock(w,h,col,s.raw+it.qty,Math.max(0,s.printed-it.qty));
+        else if(it.type==='defect'){
+          if(it.loc==='assembly') setSzStock(w,h,col,s.raw,s.printed+it.qty);
+          else setSzStock(w,h,col,s.raw+it.qty,s.printed);
+        }
+      } else if(it.code){
+        const s=getStock(it.code);
+        if(it.type==='work') stock[it.code]={raw:s.raw+it.qty,printed:Math.max(0,s.printed-it.qty)};
+      }
+      // 연관된 stockEvents 정리
+      if(it.eventIds && it.eventIds.length){
+        removeStockEventsByIds(it.eventIds);
+      }
+      dayLog.items.splice(idx,1);
+    });
+    if(!dayLog.items.length) workLog=workLog.filter(d=>d.date!==date);
+  });
+
+  const cnt = targets.length;
+  window.wlChecked = new Set();
+  saveAll(); renderWorklogMain(); renderDash(); autoSync();
+  showToast(`🗑 ${cnt}개 삭제됨`);
+}
+
+// ── 작업일지 수정/삭제 ──
+function editWlDate(oldDate){
+  // 날짜 전체 이동: 인라인 날짜 입력 UI 표시
+  const dayLog = workLog.find(d=>d.date===oldDate);
+  if(!dayLog) return;
+
+  // 해당 날짜 카드에 인라인 날짜 입력 표시
+  const cardId = 'datecard-' + oldDate.replace(/-/g,'');
+  const existing = document.getElementById(cardId);
+  if(existing){ existing.remove(); return; }
+
+  const wrap = document.createElement('div');
+  wrap.id = cardId;
+  wrap.style.cssText = 'padding:8px 14px 10px;background:var(--s2);border-top:1px solid var(--b1);display:flex;gap:8px;align-items:center';
+  wrap.innerHTML = `<input type="date" value="${oldDate}" style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:14px;font-family:'Noto Sans KR',sans-serif" id="dateinput-${cardId}">
+    <button onclick="applyWlDateChange('${oldDate}','dateinput-${cardId}')" style="padding:8px 14px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">확인</button>
+    <button onclick="document.getElementById('${cardId}').remove()" style="padding:8px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;cursor:pointer">✕</button>`;
+
+  // 해당 카드 안에 삽입
+  const allCards = document.querySelectorAll('#wl-main-list .card');
+  let targetCard = null;
+  allCards.forEach(card=>{
+    if(card.innerHTML.includes("editWlDate('" + oldDate + "')")) targetCard = card;
+  });
+  if(targetCard) targetCard.appendChild(wrap);
+  else document.getElementById('wl-main-list').prepend(wrap);
+}
+
+function applyWlDateChange(oldDate, inputId){
+  const inputEl = document.getElementById(inputId);
+  if(!inputEl) return;
+  const newDate = inputEl.value;
+  if(!newDate || newDate === oldDate){showToast('날짜가 동일합니다'); return;}
+
+  const dayLog = workLog.find(d=>d.date===oldDate);
+  if(!dayLog) return;
+
+  const existing = workLog.find(d=>d.date===newDate);
+  if(existing){
+    dayLog.items.forEach(it=>{
+      const ex = existing.items.find(i=>(i.code&&i.code===it.code||i.sizeKey&&i.sizeKey===it.sizeKey)&&i.color===it.color&&i.type===it.type);
+      if(ex) ex.qty+=it.qty;
+      else existing.items.push({...it});
+    });
+    workLog = workLog.filter(d=>d.date!==oldDate);
+  } else {
+    dayLog.date = newDate;
+  }
+  saveAll(); renderWorklogMain(); autoSync();
+  showToast('📅 날짜 변경됨: ' + newDate);
+}
+
+// editWlItem v1 removed - using v2 below
+
+function deleteWlItem(date, idx){
+  const dayLog = workLog.find(d=>d.date===date);
+  if(!dayLog || !dayLog.items[idx]) return;
+  const it = dayLog.items[idx];
+
+  // sizeKey 방식 재고 복원
+  if(it.sizeKey){
+    const parts = it.sizeKey.replace('sz_','').split('x');
+    const w=parseInt(parts[0]), h=parts[1];
+    const col = it.color||'WC';
+    const s = getSzStock(w,h,col);
+    if(it.type==='work') setSzStock(w,h,col,s.raw+it.qty,Math.max(0,s.printed-it.qty));
+    else if(it.type==='defect'){
+      if(it.loc==='assembly') setSzStock(w,h,col,s.raw,s.printed+it.qty);
+      else setSzStock(w,h,col,s.raw+it.qty,s.printed);
+    }
+  } else if(it.code){
+    const s = getStock(it.code);
+    if(it.type==='work'){
+      stock[it.code] = {raw: s.raw + it.qty, printed: Math.max(0, s.printed - it.qty)};
+    } else if(it.type==='defect'){
+      if(it.loc==='assembly') stock[it.code] = {raw: s.raw, printed: s.printed + it.qty};
+      else stock[it.code] = {raw: s.raw + it.qty, printed: s.printed};
+    }
+  }
+
+  dayLog.items.splice(idx,1);
+  if(!dayLog.items.length) workLog = workLog.filter(d=>d.date!==date);
+
+  // 연관된 stockEvents 정리
+  if(it.eventIds && it.eventIds.length){
+    removeStockEventsByIds(it.eventIds);
+  }
+
+  saveAll(); renderWorklogMain(); renderDash(); autoSync();
+  showToast('🗑 삭제됨');
+}
+
+// ── 작업일지 제품코드 → 모델명 자동 복구 ──
+// 기존 code 기반 기록을 short+color 기반으로 마이그레이션
+function migrateWorkLogCodes(){
+  if(typeof CODE_MODEL_MAP === 'undefined') return;
+  let changed = false;
+  workLog.forEach(day=>{
+    day.items.forEach(it=>{
+      // code 있고 sizeKey 없는 구 방식 항목만 처리
+      if(it.code && !it.sizeKey){
+        const mapped = CODE_MODEL_MAP[it.code];
+        if(mapped && mapped.short){
+          // DB에서 사이즈 찾기
+          const m = MODELS.find(x=>x.short===mapped.short && x.color===mapped.color);
+          if(m && m.glass_w && m.glass_h){
+            it.sizeKey = `sz_${m.glass_w}x${m.glass_h}`;
+            it.short = mapped.short;
+            it.color = mapped.color;
+            it.sizeLabel = `${m.glass_w}×${m.glass_h}`;
+            changed = true;
+          } else {
+            // MODELS에 없으면 short/color만 설정
+            it.short = mapped.short;
+            it.color = mapped.color;
+            changed = true;
+          }
+        }
+      }
+    });
+  });
+  if(changed){
+    saveAll();
+    console.log('작업일지 코드→모델명 마이그레이션 완료');
+  }
+}
+// 앱 로드 시 자동 실행
+setTimeout(migrateWorkLogCodes, 500);
+
+// ── 작업일지 수정 모달 ──
+let wlEditTarget = null; // {date, idx}
+let wlEditColor = 'WC';
+
+function editWlItem(date, idx){
+  const dayLog = workLog.find(d=>d.date===date);
+  if(!dayLog||!dayLog.items[idx]) return;
+  const it = dayLog.items[idx];
+  wlEditTarget = {date, idx};
+  wlEditColor = it.color || 'WC';
+
+  // 정보 표시
+  const label = it.short || it.sizeLabel || it.code || '?';
+  const infoEl = document.getElementById('wl-edit-info');
+  if(infoEl) infoEl.textContent = label + (it.type==='defect'?' (불량)':'');
+
+  // 날짜
+  document.getElementById('wl-edit-date').value = safeDate(date);
+
+  // 색상 버튼 초기화
+  setEditColor(wlEditColor, document.getElementById(wlEditColor==='WC'?'wl-edit-wc':'wl-edit-etp'));
+
+  // 수량
+  document.getElementById('wl-edit-qty').value = it.qty;
+
+  // 색상없는 항목(불량 등)은 색상 버튼 숨기기
+  const noColor = !it.color;
+  document.getElementById('wl-edit-wc').closest('.q-btn') || true;
+  ['wl-edit-wc','wl-edit-etp'].forEach(id=>{
+    const btn = document.getElementById(id);
+    if(btn) btn.style.display = (it.type==='defect'||noColor) ? 'none' : '';
+  });
+  const colorLbl = document.querySelector('#wl-edit-modal .lbl:nth-of-type(2)');
+
+  document.getElementById('wl-edit-modal').classList.add('on');
+}
+
+function setEditColor(color, btn){
+  wlEditColor = color;
+  document.querySelectorAll('.wc-edit-btn,.etp-edit-btn').forEach(b=>{
+    b.style.background=''; b.style.borderColor=''; b.style.color='';
+  });
+  if(!btn) return;
+  if(color==='WC'){
+    btn.style.background='rgba(121,192,255,.25)';
+    btn.style.borderColor='var(--wc)'; btn.style.color='var(--wc)';
+  } else {
+    btn.style.background='rgba(255,166,87,.25)';
+    btn.style.borderColor='var(--etp)'; btn.style.color='var(--etp)';
+  }
+}
+
+function editQtyD(d){
+  const el=document.getElementById('wl-edit-qty');
+  el.value=Math.max(1,(parseInt(el.value)||1)+d);
+}
+function editQtyAdd(n){
+  const el=document.getElementById('wl-edit-qty');
+  el.value=Math.max(1,(parseInt(el.value)||1)+n);
+}
+
+function confirmWlEdit(){
+  if(!wlEditTarget) return;
+  const {date, idx} = wlEditTarget;
+  const dayLog = workLog.find(d=>d.date===date);
+  if(!dayLog||!dayLog.items[idx]) return;
+
+  const it = dayLog.items[idx];
+  const newDate = document.getElementById('wl-edit-date').value;
+  const newQty = Math.max(1, parseInt(document.getElementById('wl-edit-qty').value)||1);
+  const newColor = it.color ? wlEditColor : (it.color||wlEditColor||'WC');
+
+  // 재고 역산 후 재반영
+  if(it.sizeKey){
+    const parts = it.sizeKey.replace('sz_','').split('x');
+    const w=parseInt(parts[0]), h=parts[1];
+    const oldColor = it.color||'WC';
+
+    if(it.type==='work'){
+      const sOld=getSzStock(w,h,oldColor);
+      setSzStock(w,h,oldColor,sOld.raw+it.qty,sOld.printed-it.qty);
+      const sNew=getSzStock(w,h,newColor);
+      setSzStock(w,h,newColor,sNew.raw-newQty,sNew.printed+newQty);
+    } else if(it.type==='defect'){
+      const sOld=getSzStock(w,h,oldColor);
+      if(it.loc==='print') setSzStock(w,h,oldColor,sOld.raw+it.qty,sOld.printed);
+      else setSzStock(w,h,oldColor,sOld.raw,sOld.printed+it.qty);
+      const sNew=getSzStock(w,h,newColor);
+      if(it.loc==='print') setSzStock(w,h,newColor,sNew.raw-newQty,sNew.printed);
+      else setSzStock(w,h,newColor,sNew.raw,sNew.printed-newQty);
+    }
+
+    // ── stockEvents 동기화: 기존 eventIds 제거 후 새로 추가 ──
+    if(it.eventIds && it.eventIds.length){
+      removeStockEventsByIds(it.eventIds);
+    }
+    const newAtIso = `${newDate}T14:00:00.000Z`;
+    const shortName = it.short || `${w}×${h}`;
+    const colorLbl = newColor==='WC'?'웜코튼':'에토프';
+    const newEventIds = [];
+    if(it.type==='work'){
+      const ev1 = addStockEvent(`${w}x${h}`, {at:newAtIso, type:'print', qty:newQty, note:`인쇄작업 ${shortName} → ${colorLbl}`, source:'worklog'});
+      const ev2 = addStockEvent(`${w}x${h}_${newColor}`, {at:newAtIso, type:'in', qty:newQty, note:`인쇄완료 ${shortName}`, source:'worklog'});
+      newEventIds.push(ev1.id, ev2.id);
+    } else if(it.type==='defect'){
+      if(it.loc==='print'){
+        const ev1 = addStockEvent(`${w}x${h}`, {at:newAtIso, type:'defect', qty:newQty, note:`인쇄실 불량 ${shortName}`, source:'worklog'});
+        newEventIds.push(ev1.id);
+      } else {
+        const ev1 = addStockEvent(`${w}x${h}_${newColor}`, {at:newAtIso, type:'defect', qty:newQty, note:`조립실 불량 ${shortName}`, source:'worklog'});
+        newEventIds.push(ev1.id);
+      }
+    }
+    it.eventIds = newEventIds;
+    it.color = newColor;
+  }
+  it.qty = newQty;
+
+  // 날짜 변경
+  if(newDate !== date){
+    let newDayLog = workLog.find(d=>d.date===newDate);
+    if(!newDayLog){newDayLog={date:newDate,items:[]};workLog.push(newDayLog);}
+    newDayLog.items.push({...it});
+    dayLog.items.splice(idx,1);
+    if(!dayLog.items.length) workLog=workLog.filter(d=>d.date!==date);
+  }
+
+  saveAll(); closeM('wl-edit-modal');
+  renderWorklogMain(); renderDash(); autoSync();
+  showToast('✅ 수정됨');
+}
+
+function deleteWlItemCurrent(){
+  if(!wlEditTarget) return;
+  const {date, idx} = wlEditTarget;
+  closeM('wl-edit-modal');
+  deleteWlItem(date, idx);
+}
+
+// ── 자재 데이터 초기화 ──
+var matStock=JSON.parse(localStorage.getItem('ybn-mat-v1')||'{}');
+var matLog=JSON.parse(localStorage.getItem('ybn-matlog-v1')||'[]');
+var sheetLog=JSON.parse(localStorage.getItem('ybn-sheet-v1')||'[]');
+function saveMatData(){
+  localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
+  localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
+  localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
+}
+// ── 자재탭 포함 네비게이션 재정의 ──
+const MAINS_EXT=['home','todo','board','stock','mat','settings'];
+document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
+  const pages=['home','worklog','stock','order','order-analysis','ledger','vendors','delivery','settings'];
+  btn.onclick=function(){
+    const id=pages[i];
+    curMain=id;
+    document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
+    document.querySelectorAll('.main-nav-btn').forEach(b=>b.classList.remove('on'));
+    document.getElementById('pg-'+id).classList.add('on');
+    this.classList.add('on');
+    const fab=document.getElementById('fab-btn');
+    fab.style.display=(id==='todo'||id==='worklog')?'flex':'none';
+    if(id==='home')renderHome();
+    else if(id==='worklog')renderWorklogMain();
+    else if(id==='delivery')renderDelivery();
+    else if(id==='todo')renderTodo();
+    else if(id==='board'){renderNotices();renderSchedules();renderCal();}
+    else if(id==='stock')renderSub(curSub);
+    else if(id==='mat')renderMat();
+    else if(id==='order')renderOrderPage();
+    else if(id==='order-analysis')renderAnalysis();
+    else if(id==='ledger')renderLedger();
+    else if(id==='vendors')renderVendors();
+    else if(id==='settings')initGsUI();
+  };
+});
+
+// ════════════════════════════════════════════
+// 발주 (Order) 기능
+// ════════════════════════════════════════════
+var orderLog = JSON.parse(localStorage.getItem('ybn-order-v1')||'[]');
+function saveOrderLog(){ localStorage.setItem('ybn-order-v1', JSON.stringify(orderLog)); }
+
+// 발주처별 종류 프리셋
+//  thick: 유리 두께표시 / title: 발주서 제목 / bigo: 비고 자동 / pname: 품명 기본값
+//  modelMode: true면 품명에 모델명 입력 → 사이즈 자동 / sizeMode: true면 사이즈 직접입력
+// 대분류 → 발주처 → 종류(프리셋)
+const OD_CATALOG = {
+  '유리': {
+    '대원유리': [
+      {type:'비규격 (5T투명·한샘장식장)', thick:'5T 투명',   title:'5T 투명',        bigo:'휠/반강화',     pname:'5T 투명',  sizeMode:true,
+         hint:'한샘 장식장에 들어가는 5T 투명유리 · 비고 휠/반강화'},
+      {type:'3T 은경',                    thick:'3T 은경',   title:'3t 은경',        bigo:'각면/후면시트지', pname:'3t 은경', sizeMode:true,
+         hint:'3T 은경 · 비고 각면/후면시트지'},
+      {type:'3T 브론즈경',                 thick:'3T 브론즈경', title:'3t 브론즈경',   bigo:'각면/후면시트지', pname:'3t 브론즈경', sizeMode:true,
+         hint:'3T 브론즈경 · 비고 각면/후면시트지'},
+      {type:'바스 정규격 (백사틴·한샘바스)', thick:'백사틴',    title:'백샤틴(정규격)',  bigo:'각면/강화',     pname:'한샘바스', sizeMode:true,
+         sizes:['293*794','313*446','393*794'],
+         hint:'한샘바스에 들어가는 백사틴 · 비고 각면/강화'},
+      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화',     pname:'',        modelMode:true,
+         hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
+      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화',     pname:'비규격',  sizeMode:true,
+         hint:'3.2T 백사틴 비규격 · 비고 각면/강화'}
+    ],
+    '아름유리': [
+      {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
+      {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T 투명(비산방지필름)', bigo:'비산방지필름', pname:'5T 투명', sizeMode:true, hint:'5T 투명 + 비산방지필름'},
+      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T 브론즈(비산방지필름)', bigo:'비산방지필름', pname:'5T 브론즈', sizeMode:true, hint:'5T 브론즈 + 비산방지필름'}
+    ],
+    '현성유리': [
+      {type:'5T 백유리', thick:'5T 백유리', title:'5T 백유리', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 · 사이즈 직접 입력'}
+    ],
+    '명그라스': [
+      {type:'3.2T 백사틴 정규격 (모델명 자동)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'', modelMode:true,
+         hint:'품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
+      {type:'3.2T 백사틴 비규격 (수기)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'각면/강화', pname:'비규격', sizeMode:true,
+         hint:'3.2T 백사틴 비규격 · 사이즈 직접 입력 · 비고 각면/강화'},
+      {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'}
+    ]
+  },
+  '힌지': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'힌지 발주', bigo:'', pname:'', sizeMode:true, hint:'아직 종류가 등록되지 않았어요. 규격·수량을 직접 입력하거나, 필요한 힌지 종류를 알려주시면 추가해 드릴게요.'}
+    ]
+  },
+  '알판': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'알판 발주', bigo:'', pname:'', sizeMode:true, hint:'아직 종류가 등록되지 않았어요. 규격·수량을 직접 입력하거나, 필요한 알판 종류를 알려주시면 추가해 드릴게요.'}
+    ]
+  },
+  '알루미늄': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'알루미늄 발주', bigo:'', pname:'', sizeMode:true, hint:'아직 종류가 등록되지 않았어요. 규격·수량을 직접 입력하거나, 필요한 알루미늄 종류를 알려주시면 추가해 드릴게요.'}
+    ]
+  },
+  '브라켓': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'브라켓 발주', bigo:'', pname:'', sizeMode:true, hint:'아직 종류가 등록되지 않았어요. 규격·수량을 직접 입력하거나, 필요한 브라켓 종류를 알려주시면 추가해 드릴게요.'}
+    ]
+  },
+  '박스': {
+    '승일포장': [
+      {type:'일반', thick:'', title:'박스 발주', bigo:'', pname:'', sizeMode:true, hint:'규격·수량 직접 입력. 자주 쓰는 박스 종류를 알려주시면 프리셋으로 추가해 드릴게요.'}
+    ]
+  },
+  '목대': {
+    '대연산업': [
+      {type:'일반', thick:'', title:'목대 발주', bigo:'', pname:'', sizeMode:true, hint:'규격·수량 직접 입력. 자주 쓰는 목대 종류를 알려주시면 프리셋으로 추가해 드릴게요.'}
+    ]
+  },
+  '기타용품': {
+    '(거래처 미설정)': [
+      {type:'일반', thick:'', title:'기타용품 발주', bigo:'', pname:'', qtyOnly:true, hint:'매직블럭·테이프·종이컵 등 잡자재. 품명과 수량만 입력하면 돼요 (규격은 비워둬도 됩니다).'}
+    ]
+  }
+};
+
+// 현재 선택된 대분류의 발주처 묶음을 돌려줌 (카탈로그 + 사용자추가 병합)
+function curCat(){ return (document.getElementById('od-cat')||{}).value || '유리'; }
+function curCatVendors(){
+  const cat=curCat();
+  const base=Object.assign({}, OD_CATALOG[cat]||{});
+  // 사용자가 추가한 발주처는 기본 '일반' 종류 하나로 생성
+  (odCustomVendors[cat]||[]).forEach(name=>{
+    if(!base[name]) base[name]=[{type:'일반', thick:'', title:cat+' 발주', bigo:'', pname:'', sizeMode:true, hint:'직접 추가한 발주처 · 규격·수량 직접 입력. 종류(두께·비고 자동 등)가 필요하면 클로드에게 요청하세요.'}];
+  });
+  return base;
+}
+
+function odAddVendor(){
+  const cat=curCat();
+  const name=(prompt(`"${cat}" 대분류에 추가할 발주처 이름을 입력하세요`)||'').trim();
+  if(!name) return;
+  // 중복 체크 (카탈로그 + 사용자추가)
+  const existing=Object.keys(curCatVendors());
+  if(existing.includes(name)){ showToast('이미 있는 발주처예요'); return; }
+  if(!odCustomVendors[cat]) odCustomVendors[cat]=[];
+  odCustomVendors[cat].push(name);
+  saveAll();
+  if(typeof autoSync==='function') autoSync();
+  odCatChanged();
+  // 새로 추가한 발주처 선택
+  const vsel=document.getElementById('od-vendor');
+  vsel.value=name; odVendorChanged();
+  showToast('🏢 발주처 추가됨: '+name);
+}
+
+function odRemoveVendor(){
+  const cat=curCat();
+  const name=document.getElementById('od-vendor').value;
+  if(!(odCustomVendors[cat]||[]).includes(name)){
+    showToast('기본 발주처는 삭제할 수 없어요 (직접 추가한 것만 가능)'); return;
+  }
+  if(!confirm(`"${name}" 발주처를 목록에서 뺄까요? (이미 기록한 발주는 그대로 남아요)`)) return;
+  odCustomVendors[cat]=odCustomVendors[cat].filter(n=>n!==name);
+  saveAll();
+  if(typeof autoSync==='function') autoSync();
+  odCatChanged();
+  showToast('삭제됨');
+}
+
+let odLines = [];
+
+function odCatChanged(){
+  const vendors=curCatVendors();
+  const vsel=document.getElementById('od-vendor');
+  const names=Object.keys(vendors);
+  vsel.innerHTML=names.map(n=>`<option value="${n}">${n}</option>`).join('');
+  odVendorChanged();
+}
+
+function renderOrderPage(){
+  // 대분류 → 발주처 → 종류 채우기
+  odCatChanged();
+  // 날짜 기본 오늘
+  const d=document.getElementById('od-date');
+  if(!d.value) d.value=new Date().toISOString().slice(0,10);
+  if(!odLines.length){ odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}]; }
+  renderOdLines();
+  renderOrderList();
+}
+
+function odVendorChanged(keep){
+  const vendor=document.getElementById('od-vendor').value;
+  const sel=document.getElementById('od-type');
+  const presets=curCatVendors()[vendor]||[];
+  sel.innerHTML=presets.map((p,i)=>`<option value="${i}">${p.type}</option>`).join('');
+  odTypeChanged();
+}
+
+function odTypeChanged(){
+  const {p}=curPreset();
+  if(p){
+    document.getElementById('od-bigo').value=p.bigo||'';
+    document.getElementById('od-type-hint').textContent=p.hint||'';
+    document.getElementById('od-line-hint').textContent=p.modelMode?'모델명 입력 → 사이즈 자동':'규격은 가로*세로 (mm)';
+  }
+  renderOdLines();
+}
+
+function curPreset(){
+  const vendor=document.getElementById('od-vendor').value;
+  const idx=parseInt(document.getElementById('od-type').value)||0;
+  return {vendor, idx, p:(curCatVendors()[vendor]||[])[idx]||{}};
+}
+
+function renderOdLines(){
+  const {p}=curPreset();
+  const modelMode=!!(p&&p.modelMode);
+  // 프리셋 사이즈 빠른추가 버튼
+  const psHost=document.getElementById('od-preset-sizes');
+  if(psHost){
+    if(p && Array.isArray(p.sizes) && p.sizes.length){
+      psHost.innerHTML='<span style="font-size:10px;color:var(--tx3);margin-right:4px">자주 쓰는 사이즈:</span>'+
+        p.sizes.map(sz=>`<button onclick="odAddPresetSize('${sz}')" class="f-btn" style="margin:2px 4px 2px 0">${sz.replace('*','×')}</button>`).join('');
+    } else {
+      psHost.innerHTML='';
+    }
+  }
+  // 모델명 자동완성 목록 채우기 (한 번만 충분하지만 매번 갱신해도 무방)
+  if(modelMode){
+    const dl=document.getElementById('od-model-list');
+    if(dl && !dl.dataset.filled){
+      dl.innerHTML=MODELS.map(m=>`<option value="${m.short}">${m.glass_w}×${m.glass_h}</option>`).join('');
+      dl.dataset.filled='1';
+    }
+  }
+  const host=document.getElementById('od-lines');
+  const qtyOnly=!!(p&&p.qtyOnly);
+  host.innerHTML=odLines.map((ln,i)=>{
+    if(qtyOnly){
+      return `
+      <div style="display:grid;grid-template-columns:1fr 64px auto;gap:6px;align-items:center;margin-bottom:6px">
+        <input value="${(ln.pname||'').replace(/"/g,'&quot;')}" placeholder="품명 (예: 매직블럭, 테이프, 종이컵)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <input type="number" inputmode="numeric" value="${ln.qty}" placeholder="수량" oninput="odLines[${i}].qty=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 4px;text-align:center;font-size:13px">
+        <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
+      </div>`;
+    }
+    if(modelMode){
+      return `
+      <div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:8px;margin-bottom:6px">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+          <input list="od-model-list" value="${ln.pname||''}" placeholder="모델명 입력 (예: OB M 4073)" oninput="odModelInput(${i},this.value)" class="inp" style="margin:0;padding:9px 10px;font-size:13px;flex:1">
+          <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr auto 56px;gap:5px;align-items:center">
+          <input type="number" inputmode="numeric" value="${ln.w}" placeholder="가로" oninput="odLines[${i}].w=this.value;odUpdateCount()" class="inp" style="margin:0;padding:8px 6px;text-align:center;font-size:13px">
+          <span style="color:var(--tx3)">×</span>
+          <input type="number" inputmode="numeric" value="${ln.h}" placeholder="세로" oninput="odLines[${i}].h=this.value;odUpdateCount()" class="inp" style="margin:0;padding:8px 6px;text-align:center;font-size:13px">
+          <span style="color:var(--tx3);font-size:11px">수량</span>
+          <input type="number" inputmode="numeric" value="${ln.qty}" oninput="odLines[${i}].qty=this.value;odUpdateCount()" class="inp" style="margin:0;padding:8px 4px;text-align:center;font-size:13px">
+        </div>
+      </div>`;
+    }
+    return `
+      <div style="display:grid;grid-template-columns:1fr auto 1fr auto 56px auto;gap:5px;align-items:center;margin-bottom:6px">
+        <input type="number" inputmode="numeric" value="${ln.w}" placeholder="가로" oninput="odLines[${i}].w=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 6px;text-align:center;font-size:13px">
+        <span style="color:var(--tx3)">×</span>
+        <input type="number" inputmode="numeric" value="${ln.h}" placeholder="세로" oninput="odLines[${i}].h=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 6px;text-align:center;font-size:13px">
+        <span style="color:var(--tx3);font-size:11px">수량</span>
+        <input type="number" inputmode="numeric" value="${ln.qty}" oninput="odLines[${i}].qty=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 4px;text-align:center;font-size:13px">
+        <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
+      </div>`;
+  }).join('');
+  odUpdateCount();
+}
+
+// 모델명 입력 시 사이즈 자동 채움
+function odModelInput(i, val){
+  odLines[i].pname=val;
+  const m=MODELS.find(x=>x.short===val.trim());
+  if(m && m.glass_w){
+    odLines[i].w=m.glass_w; odLines[i].h=m.glass_h;
+    renderOdLines();
+  } else {
+    odUpdateCount();
+  }
+}
+function odAddLine(){ odLines.push({w:'',h:'',qty:1,pname:'',bigo:''}); renderOdLines(); }
+function odAddPresetSize(sz){
+  const [w,h]=sz.split('*').map(s=>parseInt(s));
+  // 빈 줄이 있으면 거기 채우고, 없으면 새 줄 추가
+  const empty=odLines.find(l=>!l.w&&!l.h);
+  if(empty){ empty.w=w; empty.h=h; if(!empty.qty)empty.qty=1; }
+  else odLines.push({w,h,qty:1,pname:'',bigo:''});
+  renderOdLines();
+}
+function odDelLine(i){ odLines.splice(i,1); if(!odLines.length)odLines.push({w:'',h:'',qty:1}); renderOdLines(); }
+function odUpdateCount(){
+  const valid=odLines.filter(odLineValid);
+  const tot=valid.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
+  document.getElementById('od-livecount').textContent=`품목 ${valid.length}건 · 총수량 ${tot}장`;
+}
+// 유효한 줄: 수량>0 이고 (가로·세로가 있거나 OR 품명이 있음 → 기타용품 대응)
+function odLineValid(l){
+  const q=parseInt(l.qty)||0;
+  if(q<=0) return false;
+  return (l.w&&l.h) || ((l.pname||'').trim()!=='');
+}
+
+function odCollect(){
+  const vendor=document.getElementById('od-vendor').value;
+  const cat=(document.getElementById('od-cat')||{}).value||'유리';
+  const {p}=curPreset();
+  const date=document.getElementById('od-date').value||new Date().toISOString().slice(0,10);
+  const due=(document.getElementById('od-due').value||'').trim();
+  const bigo=(document.getElementById('od-bigo').value||'').trim();
+  const client=(document.getElementById('od-client').value||'').trim();
+  const items=odLines.filter(odLineValid).map(l=>({
+    w:parseInt(l.w)||0, h:parseInt(l.h)||0, qty:parseInt(l.qty)||0,
+    pname:((l.pname||p.pname||'')+'').trim(), bigo:bigo
+  }));
+  return {vendor, cat, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, items};
+}
+
+// ── 발주서 행렬(AOA) 생성 — 양식 구조 그대로 ──
+function odBuildAOA(o){
+  const rows=[];
+  rows.push(['','         발 주 서 (PURCHASE ORDER)']);
+  rows.push([]);
+  rows.push(['','수      신 :','','대원유리'===o.vendor?o.vendor:o.vendor,'','','','','㈜ 와이비 앤 디 YB & D']);
+  rows.push(['','발 주  일 :','',o.date,'','','','','인천시 남동구  남동대로 370번지 57-51']);
+  rows.push(['','참      조 :','','','','','','','남동공단 35블럭7롯트 신원 휄트 내 5동']);
+  rows.push(['','F   a   x :','','','','','','','TEL  032) 821-0247~8  FAX  032) 821-0249']);
+  rows.push([]);
+  rows.push(['', o.title]);
+  rows.push([]);
+  const hasClient=!!o.client;
+  const hdr=['','NO','품       명','','규       격','','','수량','납기','비고'];
+  if(hasClient) hdr.push('업체명');
+  rows.push(hdr);
+  let tot=0;
+  o.items.forEach((it,i)=>{
+    tot+=it.qty;
+    const r=['',i+1,it.pname,'',(it.w&&it.h)?`${it.w}*${it.h}`:'','','',it.qty,o.due,it.bigo];
+    if(hasClient) r.push(o.client);
+    rows.push(r);
+  });
+  rows.push([]);
+  rows.push(['','총 수량','','','','','',tot]);
+  return rows;
+}
+
+function odMakeExcel(){
+  const o=odCollect();
+  if(!o.items.length){ showToast('품목을 입력하세요'); return; }
+  const aoa=odBuildAOA(o);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:3},{wch:11},{wch:11},{wch:11},{wch:11},{wch:8},{wch:4},{wch:7},{wch:11},{wch:14},{wch:10}];
+  const wb=XLSX.utils.book_new();
+  const safeName=`${o.vendor}(${o.type})`.replace(/[\\\/\*\?\[\]:]/g,'').slice(0,31);
+  XLSX.utils.book_append_sheet(wb,ws,safeName);
+  const fn=`${o.vendor}_발주서_${o.date.replace(/-/g,'')}.xlsx`;
+  XLSX.writeFile(wb,fn);
+  showToast('📊 엑셀 저장됨');
+}
+
+// ── 카톡용 이미지: 발주서를 HTML 표로 그려 클립보드에 복사 ──
+function odRenderCapture(o){
+  const tot=o.items.reduce((s,it)=>s+it.qty,0);
+  const hasClient=!!o.client;
+  const host=document.getElementById('od-capture-host');
+  const td='border:1px solid #333;padding:7px';
+  const rowsHtml=o.items.map((it,i)=>`
+    <tr>
+      <td style="${td}">${i+1}</td>
+      <td style="${td}">${it.pname||''}</td>
+      <td style="${td};font-weight:700">${(it.w&&it.h)?`${it.w}*${it.h}`:''}</td>
+      <td style="${td};font-weight:700">${it.qty}</td>
+      <td style="${td}">${o.due||''}</td>
+      <td style="${td}">${it.bigo||''}</td>
+      ${hasClient?`<td style="${td}">${o.client}</td>`:''}
+    </tr>`).join('');
+  const titleLine=o.thick?`${o.title}`:o.title;
+  host.innerHTML=`
+   <div id="od-capture" style="width:720px;padding:28px 32px;background:#fff;color:#111;font-family:'Noto Sans KR',sans-serif">
+     <div style="text-align:center;font-size:26px;font-weight:900;letter-spacing:6px;margin-bottom:18px">발 주 서 (PURCHASE ORDER)</div>
+     <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:14px;line-height:1.9">
+       <div>
+         <div><b>수　신 :</b> ${o.vendor}</div>
+         <div><b>발주일 :</b> ${o.date}</div>
+         <div><b>참　조 :</b> </div>
+         <div><b>Fax　 :</b> </div>
+       </div>
+       <div style="text-align:right">
+         <div style="font-size:18px;font-weight:800">㈜ 와이비 앤 디 YB & D</div>
+         <div>인천시 남동구 남동대로 370번지 57-51</div>
+         <div>남동공단 35블럭7롯트 신원 휄트 내 5동</div>
+         <div>TEL 032)821-0247~8　FAX 032)821-0249</div>
+         <div style="display:flex;justify-content:flex-end;margin-top:8px">
+           <table style="border-collapse:collapse;font-size:13px;text-align:center">
+             <tr>
+               <td rowspan="2" style="border:1px solid #333;padding:4px 6px;letter-spacing:2px;background:#f7f7f7;white-space:nowrap">결<br>재</td>
+               <td style="border:1px solid #333;padding:3px 10px;background:#f7f7f7;white-space:nowrap">담당</td>
+               <td style="border:1px solid #333;padding:3px 10px;background:#f7f7f7;white-space:nowrap">차장</td>
+               <td style="border:1px solid #333;padding:3px 10px;background:#f7f7f7;white-space:nowrap">이사</td>
+               <td style="border:1px solid #333;padding:3px 10px;background:#f7f7f7;white-space:nowrap">사장</td>
+             </tr>
+             <tr>
+               <td style="border:1px solid #333;padding:0 4px;height:32px;white-space:nowrap;text-align:center"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAG0AAAA8CAYAAABsKjQEAAAW0klEQVR4nO18aXRd13nd3t+99z0CnISZA/gg0UxYU/XASrKkKilYy5HZOK6jRi8mQSqKJzaTVLtZSpzYa8FwM6nLSZbsOG3ZYUUTSRNy0jrypEoxEcfLVmRGdmxTMkMNIEBSxECIAwi89+45uz/OfZgIkARJqVGMvaQFvXvOPdN3vvm7IhbwGqIYAQMEmgV0ewD6/72iH3GI4d9XH/FrMck/cRAoGkA3+XtWDmJDW8cmCLcS9kZ5/cFw/yNPB+7rdrP0P9+EC7gSaCxsWyk5DvftOTqjiQBUv3pbKyP90CxXS0Zw6dlv5NKltx07tnIc6BLmISrtiq78RwsEwLq1xeWNhY4/A/QdWu7vGwsd94TmYpT9taz3DWZxrXy55N1YStotpWT0aqDLA53zYp4Fol0yigZAliZdFtfeJaHBLG6A0BraBzJCbBAAiO6gfJoCyAGMAYzA4VTo0zUvg2SBaJeMDdlBa6Nc2ZGQd6WK4PeG55v81N4WRWn2nwTkyKjOIrwlPCrOiw4LRJsbBDotE3Nzii+CLwGIAKPkHx/u2/Pt8F7XNKJFqXJTxqHgQfmTl7KwBaLNjswC7PKZZTeL+DrArONjgCD4Esmnw6N9U841iD6VKi9KGgANkBwZw5N3hD4D89JpCyb/uSAAtbYWa0pRst7L6pNy6Xsvv9w9iFnMeYkkAbOkVq5cO7M9+22Dg91nGgsdPyCjlYKv9lkV/jS/Gjqt04D2+EKi4nWImXshADY0vH/puCVfAKJnzOInK7n487huRzK9f8Yd1IqgpgSYnZp9mnYDAAFPAIQQ/iG0PLRvmBfRLpLTujwAf8FurxtUzfGZTm0ngS5vS8bfAETvkJwAL4DX1p8crTkBnMIEtwXuEPwJwANyFXgdm32+0NfEZyAPEgZ5CFwV1tLlMLdTfg4uxGkEgMbWjn/VVLiz2NR25/1NhY7i9I2/HtHtgG7X2lqsma1VqUblXSn8gBGglbF4eq8BAiAVNZIGARUZwztziDsP/y/BoAolD0DX1LdiRWi9eF/tosSjTPcxSvbS8vd4oWHKol9vCOKvdeuvNBS27xpn/ExLYfs1oalz4iyYuFqQ+dBfAFhHqiW0Fi2LMcYAqpwIwhYZWD7v5OTGTJSGd8TULJdJsIv31S5MtPb2GMBi+dT5dPS0d+6LoWHT60xcFiMAaix03B0lNZ81i7cKaKv4UnbQXaoeXFmlXkBHSQOElIwAcd1klJ4CesabmopLBL4ZEmixQVVunHmhw2+JX8ouAQFBVOzSNFNRV4TTwibrX1y9yRi/CUAk8PsjRz/XB4Az/ZB/nDjXcBJws+S8XKlCsERGmt7caSd7/88rAv4ajCDIgREktQexusnXtxZXN7Zt+23V5J6n2ful1EGCB0bCMDPFY7jgZnpKPgUIAwkCI6yNM1/tinBasGgI/QaAcDmIPw9t7f/I9VmnAeB0H6vbAwClFkgGALR4OcDrQns1KhF8LAIjmTQllELALY1rtny4sfAP3zImP4iixb8r6Iy8GwAYAR6UXpl9PZnfJvwYLQ5+WrAix08cWjw2393NYT0WI6DLN67Z9pMgb5Uc4F3Z4P4itG/yQM/UFzjJ3vvmuAib/GvHnWGehsK2ewm/dujw7l8GoHXrNudfKXHFBB3DRVwWfgzM5MjejGQmOZDcSOY20hJ4VyqnbvRX45I94HL+C7T47fIVD7PT4e3ZTXgBy6p+QtBtPA2sdJPNF4c5iDZAABK12RgbQHilTw/1vdwLFHPAPh98jwlCaAp7z0GYntkfX1GE8FFd29abY0W/z2hRu0tHMx1cjA4d6i41FraeyTgoGAO0/PQxMtEmPJdtJSOmHKDIubHdAn/nRO8jB1pbizUpkzZKkDTmc27wfKsT0JBxmEiC1OEsyn9O2Ot8mI1oBHrc0lV3NgBui3wK0kTwM0BPOr1rIMSKFe9rqiwq1xu4yHn3kwZeBWAlpCMAx2R2FeW/MHR4137Mwx+ZP/aFyLv4QUb5dqniAO4HAFxXZ9gPB8FN2IQAIC2ZPkamFmL3rE9VIS0BlNLi2Pu0e/jwro7Qrz0uRVgOaQXCWP0jeX88tM2pnzILNFiPAl6csu7LIVp7BPSkucjfYZZbK1+G9244yef/qmFNx3to0c3w6RIBOZAFAo0VlVbD6SqBFkW5HGEADYAgpYisBml6+scAdFTHv9gFzgME1hPoEaQW+YoDEIH48amdBJ4ggyAJD7R6tsEcc+OG1AFIgoluALAfAFtbi4v6+7vHpK07jPFihGjWSzjQXb4A10y3BTz7L2WjsxCtavn4G7KNebOoMS2P/x3JVjICIgOnGGXTlYGD9+VTIo9TytPigktHTwr8ndDhHH14BVBN2e+stKzd3pym/gbJVQ2Kd7as3d58fP/OAQAk0QJ5MDO7Qayfvu/AJblRDbs8BkgrSKqmYVYAnexvOZa2olgzDtwjedESQvha6HMerpF+mK0pglIQ+vb0uS8OM4gmAnQta7c3u4q/Q95lEsTtF7jeLAHkIAjwrgJgVMQQgKMAv03qhAefVRJ/e5mzgdO5NIcy3kZfPnmif+8BXHFXoeoQd7mVK3+mtpJbvsWl+g/GqFlKUzKOvXd9x+tqRzIOEKTTMIa9SoDYHMbonraupUuH0ldK9WczGWqQB8R2oMtjP/x4oeM3ybhB8k6+POxTtyvsb7ZLmT0zfE2uXAItL3nPOHoltF9W7PHnDYBLK/7fWZQslxwgPDd0eNf19a3F1WB0o1daY4yGYXzZuXjwRN+DR2YbOHNYxgE8kT26krqMQcx2pQDQWOj4UAX8iFn+jZKHfEkACRqIdBj7d1Zw3Y4E+1EB2B9EHUPcFroqBMN70ilr5KFDN1Ya1hwcJyCQlFLRbGNDoeOPTRgQ+EkprdCSBN7/WvBfJ+KIMxDSOB6oi4LHnoIWS+klpcamEo3htnUacfBuyYmMKO++AgAn+ruPAFU/bRL1bXe+8cTi8edxYCC7qc0KN6eqjIuW/b5CHFbVGT1pU1vHWwX7dbNkO2Bw7uxBiGO06C2QV6a2psUXpWDKA6IgCKyvW9u8eOQFTElIZheCHXvA+K2QSwElkPfG+MOBtA4W1SQ+HXtkqG9X9/mrqoI7EQk7LFqUQB7Ol746fHj9d+drOQLTiBYMhIbCwQ5askG+4sOmtCdrjzPZGwEb0sY1h+4BuQPeXVN3ijeMoOf7sy9gfuVh58EEd9WtLS6P0+RewX7LLG/elw5Afm9cij7l8ukmInlM8j5TtmE9+38YrELDtyAPkJYZcctyzuoAnMyi/AJ6HNBpS/jS/aO+dJNFNT8rXwJgmQI3QG7Yu7P3Dy1N77vwwW/yQA8Fe9j70g2AniN4d/bORQTtO6eplSlE6wmHK/w6JJCJeZ9+aUr6PM3+lptXb3mzt/iPCQKWQ+RxI4Dvz9d0nX2BE5w5paxsCne1bl/nU/+oxUvf4tLRo86P3Tu8uPJosNyAhsK2ccIDUDWHtSiMm6VSyDMMYjFTbKxJfa4RwEtVMRZe62JvL8aXrrrzg3mVUtC/SfADEP6Oxhep9LHBvs89f3HbCgc+fPiRJ7Fu83U49JXS5H7Pe17VDPo0tZIRLbB2Y2Hbu0h7q3yaMsrFRvxZaJ9ODMcoT0mSrzCKEgD/AsD/vLgNzIUqYWZyZqYn1m3ON5Xq/6MM90bM16WV01+U4n9/ov/hTKcWc8CGVNHB03IIdiIEgrVTbypTf0SRT0NFlDwZUagsm2VBHgBPH31o+DRQnF38FaP5lXd3Gg51lTBpcJ/nvXAeq1bd2VDJqXXwpYe/W23JWLMahdZmMCJIkyufApOvh/Z92WKzmxhpCWmslkJLuDq0X3LkPxzqus355rY7b25q3b4uiGMA6HYNa+68vrHc+C1Y/HsA6pwv/cJw366fOdH/4JHJvN6AB7q8pbo6i+95ABCRW7fuqaR6QFE+OglxNIuKhG6qlrKdY8VlPninZQRjmK89nvJs1mriyfjnVHR5TBo75yM0gS41NRWXlCP3l2TuOw2FrX8UmopRjCwCsm7d3flXSkM3QCnI2KT06cHeB15GEOR+2qa8Py1S4TYDoC6n1sQA+LpV710TlZO9Im7y5s42tq15Eb7jOU/8V8g9ZFHNCslDrnJwuG/3Q+HCfILBWitGwAaPDc05neY9zHRWRrfmE+PNjQCOAEAZpZIhPkvackjKEphZ2v8AZ1lfVTxlh13ltjl9zVlF2vTxzougIq6rMw2cfpBRcrN8CoDPTDmwUHQ5UhrezCh3o7yrhGgGsphd+zmK0pAbgVQBEEsOBK5tWP/+pVNu0jzQiXXr7s5bHD1ES26SnIxxrVn+Wlr0cwT+gtAin559SkqfNPr3hTk+wcm4XbcDunzDmfgPomTJLVLqg7oiCJziWJxxUjEaeaH7JMi/Z0i3pGAESu8M7edN7F6MCCSyoqDmwl23NrZt2ZjtcR6m/Y4Y6HYNA2f+iFHudgDwKt8/fHjXQ1URHVcXSuBWgBLgKG+Az3TFVG893B5L/GlX0VnActl20typgcuwEv8BRN1iwAHCKQ/3e0zPNon2S8Z4iVf6jI1X3jE4uPvM9LUEfVdfKG4w1PwPIC34yplPgfwIgGAdSrXRsrO1GMZptG9gYBCdnEy7eAC6PgssXI4RZUAn6ltfXDVu7n/T7Hp4+0ugeDsuWue1x8DOSlOh4xaBHyII78v/dwnzHx2eYqHapFWlpZAcgIiWRKBtnWNkHn+hNCzgpeAneoloHEdNY2ieT126CHT5wUpLjRAtk3PPSvpFCpWhvt33Uv5PQcrMNiIf3xJu7I4kvBtuXcOaLdcba/4a1Ju9401DfbvvFfQKgs6FwFo4CxnlM8eyC8qR8HdiS4uDs305zn+7AV3eLP1tixZdL1+SpNua2tB0ERIo04E9aWPr1i0CP29RPu99+W9LabS1t/eB8eqBAYBNRLWFNotyMWgl70vfAP0nQ79pylmBKN0O5MtZ4WVqTBZbHL8ldDlHL3COBRP4BOvWFpfHKr8rjmt/XHCfzrmlj1P+WaAYkciy5ATMMvE74qsEq2/9hdVk9N+jqKYBPv39E0ce6ceGYg7A0RAblSeR0Ke1AICxEWab+F62HQpOoK2ta/35f57t71KiFAR60rq1xeUAfta7cQ/A06Jcivia0GWu0u9iVLVuGwodv8Eo3k1LWrwrfdUi/29PH31oeKYfODGQzH/SufH7zHPjUO/DPzHUuydTfLM7jYTK2QH4EC7iutAyoRdYLVnA7DdYwAFGleT9AG+QUpHoO3Zs59nB/j1fATZIoAULz3lnrm9y/G63vO09VxnTxy2ufWtaOfW/hpqX/megPcaB7jKB8eyueNBYiZIlALBhYmaFLANJeF9mlGuMGN0VGudK4p4PgSBxJX4TGa0CfPABGTMS3hEOfaa+rJacB33cWOj4U2N0H2iQKz85dLj8roEX9xyfzXGfeDDc+7l9Q70PfXSw/+FDk4POhonUeV81I5WdRC0AAmemEKvbhSLP65LpJXdh7LpVtkrQRyltlk8JRaeA9rit7a5FQJeXcBtBL2FQ5p5DZunWrXrvmkSLv2LJ4g0uHd0z3Lf7A9i/0oUAQXsMsDa7KwYJFowmHMhmJ9AAyEMSo3xeruy816Oh9dILlpxQVladBYBhCrwznPH67Fyq/waftKl1y+aGQseXyfiXwQjy6d/mXPTeQMxqv+mYYqp3WiBINRt9gXgYeXrGk2UABOyvAPvR1nbXolG5TgyOvpuFa2Mh3Td0GL809TJEQI2AZSCTkPrX24Ger/f29qRNhY7fFW2zICNw38gL3ScBcHmh4yoDHovixW9O09G/iUv2QUwTv/sc0DFWNTQklVNzwwCAmjplaz9DRiYapMojjv6zI0f2PIVLzkJ0Z4U71gevUyCXA54hfmvX1q3Zcu1I384fTH2jpbD9mlTuY7D4AxZsA8iVP+NH+fGjJx46lXHYrMbdFKJVq4gvlOtqzgp+/P4saJB9NMflbW13LToVjzdFafwTo0o/TEveBnkwykNpmjmHB1jdpK+NX2ZJJ0lrka94AB9vWLM1BtACRh8iY8iXnhjqq3y6KkqW+sr4GOMVqRv7Ylyy9x4//vAoph32J0xgLiT1lZolSSLcBmBnNf44dHjXp+tXd/THsY4N9O7+Zraxy85CqCZ/BmPjFZIKIwmkXWXg1xratv03yX/HpAiMf9rB326WLAuJYneGcr811Lf7T8JI549lztOnAkK4qLvccPW29fR6LhtGgD8BYQjgCkbJ8uzAIfnDAAaSiv7NsWO7hzLTWpPW39b/ZFH+43KlEoiETLJLYPA+3Zur1L7v2LGd1YolAWBT6/Y3DPb3vRTSKdM2SABoLHQ8TcbXeV8Ztyifky89NnR493tmD0VN5OQuMwsR1tFU2PprYPIZKU0BxCGRbKTlAE35RA0eQRy671HuVwb7dv9NliKaK8oygYuNZGSB3G4PhMAsvN6WESurU0kaGCUNUgr5dNij8qQ893Bs0RPDw6fPTh4WswVtEADK/C75ykctWpQXqmE8g3zlweHD/R+YkecCAE3q3ZniLGQqJH2Dxo0k86TRA3vP3VJVx84uguaPLg8Uo8HDu/+kobD1DWaLPixfKmeUkXfjjkSOjBncQx2HKv+FY5U/HBzsPpNdqIsqw7gAp1X13GRNR1Nh+8956G4S7ZCvgFHwm7x/FtBfwfAlM+0Pls85c828QQSg+tXbbrKId0G+ScZXDPrSYO+uP59cw0wuyLLQ54wXOKmpdctmxjVfdq70sqDfPNG3+8E55r/SIFC0trbaZNSnT1icvyW4vqFJvuwFfpfCo17lB7IcJS4kDmeZ5LzPq4nMqKmQu13ADlryU+GLDwdjDl6VYXj/q0N9Rz4/vWCn06bqL8x9YHMd5kVEwudGY9vWn0bFHxo6+rmDl5JovAwQgFpati92eWwD9E5BjuDjoNs/6UoB888STE4wA5MbrC9s22DCbaDvMFt0A0h4Nz4CYDmgPjF60Hzlgcm80sQnRPNcSJXAU3Glkqfz//90XAFcgKuLEbDXT6qK+Q9+zmTN12xp8an9IWh30KI8mcC7sechfUzwXydtZRRb3/EXHh6YXMRrfjAXQDG6smUO80aWaa/GbgeYuVOXGS6bRrQJa+7dZLzXLF4kOMg7AHzA+9LHJmVwFe0xXtNy7wUAs9UnUMthfM678QPw/hnC3zF0+OFfDARrz/Jv1QRfTzpJsNmSfgt4TdHSsn3xpA/TWf2Qbg5MDXlVM7uv5y9FX3+YQZwLHX5ob1zT8ZH6tm23v1qLWsAkLpDjAXBeUz0ru7t623oK35RXicSXAY7Tuy8M9u/56gXGWMAl4LJ10IoVxaY0l3wftObsM1aQCZw7+/xw05I3Yv/Oqu+2QLgrhEspyCEALVm5tbE2jjZW6D9mjJul1AGI5CslUBGFXuzfWcFrE4n4kcIlJPxCOcGiGPcjzj1utHapIoCRgDFACaBYVFO1IBQLVuUVxSUQbV81FXNQcl7ejZMJIX2e0FNkbABEMVmg1auDSyBajwNAQW+HZCCTLCh6rcAbJZeCEQU9CkBTSg4WcIUwX6Jl4m5HTLEZEzXxAi36Z4TytFwsX+7zSfqp0L97IVpyhTFfomXVSjsroH4ImgeYAnDyrkzGJp9+k2bvDuUBnQtGyKuAS7Aesw/kyAcj2HtoSQ4SGCWRT8e+NZQ/8a/DVyGvaTrkRwqXaikQgBoKW+8lolsBRzF6KrL0syH5OfFl5QJeJ1gwGV9lXOYBV1MzANph6Om6YFHKAi4f/w9ewh/yEaEu1QAAAABJRU5ErkJggg==" alt="송예빈" style="height:28px;vertical-align:middle"></td>
+               <td style="border:1px solid #333;min-width:44px"></td>
+               <td style="border:1px solid #333;min-width:44px"></td>
+               <td style="border:1px solid #333;min-width:44px"></td>
+             </tr>
+           </table>
+         </div>
+       </div>
+     </div>
+     <div style="font-size:20px;font-weight:700;text-align:center;margin:6px 0 12px">${titleLine}</div>
+     <table style="width:100%;border-collapse:collapse;font-size:15px;text-align:center">
+       <thead>
+         <tr style="background:#f0f0f0">
+           <th style="${td};width:42px">NO</th>
+           <th style="${td}">품　명</th>
+           <th style="${td}">규　격</th>
+           <th style="${td};width:64px">수량</th>
+           <th style="${td};width:90px">납기</th>
+           <th style="${td}">비고</th>
+           ${hasClient?`<th style="${td}">업체명</th>`:''}
+         </tr>
+       </thead>
+       <tbody>${rowsHtml}</tbody>
+       <tfoot>
+         <tr style="background:#f7f7f7;font-weight:800">
+           <td style="${td}" colspan="3">총 수량</td>
+           <td style="${td}">${tot}</td>
+           <td style="${td}" colspan="${hasClient?3:2}"></td>
+         </tr>
+       </tfoot>
+     </table>
+   </div>`;
+  return document.getElementById('od-capture');
+}
+
+function odCopyImage(){
+  const o=odCollect();
+  if(!o.items.length){ showToast('품목을 입력하세요'); return; }
+  const node=odRenderCapture(o);
+
+  // 손글씨 폰트(사인)가 로드된 뒤 캡처 — 폰트 미로드 시 기본체로 찍히는 것 방지
+  const fontReady = (document.fonts && document.fonts.load)
+    ? Promise.all([document.fonts.load("17px 'Hi Melody'"), document.fonts.ready]).catch(()=>{})
+    : Promise.resolve();
+
+  // canvas → blob Promise
+  const blobP = fontReady.then(()=>html2canvas(node,{scale:2,backgroundColor:'#fff'})).then(canvas=>{
+    return new Promise(res=>canvas.toBlob(b=>res(b),'image/png'));
+  });
+
+  // 클릭 제스처 컨텍스트 유지를 위해 ClipboardItem에 Promise를 직접 전달
+  if(navigator.clipboard && window.ClipboardItem){
+    try{
+      const item = new ClipboardItem({ 'image/png': blobP.then(b=>{
+        if(!b) throw new Error('blob null');
+        return b;
+      })});
+      navigator.clipboard.write([item]).then(()=>{
+        showToast('📋 복사됨 — 카톡에 붙여넣기(Ctrl+V) 하세요');
+        document.getElementById('od-capture-host').innerHTML='';
+      }).catch(err=>{
+        console.log('clipboard write 실패:', err);
+        odSaveImageFallback(blobP, o);
+      });
+    }catch(err){
+      console.log('ClipboardItem 생성 실패:', err);
+      odSaveImageFallback(blobP, o);
+    }
+  } else {
+    odSaveImageFallback(blobP, o);
+  }
+}
+
+function odSaveImageFallback(blobP, o){
+  blobP.then(blob=>{
+    if(!blob){ showToast('이미지 생성 실패'); document.getElementById('od-capture-host').innerHTML=''; return; }
+    const url=URL.createObjectURL(blob);
+    // 1) 다운로드 시도
+    try{
+      const a=document.createElement('a');
+      a.href=url; a.download=`${o.vendor}_발주서_${o.date.replace(/-/g,'')}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+    }catch(e){}
+    // 2) 화면에도 큰 이미지로 띄움 (길게 눌러 저장/복사 — 카톡 공유 가능)
+    const big=document.getElementById('lg-photo-big');
+    if(big){
+      big.src=url;
+      const modal=document.getElementById('lg-photo-modal');
+      // 안내 문구 추가
+      let tip=document.getElementById('od-img-tip');
+      if(!tip){
+        tip=document.createElement('div'); tip.id='od-img-tip';
+        tip.style.cssText='position:fixed;bottom:20px;left:0;right:0;text-align:center;color:#fff;font-size:13px;z-index:100000;text-shadow:0 1px 3px #000;font-family:Noto Sans KR,sans-serif';
+        document.body.appendChild(tip);
+      }
+      tip.textContent='📷 이미지를 길게 눌러 저장하거나 카톡으로 공유하세요';
+      modal.classList.add('on');
+      modal.addEventListener('click',()=>{ if(tip)tip.textContent=''; },{once:true});
+    }
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    showToast('🖼 이미지로 만들었어요 — 길게 눌러 저장/공유');
+    document.getElementById('od-capture-host').innerHTML='';
+  });
+}
+
+function odSaveOrder(){
+  const o=odCollect();
+  if(!o.items.length){ showToast('품목을 입력하세요'); return; }
+  const order={
+    id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    vendor:o.vendor, type:o.type, thick:o.thick||'', title:o.title,
+    date:o.date, due:o.due, client:o.client,
+    createdAt:new Date().toISOString(),
+    by:getActor()||'',
+    items:o.items.map(it=>({...it, received:false, recvAt:null, eventId:null}))
+  };
+  orderLog.unshift(order);
+  saveOrderLog();
+  // 입력 초기화 (발주처/종류는 유지)
+  odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}];
+  document.getElementById('od-due').value='';
+  renderOdLines();
+  renderOrderList();
+  if(typeof autoSync==='function') autoSync();
+  showToast('💾 발주 기록됨');
+}
+
+// ══════════════════════════════════════════════════════════
+//  발주서 엑셀 불러오기 (직원 작성본 → 발주 리스트 자동 기록)
+//  양식 고정: 발주처[4,4] 발주일[5,4] 종류[9,2]
+//            표헤더 11행 / 품목 12행~  NO[,2] 품명[,3] 규격[,6] 수량[,10] 납기[,11]
+// ══════════════════════════════════════════════════════════
+let odImportParsed = [];  // [{sheet, vendor, type, date, items:[{w,h,qty,pname,due,bigo}]}]
+
+function odXlsxDate(v){
+  if(v==null || v==='') return '';
+  if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+  if(typeof v==='number'){
+    const d=new Date(Math.round((v-25569)*86400*1000));
+    if(!isNaN(d)) return d.toISOString().slice(0,10);
+  }
+  const s=(''+v).trim();
+  // '26/05/21', '26-05-21', '2026/5/21', '2026-05-21' 등 → 'YYYY-MM-DD'
+  const m=s.match(/^(\d{2,4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
+  if(m){
+    let y=+m[1]; if(y<100) y+=2000;
+    const mo=('0'+m[2]).slice(-2), da=('0'+m[3]).slice(-2);
+    return `${y}-${mo}-${da}`;
+  }
+  return s;
+}
+function odXlsxDue(v){
+  if(v==null || v==='') return '';
+  if(v instanceof Date && !isNaN(v)) return (v.getMonth()+1)+'/'+v.getDate();
+  if(typeof v==='number'){
+    const d=new Date(Math.round((v-25569)*86400*1000));
+    if(!isNaN(d)) return (d.getMonth()+1)+'/'+d.getDate();
+  }
+  const s=(''+v).trim();
+  const m=s.match(/^(\d{2,4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
+  if(m){ return (+m[2])+'/'+(+m[3]); }  // M/D
+  return s;  // '긴급' 등은 그대로
+}
+function odParseSpec(s){
+  if(s==null) return {w:0,h:0};
+  const m=(''+s).replace(/\s/g,'').match(/(\d+)\s*[*xX×]\s*(\d+)/);
+  if(m) return {w:parseInt(m[1])||0, h:parseInt(m[2])||0};
+  return {w:0,h:0};
+}
+
+function odImportExcel(input){
+  const file=input.files && input.files[0];
+  input.value='';
+  if(!file) return;
+  if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 — 잠시 후 다시'); return; }
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(ev.target.result, {type:'array', cellDates:true});
+      odImportParsed=[];
+      wb.SheetNames.forEach(sn=>{
+        const ws=wb.Sheets[sn];
+        if(!ws) return;
+        const aoa=XLSX.utils.sheet_to_json(ws,{header:1, defval:'', raw:false, cellDates:true});
+        const cell=(r,c)=>{ const row=aoa[r-1]; return row?row[c-1]:undefined; };
+        const vendor=(''+(cell(4,4)||'')).trim();
+        const type=(''+(cell(9,2)||'')).trim();
+        const date=odXlsxDate(cell(5,4));
+        const items=[]; let blank=0;
+        for(let r=12; r<=aoa.length && r<=200; r++){
+          const pname=(''+(cell(r,3)||'')).trim();
+          if(pname){
+            const sp=odParseSpec(cell(r,6));
+            const qtyRaw=cell(r,10);
+            const qty=parseInt((''+(qtyRaw==null?'':qtyRaw)).replace(/[^\d]/g,''))||0;
+            // 규격도 없고 수량도 0이면 빈 더미행 → 제외
+            if(!(sp.w&&sp.h) && qty===0){ blank++; if(blank>=20) break; }
+            else {
+              items.push({ w:sp.w, h:sp.h, qty:qty,
+                pname:pname, due:odXlsxDue(cell(r,11)), bigo:'' });
+              blank=0;
+            }
+          } else {
+            blank++;
+            if(blank>=20) break;
+          }
+        }
+        if(items.length){
+          odImportParsed.push({ sheet:sn, vendor:vendor||'(미상)', type:type||'', date:date, items });
+        }
+      });
+      if(!odImportParsed.length){ showToast('읽을 발주 품목이 없어요'); return; }
+      renderOdImportList();
+      document.getElementById('od-import-modal').classList.add('on');
+    }catch(err){
+      console.log('엑셀 파싱 오류:', err);
+      showToast('엑셀을 읽지 못했어요 — 양식을 확인하세요');
+    }
+  };
+  reader.onerror=function(){ showToast('파일 읽기 실패'); };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderOdImportList(){
+  const host=document.getElementById('od-import-list');
+  host.innerHTML=odImportParsed.map((s,i)=>{
+    const tot=s.items.reduce((a,b)=>a+(b.qty||0),0);
+    const preview=s.items.slice(0,3).map(it=>
+      `${it.pname}${(it.w&&it.h)?` ${it.w}*${it.h}`:''}×${it.qty}`).join(' · ');
+    const more=s.items.length>3?` 외 ${s.items.length-3}건`:'';
+    return `<label style="display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border:1px solid var(--b2);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--s2)">
+      <input type="checkbox" class="od-imp-ck" data-i="${i}" style="margin-top:3px;width:17px;height:17px;flex-shrink:0;accent-color:var(--acc5)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--tx1)">${s.vendor} <span style="font-weight:400;color:var(--tx3);font-size:11px">· ${s.type||'종류없음'}</span></div>
+        <div style="font-size:10.5px;color:var(--tx3);margin:2px 0">발주일 ${s.date||'-'} · 품목 ${s.items.length}건 · 총 ${tot}장</div>
+        <div style="font-size:10.5px;color:var(--tx2);line-height:1.5;word-break:break-all">${preview}${more}</div>
+      </div>
+    </label>`;
+  }).join('');
+}
+
+function odImportApply(){
+  const cks=[...document.querySelectorAll('.od-imp-ck:checked')];
+  if(!cks.length){ showToast('기록할 시트를 선택하세요'); return; }
+  const picks=cks.map(ck=>odImportParsed[parseInt(ck.dataset.i)]);
+  let added=0;
+  picks.forEach(s=>{
+    const order={
+      id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+      vendor:s.vendor, type:s.type||'', thick:'', title:s.type||'',
+      date:s.date||new Date().toISOString().slice(0,10),
+      due:(s.items.find(it=>it.due)||{}).due||'',
+      client:'',
+      createdAt:new Date().toISOString(),
+      by:getActor()||'',
+      src:'excel-import', srcSheet:s.sheet,
+      items:s.items.map(it=>({ w:it.w, h:it.h, qty:it.qty, pname:it.pname, bigo:it.bigo||'',
+        received:false, recvAt:null, eventId:null }))
+    };
+    orderLog.unshift(order);
+    added++;
+  });
+  saveOrderLog();
+  renderOrderList();
+  const last=picks[picks.length-1];
+  odFillFormFromImport(last);
+  closeM('od-import-modal');
+  if(typeof autoSync==='function') autoSync();
+  showToast(`📥 ${added}개 발주 기록됨`);
+}
+
+function odFillFormFromImport(s){
+  if(!s) return;
+  try{
+    const vsel=document.getElementById('od-vendor');
+    if(vsel){
+      let found=[...vsel.options].some(o=>o.value===s.vendor);
+      if(!found && s.vendor && s.vendor!=='(미상)'){
+        const op=document.createElement('option'); op.value=s.vendor; op.textContent=s.vendor;
+        vsel.appendChild(op);
+      }
+      vsel.value=s.vendor;
+    }
+    const dEl=document.getElementById('od-date'); if(dEl && s.date) dEl.value=s.date;
+    const dueEl=document.getElementById('od-due');
+    if(dueEl){ const d=(s.items.find(it=>it.due)||{}).due; if(d) dueEl.value=d; }
+    odLines=s.items.map(it=>({ w:it.w||'', h:it.h||'', qty:it.qty||1,
+      pname:it.pname||'', bigo:it.bigo||'' }));
+    if(!odLines.length) odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}];
+    if(typeof renderOdLines==='function') renderOdLines();
+  }catch(e){ console.log('폼 채우기 오류:', e); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  완제품 재고 (조립+포장 완료, 출고 전) — 모델+색상 단위, 독립 관리
+// ══════════════════════════════════════════════════════════
+let finFilter='all';
+let finEditId=null, finEditMode='in';
+
+function setFinFilter(f,btn){
+  finFilter=f;
+  document.querySelectorAll('#sp-finished .f-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderFinished();
+}
+
+function finBrand(model){
+  const m=(model||'').trim().toUpperCase();
+  if(m.startsWith('HD')) return 'HD';
+  if(m.startsWith('OB')) return 'OB';
+  return '';
+}
+
+function renderFinished(){
+  // 모델 자동완성 채우기 (ASSEMBLY_MODELS 기준, 중복 제거)
+  const dl=document.getElementById('fin-model-list');
+  if(dl && !dl.dataset.filled && typeof ASSEMBLY_MODELS!=='undefined'){
+    const seen=new Set(); let h='';
+    ASSEMBLY_MODELS.forEach(a=>{ const s=(a.short||'').trim(); if(s && !seen.has(s)){ seen.add(s); h+=`<option value="${s}">`; }});
+    dl.innerHTML=h; dl.dataset.filled='1';
+  }
+  // 색상 자동완성 (기존에 쓴 색상들)
+  const cdl=document.getElementById('fin-color-list');
+  if(cdl){
+    const cols=[...new Set(finishedStock.map(f=>(f.color||'').trim()).filter(Boolean))];
+    const base=['웜코튼','에토프','쉐이드','브리즈'];
+    cdl.innerHTML=[...new Set([...cols,...base])].map(c=>`<option value="${c}">`).join('');
+  }
+
+  const host=document.getElementById('fin-list');
+  const totEl=document.getElementById('fin-total');
+  const q=(document.getElementById('fin-search').value||'').trim().toLowerCase();
+  let list=finishedStock.slice();
+  // 필터
+  if(finFilter==='has') list=list.filter(f=>f.qty>0);
+  else if(finFilter==='HD') list=list.filter(f=>finBrand(f.model)==='HD');
+  else if(finFilter==='OB') list=list.filter(f=>finBrand(f.model)==='OB');
+  if(q) list=list.filter(f=>((f.model||'')+' '+(f.color||'')+' '+(f.note||'')).toLowerCase().includes(q));
+  // 정렬: 선입선출 — 가장 오래된 입고일이 먼저(위)로. 입고일 없으면 뒤로, 재고0은 맨 뒤
+  list.sort((a,b)=>{
+    if((a.qty>0)!==(b.qty>0)) return (b.qty>0)-(a.qty>0); // 재고 있는 것 먼저
+    const ad=a.firstInDate||'', bd=b.firstInDate||'';
+    if(ad&&bd&&ad!==bd) return ad.localeCompare(bd); // 오래된 입고일 먼저
+    if(ad&&!bd) return -1;
+    if(!ad&&bd) return 1;
+    return String(a.model).localeCompare(String(b.model));
+  });
+
+  const totQty=finishedStock.reduce((s,f)=>s+(f.qty||0),0);
+  const kinds=finishedStock.filter(f=>f.qty>0).length;
+  totEl.textContent=`총 ${totQty}개 · ${kinds}종 재고`;
+
+  if(!list.length){
+    host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:24px">'+
+      (finishedStock.length?'검색 결과가 없어요':'아직 완제품 재고가 없어요.<br>＋ 버튼으로 추가하세요.')+'</div>';
+    return;
+  }
+  host.innerHTML=list.map(f=>{
+    const br=finBrand(f.model);
+    const brTag=br?`<span style="font-size:9px;padding:1px 6px;border-radius:8px;background:${br==='HD'?'rgba(59,130,246,.15)':'rgba(16,185,129,.15)'};color:${br==='HD'?'#3b82f6':'#10b981'};font-weight:700;margin-right:5px">${br}</span>`:'';
+    const low=f.qty===0;
+    let ageBadge='';
+    if(f.qty>0 && f.firstInDate){
+      const days=Math.floor((new Date(todayStr())-new Date(f.firstInDate))/86400000);
+      const dm=f.firstInDate.slice(5).replace('-','/');
+      const warn=days>=90;
+      ageBadge=`<span style="font-size:9px;padding:1px 6px;border-radius:8px;margin-left:5px;background:${warn?'rgba(248,81,73,.15)':'rgba(255,166,87,.12)'};color:${warn?'var(--acc4)':'var(--etp)'};font-weight:700">📥 ${dm} 입고${days>=1?` ·${days}일`:''}${warn?' ⚠️':''}</span>`;
+    }
+    return `<div onclick="openFinEdit('${f.id}')" style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--b2);border-radius:10px;margin-bottom:8px;cursor:pointer;background:${low?'var(--s3)':'var(--s2)'}">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--tx1);word-break:break-all">${brTag}${f.model}${ageBadge}</div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:2px">${f.color||'<span style=\"color:var(--tx3)\">색상 미지정</span>'}${f.note?` · ${f.note}`:''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:${low?'var(--tx3)':'var(--acc5)'}">${f.qty}</div>
+        <div style="font-size:9px;color:var(--tx3)">개</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openFinAdd(){
+  document.getElementById('fin-model').value='';
+  document.getElementById('fin-color').value='';
+  document.getElementById('fin-qty').value='1';
+  document.getElementById('fin-indate').value=todayStr();
+  document.getElementById('fin-memo').value='';
+  renderFinished(); // datalist 채우기
+  document.getElementById('fin-add-modal').classList.add('on');
+  setTimeout(()=>document.getElementById('fin-model').focus(),100);
+}
+
+function finAddConfirm(){
+  const model=(document.getElementById('fin-model').value||'').trim();
+  const color=(document.getElementById('fin-color').value||'').trim();
+  const qty=parseInt(document.getElementById('fin-qty').value)||0;
+  const memo=(document.getElementById('fin-memo').value||'').trim();
+  if(!model){ showToast('모델명을 입력하세요'); return; }
+  if(qty<=0){ showToast('수량을 1 이상 입력하세요'); return; }
+  const inDate=(document.getElementById('fin-indate').value||'').trim();
+  finApply(model,color,{type:'in', delta:qty, memo:memo||'완제품 입고', inDate});
+  closeM('fin-add-modal');
+  renderFinished();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`🚪 ${model} ${qty}개 입고`);
+}
+
+function openFinEdit(id){
+  const f=finishedStock.find(x=>x.id===id);
+  if(!f) return;
+  finEditId=id; finEditMode='in';
+  document.getElementById('fin-edit-ttl').textContent=f.model;
+  document.getElementById('fin-edit-cur').innerHTML=
+    `${f.color||'색상 미지정'} · 현재 <b style="color:var(--acc5);font-size:16px">${f.qty}</b>개`;
+  document.getElementById('fin-edit-qty').value='1';
+  document.getElementById('fin-edit-indate').value=todayStr();
+  document.getElementById('fin-edit-memo').value='';
+  setFinEditMode('in');
+  renderFinEditLog(f);
+  document.getElementById('fin-edit-modal').classList.add('on');
+}
+
+function setFinEditMode(m){
+  finEditMode=m;
+  document.getElementById('fet-in').classList.toggle('on',m==='in');
+  document.getElementById('fet-out').classList.toggle('on',m==='out');
+  document.getElementById('fet-count').classList.toggle('on',m==='count');
+  const lbl=document.getElementById('fin-edit-qty-lbl');
+  const f=finishedStock.find(x=>x.id===finEditId);
+  const dw=document.getElementById('fin-edit-date-wrap');
+  if(dw) dw.style.display = (m==='in') ? '' : 'none';
+  if(m==='in'){ lbl.textContent='입고 수량'; document.getElementById('fin-edit-qty').value='1'; }
+  else if(m==='out'){ lbl.textContent='출고 수량'; document.getElementById('fin-edit-qty').value='1'; }
+  else { lbl.textContent='실측 수량 (현재 실제 개수)'; document.getElementById('fin-edit-qty').value=f?f.qty:0; }
+}
+
+function finEditConfirm(){
+  const f=finishedStock.find(x=>x.id===finEditId);
+  if(!f) return;
+  const n=parseInt(document.getElementById('fin-edit-qty').value)||0;
+  const memo=(document.getElementById('fin-edit-memo').value||'').trim();
+  if(finEditMode==='count'){
+    finApply(f.model,f.color,{type:'count', abs:n, memo:memo||'실측'});
+  } else if(finEditMode==='out'){
+    if(n<=0){ showToast('수량을 입력하세요'); return; }
+    if(n>f.qty){ showToast('재고보다 많이 출고할 수 없어요'); return; }
+    finApply(f.model,f.color,{type:'out', delta:-n, memo:memo||'출고'});
+  } else {
+    if(n<=0){ showToast('수량을 입력하세요'); return; }
+    const inDate=(document.getElementById('fin-edit-indate').value||'').trim();
+    finApply(f.model,f.color,{type:'in', delta:n, memo:memo||'입고', inDate});
+  }
+  closeM('fin-edit-modal');
+  renderFinished();
+  if(typeof autoSync==='function') autoSync();
+  showToast('✓ 수량 변경됨');
+}
+
+function finDeleteCurrent(){
+  const f=finishedStock.find(x=>x.id===finEditId);
+  if(!f) return;
+  if(!confirm(`"${f.model} / ${f.color||'색상미지정'}" 완제품 항목을 삭제할까요?\n(이력도 함께 사라집니다)`)) return;
+  deleteFinished(finEditId);
+  closeM('fin-edit-modal');
+  renderFinished();
+  if(typeof autoSync==='function') autoSync();
+  showToast('🗑 삭제됨');
+}
+
+function renderFinEditLog(f){
+  const host=document.getElementById('fin-edit-log');
+  if(!f.events || !f.events.length){ host.innerHTML=''; return; }
+  const TY={in:'입고',out:'출고',count:'실측',adjust:'조정'};
+  const rows=f.events.slice().reverse().slice(0,12).map(e=>{
+    const d=new Date(e.at);
+    const dstr=`${d.getMonth()+1}/${d.getDate()} ${('0'+d.getHours()).slice(-2)}:${('0'+d.getMinutes()).slice(-2)}`;
+    const sign=e.delta>0?`+${e.delta}`:`${e.delta}`;
+    const col=e.delta>0?'var(--acc5)':(e.delta<0?'var(--acc4)':'var(--tx3)');
+    const inD=(e.type==='in'&&e.inDate)?` · 📥${e.inDate.slice(5).replace('-','/')}`:'';
+    return `<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:5px 0;border-top:1px solid var(--b1)">
+      <span style="color:var(--tx2)">${dstr} · ${TY[e.type]||e.type}${inD}${e.memo?` · ${e.memo}`:''}${e.by?` · ${e.by}`:''}</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${col}">${sign}</span>
+    </div>`;
+  }).join('');
+  host.innerHTML=`<div style="font-size:10px;color:var(--tx3);font-weight:600;margin-bottom:2px">최근 이력</div>${rows}`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  납품서 탭: 완제품 재고 보유 알림 (오늘+미래 납품서 대조)
+//  엄격 매칭(모델+색상). "재고 있음 → 생산 불필요" 안내 + 출고 버튼
+// ══════════════════════════════════════════════════════════
+function renderDelivStockAlert(activeList){
+  const host=document.getElementById('deliv-stock-alert');
+  if(!host) return;
+  if(!Array.isArray(activeList) || !activeList.length){ host.innerHTML=''; return; }
+
+  // 납품서별로 매칭 결과 수집 (조립실 완제품 + 기존 완제품 둘 다)
+  const blocks=[];
+  activeList.forEach(d=>{
+    const asmMatches=(typeof matchAssemblyForDeliv==='function')?matchAssemblyForDeliv(d):[];
+    const finMatches=(typeof finishedStock!=='undefined' && finishedStock.length)?matchFinishedForDeliv(d):[];
+    const matches=[
+      ...asmMatches.map(m=>({kind:'asm', id:m.itemId, label:m.name, sub:'', reqQty:m.reqQty, stockQty:m.stockQty})),
+      ...finMatches.map(m=>({kind:'fin', id:m.finId, label:m.model, sub:m.color||'색상-', reqQty:m.reqQty, stockQty:m.stockQty})),
+    ];
+    if(matches.length) blocks.push({d, matches});
+  });
+  if(!blocks.length){ host.innerHTML=''; return; }
+
+  let html=`<div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.35);border-radius:12px;padding:13px 14px;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:800;color:#10b981;margin-bottom:4px">📦 완제품 재고 보유 — 생산 전 확인하세요</div>
+    <div style="font-size:10.5px;color:var(--tx2);line-height:1.6;margin-bottom:10px">아래 품목은 <b>이미 만들어둔 완제품 재고</b>가 있어요. 재고로 내보낼 거면 <b>재고에서 출고</b>를 누르세요. (안 누르면 재고는 그대로 — 새로 생산)</div>`;
+
+  blocks.forEach(b=>{
+    const d=b.d;
+    const dateLabel=(_shipOf(d)||d.delivReqDate||d.orderDate||'').slice(5); // MM-DD
+    const destLabel=d.dest?` · ${d.dest}`:'';
+    const delivRef=(d.delivNo||d.id||'').replace(/'/g,'');
+    html+=`<div style="border-top:1px solid rgba(16,185,129,.2);padding-top:8px;margin-top:8px">
+      <div style="font-size:10.5px;color:var(--tx3);margin-bottom:5px">🚚 ${dateLabel} 출고${destLabel} · ${d.delivNo||d.refNo||''}</div>`;
+    b.matches.forEach(m=>{
+      const enough = m.stockQty >= m.reqQty;
+      const recQty = Math.min(m.stockQty, m.reqQty);   // 권장(기본값)
+      const subTxt = m.sub?` <span style="font-weight:400;color:var(--tx3)">/ ${m.sub}</span>`:'';
+      const fn = m.kind==='asm' ? 'asmUseStock' : 'delivUseStock';
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:7px 0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;color:var(--tx1);word-break:break-all">${m.label}${subTxt}</div>
+          <div style="font-size:10.5px;color:var(--tx2);margin-top:1px">필요 <b>${m.reqQty}</b> · 재고 <b style="color:#10b981">${m.stockQty}</b>${enough?'':` <span style="color:var(--acc4)">(부족, ${recQty}만 가능)</span>`}</div>
+        </div>
+        <button onclick="${fn}('${m.id}',${recQty},'${delivRef}')" style="flex-shrink:0;padding:8px 12px;background:#10b981;border:none;border-radius:8px;color:#fff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">재고에서 출고 ${recQty}</button>
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+  host.innerHTML=html;
+}
+
+// 알림에서 "재고에서 출고" 클릭 → 조립실 완제품 차감 (b: 권장수량 기본값 입력창)
+function asmUseStock(itemId, recQty, delivNo){
+  const a=(typeof asmFind==='function')?asmFind(itemId):null;
+  const have=a?a.done:0;
+  if(have<=0){ showToast('출고할 완제품이 없어요'); return; }
+  const nm=(typeof asmItemName==='function')?asmItemName(itemId):itemId;
+  const n=prompt(`🚚 ${nm}\n납품 출고 수량 (완제품 ${have}개 보유):\n※ 기본값은 권장수량. 그대로 엔터=권장, 고치면 내맘대로`, String(Math.min(recQty||have, have)));
+  if(n===null) return;
+  let q=parseInt(n); if(isNaN(q)||q<=0){ showToast('숫자를 입력하세요'); return; }
+  if(q>have){ if(!confirm(`완제품 보유(${have})보다 많습니다. ${have}개만 출고할까요?`)) return; q=have; }
+  asmApply(itemId,{type:'ship', qty:q, memo:`납품출고${delivNo?(' '+delivNo):''}`});
+  showToast(`📦 완제품 ${q}개 출고 처리됨`);
+  if(typeof renderDelivery==='function') renderDelivery();
+  if(typeof renderAssembly==='function' && document.getElementById('sp-assembly') && document.getElementById('sp-assembly').style.display!=='none') renderAssembly();
+}
+
+// 알림에서 "재고에서 출고" 클릭 → 기존 완제품 재고 차감 (b: 권장수량 기본값 입력창)
+function delivUseStock(finId, recQty, delivNo){
+  const f=finishedStock.find(x=>x.id===finId);
+  if(!f){ showToast('재고 항목을 찾을 수 없어요'); return; }
+  const have=f.qty;
+  if(have<=0){ showToast('출고할 수량이 없어요'); return; }
+  const n=prompt(`🚚 ${f.model} / ${f.color||'색상-'}\n납품 출고 수량 (재고 ${have}개 보유):\n※ 기본값은 권장수량. 그대로 엔터=권장, 고치면 내맘대로`, String(Math.min(recQty||have, have)));
+  if(n===null) return;
+  let qty=parseInt(n); if(isNaN(qty)||qty<=0){ showToast('숫자를 입력하세요'); return; }
+  if(qty>have){ if(!confirm(`재고 보유(${have})보다 많습니다. ${have}개만 출고할까요?`)) return; qty=have; }
+  finApply(f.model, f.color, {type:'out', delta:-qty, memo:`납품출고${delivNo?(' '+delivNo):''}`});
+  showToast(`📦 재고 ${qty}개 출고 처리됨`);
+  if(typeof renderDelivery==='function') renderDelivery();
+  if(document.getElementById('sp-finished') && document.getElementById('sp-finished').style.display!=='none') renderFinished();
+}
+function renderOrderList(){
+  const host=document.getElementById('od-order-list');
+  document.getElementById('od-list-count').textContent=orderLog.length?`(${orderLog.length}건)`:'';
+  if(!orderLog.length){
+    host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:18px">아직 발주 기록이 없습니다</div>';
+    return;
+  }
+  // 월별 그룹핑 (발주일 기준 YYYY-MM)
+  const groups={};
+  orderLog.forEach(o=>{
+    const ym=(o.date||'').slice(0,7)||'기타';
+    (groups[ym]=groups[ym]||[]).push(o);
+  });
+  const yms=Object.keys(groups).sort((a,b)=>b.localeCompare(a)); // 최신월 먼저
+
+  host.innerHTML=yms.map(ym=>{
+    const orders=groups[ym];
+    // 월 합계
+    let ordTot=0, recvTot=0;
+    orders.forEach(o=>o.items.forEach(it=>{ ordTot+=it.qty; if(it.received) recvTot+=it.qty; }));
+    const diff=ordTot-recvTot;
+    const ymLabel=ym==='기타'?'기타':`${ym.slice(0,4)}년 ${parseInt(ym.slice(5,7))}월`;
+
+    const ordersHtml=orders.map(o=>{
+      const total=o.items.length;
+      const recv=o.items.filter(i=>i.received).length;
+      const allDone=recv===total;
+      const itemsHtml=o.items.map((it,i)=>{
+        const hasSize=it.w&&it.h;
+        const titleLine=hasSize?`${it.w}×${it.h}`:(it.pname||'(품명)');
+        const subLine=hasSize?`${it.pname?it.pname+' · ':''}${it.bigo||''}`:(it.bigo||'');
+        return `
+        <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--b1)">
+          ${hasSize?`<button onclick="odToggleRecv('${o.id}',${i})" class="todo-check ${it.received?'done':''}" style="width:22px;height:22px;flex-shrink:0">${it.received?'✓':''}</button>`:'<span style="width:22px;flex-shrink:0;text-align:center;color:var(--tx3)">·</span>'}
+          <div style="flex:1;min-width:0;${it.received?'opacity:.6':''}">
+            <div style="font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;${it.received?'text-decoration:line-through':''}">${titleLine}</div>
+            <div style="font-size:10px;color:var(--tx3)">${subLine}</div>
+            ${hasSize&&it.received?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:var(--acc3)">📦 입고일</span><input type="date" value="${it.recvDate||''}" onchange="odSetRecvDate('${o.id}',${i},this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif"></div>`:''}
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc3)">${it.qty}</div>
+        </div>`;
+      }).join('');
+      return `
+      <div class="day-card" style="margin-bottom:8px">
+        <div class="day-hdr">
+          <div>
+            <div style="font-size:13px;font-weight:700">${o.vendor} <span style="font-size:11px;color:var(--tx3);font-weight:400">${o.thick||o.type||''}</span></div>
+            <div style="font-size:10px;color:var(--tx3);margin-top:2px">${o.date}${o.due?' · 납기 '+o.due:''}${o.client?' · '+o.client:''}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="status-tag ${allDone?'st-완료':recv>0?'st-진행중':'st-시작전'}">${allDone?'입고완료':recv>0?recv+'/'+total+' 입고':'미입고'}</div>
+            <button onclick="odDeleteOrder('${o.id}')" class="icon-btn del" style="font-size:13px;margin-left:4px">🗑</button>
+          </div>
+        </div>
+        <div style="padding:4px 14px 10px">${itemsHtml}</div>
+      </div>`;
+    }).join('');
+
+    return `
+    <div style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--s3);border-radius:8px;margin-bottom:8px">
+        <div style="font-size:13px;font-weight:800">📅 ${ymLabel} <span style="font-size:10px;color:var(--tx3);font-weight:400">(${orders.length}건)</span></div>
+        <div style="text-align:right;font-size:10px;line-height:1.5">
+          <div>발주 <b style="font-family:'JetBrains Mono',monospace;font-size:13px">${ordTot}</b> · 입고 <b style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--acc3)">${recvTot}</b></div>
+          <div style="color:${diff===0?'var(--acc3)':'var(--acc2)'};font-weight:700">${diff===0?'✓ 정산 일치':'미입고 '+diff+'장'}</div>
+        </div>
+      </div>
+      ${ordersHtml}
+    </div>`;
+  }).join('');
+}
+
+function odToggleRecv(orderId, idx){
+  const o=orderLog.find(x=>x.id===orderId); if(!o)return;
+  const it=o.items[idx]; if(!it)return;
+  if(!it.received){
+    // 입고 처리 → 체크한 날짜(오늘)로 원유리 입고 이벤트
+    const today=new Date().toISOString().slice(0,10);
+    const atIso=`${today}T00:00:00.000Z`;
+    const ev=addStockEvent(`${it.w}x${it.h}`,{at:atIso,type:'in',qty:it.qty,note:`발주입고 ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`,source:'order'});
+    it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=today; it.eventId=ev.id;
+    o.updatedAt=new Date().toISOString();
+    if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
+    saveAll();
+    showToast(`📦 ${it.w}×${it.h} ${it.qty}장 입고 (${today.slice(5).replace('-','/')})`);
+  } else {
+    // 입고 취소 → 이벤트 제거
+    if(it.eventId) removeStockEventsByIds([it.eventId]);
+    it.received=false; it.recvAt=null; it.recvDate=null; it.eventId=null;
+    o.updatedAt=new Date().toISOString();
+    if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
+    saveAll();
+    showToast('입고 취소됨');
+  }
+  saveOrderLog();
+  renderOrderList();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+}
+
+// 입고일 수정 (품목별로 다른 입고날짜 허용)
+function odSetRecvDate(orderId, idx, newDate){
+  const o=orderLog.find(x=>x.id===orderId); if(!o)return;
+  const it=o.items[idx]; if(!it||!it.received||!newDate)return;
+  it.recvDate=newDate;
+  o.updatedAt=new Date().toISOString();
+  // 기존 입고 이벤트 날짜도 갱신
+  if(it.eventId){
+    const key=`${it.w}x${it.h}`;
+    if(typeof updateStockEvent==='function'){
+      updateStockEvent(key, it.eventId, {at:`${newDate}T00:00:00.000Z`});
+    }
+    if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
+    saveAll();
+  }
+  saveOrderLog();
+  renderOrderList();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`입고일 ${newDate.slice(5).replace('-','/')}로 변경`);
+}
+
+function odDeleteOrder(orderId){
+  const o=orderLog.find(x=>x.id===orderId); if(!o)return;
+  if(!confirm('이 발주 기록을 삭제할까요? (이미 입고 처리한 항목의 재고는 그대로 유지됩니다)')) return;
+  orderDeleted[orderId]=new Date().toISOString(); // 묘비: 다른 기기 병합 시 부활 방지
+  localStorage.setItem('ybn-order-del-v1',JSON.stringify(orderDeleted));
+  orderLog=orderLog.filter(x=>x.id!==orderId);
+  saveOrderLog();
+  renderOrderList();
+  if(typeof autoSync==='function') autoSync();
+}
+
+// ════════════════════════════════════════════
+// 매입/매출 (Ledger) 기능
+// ════════════════════════════════════════════
+let lgKind='buy';        // buy=매입, sell=매출
+let lgEditId=null;
+let lgPhotoData=null;    // 저장용(작은) base64 (data URL)
+let lgReadData=null;     // 읽기용(큰) base64 (data URL)
+
+function setLedgerKind(k){
+  lgKind=k;
+  document.getElementById('lg-tab-buy').classList.toggle('on',k==='buy');
+  document.getElementById('lg-tab-sell').classList.toggle('on',k==='sell');
+  document.getElementById('lg-form-title').textContent=(k==='buy'?'📥 매입 입력':'📤 매출 입력');
+  document.getElementById('lg-save-btn').style.background=(k==='buy'?'var(--acc4)':'var(--acc3)');
+  document.getElementById('lg-bizkind').textContent=(k==='buy'?'(매입)':'(매출)');
+  lgResetForm();
+  renderLedger();
+}
+
+function renderLedger(){
+  const d=document.getElementById('lg-date');
+  if(d && !d.value) d.value=new Date().toISOString().slice(0,10);
+  // 거래처 자동완성
+  const vl=document.getElementById('lg-vendor-list');
+  if(vl){
+    const names=[...new Set(ledgerLog.map(r=>(r.vendor||'').trim()).filter(Boolean))].sort();
+    vl.innerHTML=names.map(n=>'<option value="'+n+'"></option>').join('');
+  }
+  renderLedgerMonthly();
+  renderLedgerByVendor();
+  renderLedgerList();
+  if(!lgItems.length) lgItems=[{item:'',price:'',qty:'',amount:''}];
+  lgRenderItems();
+}
+
+// ── 품목 행(동적) 관리 ──
+let lgItems=[];  // [{item, price, qty, amount}]
+
+function lgItemsTotal(){ return lgItems.reduce((s,it)=>s+(parseFloat(it.amount)||0),0); }
+
+function lgRenderItems(){
+  const host=document.getElementById('lg-items');
+  if(!host) return;
+  if(!lgItems.length){ lgItems=[{item:'',price:'',qty:'',amount:''}]; }
+  host.innerHTML=lgItems.map((it,i)=>`
+    <div style="border:1px solid var(--b1);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--s1)">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <span style="font-size:11px;font-weight:700;color:var(--tx3)">품목 ${i+1}</span>
+        ${lgItems.length>1?`<button onclick="lgRemoveItemRow(${i})" style="margin-left:auto;background:none;border:none;color:var(--acc4);font-size:14px;cursor:pointer">🗑</button>`:''}
+      </div>
+      <input class="inp" placeholder="품목명 (규격 포함)" value="${(it.item||'').replace(/"/g,'&quot;')}" oninput="lgItemField(${i},'item',this.value)" style="padding:8px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif;margin-bottom:6px">
+      <div class="g3">
+        <div><span class="lbl" style="font-size:9px">단가</span>
+          <input type="number" inputmode="numeric" placeholder="0" value="${it.price!==''&&it.price!=null?it.price:''}" oninput="lgItemField(${i},'price',this.value)" style="padding:8px;font-size:13px;text-align:right" class="inp"></div>
+        <div><span class="lbl" style="font-size:9px">수량</span>
+          <input type="number" inputmode="numeric" placeholder="0" value="${it.qty!==''&&it.qty!=null?it.qty:''}" oninput="lgItemField(${i},'qty',this.value)" style="padding:8px;font-size:13px;text-align:right" class="inp"></div>
+        <div><span class="lbl" style="font-size:9px">금액</span>
+          <input type="number" inputmode="numeric" placeholder="0" value="${it.amount!==''&&it.amount!=null?it.amount:''}" oninput="lgItemField(${i},'amount',this.value)" style="padding:8px;font-size:13px;text-align:right" class="inp"></div>
+      </div>
+    </div>`).join('');
+  const g=document.getElementById('lg-grand'); if(g) g.textContent=lgWon(lgItemsTotal());
+}
+
+function lgItemField(i,field,val){
+  if(!lgItems[i]) return;
+  lgItems[i][field]=val;
+  // 단가·수량 입력 시 금액 자동 계산 (사용자가 금액 직접 수정하면 그대로 둠)
+  if(field==='price'||field==='qty'){
+    const p=parseFloat(lgItems[i].price)||0, q=parseFloat(lgItems[i].qty)||0;
+    if(p&&q) lgItems[i].amount=Math.round(p*q);
+    // 금액칸만 새로고침 + 합계
+    const host=document.getElementById('lg-items');
+    if(host){ const amtInput=host.querySelectorAll('.g3')[i]?.querySelectorAll('input')[2]; if(amtInput) amtInput.value=lgItems[i].amount; }
+  }
+  const g=document.getElementById('lg-grand'); if(g) g.textContent=lgWon(lgItemsTotal());
+}
+
+function lgAddItemRow(){ lgItems.push({item:'',price:'',qty:'',amount:''}); lgRenderItems(); }
+function lgRemoveItemRow(i){ lgItems.splice(i,1); if(!lgItems.length) lgItems=[{item:'',price:'',qty:'',amount:''}]; lgRenderItems(); }
+
+// 붙여넣기 파싱: 거래처/날짜 줄 + 품목 줄(쉼표 또는 탭 구분)
+function lgParsePaste(replace){
+  const raw=(document.getElementById('lg-paste').value||'').trim();
+  const statusEl=document.getElementById('lg-paste-status');
+  if(!raw){ statusEl.innerHTML='<span style="color:var(--tx3)">붙여넣은 내용이 없어요.</span>'; return; }
+  const lines=raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  let vendor='', date='';
+  const parsed=[];
+  const num=s=>{ const n=parseFloat((s||'').toString().replace(/[^0-9.\-]/g,'')); return isNaN(n)?'':n; };
+  lines.forEach(line=>{
+    const mv=line.match(/^거?래?처\s*[:：]\s*(.+)$/) || line.match(/^업체\s*[:：]\s*(.+)$/);
+    const md=line.match(/^날짜\s*[:：]\s*(.+)$/) || line.match(/^일자\s*[:：]\s*(.+)$/);
+    if(mv){ vendor=mv[1].trim(); return; }
+    if(md){
+      let d=md[1].trim();
+      const dm=d.match(/(\d{2,4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})/);
+      if(dm){ let y=dm[1]; if(y.length===2)y='20'+y; date=`${y}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}`; }
+      return;
+    }
+    let parts = line.includes('\t') ? line.split('\t') : line.split(',');
+    parts = parts.map(p=>p.trim());
+    if(parts.length<2){ parsed.push({item:parts[0]||'', price:'', qty:'', amount:''}); return; }
+    const item=parts[0]||'';
+    const price=num(parts[1]);
+    const qty=num(parts[2]);
+    let amount=num(parts[3]);
+    if((amount===''||amount===0) && price && qty) amount=Math.round(price*qty);
+    parsed.push({item, price, qty, amount});
+  });
+  if(!parsed.length && !vendor && !date){
+    statusEl.innerHTML='<span style="color:var(--acc4)">품목을 못 찾았어요. 형식을 확인해 주세요 (한 줄에 한 품목).</span>';
+    return;
+  }
+  if(vendor) document.getElementById('lg-vendor').value=vendor;
+  if(date) document.getElementById('lg-date').value=date;
+  if(parsed.length){
+    if(replace){
+      lgItems = parsed.slice();
+    } else {
+      const onlyEmpty = lgItems.length===1 && !lgItems[0].item && !lgItems[0].amount;
+      lgItems = onlyEmpty ? parsed.slice() : lgItems.concat(parsed);
+    }
+    lgRenderItems();
+  }
+  const bits=[];
+  if(parsed.length) bits.push(parsed.length+'개 품목');
+  if(vendor) bits.push('거래처');
+  if(date) bits.push('날짜');
+  statusEl.innerHTML='<span style="color:var(--acc2)">✅ '+bits.join(' · ')+' 불러왔어요. <b>확인 후 저장</b>하세요.</span>';
+  document.getElementById('lg-paste').value='';
+}
+
+function lgResetForm(){
+  lgEditId=null; lgPhotoData=null; lgReadData=null;
+  lgItems=[{item:'',price:'',qty:'',amount:''}];
+  ['lg-vendor','lg-memo'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const d=document.getElementById('lg-date'); if(d)d.value=new Date().toISOString().slice(0,10);
+  document.getElementById('lg-photo-preview').innerHTML='';
+  document.getElementById('lg-read-status').textContent='';
+  document.getElementById('lg-save-btn').textContent='💾 기록 저장';
+  document.getElementById('lg-edit-cancel').style.display='none';
+  lgRenderItems();
+}
+
+// ── 사진 선택 → 압축 → 미리보기 → AI 읽기 ──
+function lgPhotoSelected(ev){
+  const file=ev.target.files&&ev.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      function resize(maxDim,quality){
+        let w=img.width,h=img.height;
+        if(w>h && w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}
+        else if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        return cv.toDataURL('image/jpeg',quality);
+      }
+      // 저장용: 작게 (localStorage 용량 보호)
+      lgPhotoData=resize(1000,0.6);
+      // 읽기용: 크고 선명하게 (글씨 인식 정확도↑)
+      lgReadData=resize(1600,0.82);
+      document.getElementById('lg-photo-preview').innerHTML=
+        '<img src="'+lgPhotoData+'" onclick="lgShowBig()" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--b2);cursor:pointer"><div style="font-size:10px;color:var(--tx3);margin-top:4px">탭하면 크게 보기</div>';
+      lgReadPhoto();
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+  ev.target.value=''; // 같은 파일 재선택 허용
+}
+
+function lgShowBig(){
+  if(!lgPhotoData) return;
+  document.getElementById('lg-photo-big').src=lgPhotoData;
+  document.getElementById('lg-photo-modal').classList.add('on');
+}
+
+// ── 명세서 사진을 AI로 읽어 폼에 채우기 (사용자 확인용) ──
+async function lgReadPhoto(){
+  const src=lgReadData||lgPhotoData;
+  if(!src) return;
+  const statusEl=document.getElementById('lg-read-status');
+  statusEl.innerHTML='🔍 명세서 읽는 중... (잠시만요)';
+  try{
+    const b64=src.split(',')[1];
+    const prompt='이 거래명세서 사진에서 거래처/날짜/모든 품목 줄을 JSON으로만 추출해줘. 설명 없이 JSON만. '
+      +'형식: {"vendor":"거래처(공급자/상호)명","date":"YYYY-MM-DD","items":[{"item":"품목명(규격 포함)","price":단가숫자,"qty":수량숫자,"amount":공급가/금액숫자}]}. '
+      +'품목이 여러 줄이면 items 배열에 모두 넣어줘. 숫자에서 쉼표는 빼고. 모르는 값은 0 또는 빈 문자열. 날짜는 발행일자 기준, 두 자리 연도면 2000년대로.';
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:2000,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+          {type:'text',text:prompt}
+        ]}]
+      })
+    });
+    if(!res.ok) throw new Error('API '+res.status);
+    const data=await res.json();
+    const text=(data.content||[]).filter(i=>i.type==='text').map(i=>i.text).join('').trim();
+    const clean=text.replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(clean);
+    // 폼에 채우되 사용자가 확인/수정 후 저장
+    if(parsed.vendor) document.getElementById('lg-vendor').value=parsed.vendor;
+    if(parsed.date) document.getElementById('lg-date').value=parsed.date;
+    if(Array.isArray(parsed.items) && parsed.items.length){
+      lgItems=parsed.items.map(it=>({
+        item:it.item||'',
+        price:(it.price||it.price===0)?it.price:'',
+        qty:(it.qty||it.qty===0)?it.qty:'',
+        amount:(it.amount||it.amount===0)?it.amount:''
+      }));
+      lgRenderItems();
+      statusEl.innerHTML='<span style="color:var(--acc2)">⚠️ 자동으로 채웠어요. 품목 줄을 <b>하나씩 꼭 확인하고</b> 틀린 곳은 고친 뒤 저장하세요.</span>';
+    } else {
+      statusEl.innerHTML='<span style="color:var(--tx3)">읽긴 했는데 품목을 못 찾았어요. 사진이 흐리면 더 밝고 반듯하게 다시 찍어보거나, 직접 입력해 주세요.</span>';
+    }
+  }catch(e){
+    console.log('명세서 읽기 실패:',e);
+    statusEl.innerHTML='<span style="color:var(--tx3)">사진은 첨부됐어요. 이 환경에서는 자동 읽기가 안 돼서 직접 입력해 주세요.</span>';
+  }
+}
+
+function lgSave(){
+  const vendor=(document.getElementById('lg-vendor').value||'').trim();
+  const date=document.getElementById('lg-date').value;
+  const memo=(document.getElementById('lg-memo').value||'').trim();
+  if(!vendor||!date){ showToast('거래처와 날짜를 입력하세요'); return; }
+  // 빈 품목 줄 제거
+  const items=lgItems
+    .map(it=>({item:(it.item||'').trim(), price:parseFloat(it.price)||0, qty:parseFloat(it.qty)||0, amount:parseFloat(it.amount)||0}))
+    .filter(it=>it.item || it.amount);
+  if(!items.length){ showToast('품목을 1개 이상 입력하세요'); return; }
+  const total=items.reduce((s,it)=>s+(it.amount||0),0);
+  if(!total){ showToast('금액을 입력하세요'); return; }
+  vdEnsure(vendor);
+  if(lgEditId){
+    const r=ledgerLog.find(x=>x.id===lgEditId);
+    if(r){ Object.assign(r,{kind:lgKind,vendor,date,items,total,memo,photo:lgPhotoData||r.photo||null,updatedAt:new Date().toISOString()});
+      delete r.item; delete r.price; delete r.qty; delete r.amount; }
+    showToast('✅ 수정됨');
+  } else {
+    ledgerLog.unshift({id:'lg_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+      kind:lgKind,vendor,date,items,total,memo,photo:lgPhotoData||null,
+      by:getActor()||'',createdAt:new Date().toISOString()});
+    showToast(lgKind==='buy'?'📥 매입 기록됨':'📤 매출 기록됨');
+  }
+  saveAll(); lgResetForm(); renderLedger();
+  if(typeof autoSync==='function') autoSync();
+}
+
+// 구버전(단일품목) 호환: 레코드 총액
+function lgRecordTotal(r){
+  if(r.total!=null) return r.total;
+  if(Array.isArray(r.items)) return r.items.reduce((s,it)=>s+(it.amount||0),0);
+  return r.amount||0;  // 아주 옛 기록
+}
+// 구버전 호환: 품목 배열
+function lgRecordItems(r){
+  if(Array.isArray(r.items)) return r.items;
+  if(r.item||r.amount) return [{item:r.item||'',price:r.price||0,qty:r.qty||0,amount:r.amount||0}];
+  return [];
+}
+
+function lgEdit(id){
+  const r=ledgerLog.find(x=>x.id===id); if(!r) return;
+  setLedgerKind(r.kind); // 탭 전환 (안에서 lgResetForm 호출됨)
+  lgEditId=id; lgPhotoData=r.photo||null;
+  document.getElementById('lg-vendor').value=r.vendor||'';
+  document.getElementById('lg-date').value=r.date||'';
+  document.getElementById('lg-memo').value=r.memo||'';
+  const items=lgRecordItems(r);
+  lgItems=items.length?items.map(it=>({item:it.item||'',price:it.price||'',qty:it.qty||'',amount:it.amount||''})):[{item:'',price:'',qty:'',amount:''}];
+  lgRenderItems();
+  if(r.photo){
+    document.getElementById('lg-photo-preview').innerHTML='<img src="'+r.photo+'" onclick="lgShowBig()" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--b2);cursor:pointer">';
+  }
+  document.getElementById('lg-save-btn').textContent='✓ 수정 저장';
+  document.getElementById('lg-edit-cancel').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function lgDelete(id){
+  if(!confirm('이 기록을 삭제할까요?')) return;
+  ledgerLog=ledgerLog.filter(x=>x.id!==id);
+  saveAll(); renderLedger();
+  if(typeof autoSync==='function') autoSync();
+  showToast('삭제됨');
+}
+
+function lgWon(n){ return (n||0).toLocaleString('ko-KR')+'원'; }
+
+// 구글시트로 보낼 때는 사진(용량 큼)을 빼고 텍스트만 전송 (셀 용량 보호)
+// 사진은 기기 localStorage에만 보관
+function ledgerForSync(){
+  return ledgerLog.map(r=>{ const c={...r}; if(c.photo) c.hasPhoto=true; delete c.photo; return c; });
+}
+// 시트에서 받은 ledger(사진 없음)에 기기에 있던 사진을 다시 붙임
+function mergeLedgerFromSheet(remote){
+  if(!Array.isArray(remote)) return;
+  const localById={}; ledgerLog.forEach(r=>{ if(r.photo) localById[r.id]=r.photo; });
+  ledgerLog=remote.map(r=>{ if(localById[r.id]) r.photo=localById[r.id]; return r; });
+}
+
+function renderLedgerMonthly(){
+  const host=document.getElementById('lg-monthly');
+  if(!ledgerLog.length){ host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:14px">기록 없음</div>'; return; }
+  const groups={};
+  ledgerLog.forEach(r=>{ const ym=(r.date||'').slice(0,7)||'기타'; (groups[ym]=groups[ym]||{buy:0,sell:0})[r.kind]+=lgRecordTotal(r); });
+  const yms=Object.keys(groups).sort((a,b)=>b.localeCompare(a));
+  host.innerHTML=yms.map(ym=>{
+    const g=groups[ym]; const profit=g.sell-g.buy;
+    const ymLabel=ym==='기타'?'기타':`${ym.slice(0,4)}년 ${parseInt(ym.slice(5,7))}월`;
+    return `<div style="padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:800;margin-bottom:6px">📅 ${ymLabel}</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span style="color:var(--acc4)">📥 매입</span><span style="font-family:'JetBrains Mono',monospace">${lgWon(g.buy)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span style="color:var(--acc3)">📤 매출</span><span style="font-family:'JetBrains Mono',monospace">${lgWon(g.sell)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0 0;margin-top:4px;border-top:1px solid var(--b1);font-weight:700"><span style="color:${profit>=0?'var(--acc3)':'var(--acc4)'}">${profit>=0?'💰 이익':'📉 손실'}</span><span style="font-family:'JetBrains Mono',monospace;color:${profit>=0?'var(--acc3)':'var(--acc4)'}">${lgWon(profit)}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function renderLedgerByVendor(){
+  const host=document.getElementById('lg-byvendor');
+  const rows=ledgerLog.filter(r=>r.kind===lgKind);
+  if(!rows.length){ host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:14px">'+(lgKind==='buy'?'매입':'매출')+' 기록 없음</div>'; return; }
+  const g={};
+  rows.forEach(r=>{ const v=r.vendor||'(미지정)'; g[v]=(g[v]||0)+lgRecordTotal(r); });
+  const sorted=Object.entries(g).sort((a,b)=>b[1]-a[1]);
+  const label=lgKind==='buy'?'줄 돈(매입)':'받을·받은 돈(매출)';
+  host.innerHTML='<div style="font-size:10px;color:var(--tx3);margin-bottom:6px">거래처별 '+label+' 합계</div>'+
+    sorted.map(([v,amt])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--b1)">
+      <span style="font-size:12px;font-weight:600">${v}</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${lgKind==='buy'?'var(--acc4)':'var(--acc3)'}">${lgWon(amt)}</span>
+    </div>`).join('');
+}
+
+function renderLedgerList(){
+  const host=document.getElementById('lg-list');
+  const rows=ledgerLog.filter(r=>r.kind===lgKind);
+  document.getElementById('lg-list-count').textContent=rows.length?`(${rows.length}건)`:'';
+  if(!rows.length){ host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:14px">기록 없음</div>'; return; }
+  const sorted=[...rows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  host.innerHTML=sorted.map(r=>{
+    const ds=(r.date||'').slice(5).replace('-','/');
+    const items=lgRecordItems(r);
+    const itemSummary = items.length===0 ? '' :
+      items.length===1 ? (items[0].item||'') :
+      `${items[0].item||'품목'} 외 ${items.length-1}건`;
+    const total=lgRecordTotal(r);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--b1)">
+      ${r.photo?`<img src="${r.photo}" onclick="lgShowBigSrc('${r.id}')" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid var(--b2);cursor:pointer;flex-shrink:0">`:'<div style="width:38px;height:38px;border-radius:6px;background:var(--s3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">📄</div>'}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.vendor||'(미지정)'} <span style="font-size:10px;color:var(--tx3);font-weight:400">${ds}</span>${items.length>1?` <span style="font-size:9px;background:var(--s3);color:var(--tx2);padding:1px 5px;border-radius:4px">${items.length}품목</span>`:''}</div>
+        <div style="font-size:10px;color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${itemSummary}${r.memo?' · '+r.memo:''}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${r.kind==='buy'?'var(--acc4)':'var(--acc3)'};flex-shrink:0">${lgWon(total)}</div>
+      <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+        <button onclick="lgEdit('${r.id}')" class="icon-btn" style="font-size:12px">✏️</button>
+        <button onclick="lgDelete('${r.id}')" class="icon-btn del" style="font-size:12px">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function lgShowBigSrc(id){
+  const r=ledgerLog.find(x=>x.id===id); if(!r||!r.photo)return;
+  document.getElementById('lg-photo-big').src=r.photo;
+  document.getElementById('lg-photo-modal').classList.add('on');
+}
+
+// ── 매입/매출 엑셀 저장 (현재 탭 기준, 품목 줄 단위로 펼침) ──
+function lgMakeExcel(){
+  if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 - 잠시 후 다시'); return; }
+  const kindLabel=lgKind==='buy'?'매입':'매출';
+  const rows=ledgerLog.filter(r=>r.kind===lgKind);
+  if(!rows.length){ showToast(kindLabel+' 기록이 없어요'); return; }
+  // 날짜 오름차순 정렬
+  const sorted=[...rows].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  // 헤더
+  const aoa=[['날짜','거래처','품목','단가','수량','금액','메모']];
+  let grand=0;
+  sorted.forEach(r=>{
+    const items=lgRecordItems(r);
+    if(!items.length){
+      aoa.push([r.date||'', r.vendor||'', '', '', '', lgRecordTotal(r), r.memo||'']);
+      grand+=lgRecordTotal(r);
+      return;
+    }
+    items.forEach((it,idx)=>{
+      aoa.push([
+        idx===0?(r.date||''):'',          // 같은 명세서는 날짜·거래처를 첫 줄에만
+        idx===0?(r.vendor||''):'',
+        it.item||'',
+        it.price||'',
+        it.qty||'',
+        it.amount||'',
+        idx===0?(r.memo||''):''
+      ]);
+      grand+=it.amount||0;
+    });
+  });
+  // 합계 행
+  aoa.push(['','','','','합계',grand,'']);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:11},{wch:16},{wch:30},{wch:10},{wch:6},{wch:12},{wch:16}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,kindLabel);
+  const today=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  XLSX.writeFile(wb,`매입매출_${kindLabel}_${today}.xlsx`);
+  showToast('📊 '+kindLabel+' 엑셀 저장됨');
+}
+
+
+// ════════════════════════════════════════════
+// 거래처 명부 (Vendor Book)
+// ════════════════════════════════════════════
+let vdEditId=null;
+
+function renderVendors(){
+  vdRenderList();
+}
+
+// 매입·매출 저장 시 거래처 자동 등록 (없으면 이름만이라도 만들어 둠)
+function vdEnsure(name){
+  const n=(name||'').trim();
+  if(!n) return;
+  const exists=vendorBook.some(v=>(v.name||'').trim()===n);
+  if(!exists){
+    vendorBook.push({id:'vd_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+      name:n, bizno:'', ceo:'', addr:'', tel:'', fax:'', biztype:'', bizitem:'', memo:'',
+      createdAt:new Date().toISOString()});
+  }
+}
+
+function vdResetForm(){
+  vdEditId=null;
+  ['vd-name','vd-bizno','vd-ceo','vd-addr','vd-tel','vd-fax','vd-biztype','vd-bizitem','vd-memo','vd-paste'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const st=document.getElementById('vd-paste-status'); if(st)st.innerHTML='';
+  document.getElementById('vd-save-btn').textContent='💾 거래처 저장';
+  document.getElementById('vd-edit-cancel').style.display='none';
+  document.getElementById('vd-form-title').textContent='➕ 거래처 추가 / 수정';
+}
+
+function vdParsePaste(){
+  const raw=(document.getElementById('vd-paste').value||'').trim();
+  const st=document.getElementById('vd-paste-status');
+  if(!raw){ st.innerHTML='<span style="color:var(--tx3)">붙여넣은 내용이 없어요.</span>'; return; }
+  const map=[
+    [/^(상호|거래처|업체)\s*[:：]\s*(.+)$/, 'vd-name'],
+    [/^(사업자|사업자번호|등록번호)\s*[:：]\s*(.+)$/, 'vd-bizno'],
+    [/^(대표|대표자|성명)\s*[:：]\s*(.+)$/, 'vd-ceo'],
+    [/^(주소|사업장)\s*[:：]\s*(.+)$/, 'vd-addr'],
+    [/^(전화|tel|연락처)\s*[:：]\s*(.+)$/i, 'vd-tel'],
+    [/^(팩스|fax)\s*[:：]\s*(.+)$/i, 'vd-fax'],
+    [/^(업태)\s*[:：]\s*(.+)$/, 'vd-biztype'],
+    [/^(종목|업종)\s*[:：]\s*(.+)$/, 'vd-bizitem'],
+    [/^(메모|비고)\s*[:：]\s*(.+)$/, 'vd-memo']
+  ];
+  let hit=0;
+  raw.split(/\r?\n/).forEach(line=>{
+    line=line.trim(); if(!line) return;
+    for(const pair of map){
+      const m=line.match(pair[0]);
+      if(m){ document.getElementById(pair[1]).value=m[m.length-1].trim(); hit++; break; }
+    }
+  });
+  st.innerHTML = hit ? '<span style="color:var(--acc2)">✅ '+hit+'개 항목 불러왔어요. 확인 후 저장하세요.</span>'
+                     : '<span style="color:var(--acc4)">인식된 항목이 없어요. "상호: …" 형식인지 확인해 주세요.</span>';
+  if(hit) document.getElementById('vd-paste').value='';
+}
+
+function vdSave(){
+  const name=(document.getElementById('vd-name').value||'').trim();
+  if(!name){ showToast('상호(거래처명)를 입력하세요'); return; }
+  const rec={
+    name,
+    bizno:(document.getElementById('vd-bizno').value||'').trim(),
+    ceo:(document.getElementById('vd-ceo').value||'').trim(),
+    addr:(document.getElementById('vd-addr').value||'').trim(),
+    tel:(document.getElementById('vd-tel').value||'').trim(),
+    fax:(document.getElementById('vd-fax').value||'').trim(),
+    biztype:(document.getElementById('vd-biztype').value||'').trim(),
+    bizitem:(document.getElementById('vd-bizitem').value||'').trim(),
+    memo:(document.getElementById('vd-memo').value||'').trim()
+  };
+  if(vdEditId){
+    const v=vendorBook.find(x=>x.id===vdEditId);
+    if(v) Object.assign(v,rec,{updatedAt:new Date().toISOString()});
+    showToast('✅ 거래처 수정됨');
+  } else {
+    const ex=vendorBook.find(v=>(v.name||'').trim()===name);
+    if(ex) Object.assign(ex,rec,{updatedAt:new Date().toISOString()});
+    else vendorBook.push(Object.assign({id:'vd_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),createdAt:new Date().toISOString()},rec));
+    showToast('🏢 거래처 저장됨');
+  }
+  saveAll(); vdResetForm(); vdRenderList();
+  if(typeof autoSync==='function') autoSync();
+}
+
+function vdEdit(id){
+  const v=vendorBook.find(x=>x.id===id); if(!v) return;
+  vdEditId=id;
+  document.getElementById('vd-name').value=v.name||'';
+  document.getElementById('vd-bizno').value=v.bizno||'';
+  document.getElementById('vd-ceo').value=v.ceo||'';
+  document.getElementById('vd-addr').value=v.addr||'';
+  document.getElementById('vd-tel').value=v.tel||'';
+  document.getElementById('vd-fax').value=v.fax||'';
+  document.getElementById('vd-biztype').value=v.biztype||'';
+  document.getElementById('vd-bizitem').value=v.bizitem||'';
+  document.getElementById('vd-memo').value=v.memo||'';
+  document.getElementById('vd-save-btn').textContent='✓ 수정 저장';
+  document.getElementById('vd-edit-cancel').style.display='block';
+  document.getElementById('vd-form-title').textContent='✏️ 거래처 수정';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function vdDelete(id){
+  const v=vendorBook.find(x=>x.id===id); if(!v) return;
+  if(!confirm(`"${v.name}" 거래처를 삭제할까요? (매입·매출 기록은 그대로 남아요)`)) return;
+  vendorBook=vendorBook.filter(x=>x.id!==id);
+  saveAll(); vdRenderList();
+  if(typeof autoSync==='function') autoSync();
+  showToast('삭제됨');
+}
+
+function vdRenderList(){
+  const host=document.getElementById('vd-list'); if(!host) return;
+  const q=((document.getElementById('vd-search')||{}).value||'').trim().toLowerCase();
+  let list=[...vendorBook].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+  if(q) list=list.filter(v=>[v.name,v.bizno,v.ceo,v.addr,v.tel,v.biztype,v.bizitem].some(f=>(f||'').toLowerCase().includes(q)));
+  const cnt=document.getElementById('vd-count'); if(cnt) cnt.textContent=vendorBook.length?`(${vendorBook.length}곳)`:'';
+  if(!list.length){ host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:14px">'+(vendorBook.length?'검색 결과 없음':'아직 거래처가 없어요. 매입·매출을 기록하면 자동으로 등록돼요.')+'</div>'; return; }
+  host.innerHTML=list.map(v=>{
+    const rows=[];
+    if(v.bizno) rows.push(['사업자',v.bizno]);
+    if(v.ceo) rows.push(['대표자',v.ceo]);
+    if(v.tel) rows.push(['전화',v.tel]);
+    if(v.fax) rows.push(['팩스',v.fax]);
+    if(v.addr) rows.push(['주소',v.addr]);
+    if(v.biztype||v.bizitem) rows.push(['업태/종목',[v.biztype,v.bizitem].filter(Boolean).join(' / ')]);
+    if(v.memo) rows.push(['메모',v.memo]);
+    const detail = rows.length
+      ? rows.map(kv=>`<div style="display:flex;gap:8px;font-size:11px;padding:1px 0"><span style="color:var(--tx3);min-width:54px;flex-shrink:0">${kv[0]}</span><span style="color:var(--tx1);word-break:break-all">${kv[1]}</span></div>`).join('')
+      : '<div style="font-size:11px;color:var(--acc4)">상세정보 없음 — 편집해서 채워주세요</div>';
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--b1)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:800;flex:1">${v.name||'(이름없음)'}</span>
+        <button onclick="vdEdit('${v.id}')" class="icon-btn" style="font-size:12px">✏️</button>
+        <button onclick="vdDelete('${v.id}')" class="icon-btn del" style="font-size:12px">🗑</button>
+      </div>
+      ${detail}
+    </div>`;
+  }).join('');
+}
+
+function vdMakeExcel(){
+  if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 - 잠시 후 다시'); return; }
+  if(!vendorBook.length){ showToast('거래처가 없어요'); return; }
+  const list=[...vendorBook].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+  const aoa=[['상호','사업자번호','대표자','주소','전화','팩스','업태','종목','메모']];
+  list.forEach(v=>aoa.push([v.name||'',v.bizno||'',v.ceo||'',v.addr||'',v.tel||'',v.fax||'',v.biztype||'',v.bizitem||'',v.memo||'']));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:18},{wch:15},{wch:8},{wch:34},{wch:14},{wch:14},{wch:10},{wch:14},{wch:16}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'거래처');
+  const today=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  XLSX.writeFile(wb,`거래처목록_${today}.xlsx`);
+  showToast('📊 거래처 엑셀 저장됨');
+}
+
+
+// ── 자동 동기화 ──
+async function autoSyncOnLoad(){
+  if(!gsUrl) return;
+  try{
+    const data=await gsFetch('GET',null,'?action=read');
+    applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
+    meta.lastGsSync=new Date().toISOString();
+    window._skipLocalChange = true;
+    saveAll();
+    window._skipLocalChange = false;
+    updateGsStatus('ok');
+    // 현재 보고 있는 탭 전체 갱신 (납품서·재고 등도 함께 다시 그림)
+    if(typeof rerenderAfterSync==='function'){ try{ rerenderAfterSync(); }catch(e){ renderHome(); } }
+    else renderHome();
+  }catch(e){
+    console.log('자동동기화 실패:', e.message);
+  }
+}
+
+  
+// 한샘 공식 대구분 테이블 (코드→대구분). 카톡 브리핑·카드 분류 기준.
+/* DAEGUBUN → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
+/* HANSAEM_CATALOG → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
+// ════════════════════════════════════════════════════════════════
+//  📦 납품서 패치 v2 — 한샘 제품 카탈로그 + 출고일(D-2) 자동 정리
+//  교체 대상: 기존 parseDelivText / handleDelivPdf / renderDelivery
+//  추가:      delivLookup / delivDeductStock / delivUndoDeduct / setDelivView
+//  ⚠️ HANSAEM_CATALOG (catalog_js 블록)이 먼저 로드되어 있어야 합니다.
+// ════════════════════════════════════════════════════════════════
+
+const DELIV_PROD_CODE_RE = /^[A-Z]{2,6}[0-9A-Z]*$/;
+
+// 코드 → 제품명/색상/구분/사이즈 (엑셀 카탈로그 우선)
+// 비규격 제품명에서 사이즈·좌우(LR)를 추출. 파서와 카드 렌더 양쪽에서 사용.
+// 괄호 형식: (450*0*781*0 M) — 숫자들 뒤 방향표기 L/R/M(M=공용). 0은 제외.
+function delivSizeLR(rawName){
+  const name=rawName||''; let size='', lr='';
+  let m=name.match(/비규격\s*\(\s*([\d*]+)\s*([LRM])?\s*\)/);
+  if(m){
+    size=m[1].split('*').filter(n=>n!=='0'&&n!=='').join('×');
+    lr=(m[2]==='L'||m[2]==='R')?m[2]:'';
+  } else {
+    const m2=name.match(/비규격\s*\(\s*([\d*]+)/); // 괄호 안 닫힘(줄바꿈) 폴백
+    if(m2) size=m2[1].split('*').filter(n=>n!=='0'&&n!=='').join('×');
+  }
+  if(!lr){ const ml=name.match(/\b([LR])\)/); if(ml) lr=ml[1]; } // LR 폴백
+  if(!size){ const mx=name.match(/(\d+)X(\d+)X(\d+)X(\d+)/i); if(mx) size=[mx[1],mx[2],mx[3],mx[4]].filter(n=>n!=='0').join('×'); }
+  return {size, lr};
+}
+function delivLookup(code){
+  const out={short:'', color:'', gubun:'', size:'', daegubun:''};
+  if(typeof DAEGUBUN!=='undefined' && DAEGUBUN[code]) out.daegubun=DAEGUBUN[code];
+  if(typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[code]){
+    const a=HANSAEM_CATALOG[code]; out.short=a[0]; out.gubun=a[1]; out.color=a[2];
+  }
+  const m=(typeof findModel==='function')?findModel(code):null;
+  if(m){
+    if(!out.short) out.short=m.short;
+    if(!out.color) out.color=m.color||'';
+    if(m.glass_w) out.size=m.glass_w+'×'+m.glass_h;
+  }
+  if(!out.short && typeof CODE_MODEL_MAP!=='undefined' && CODE_MODEL_MAP[code]){
+    out.short=CODE_MODEL_MAP[code].short||'';
+    if(!out.color) out.color=CODE_MODEL_MAP[code].color||'';
+  }
+  return out;
+}
+
+function _ymd8(s){ if(!s||s.length!==8) return ''; return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8); }
+function _addDays(dateStr,n){
+  if(!dateStr) return '';
+  const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
+  d.setDate(d.getDate()+n); return d.toISOString().slice(0,10);
+}
+// 한국 공휴일(대체공휴일 포함). 매년 갱신 필요. 토·일은 별도로 항상 휴무.
+const KR_HOLIDAYS=new Set([
+  // 2026
+  '2026-01-01', // 신정
+  '2026-02-16','2026-02-17','2026-02-18', // 설날
+  '2026-03-01','2026-03-02', // 삼일절+대체
+  '2026-05-01', // 노동절
+  '2026-05-05', // 어린이날
+  '2026-05-24','2026-05-25', // 부처님오신날+대체
+  '2026-06-03', // 지방선거
+  '2026-06-06', // 현충일
+  '2026-08-15','2026-08-17', // 광복절+대체
+  '2026-09-24','2026-09-25','2026-09-26', // 추석
+  '2026-10-03', // 개천절
+  '2026-10-09', // 한글날
+  '2026-12-25', // 성탄절
+  // 2027 (필요시 확장)
+  '2027-01-01'
+]);
+// 쉬는 날(토·일·공휴일)인가
+function _isHoliday(d){
+  const dow=d.getDay();
+  if(dow===0||dow===6) return true;
+  return KR_HOLIDAYS.has(d.toISOString().slice(0,10));
+}
+// 휴일이면 평일로 보정. dir>0이면 다음 근무일, dir<0이면 직전 근무일
+function _toBizDay(dateStr,dir){
+  if(!dateStr) return dateStr;
+  const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
+  const step = (dir===undefined||dir>=0) ? 1 : -1;
+  let guard=0;
+  while(_isHoliday(d) && guard<30){ d.setDate(d.getDate()+step); guard++; }
+  return d.toISOString().slice(0,10);
+}
+// 공장 출고일 = 납품요청일 + 2근무일(주말·공휴일 제외). 저장된 옛 shipDate는 무시하고 항상 재계산.
+function _shipOf(d){
+  if(d.delivReqDate) return _addBizDays(d.delivReqDate,2);
+  return _toBizDay(d.shipDate||'',1);
+}
+// 근무일(주말·공휴일 제외) 기준 가감. n<0이면 과거 방향.
+function _addBizDays(dateStr,n){
+  if(!dateStr) return '';
+  const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
+  const step=n<0?-1:1; let remain=Math.abs(n); let guard=0;
+  while(remain>0 && guard<100){
+    d.setDate(d.getDate()+step); guard++;
+    if(!_isHoliday(d)) remain--;
+  }
+  return d.toISOString().slice(0,10);
+}
+
+// ── 칸(좌표) 기반 파서 (메인) ──────────────────────────────
+// pdf.js 글자 아이템들의 x/y 좌표로 표의 칸을 직접 나눠 읽는다.
+// 수량은 "수량" 헤더 칸의 x범위 안에 있는 숫자만 읽으므로 제품명 속 숫자에 영향받지 않는다.
+// items: [{str, x, y, w}] (y는 위에서 아래로 증가하도록 정규화된 좌표)
+function _clusterRows(items, tol){
+  const sorted=items.slice().sort((a,b)=>a.y-b.y);
+  const rows=[];
+  for(const it of sorted){
+    if(rows.length && Math.abs(it.y-rows[rows.length-1].anchor)<tol) rows[rows.length-1].items.push(it);
+    else rows.push({anchor:it.y, items:[it]});
+  }
+  return rows;
+}
+function _extractCode(full){
+  // 카탈로그에 있는 코드 우선 매칭
+  const cat = (typeof HANSAEM_CATALOG!=='undefined') ? HANSAEM_CATALOG : {};
+  const re=/[A-Z0-9]{8,11}/g; let m;
+  while((m=re.exec(full))){
+    const s=m[0];
+    for(const L of [9,10,8]){
+      for(let st=0; st<=s.length-L; st++){
+        const cand=s.slice(st,st+L);
+        if(cat[cand]) return cand;
+      }
+    }
+  }
+  // 카탈로그 미스: 영문시작 9자 패턴
+  const m2=full.match(/[A-Z]{2,4}[A-Z0-9]{5,7}/);
+  if(m2){ const c=m2[0]; return c.length>9?c.slice(0,9):c; }
+  return null;
+}
+// pageItems: 한 페이지의 [{str,x,y,w}] 배열. 반환: {items:[{code,qty,orderNo}]}
+function parseDelivCellsPage(pageItems){
+  const tol=5;
+  let qcx=null, ocx=null, hy=null;
+  // 헤더 행: '수량' 포함 + (오더번호|제품코드)
+  for(const r of _clusterRows(pageItems,tol)){
+    const seq=r.items.slice().sort((a,b)=>a.x-b.x);
+    const line=seq.map(c=>c.str).join('');
+    const p=line.indexOf('수량');
+    if(p>=0 && (line.indexOf('오더번호')>=0 || line.indexOf('제품코드')>=0)){
+      // '수량' 두 글자의 x중심
+      let acc='', startX=null, endX=null;
+      for(const c of seq){
+        const before=acc.length; acc+=c.str;
+        if(startX===null && before<=p && acc.length>p) startX=c.x;
+        if(acc.length>=p+2 && endX===null) endX=c.x+(c.w||0);
+        if(startX!==null && endX!==null) break;
+      }
+      if(startX!==null && endX!==null) qcx=(startX+endX)/2;
+      // 오더번호 중심
+      const po=line.indexOf('오더번호');
+      if(po>=0){
+        let a2='', sX=null, eX=null;
+        for(const c of seq){ const b=a2.length; a2+=c.str;
+          if(sX===null && b<=po && a2.length>po) sX=c.x;
+          if(a2.length>=po+4 && eX===null) eX=c.x+(c.w||0);
+          if(sX!==null && eX!==null) break; }
+        if(sX!==null && eX!==null) ocx=(sX+eX)/2;
+      }
+      hy=Math.max(...r.items.map(c=>c.y));
+      break;
+    }
+  }
+  if(qcx===null) return null; // 헤더 못 찾음 → 폴백
+  // 수량 칸과 오더번호 칸 x중심이 너무 가까우면(헤더가 한 덩어리로 뭉친 깨진 PDF)
+  // 좌표로 칸을 못 나누므로 좌표 파서 폐기 → 텍스트 파서로 폴백
+  if(ocx!==null && Math.abs(qcx-ocx) < 40) return null;
+  const qx0=qcx-20, qx1=qcx+20;
+  const ox0=ocx!==null?ocx-22:qx1, ox1=ocx!==null?ocx+22:qx1+45;
+  const data=pageItems.filter(c=>c.y>hy+4);
+  const out=[];
+  let rowSeq=0; // 데이터 행 순번(1,2,3...) — 뭉친 셀에서 순번 분리에 사용
+  for(const r of _clusterRows(data,tol)){
+    const seq=r.items.slice().sort((a,b)=>a.x-b.x);
+    const full=seq.map(c=>c.str).join('');
+    const code=_extractCode(full);
+    if(!code) continue;
+    rowSeq++;
+    const qcell=seq.filter(c=>{const m=c.x+(c.w||0)/2; return m>=qx0&&m<=qx1&&c.str.trim();}).map(c=>c.str).join('');
+    const ocell=seq.filter(c=>{const m=c.x+(c.w||0)/2; return m>=ox0&&m<=ox1&&c.str.trim();}).map(c=>c.str).join('');
+    const om=ocell.match(/\d{9}/);
+    // 수량 추출: 일부 한샘 양식(물류 배송센터 등)은 수량·순번·심플코드·존·렉이
+    // 한 좌표에 뭉쳐 "81  SG 741 C01 10" 처럼 나옴 → 맨 앞 숫자에서 행 순번을 떼어 복원
+    let qty = _parseQtyCell(qcell, rowSeq);
+    // 좌표로 수량칸을 못 잡았으면(빈칸/1) 행 전체 문자열에서 구조 파싱 폴백
+    if((!qcell || qty===1) ){
+      const fq=_qtyFromRowText(full, code, rowSeq);
+      if(fq!==null) qty=fq;
+    }
+    out.push({code, qty, orderNo:om?om[0]:''});
+  }
+  return out.length?out:null;
+}
+
+// 행 전체 문자열에서 수량 추출 (좌표 분리 실패한 완전 뭉침 PDF용)
+// 예: "CAIB13894 글래스 도어 450_채널  81  SG 741 C01 10"
+//     코드 뒤 ~ 심플코드(영문2~3+숫자) 사이의 마지막 숫자덩어리 = 수량+순번
+function _qtyFromRowText(full, code, rowSeq){
+  // 양식 B(오더번호 없음) 수량 추출 — 최종 검증판.
+  // 줄 구조: [제품코드] 제품명... [수량] [존(C01/D/A)] [렉] (그 뒤는 다음 행 꼬리)
+  // 난점: "유리도어_브론즈 600 1 A" 처럼 제품명이 순수숫자(600=모델)로 끝나는 경우
+  //       제품명 끝 숫자를 수량으로 오인하면 안 됨.
+  // 규칙: ① 존(영문1글자+숫자0~2, 단 M/L/R/X 방향·규격표기 제외)을 왼쪽부터 첫번째로 찾아
+  //          그 '앞'의 가장 가까운 순수숫자가 수량.
+  //       ② 존이 없으면 제품명 후 첫 순수숫자가 수량. 단 [숫자 숫자]가 연속이면
+  //          앞=모델사이즈, 뒤=수량 으로 본다.
+  if(!full||!code) return null;
+  let s=full;
+  const ci=s.indexOf(code);
+  if(ci>=0) s=s.slice(ci+code.length);
+  const seg=s.trim().split(/\s+/).filter(Boolean);
+  if(!seg.length) return null;
+
+  const isZone = t => /^[A-Za-z]\d{0,2}$/.test(t) && !['M','L','R','X'].includes(t);
+  const isNum  = t => /^\d{1,3}$/.test(t);
+
+  // ① 존 앵커
+  let zone=-1;
+  for(let i=0;i<seg.length;i++){ if(isZone(seg[i])){ zone=i; break; } }
+  if(zone>=1){
+    for(let k=zone-1;k>=0;k--){ if(isNum(seg[k])) return parseInt(seg[k])||1; }
+  }
+  // ② 존 없음: 제품명 후 첫 숫자 (연속숫자면 뒤쪽)
+  for(let i=0;i<seg.length;i++){
+    if(isNum(seg[i])){
+      if(i+1<seg.length && isNum(seg[i+1])) return parseInt(seg[i+1])||1;
+      return parseInt(seg[i])||1;
+    }
+  }
+  return null;
+}
+
+// 수량 셀 문자열에서 실제 수량을 뽑는다.
+// 정상: "8" → 8.  뭉침: "81  SG 741 C01 10" (수량8+순번1) → 8.
+function _parseQtyCell(cell, rowSeq){
+  const s=(cell||'').trim();
+  if(!s) return 1;
+  // 맨 앞 숫자 덩어리
+  const m=s.match(/^(\d+)/);
+  if(!m) return 1;
+  const head=m[1];
+  // 뒤에 영문(심플코드 SG 등)이 따라오면 = 칸이 뭉친 상태 → 순번 분리 시도
+  const tail=s.slice(head.length);
+  const hasMerged=/[A-Za-z]/.test(tail);
+  if(hasMerged){
+    const seqStr=String(rowSeq);
+    if(head.length>seqStr.length && head.endsWith(seqStr)){
+      return parseInt(head.slice(0, head.length-seqStr.length))||1;
+    }
+    // 순번 못 떼면 보수적으로 맨 앞 1자리 (대부분 수량 한 자리)
+    return parseInt(head[0])||1;
+  }
+  return parseInt(head)||1;
+}
+
+// ── 일일 브리핑: 제품/납품처 분류 ──
+// daegubun(코드기반 공식 대구분)이 있으면 cat을 그걸로 확정.
+// 세부 구분(450/500/연장, HPM/유리/73 등)은 제품명에서 계속 뽑는다.
+function classifyDelivItem(name, daegubun){
+  const n=name||'';
+  const o={ is73:/73\(공용\)/.test(n), isBigyu:n.includes('비규격'), isHPM:/Veil/.test(n), isGrace:/Grace/.test(n) };
+  // 대구분 → 브리핑 카테고리 매핑
+  const MAP={ '시그니처':'글래스도어', '빌트인':'빌트인', 'EURO':'유리장식장',
+              '에어힌지':'에어힌지', '빗각':'KB', 'EURO700':'EURO700', 'EURO500':'EURO500' };
+  if(daegubun && MAP[daegubun]){
+    o.cat=MAP[daegubun];
+    if(o.cat==='글래스도어'){ o.ext=/연장/.test(n); o.sz=/450/.test(n)?'450':/500/.test(n)?'500':'기타'; }
+    return o;
+  }
+  // 폴백: 제품명 추측 (대구분 없는 코드)
+  if(/글래스.*도어|글래스.*채널|채널도어/.test(n)){
+    o.cat='글래스도어'; o.ext=/연장/.test(n);
+    o.sz=/450/.test(n)?'450':/500/.test(n)?'500':'기타';
+  }
+  else if(/(^|\s)\(?B\/I|BUIF/.test(n)) o.cat='빌트인';
+  else if(/에어힌지/.test(n)) o.cat='에어힌지';
+  else if(/(^|\s)KB|빗각/.test(n)) o.cat='KB';
+  else if(/AL도어/.test(n) && /장식|키큰장|벽장|분리장/.test(n)) o.cat='유리장식장';
+  else if(/Euro700/.test(n)) o.cat='EURO700';
+  else if(/Euro500/.test(n)) o.cat='EURO500';
+  else o.cat='기타';
+  return o;
+}
+function delivDestGroup(dest){
+  const d=(dest||'').replace(/\s+/g,'');
+  // 납품처는 '오이도' 아니면 '그레이박스' 둘 뿐.
+  // PDF에서 '오이도'가 '오이'+줄바꿈+'도'로 쪼개져도 잡히도록 '오이'만 있어도 오이도로 판정.
+  if(d.includes('오이')) return '오이도';
+  return '그레이박스';
+}
+// 브리핑 카드의 발주일/납품요청일 토글 → 목록 필터(delivViewMode)와 동기화
+function setBriefMode(mode, btn){
+  if(typeof delivViewMode!=='undefined') delivViewMode = (mode==='req'?'req':'order');
+  const host=document.getElementById('brief-mode-toggle');
+  if(host) host.querySelectorAll('.f-btn').forEach(b=>b.classList.toggle('on', b.getAttribute('data-bmode')===mode));
+  // 목록 토글 버튼도 같이 갱신 + 목록 재렌더 (renderDelivery 안에서 renderBrief도 호출됨)
+  if(typeof renderDelivery==='function') renderDelivery();
+  else renderBrief();
+}
+// 브리핑 날짜 변경 → 브리핑 + 아래 목록을 같은 날짜 기준으로 함께 갱신
+function onBriefDateChange(){
+  renderBrief();
+}
+// 브리핑 카드 토글 버튼의 'on' 상태를 현재 delivViewMode에 맞춰 동기화
+function syncBriefModeToggle(){
+  const host=document.getElementById('brief-mode-toggle');
+  if(!host) return;
+  const cur=(typeof delivViewMode!=='undefined' && delivViewMode==='req')?'req':'order';
+  host.querySelectorAll('.f-btn').forEach(b=>b.classList.toggle('on', b.getAttribute('data-bmode')===cur));
+}
+// 브리핑 렌더링 (날짜 input 기준, 기본 오늘)
+function renderBrief(){
+  syncBriefModeToggle();
+  const host=document.getElementById('brief-host');
+  const dateEl=document.getElementById('brief-date');
+  if(!host||!dateEl) return;
+  if(!dateEl.value) dateEl.value=todayStr();
+  const ymd=dateEl.value;
+  const _mode = (typeof delivViewMode!=='undefined' && delivViewMode==='req') ? 'req' : 'order';
+  const _modeKor = _mode==='req' ? '납품요청일' : '발주일';
+  const b=buildDelivBrief(ymd, _mode);
+  if(!b){ host.innerHTML=`<div style="font-size:11px;color:var(--tx3)">이 날짜에 ${_modeKor} 기준 납품서가 없어요.</div>`; return; }
+  const esc=b.text.replace(/</g,'&lt;');
+  host.innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div style="flex:1;text-align:center;padding:8px;background:var(--s3);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">총 발주</div>
+        <div style="font-size:20px;font-weight:900;color:var(--acc2);font-family:'JetBrains Mono',monospace">${b.total}</div></div>
+      <div style="flex:1;text-align:center;padding:8px;background:rgba(56,139,253,.1);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">🏠 그레이박스</div>
+        <div style="font-size:20px;font-weight:900;color:var(--acc);font-family:'JetBrains Mono',monospace">${b.total-b.oidoTotal-b.asTotal}</div></div>
+      <div style="flex:1;text-align:center;padding:8px;background:rgba(46,160,67,.1);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">📦 오이도</div>
+        <div style="font-size:20px;font-weight:900;color:var(--acc3);font-family:'JetBrains Mono',monospace">${b.oidoTotal}</div></div>
+      ${b.asTotal?`<div style="flex:1;text-align:center;padding:8px;background:rgba(255,107,53,.12);border-radius:8px">
+        <div style="font-size:10px;color:var(--tx2)">🔧 AS</div>
+        <div style="font-size:20px;font-weight:900;color:#ff6b35;font-family:'JetBrains Mono',monospace">${b.asTotal}</div></div>`:''}
+    </div>
+    <pre style="white-space:pre-wrap;font-family:'Noto Sans KR',monospace;font-size:12px;line-height:1.7;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:12px;margin:0;color:var(--tx1);overflow-x:auto">${esc}</pre>
+    <button onclick="copyBrief()" style="width:100%;margin-top:8px;padding:11px;background:#FEE500;border:none;border-radius:8px;color:#3C1E1E;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💬 카톡용 텍스트 복사</button>
+    <div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">${b.docs}건 납품서 합산 · ${_modeKor} 기준</div>`;
+  window._lastBriefText=b.text;
+}
+function copyBrief(){
+  const t=window._lastBriefText||'';
+  if(!t) return;
+  navigator.clipboard.writeText(t).then(()=>showToast('✅ 복사됐어요! 카톡에 붙여넣기 하세요')).catch(()=>{
+    // 폴백
+    const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+    try{document.execCommand('copy'); showToast('✅ 복사됐어요!');}catch(e){showToast('복사 실패 - 길게 눌러 복사하세요');}
+    document.body.removeChild(ta);
+  });
+}
+
+function buildDelivBrief(ymd, mode){
+  mode = mode || 'order'; // 'order'=발주일, 'req'=납품요청일
+  const _bkey = d => mode==='req' ? (d.delivReqDate||d.orderDate) : (d.orderDate||d.delivReqDate);
+  const docs=delivLog.filter(d=>_bkey(d)===ymd);
+  if(!docs.length) return null;
+  const oido={ '450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0 };
+  const G={ glass:{'450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0}, 빌트인:0,
+    EURO700:{total:0,hpm:0,grace:0,t73:0,non73:0,bigyu:0,bigyuHPM:0,bigyuGrace:0},
+    EURO500:{total:0,t73:0,non73:0,bigyu:0},
+    유리장식장:{total:0,bigyu:0}, 에어힌지:{total:0,bigyu:0}, KB:{total:0,bigyu:0} };
+  const AS={ '글래스도어':0,'빌트인':0,'EURO500':0,'EURO700':0,'유리장식장':0,'에어힌지':0,'KB':0 };
+  let total=0;
+  docs.forEach(d=>{
+    const isAS=(d.refNo||'').startsWith('54');
+    const dgrp=delivDestGroup(d.dest);
+    d.items.forEach(it=>{
+      const info=delivLookup(it.code); const c=classifyDelivItem(info.short||'', info.daegubun||it.daegubun||''); const q=it.qty||0;
+      total+=q;
+      if(isAS){ if(AS[c.cat]!==undefined) AS[c.cat]+=q; return; }
+      if(dgrp==='오이도'){
+        if(c.cat==='글래스도어'){
+          oido.total+=q;
+          if(c.ext){ oido.ext+=q; if(c.sz==='450')oido['450연장']+=q; else if(c.sz==='500')oido['500연장']+=q; }
+          else { if(c.sz==='450')oido['450']+=q; else if(c.sz==='500')oido['500']+=q; }
+        } else {
+          // 오이도인데 글래스도어가 아닌 품목 — 누락되지 않도록 기타로 집계
+          oido.etc=(oido.etc||0)+q;
+        }
+        return;
+      }
+      if(c.cat==='글래스도어'){
+        G.glass.total+=q;
+        if(c.ext){ G.glass.ext+=q; if(c.sz==='450')G.glass['450연장']+=q; else if(c.sz==='500')G.glass['500연장']+=q; }
+        else { if(c.sz==='450')G.glass['450']+=q; else if(c.sz==='500')G.glass['500']+=q; }
+      }
+      else if(c.cat==='빌트인') G.빌트인+=q;
+      else if(c.cat==='EURO700'){ const e=G.EURO700; e.total+=q; if(c.isHPM)e.hpm+=q; if(c.isGrace)e.grace+=q; if(c.is73)e.t73+=q; else e.non73+=q; if(c.isBigyu){ e.bigyu+=q; if(c.isHPM)e.bigyuHPM+=q; else e.bigyuGrace+=q; } }
+      else if(c.cat==='EURO500'){ const e=G.EURO500; e.total+=q; if(c.is73)e.t73+=q; else e.non73+=q; if(c.isBigyu)e.bigyu+=q; }
+      else if(c.cat==='유리장식장'){ G.유리장식장.total+=q; if(c.isBigyu)G.유리장식장.bigyu+=q; }
+      else if(c.cat==='에어힌지'){ G.에어힌지.total+=q; if(c.isBigyu)G.에어힌지.bigyu+=q; }
+      else if(c.cat==='KB'){ G.KB.total+=q; if(c.isBigyu)G.KB.bigyu+=q; }
+    });
+  });
+  const dt=new Date(ymd+'T00:00:00');
+  const wd=['일','월','화','수','목','금','토'][dt.getDay()];
+  const md=`${dt.getMonth()+1}월 ${dt.getDate()}일`;
+  const asTotal=Object.values(AS).reduce((a,b)=>a+b,0);
+  let t=`📦 ${md}(${wd}) ${mode==='req'?'한샘납품':'발주'} · 총 ${total}EA\n\n`;
+  t+=`[오이도]\n-글래스도어 : ${oido.total}EA\n 450 : ${oido['450']}EA\n 500 : ${oido['500']}EA\n 450 연장 : ${oido['450연장']}EA\n 500 연장 : ${oido['500연장']}EA\n`;
+  if(oido.etc){ t+=` (글래스도어 외 : ${oido.etc}EA)\n`; }
+  t+=`\n`;
+  t+=`[그레이박스]\n`;
+  t+=`-글래스도어 : ${G.glass.total}EA (연장 : ${G.glass.ext}EA)\n`;
+  t+=` 450 : ${G.glass['450']}EA\n 500 : ${G.glass['500']}EA\n 450 연장 : ${G.glass['450연장']}EA\n 500 연장 : ${G.glass['500연장']}EA\n\n`;
+  t+=`-빌트인 : ${G.빌트인}EA\n\n`;
+  t+=`-EURO700 : ${G.EURO700.total}EA\n(HPM : ${G.EURO700.hpm}EA / 유리 : ${G.EURO700.grace}EA)\n73 : ${G.EURO700.t73}EA\n73 외 : ${G.EURO700.non73}EA\n(비규격 HPM : ${G.EURO700.bigyuHPM}EA / 비규격 유리 : ${G.EURO700.bigyuGrace}EA)\n\n`;
+  t+=`-EURO500 : ${G.EURO500.total}EA\n73 : ${G.EURO500.t73}EA\n73 외 : ${G.EURO500.non73}EA\n(비규격 : ${G.EURO500.bigyu}EA)\n\n`;
+  t+=`-유리장식장 : ${G.유리장식장.total}EA (비규격 : ${G.유리장식장.bigyu}EA)\n`;
+  t+=`-에어힌지 : ${G.에어힌지.total}EA (비규격 : ${G.에어힌지.bigyu}EA)\n`;
+  t+=`-KB : ${G.KB.total}EA (비규격 : ${G.KB.bigyu}EA)\n\n`;
+  t+=`-AS : ${asTotal}EA\n`;
+  if(asTotal){ Object.entries(AS).forEach(([k,v])=>{ if(v) t+=` ${k} : ${v}EA\n`; }); }
+  return {text:t, total, asTotal, docs:docs.length, oidoTotal:oido.total, grayGlass:G.glass.total};
+}
+
+function parseDelivText(text){
+  const joined=(text||'').replace(/\s+/g,' ').trim();
+  let delivNo='',refNo='',reqDate='',orderDate='',dest='';
+  const mNo=joined.match(/\*(\d{6,})\*/)||joined.match(/납품번호\s*\/?\s*묶음번호\s+(\d{6,})/);
+  if(mNo) delivNo=mNo[1];
+  const mRef=joined.match(/참조문서번호\s+(\d{6,})/);
+  if(mRef) refNo=mRef[1];
+  // 날짜: "납품요청/납품일 YYYYMMDD YYYYMMDD" (앞=납품요청일, 뒤=발주/납품일)
+  // 슬래시 양옆 공백 허용. 못 찾으면 문서 내 연속된 8자리 날짜쌍(날짜 외엔 없음)으로 폴백.
+  let mDate=joined.match(/납품요청\s*\/?\s*납품일\s+(\d{8})\s+(\d{8})/);
+  if(!mDate) mDate=joined.match(/와이비앤디\s+(\d{8})\s+(\d{8})/);
+  if(!mDate) mDate=joined.match(/(\d{8})\s+(\d{8})\s+유통통합/);
+  if(!mDate) mDate=joined.match(/(20\d{6})\s+(20\d{6})/); // 최종 폴백: 연속 두 날짜
+  if(mDate){ reqDate=mDate[1]; orderDate=mDate[2]; }
+  // 납품처 (설치센터_…/배송센터_…)
+  const mDest=joined.match(/(설치센터_[가-힣]+\s*\([가-힣A-Z0-9_\s]*\)|배송센터_[가-힣]+\s*\([가-힣A-Z0-9_\s]*\)|설치센터_[가-힣]+|배송센터_[가-힣]+)/);
+  if(mDest) dest=mDest[1].replace(/\s+/g,'').trim();
+  // 백업: 납품처는 '오이도' 아니면 '그레이박스' 둘 뿐.
+  // PDF에서 '오이도'가 줄바꿈으로 쪼개져 dest 추출이 불완전해도, 원문에 '오이'가 있으면 오이도로 확정.
+  if(joined.replace(/\s+/g,'').includes('오이') && !dest.includes('오이')){
+    dest = dest ? (dest+'(오이도)') : '오이도';
+  }
+
+  // ── 품목 파싱: 줄(line) 단위 처리 ──
+  // 전체를 공백으로 합치면 다음 행의 순번/심플코드가 현재 행에 섞여 수량 오인이 생김.
+  // 그래서 원본 줄바꿈(\n)을 살려 한 줄씩 처리한다. (handleDelivPdf가 y좌표로 \n 삽입)
+  const items=[];
+  const isCode = t => (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[t]) ||
+                      (t.length===9 && DELIV_PROD_CODE_RE.test(t) && /[0-9]/.test(t));
+  const isNum = t => /^\d{1,3}$/.test(t);
+  const isZone = t => /^[A-Za-z]\d{0,2}$/.test(t) && !['M','L','R','X','Z'].includes(t); // 존: C01/D/A (방향표기·심플코드Z 제외)
+
+  const rawLines=(text||'').split('\n');
+  for(let li=0; li<rawLines.length; li++){
+    const line=rawLines[li].replace(/\s+/g,' ').trim();
+    if(!line) continue;
+    const toks=line.split(' ');
+    // 이 줄에서 제품코드 위치 찾기
+    const cIdx=toks.findIndex(isCode);
+    if(cIdx<0) continue;
+    const code=toks[cIdx];
+    const after=toks.slice(cIdx+1); // 제품코드 이후 = 제품명 ... 수량 ...
+
+    let qty=1, orderNo='', qtyTokIdx=-1;
+    const oIdx=after.findIndex(t=>/^\d{9}$/.test(t));
+    if(oIdx>=0){
+      // 양식 A: 제품명 ... [수량] [오더번호(9)] [순번(6)] [지역]
+      // 수량 = 오더번호 바로 앞의 순수 숫자 (제품명 끝 사이즈 9091 등과 구분)
+      orderNo=after[oIdx];
+      for(let k=oIdx-1;k>=0;k--){
+        if(isNum(after[k])){ qty=parseInt(after[k])||1; qtyTokIdx=k; break; }
+        if(/^\d{9}$/.test(after[k])) break;
+      }
+    } else {
+      // 양식 B: 제품명 ... [수량] [존] [렉]   (오더번호 없음)
+      // 존을 '오른쪽 끝에서부터' 찾는다. 앞쪽 심플코드(Z xx 등)를 가짜 존으로 잡지 않게.
+      let zone=-1;
+      for(let i=after.length-1;i>=0;i--){ if(isZone(after[i])){ zone=i; break; } }
+      if(zone>=1){
+        for(let k=zone-1;k>=0;k--){ if(isNum(after[k])){ qty=parseInt(after[k])||1; qtyTokIdx=k; break; } }
+      } else {
+        for(let k=after.length-1;k>=0;k--){ if(isNum(after[k])){ qty=parseInt(after[k])||1; qtyTokIdx=k; break; } }
+      }
+    }
+    // ── 제품명: 코드 다음부터 수량 토큰 직전까지 ──
+    let nameToks = qtyTokIdx>=0 ? after.slice(0, qtyTokIdx) : after.slice();
+    // 코드 앞쪽 토큰(순번 제외)도 제품명일 수 있음: 'Euro700 Grace ... ME1WRX002' 형태
+    const beforeToks = toks.slice(0, cIdx).filter(t=>!/^\d{1,3}$/.test(t));
+    let rawName = (beforeToks.concat(nameToks)).join(' ').trim();
+    // 제품명이 비었거나 모델 설명이 없으면(=코드만 있는 줄), 앞줄에서 제품명, 뒷줄에서 사이즈를 끌어온다.
+    // 이 PDF는 한 품목이 3줄(제품명 / 순번·코드·수량·오더 / 비규격사이즈)로 쪼개지는 경우가 있음.
+    const hasModelText = /[A-Za-z가-힣]{2,}/.test(rawName.replace(code,''));
+    const hasSize = /비규격|\d+X\d+X/i.test(rawName);
+    if(!hasModelText || !hasSize){
+      // 앞줄: 제품코드가 없고 글자가 있는 줄 = 제품명 윗부분
+      const prev=(rawLines[li-1]||'').replace(/\s+/g,' ').trim();
+      const next=(rawLines[li+1]||'').replace(/\s+/g,' ').trim();
+      const prevHasCode=prev.split(' ').some(isCode);
+      const nextHasCode=next.split(' ').some(isCode);
+      let extra='';
+      if(!hasModelText && prev && !prevHasCode && /[A-Za-z가-힣]{2,}/.test(prev)) extra+=' '+prev;
+      // 뒷줄: '비규격(...)' 또는 'AXBXCXD' 사이즈 줄 (코드 없음)
+      if(!hasSize && next && !nextHasCode && /비규격|\d+X\d+X/i.test(next)){
+        // '그레이박/스' 같은 납품처 꼬리 제거
+        extra+=' '+next.replace(/그레이박|스|오이도|창원|원주|[가-힣]*센터.*/g,'').trim();
+      }
+      if(extra.trim()) rawName=(beforeToks.concat(nameToks).join(' ')+' '+extra).replace(/\s+/g,' ').trim();
+    }
+    // ── 사이즈·좌우(LR) 추출 (공용 함수) ──
+    let lineSize='', lr='';
+    if(/비규격/.test(rawName)){
+      const sz=delivSizeLR(rawName); lineSize=sz.size; lr=sz.lr;
+    } else {
+      const mE=rawName.match(/(\d{3,4})(?:\(공용\))?\s+M\s*$/); // 정규격 모델 끝 사이즈코드
+      if(mE) lineSize=mE[1];
+    }
+    const info=delivLookup(code);
+    // ── 비규격 판정: 제품명 또는 카탈로그 short에 '비규격'/'(비)' 있을 때만 ──
+    const nameForJudge=(rawName||'')+' '+(info.short||'');
+    const isBig=/비규격/.test(nameForJudge)||/\(비\)/.test(nameForJudge);
+    items.push({code, short:info.short||rawName||code, name:rawName, color:info.color,
+                size:lineSize||info.size, lr, isBig, gubun:info.gubun, daegubun:info.daegubun, qty, orderNo});
+  }
+  return {delivNo, refNo, reqDate, orderDate, dest, items};
+}
+
+// "납 품 서 (집계)" 형식인지 판별. 라벨/출고명세 등 다른 양식은 제외.
+function isAggregateDeliv(fullText){
+  const t=(fullText||'').replace(/\s+/g,'');
+  return t.includes('납품번호') && t.includes('묶음번호') && t.includes('수량') && t.includes('오더번호');
+}
+
+async function handleDelivPdf(ev){
+  const files=Array.from(ev.target.files||[]);
+  if(!files.length) return;
+  if(typeof pdfjsLib==='undefined'){ showToast('PDF 라이브러리 로딩 중 - 잠시 후 다시'); return; }
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const statusEl=document.getElementById('deliv-upload-status');
+  statusEl.textContent='⏳ '+files.length+'개 파일 읽는 중...';
+  let added=0,dup=0,fail=0,skipped=0;
+  window._delivDebug=''; const _oldBox=document.getElementById('deliv-debug-box'); if(_oldBox) _oldBox.remove();
+  for(const file of files){
+    try{
+      const buf=await file.arrayBuffer();
+      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+      let full='';
+      let cellItems=[]; // 칸 파싱용: 페이지별 글자 좌표
+      let cellOk=true;
+      for(let p=1;p<=pdf.numPages;p++){
+        const page=await pdf.getPage(p);
+        const tc=await page.getTextContent();
+        // 줄바꿈 보존: pdf.js는 줄 정보를 안 줘서 y좌표가 바뀌면 새 줄로 처리.
+        // (줄 단위로 파싱해야 다음 행의 순번/심플코드가 현재 행 수량으로 섞이지 않음)
+        {
+          const its=tc.items.map(it=>({str:it.str, x:it.transform[4], y:it.transform[5]}))
+                            .filter(o=>o.str!=='');
+          // y좌표로 줄 묶기 (PDF.js는 글자를 그리기 순서로 주므로 줄/열 순서가 뒤섞일 수 있음)
+          const lineMap=[];
+          for(const o of its){
+            let row=lineMap.find(r=>Math.abs(o.y-r.y)<=3);
+            if(!row){ row={y:o.y, glyphs:[]}; lineMap.push(row); }
+            row.glyphs.push(o);
+          }
+          // 줄은 y 내림차순(위→아래), 각 줄 안은 x 오름차순(왼→오른)으로 정렬
+          lineMap.sort((a,b)=>b.y-a.y);
+          for(const row of lineMap){
+            row.glyphs.sort((a,b)=>a.x-b.x);
+            full += row.glyphs.map(g=>g.str).join(' ') + '\n';
+          }
+        }
+        // pdf.js 좌표: transform[4]=x, transform[5]=y(아래가 0). y를 위→아래로 뒤집어 정규화
+        const vp=page.getViewport({scale:1});
+        const pageGlyphs=tc.items.map(it=>({
+          str:it.str,
+          x:it.transform[4],
+          y:vp.height - it.transform[5], // 위에서 아래로 증가
+          w:it.width||0
+        }));
+        const pageItems=parseDelivCellsPage(pageGlyphs);
+        if(pageItems) cellItems=cellItems.concat(pageItems);
+        else cellOk=false; // 한 페이지라도 헤더 못 찾으면 폴백 신호
+      }
+      // 헤더 정보(납품번호/날짜/납품처/참조)는 텍스트 파서로
+      const parsed=parseDelivText(full);
+      // ── [임시 디버그] 파싱 확인용. 문제 없으면 다음 버전에서 제거 예정 ──
+      {
+        const lines=full.split('\n').filter(s=>s.trim());
+        let dbg='\n══ '+file.name+' ══\n납품번호='+parsed.delivNo+' 참조='+parsed.refNo+' 발주일='+parsed.orderDate+' 납품요청='+parsed.reqDate+'\n[줄]\n'+lines.map((l,i)=>i+': '+l).join('\n');
+        dbg+='\n[파싱]\n'+(parsed.items||[]).map(it=>`  ${it.code} | qty=${it.qty} | ${it.name||it.short||''}`).join('\n');
+        window._delivDebug=(window._delivDebug||'')+dbg+'\n';
+        let box=document.getElementById('deliv-debug-box');
+        if(!box){
+          box=document.createElement('div'); box.id='deliv-debug-box';
+          box.style.cssText='margin-top:8px;border:1px solid #444;border-radius:8px;overflow:hidden';
+          box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;background:#333;color:#fff;padding:6px 10px;font-size:11px"><span>🐞 파싱 디버그 (확인용)</span><button onclick="this.closest(\'#deliv-debug-box\').remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px">✕ 닫기</button></div><pre id="deliv-debug" style="white-space:pre-wrap;font-size:10px;background:#1a1a1a;color:#7fd;padding:10px;margin:0;max-height:350px;overflow:auto"></pre>';
+          statusEl.parentNode.insertBefore(box, statusEl.nextSibling);
+        }
+        box.querySelector('#deliv-debug').textContent=window._delivDebug;
+      }
+      // "납품서(집계)" 형식이 아니면(라벨/출고명세 등) 건너뜀
+      if(!isAggregateDeliv(full)){ skipped++; continue; }
+      // 품목: 검증된 '텍스트 파서'를 메인으로 사용.
+      //   좌표 파서(parseDelivCellsPage)는 제품명 끝 모델숫자(6091/600 등)를
+      //   수량으로 오인하는 문제가 있어 메인에서 제외. 텍스트 파서가 빈 경우만 폴백.
+      let finalItems;
+      if(parsed.items && parsed.items.length){
+        finalItems=parsed.items;
+      } else if(cellOk && cellItems.length){
+        finalItems=cellItems.map(it=>{
+          const info=delivLookup(it.code);
+          return {code:it.code, short:info.short||it.code, color:info.color, size:info.size, gubun:info.gubun, qty:it.qty, orderNo:it.orderNo};
+        });
+      } else {
+        finalItems=[];
+      }
+      if(!parsed.delivNo || !finalItems.length){ fail++; continue; }
+      const _exist=delivLog.findIndex(d=>d.delivNo===parsed.delivNo);
+      if(_exist>=0){
+        // 이미 있으면: 출고차감 완료된 건 보존, 아니면 새 파싱으로 덮어써서 옛 데이터 갱신
+        if(delivLog[_exist].deducted){ dup++; continue; }
+        delivLog.splice(_exist,1); // 제거 후 아래에서 새로 push
+      }
+      const reqD=_ymd8(parsed.reqDate);
+      const orderD=_ymd8(parsed.orderDate);
+      const shipD=_addBizDays(reqD,2);
+      delivLog.push({
+        id:'dv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        source:'pdf', delivNo:parsed.delivNo, refNo:parsed.refNo, dest:parsed.dest,
+        delivReqDate:reqD, orderDate:orderD, shipDate:shipD, deducted:false,
+        items:finalItems, uploadedAt:new Date().toISOString(), by:getActor()||'',
+        parseMode: (parsed.items && parsed.items.length)?'text':'cell'
+      });
+      added++;
+    }catch(e){ console.log('PDF 파싱 실패',file.name,e); fail++; }
+  }
+  if(added){ saveAll(); if(typeof autoSync==='function') autoSync(); }
+  statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${fail?` · 실패 ${fail}건`:''}`;
+  ev.target.value='';
+  renderDelivery();
+  // 납품서가 추가되면 인쇄실 카드 월평균(6개월 롤링)도 즉시 반영
+  if(added && typeof renderStockList==='function'){
+    const sp=document.getElementById('sp-stocklist');
+    if(sp && sp.style.display!=='none') renderStockList();
+  }
+}
+
+// 출고 → 인쇄유리 차감 (사이즈 매핑된 Grace 모델만)
+function delivDeductStock(d){
+  if(!d) return;
+  if(d.deducted){ showToast('이미 차감된 납품서예요'); return; }
+  let ok=0, skip=0;
+  d.items.forEach(it=>{
+    const m=(typeof findModel==='function')?findModel(it.code):null;
+    if(m && m.glass_w && m.glass_h){
+      const color=it.color||m.color||'WC';
+      const s=getSzStock(m.glass_w,m.glass_h,color);
+      setSzStock(m.glass_w,m.glass_h,color,s.raw,s.printed-it.qty,{allowNeg:true});
+      const atIso=`${_shipOf(d)||todayStr()}T05:00:00.000Z`;
+      if(typeof addStockEvent==='function')
+        addStockEvent(`${m.glass_w}x${m.glass_h}_${color}`,{at:atIso,type:'out',qty:it.qty,note:`출고 ${d.delivNo}${d.dest?' ('+d.dest+')':''}`,source:'deliv'});
+      ok++;
+    } else skip++;
+  });
+  d.deducted=true; meta.lastStock=new Date().toISOString();
+  saveAll(); renderDelivery(); if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`📤 ${ok}품목 차감${skip?` · ${skip}품목 미매핑(스킵)`:''}`);
+}
+function delivUndoDeduct(d){
+  if(!d||!d.deducted) return;
+  d.items.forEach(it=>{
+    const m=(typeof findModel==='function')?findModel(it.code):null;
+    if(m && m.glass_w && m.glass_h){
+      const color=it.color||m.color||'WC';
+      const s=getSzStock(m.glass_w,m.glass_h,color);
+      setSzStock(m.glass_w,m.glass_h,color,s.raw,s.printed+it.qty,{allowNeg:true});
+    }
+  });
+  d.deducted=false;
+  saveAll(); renderDelivery(); if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+  showToast('차감 취소됨');
+}
+
+let delivViewMode='order'; // 'order'=발주일(기본), 'req'=납품요청일
+if(delivViewMode==='ship') delivViewMode='order'; // 출고일 모드 폐지 — 안전 폴백
+let delivSearchKey='';    // 납품번호/참조문서번호/오더번호/제품 검색어
+let delivLrMode='print';  // 'print'=인쇄실(사이즈만,좌우합산) / 'assy'=조립실(사이즈+L/R 분리)
+function setDelivLr(mode){ delivLrMode=mode; renderDelivery(); }
+function setDelivView(mode,btn){
+  delivViewMode=mode;
+  if(btn&&btn.parentElement) btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderDelivery();
+}
+
+function clearDelivLog(){
+  const cnt=(delivLog||[]).length;
+  if(!cnt){ showToast('초기화할 납품서 자료가 없어요'); return; }
+  if(!confirm(`납품서 자료 ${cnt}건을 모두 삭제할까요?\n(발주 이력·재고는 그대로 유지됩니다)`)) return;
+  const now=new Date().toISOString();
+  delivLog.forEach(d=>{ if(d&&d.id) delivDeleted[d.id]=now; }); // 묘비 기록 (병합 부활 방지)
+  delivLog=[];
+  saveAll();
+  renderDelivery();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync(); // 시트에도 즉시 반영 (새로고침 후 되살아남 방지)
+  showToast(`✅ 납품서 자료 ${cnt}건 초기화 완료`);
+}
+
+// ── 업로드 날짜별 골라서 삭제 ──
+// uploadedAt(없으면 발주일)을 YYYY-MM-DD로 묶어 그룹 단위로 체크 후 삭제
+function _delivUploadDay(d){
+  const t=d&&d.uploadedAt;
+  if(t){ try{ return new Date(t).toLocaleDateString('sv-SE'); }catch(e){} }
+  return d&&(d.orderDate||d.delivReqDate) || '(날짜없음)';
+}
+function openDelivDateDelete(){
+  const host=document.getElementById('deliv-datedel-modal');
+  if(!host) return;
+  if(!(delivLog||[]).length){ showToast('삭제할 납품서 자료가 없어요'); return; }
+  // 업로드 날짜별 그룹 집계
+  const groups={};
+  delivLog.forEach(d=>{
+    const k=_delivUploadDay(d);
+    if(!groups[k]) groups[k]={docs:0,qty:0};
+    groups[k].docs++;
+    groups[k].qty+=(d.items||[]).reduce((a,i)=>a+(i.qty||0),0);
+  });
+  const keys=Object.keys(groups).sort((a,b)=>b.localeCompare(a)); // 최신 업로드일 위로
+  const rows=keys.map(k=>{
+    const g=groups[k];
+    const label=k==='(날짜없음)'?k:k.replace(/-/g,'.');
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--b1);cursor:pointer">
+      <input type="checkbox" class="deliv-datedel-cb" value="${k}" style="width:18px;height:18px;flex-shrink:0;accent-color:var(--acc4)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700">📅 ${label}</div>
+        <div style="font-size:11px;color:var(--tx2)">${g.docs}건 · ${g.qty}장</div>
+      </div>
+    </label>`;
+  }).join('');
+  host.innerHTML=`
+  <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:flex;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closeDelivDateDelete()">
+    <div style="background:var(--s1);width:100%;max-width:480px;max-height:80vh;border-radius:16px 16px 0 0;display:flex;flex-direction:column" onclick="event.stopPropagation()">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:15px;font-weight:800">📅 업로드 날짜별 삭제</span>
+        <button onclick="closeDelivDateDelete()" style="background:none;border:none;font-size:20px;color:var(--tx3);cursor:pointer">✕</button>
+      </div>
+      <div style="padding:8px 16px;border-bottom:1px solid var(--b1);display:flex;gap:8px">
+        <button onclick="document.querySelectorAll('.deliv-datedel-cb').forEach(c=>c.checked=true)" style="flex:1;padding:7px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;font-size:11px;color:var(--tx2);cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체 선택</button>
+        <button onclick="document.querySelectorAll('.deliv-datedel-cb').forEach(c=>c.checked=false)" style="flex:1;padding:7px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;font-size:11px;color:var(--tx2);cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체 해제</button>
+      </div>
+      <div style="overflow-y:auto;flex:1">${rows}</div>
+      <div style="padding:12px 16px;border-top:1px solid var(--b1)">
+        <button onclick="confirmDelivDateDelete()" style="width:100%;padding:12px;background:var(--acc4);border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">선택한 날짜 삭제</button>
+      </div>
+    </div>
+  </div>`;
+}
+function closeDelivDateDelete(){
+  const host=document.getElementById('deliv-datedel-modal');
+  if(host) host.innerHTML='';
+}
+function confirmDelivDateDelete(){
+  const picked=Array.from(document.querySelectorAll('.deliv-datedel-cb')).filter(c=>c.checked).map(c=>c.value);
+  if(!picked.length){ showToast('삭제할 날짜를 선택하세요'); return; }
+  const set=new Set(picked);
+  const targets=delivLog.filter(d=>set.has(_delivUploadDay(d)));
+  if(!targets.length){ showToast('대상이 없어요'); return; }
+  const qty=targets.reduce((a,d)=>a+(d.items||[]).reduce((s,i)=>s+(i.qty||0),0),0);
+  if(!confirm(`선택한 ${picked.length}개 업로드일의 납품서 ${targets.length}건(${qty}장)을 삭제할까요?\n(발주 이력·재고는 그대로 유지됩니다)`)) return;
+  const now=new Date().toISOString();
+  targets.forEach(d=>{ if(d&&d.id) delivDeleted[d.id]=now; }); // 묘비 기록 (병합 부활 방지)
+  delivLog=delivLog.filter(d=>!set.has(_delivUploadDay(d)));
+  saveAll();
+  closeDelivDateDelete();
+  renderDelivery();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync(); // 시트에도 즉시 반영
+  showToast(`✅ ${targets.length}건 삭제 완료`);
+}
+
+function renderDelivery(){
+  const activeEl=document.getElementById('deliv-active');
+  const archiveEl=document.getElementById('deliv-archive');
+  if(!activeEl||!archiveEl) return;
+  const today=todayStr();
+  if(typeof renderBrief==='function' && document.getElementById('brief-host')) renderBrief();
+
+  let toggleHost=document.getElementById('deliv-view-toggle');
+  if(!toggleHost){
+    toggleHost=document.createElement('div');
+    toggleHost.id='deliv-view-toggle'; toggleHost.className='filter-row'; toggleHost.style.marginBottom='10px';
+    activeEl.parentNode.insertBefore(toggleHost,activeEl);
+  }
+  toggleHost.innerHTML=
+    `<button class="f-btn ${delivViewMode==='order'?'on':''}" onclick="setDelivView('order',this)">🧾 발주일 기준</button>`+
+    `<button class="f-btn ${delivViewMode==='req'?'on':''}" onclick="setDelivView('req',this)">📅 납품요청일 기준</button>`;
+
+  // (인쇄실/조립실 좌우구분 토글은 납품서 탭에서 제거 — 작업일지 연결 시 의미가 생김)
+  // 혹시 이전에 생성된 토글 잔재가 있으면 정리
+  const _oldLr=document.getElementById('deliv-lr-toggle');
+  if(_oldLr) _oldLr.remove();
+
+  const keyOf = d => delivViewMode==='req' ? (d.delivReqDate||d.orderDate)
+                  : (d.orderDate||d.delivReqDate);
+  let all=[...delivLog];
+  if(delivSearchKey){
+    const q=delivSearchKey.toLowerCase();
+    all=all.filter(d=>{
+      if((d.delivNo||'').toLowerCase().includes(q)) return true;
+      if((d.refNo||'').toLowerCase().includes(q)) return true;
+      if((d.dest||'').toLowerCase().includes(q)) return true;
+      return (d.items||[]).some(it=>
+        (it.orderNo||'').toLowerCase().includes(q) ||
+        (it.code||'').toLowerCase().includes(q) ||
+        (it.short||'').toLowerCase().includes(q));
+    });
+  }
+  let activeList, pastList;
+  if(delivSearchKey){
+    // 검색 모드: 날짜 무관 전체를 최신순으로 한 목록에
+    activeList=all.slice().sort((a,b)=>(keyOf(b)||'').localeCompare(keyOf(a)||''));
+    pastList=[];
+  } else {
+    activeList=all.filter(d=>{const k=keyOf(d);return k&&k>=today;}).sort((a,b)=>keyOf(a).localeCompare(keyOf(b)));
+    pastList =all.filter(d=>{const k=keyOf(d);return !k||k<today;}).sort((a,b)=>keyOf(b).localeCompare(keyOf(a)));
+  }
+
+  // 오늘 기준 요약: 보기 모드의 키가 오늘인 납품서들의 총수량
+  const todayList=all.filter(d=>keyOf(d)===today);
+  let todayQty=0,todayItems=0;
+  todayList.forEach(d=>d.items.forEach(it=>{todayQty+=it.qty;todayItems++;}));
+  // ★ 완제품 재고 보유 알림 (납품서 탭 상단) — 활성 납품서 기준
+  if(typeof renderDelivStockAlert==='function') renderDelivStockAlert(activeList);
+  const sumLabel = delivViewMode==='req' ? '📅 오늘 한샘납품분'
+                 : '🧾 오늘 발주분';
+  let summaryHtml='';
+  if(todayList.length){
+    summaryHtml=`<div class="card" style="background:linear-gradient(135deg,var(--acc4),#ef5350);color:#fff;margin-bottom:12px;border:none">
+      <div style="font-size:11px;opacity:.85;margin-bottom:2px">${sumLabel} (${today.slice(5).replace('-','/')})</div>
+      <div style="font-size:26px;font-weight:900;font-family:'JetBrains Mono',monospace">${todayQty}<span style="font-size:13px;font-weight:400">장</span>
+      <span style="font-size:13px;font-weight:400;opacity:.85"> · ${todayList.length}건 / ${todayItems}품목</span></div></div>`;
+  }
+
+  function card(d,dim){
+    const ship=_shipOf(d);
+    const isTodayShip=ship===today, isPast=keyOf(d)<today;
+    const totalQty=d.items.reduce((a,i)=>a+(i.qty||0),0);
+    const isAS=(d.refNo||'').startsWith('54'); // 참조문서번호 54로 시작 = AS
+    let badge=isTodayShip?'<span style="font-size:10px;background:var(--acc4);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">🔴 오늘 출고</span>'
+      :isPast?'<span style="font-size:10px;background:var(--tx3);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">지난</span>'
+      :'<span style="font-size:10px;background:var(--acc);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">예정</span>';
+    const asBadge=isAS?'<span style="font-size:10px;background:#ff6b35;color:#fff;padding:2px 9px;border-radius:10px;font-weight:800">🔧 AS</span>':'';
+    const idSafe='dvc-'+d.id;
+    const destBadge=d.dest?`<span style="font-size:10px;background:var(--s3);color:var(--tx1);padding:2px 8px;border-radius:8px">📍 ${d.dest}</span>`:'';
+    // 헤더 날짜: 보기 모드에 따라
+    const hdrDate = delivViewMode==='req' ? (d.delivReqDate||d.orderDate)
+                  : (d.orderDate||d.delivReqDate);
+    const hdrLabel = delivViewMode==='req' ? '📅 한샘납품'
+                   : '🧾 발주';
+    const dedBtn=d.deducted
+      ? `<button onclick="event.stopPropagation();delivUndoDeduct(delivLog.find(x=>x.id==='${d.id}'))" style="padding:5px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">↩ 차감취소</button>`
+      : `<button onclick="event.stopPropagation();delivDeductStock(delivLog.find(x=>x.id==='${d.id}'))" style="padding:5px 10px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📤 출고차감</button>`;
+    return `<div class="card" style="margin-bottom:10px;${dim?'opacity:.7;':''}${isTodayShip?'border-color:var(--acc4);box-shadow:0 0 0 1px var(--acc4)':''}${isAS?'border-left:3px solid #ff6b35;':''}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer" onclick="toggleDelivDetail('${idSafe}',this)">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">${badge}${asBadge}${d.deducted?'<span style="font-size:10px;background:rgba(46,160,67,.15);color:var(--acc3);padding:2px 8px;border-radius:8px;font-weight:700">✓ 차감됨</span>':''}
+            <span style="font-size:14px;font-weight:800">${hdrLabel} ${hdrDate?fmtDateSafe(hdrDate):'-'}</span></div>
+          <div style="font-size:11px;color:var(--tx2);display:flex;gap:6px;flex-wrap:wrap;align-items:center">${destBadge}<span>한샘납품 ${d.delivReqDate?fmtDateSafe(d.delivReqDate):'-'}</span>${d.orderDate?`<span>· 발주 ${fmtDateSafe(d.orderDate)}</span>`:''}<span>· 출고 ${ship?fmtDateSafe(ship):'-'}</span><span>· No.${d.delivNo}</span>${d.refNo?`<span>· 참조 ${d.refNo}${isAS?' (AS)':''}</span>`:''}</div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:2px">총 ${totalQty}장 / ${d.items.length}품목</div>
+        </div>
+        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">${dim?'▼':'▲'}</span>
+      </div>
+      <div id="${idSafe}" style="${dim?'display:none':''}">
+        <div style="height:1px;background:var(--b1);margin:8px 0"></div>
+        ${(()=>{
+          // 그룹핑: 비규격은 사이즈별(조립실 모드면 +L/R)로 분리, 정규격은 코드 단위.
+          // 인쇄실(print): 좌우 합산(사이즈만) / 조립실(assy): 좌우 구분
+          const groups={};
+          d.items.forEach(it=>{
+            const big=!!it.isBig || /비규격|\(비\)/.test((it.name||'')+' '+(it.short||''));
+            // 사이즈/좌우: 저장값 우선, 없으면 제품명(name)→카탈로그명(short) 순으로 재추출
+            let sz=it.size||'', lrv=it.lr||'';
+            if(big && (!sz || !lrv)){
+              const r1=delivSizeLR(it.name||''); const r2=delivSizeLR(it.short||'');
+              if(!sz) sz=r1.size||r2.size;
+              if(!lrv) lrv=r1.lr||r2.lr;
+            }
+            const useLr = big && delivLrMode==='assy' && lrv;
+            const key = big ? (it.code+'|'+(sz||'')+(useLr?'|'+lrv:'')) : it.code;
+            if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:sz,lr:(useLr?lrv:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,qty:0,orders:[],_dbgName:(it.name||'')};
+            groups[key].qty+=(it.qty||0);
+            groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
+          });
+          return Object.values(groups).sort((a,b)=>b.qty-a.qty).map((g,gi)=>{
+            const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
+            const hasOrders=g.orders.some(o=>o.orderNo);
+            const multiline=g.orders.length>1||hasOrders;
+            const gid=idSafe+'-g-'+gi;
+            // 사이즈/좌우 배지
+            const sizeTag = g.isBig&&g.size?`<span style="display:inline-block;background:var(--s3);color:var(--tx1);font-size:10px;padding:1px 6px;border-radius:6px;margin-right:4px">📐 ${g.size}</span>`:'';
+            const lrTag = g.lr?`<span style="display:inline-block;background:${g.lr==='L'?'rgba(56,139,253,.15)':'rgba(248,81,73,.12)'};color:${g.lr==='L'?'var(--acc)':'var(--acc4)'};font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;margin-right:4px">${g.lr==='L'?'◀ 좌(L)':'우(R) ▶'}</span>`:'';
+            const orderRows=g.orders.map(o=>
+              `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);padding:2px 0 2px 18px">
+                <span>${o.orderNo?'오더 '+o.orderNo:'(오더번호 없음)'}</span><span>${o.qty}장</span></div>`).join('');
+            return `<div style="border-bottom:1px solid var(--b1)">
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();var e=document.getElementById('${gid}');var a=this.querySelector('.grp-arrow');if(e){var open=e.style.display==='none';e.style.display=open?'block':'none';if(a)a.textContent=open?'▴':'▾';}"`:''}>
+                <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.short||g.code}${g.isBig&&g.size?`<span style="color:var(--acc2);font-weight:700"> (${g.size}${g.lr?' '+g.lr:''})</span>`:''}</div>
+                  <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?(sizeTag+lrTag):''}${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
+                </div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+                ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">▾</span>`:''}
+              </div>
+              ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
+            </div>`;
+          }).join('');
+        })()}
+        <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:10px">${dedBtn}
+          <button onclick="event.stopPropagation();deleteDeliv('${d.id}')" style="padding:5px 10px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:7px;color:var(--acc4);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑 삭제</button></div>
+      </div>
+    </div>`;
+  }
+
+  // 납품처 → 짧은 태그 (오이도/그레이박스)
+  function _destTag(dest){
+    const g = (typeof delivDestGroup==='function') ? delivDestGroup(dest) : (dest||'');
+    if(g==='오이도') return `<span style="display:inline-block;font-size:9px;font-weight:800;background:rgba(46,160,67,.15);color:var(--acc3);padding:1px 6px;border-radius:6px;margin-right:4px">📦 오이도</span>`;
+    if(g==='그레이박스') return `<span style="display:inline-block;font-size:9px;font-weight:800;background:rgba(56,139,253,.12);color:var(--acc);padding:1px 6px;border-radius:6px;margin-right:4px">🏠 그레이박스</span>`;
+    return '';
+  }
+
+  // 같은 날짜의 납품서 여러 장을 하나의 카드로 합쳐서 렌더
+  function mergedCard(ds, dim){
+    if(!ds || !ds.length) return '';
+    if(ds.length===1) return card(ds[0], dim); // 1장이면 기존 카드 그대로
+    const k = keyOf(ds[0]);
+    const isTodayKey = k===today, isPast = k<today;
+    const totalQty = ds.reduce((a,d)=>a+d.items.reduce((s,i)=>s+(i.qty||0),0),0);
+    const anyAS = ds.some(d=>(d.refNo||'').startsWith('54'));
+    const idSafe = 'dvc-merged-'+(k||'x').replace(/[^0-9]/g,'');
+    const badge = isTodayKey?'<span style="font-size:10px;background:var(--acc4);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">🔴 오늘</span>'
+      :isPast?'<span style="font-size:10px;background:var(--tx3);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">지난</span>'
+      :'<span style="font-size:10px;background:var(--acc);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">예정</span>';
+    const hdrLabel = delivViewMode==='req' ? '📅 한샘납품' : '🧾 발주';
+
+    // 모든 납품서의 품목을 (코드+사이즈+좌우+납품처) 단위로 합산
+    const groups={};
+    ds.forEach(d=>{
+      const dgrp = (typeof delivDestGroup==='function') ? delivDestGroup(d.dest) : (d.dest||'');
+      d.items.forEach(it=>{
+        const big=!!it.isBig || /비규격|\(비\)/.test((it.name||'')+' '+(it.short||''));
+        let sz=it.size||'', lrv=it.lr||'';
+        if(big && (!sz || !lrv)){
+          const r1=delivSizeLR(it.name||''); const r2=delivSizeLR(it.short||'');
+          if(!sz) sz=r1.size||r2.size;
+          if(!lrv) lrv=r1.lr||r2.lr;
+        }
+        const useLr = big && lrv; // 합본 카드(조립실 성격): 비규격은 항상 좌우 구분
+        const key = (big ? (it.code+'|'+(sz||'')+(useLr?'|'+lrv:'')) : it.code) + '|' + dgrp;
+        if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:sz,lr:(useLr?lrv:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,dest:dgrp,qty:0,orders:[]};
+        groups[key].qty+=(it.qty||0);
+        groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
+      });
+    });
+
+    const itemRows = Object.values(groups)
+      .sort((a,b)=> (a.dest===b.dest? b.qty-a.qty : (a.dest==='오이도'?1:-1)) ) // 그레이박스 먼저, 오이도 나중
+      .map((g,gi)=>{
+        const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
+        const hasOrders=g.orders.some(o=>o.orderNo);
+        const multiline=g.orders.length>1||hasOrders;
+        const gid=idSafe+'-g-'+gi;
+        const sizeTag = g.isBig&&g.size?`<span style="display:inline-block;background:var(--s3);color:var(--tx1);font-size:10px;padding:1px 6px;border-radius:6px;margin-right:4px">📐 ${g.size}</span>`:'';
+        const lrTag = g.lr?`<span style="display:inline-block;background:${g.lr==='L'?'rgba(56,139,253,.15)':'rgba(248,81,73,.12)'};color:${g.lr==='L'?'var(--acc)':'var(--acc4)'};font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;margin-right:4px">${g.lr==='L'?'◀ 좌(L)':'우(R) ▶'}</span>`:'';
+        const orderRows=g.orders.map(o=>
+          `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);padding:2px 0 2px 18px">
+            <span>${o.orderNo?'오더 '+o.orderNo:'(오더번호 없음)'}</span><span>${o.qty}장</span></div>`).join('');
+        return `<div style="border-bottom:1px solid var(--b1)">
+          <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();var e=document.getElementById('${gid}');var a=this.querySelector('.grp-arrow');if(e){var open=e.style.display==='none';e.style.display=open?'block':'none';if(a)a.textContent=open?'▴':'▾';}"`:''}>
+            <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_destTag(g.dest)}${g.short||g.code}${g.isBig&&g.size?`<span style="color:var(--acc2);font-weight:700"> (${g.size}${g.lr?' '+g.lr:''})</span>`:''}</div>
+              <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?(sizeTag+lrTag):''}${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
+            ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">▾</span>`:''}
+          </div>
+          ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
+        </div>`;
+      }).join('');
+
+    // 카드 하단: 합쳐진 납품서별 출고차감/삭제 액션 (참조번호는 표시 안 함 — 검색으로만 접근)
+    const docActions = ds.map(d=>{
+      const dedBtn=d.deducted
+        ? `<button onclick="event.stopPropagation();delivUndoDeduct(delivLog.find(x=>x.id==='${d.id}'))" style="padding:4px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx2);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">↩ 차감취소</button>`
+        : `<button onclick="event.stopPropagation();delivDeductStock(delivLog.find(x=>x.id==='${d.id}'))" style="padding:4px 9px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📤 출고차감${ds.length>1?' '+_destTag(delivDestGroup(d.dest)).replace(/<[^>]+>/g,'').trim():''}</button>`;
+      return `${dedBtn}<button onclick="event.stopPropagation();deleteDeliv('${d.id}')" style="padding:4px 9px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:7px;color:var(--acc4);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🗑</button>`;
+    }).join('');
+
+    return `<div class="card" style="margin-bottom:10px;${dim?'opacity:.7;':''}${isTodayKey?'border-color:var(--acc4);box-shadow:0 0 0 1px var(--acc4)':''}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer" onclick="toggleDelivDetail('${idSafe}',this)">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">${badge}${anyAS?'<span style="font-size:10px;background:#ff6b35;color:#fff;padding:2px 9px;border-radius:10px;font-weight:800">🔧 AS포함</span>':''}
+            <span style="font-size:14px;font-weight:800">${hdrLabel} ${k?fmtDateSafe(k):'-'}</span></div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:2px">총 ${totalQty}장 · 납품서 ${ds.length}건 합본</div>
+        </div>
+        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">${dim?'▼':'▲'}</span>
+      </div>
+      <div id="${idSafe}" style="${dim?'display:none':''}">
+        <div style="height:1px;background:var(--b1);margin:8px 0"></div>
+        ${itemRows}
+        <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;margin-top:10px">${docActions}</div>
+      </div>
+    </div>`;
+  }
+
+  // 날짜별 그룹 헤더(합계) + 합본 카드 렌더링
+  function renderGrouped(list,dim){
+    if(!list.length) return '';
+    const groups={};
+    list.forEach(d=>{ const k=keyOf(d)||'-'; (groups[k]=groups[k]||[]).push(d); });
+    const keys=Object.keys(groups).sort((a,b)=>dim?b.localeCompare(a):a.localeCompare(b));
+    const dateLabel = delivViewMode==='order'?'발주':'한샘납품';
+    return keys.map(k=>{
+      const ds=groups[k];
+      const qSum=ds.reduce((a,d)=>a+d.items.reduce((s,i)=>s+(i.qty||0),0),0);
+      const asN=ds.filter(d=>(d.refNo||'').startsWith('54')).length;
+      const hdr=`<div style="display:flex;align-items:center;justify-content:space-between;margin:14px 2px 6px;padding-bottom:5px;border-bottom:2px solid var(--b1)">
+        <span style="font-size:13px;font-weight:800;color:var(--tx1)">📅 ${dateLabel} ${k!=='-'?fmtDateSafe(k):'미지정'}${asN?` <span style="font-size:10px;background:#ff6b35;color:#fff;padding:1px 7px;border-radius:8px;font-weight:700">AS ${asN}건</span>`:''}</span>
+        <span style="font-size:13px;font-weight:900;color:var(--acc2);font-family:'JetBrains Mono',monospace">${qSum}장 <span style="font-size:10px;color:var(--tx3);font-weight:400">· ${ds.length}건</span></span>
+      </div>`;
+      // 검색 모드(dim 아님 + delivSearchKey)에서는 납품서별로, 평소엔 날짜별 합본 카드
+      const body = delivSearchKey ? ds.map(d=>card(d,dim)).join('') : mergedCard(ds, dim);
+      return hdr+body;
+    }).join('');
+  }
+
+  function _renderGrouped_OLD_UNUSED(list,dim){ return ''; }
+
+  activeEl.innerHTML=summaryHtml+(activeList.length
+    ? renderGrouped(activeList,false)
+    : '<div class="empty"><div class="empty-ico">📦</div>'+(delivSearchKey?'검색 결과가 없어요':'예정된 납품이 없어요<br><span style="font-size:11px;color:var(--tx3)">PDF를 올리면 발주일·납품요청일 기준으로 정리됩니다</span>')+'</div>');
+
+  if(!pastList.length){ archiveEl.innerHTML=''; }
+  else{
+    const open=window._delivArchiveOpen;
+    archiveEl.innerHTML=`<button onclick="window._delivArchiveOpen=!window._delivArchiveOpen;renderDelivery()" style="width:100%;margin-top:6px;padding:10px;background:none;border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;display:flex;justify-content:space-between;align-items:center"><span>🗂 지난 출고 보관함 (${pastList.length}건)</span><span>${open?'▲ 닫기':'▼ 열기'}</span></button>`
+      +(open?'<div style="margin-top:8px">'+renderGrouped(pastList,true)+'</div>':'');
+  }
+}
+  
+function deleteDeliv(id){
+  if(!confirm('이 납품서를 목록에서 삭제할까요?')) return;
+  delivDeleted[id]=new Date().toISOString(); // 묘비 기록 (병합 부활 방지)
+  delivLog=delivLog.filter(d=>d.id!==id);
+  saveAll(); renderDelivery();
+  if(typeof autoSync==='function') autoSync();
+  showToast('삭제됨');
+}
+
+  
+  // ── 자동 동기화 주기 (단일 지점 관리) ──
+// 혼자 쓸 땐 5분이면 충분. 작업자가 늘면 이 숫자만 조절하세요.
+// 1분=60000, 3분=180000, 5분=300000, 10분=600000
+const AUTO_SYNC_MS = 300000; // = 5분 (시트→앱 받기 주기)
+autoSyncOnLoad();                          // 앱 켤 때 1회 (시트→앱)
+setInterval(autoSyncOnLoad, AUTO_SYNC_MS); // 이후 주기적으로 (시트→앱)
+
+// ════════════════════════════════════════════════════════════════
+//  🔄 자동 올리기(앱→시트) — 변경하면 알아서 시트로 올라가게
+//  목적: 직원이 자료 넣고 5분 자동주기 전에 창을 닫아도 안 날아가게.
+//  - 데이터 변경 후 8초 잠잠하면 자동 업로드 (디바운스)
+//  - 창을 닫거나 숨길 때(다른 탭/앱 전환) 마지막으로 한 번 업로드
+//  - 창을 다시 보면 즉시 시트→앱 받기
+//  autoSync() 자체에 '빈 데이터 보류'·'충돌 보류' 가드가 있어 안전합니다.
+// ════════════════════════════════════════════════════════════════
+let _autoPushTimer = null;
+let _lastPushedChange = (meta && meta.lastLocalChange) || null;
+
+// 올릴 게 있는지: 마지막 로컬변경이 마지막으로 올린 것보다 새로우면 true
+function _hasUnpushedChange(){
+  if(!meta || !meta.lastLocalChange) return false;
+  if(_isLocalEmpty()) return false; // 빈 데이터는 올리지 않음 (시트 보호)
+  if(!_lastPushedChange) return true;
+  return new Date(meta.lastLocalChange) > new Date(_lastPushedChange);
+}
+
+// 변경 감지 → 8초 디바운스 후 자동 업로드
+function scheduleAutoPush(){
+  if(!gsUrl) return;
+  if(_autoPushTimer) clearTimeout(_autoPushTimer);
+  _autoPushTimer = setTimeout(async ()=>{
+    if(_hasUnpushedChange() && !_syncBusy){
+      _lastPushedChange = meta.lastLocalChange;
+      try{ await autoSync(); }catch(e){}
+    }
+  }, 8000); // 8초간 추가 변경 없으면 올림
+}
+
+// saveAll을 감싸서, 로컬 변경이 생길 때마다 자동 업로드 예약
+(function(){
+  const _origSaveAll = saveAll;
+  window.saveAll = saveAll = function(){
+    const r = _origSaveAll.apply(this, arguments);
+    // 외부(시트→앱)에서 받은 직후 호출이면 올리지 않음
+    if(!window._skipLocalChange) scheduleAutoPush();
+    return r;
+  };
+})();
+
+// 창을 닫거나 새로고침할 때: 마지막으로 한 번 더 올림(동기 요청)
+window.addEventListener('beforeunload', function(){
+  try{
+    if(gsUrl && _hasUnpushedChange()){
+      const payload = JSON.stringify({
+        action:'saveAll',
+        clientLastSync: meta.lastGsSync || null,
+        clientTs: new Date().toISOString(),
+        actor: (typeof getActor==='function'?getActor():'') || '',
+        force: true,
+        data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[])}
+      });
+      // sendBeacon: 창이 닫혀도 백그라운드로 전송 보장
+      if(navigator.sendBeacon){
+        const blob = new Blob([payload], {type:'text/plain'});
+        navigator.sendBeacon(gsUrl, blob);
+        _lastPushedChange = meta.lastLocalChange;
+      }
+    }
+  }catch(e){}
+});
+
+// 탭 전환·화면 숨김/복귀 처리
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'hidden'){
+    // 화면을 떠날 때: 안 올린 변경이 있으면 즉시 업로드 시도
+    if(gsUrl && _hasUnpushedChange() && !_syncBusy){
+      _lastPushedChange = meta.lastLocalChange;
+      autoSync().catch(()=>{});
+    }
+  } else if(document.visibilityState === 'visible'){
+    // 화면으로 돌아올 때: 시트의 최신 데이터를 즉시 받아옴
+    if(gsUrl && !_syncBusy){
+      autoSyncOnLoad().then(()=>{ try{ rerenderAfterSync(); }catch(e){} }).catch(()=>{});
+    }
+  }
+});
+</script>
+</body>
+</html>
