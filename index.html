@@ -2358,6 +2358,25 @@ function getSzStockTotal(w,h){
   const etp=getSzStock(w,h,'ETP');
   return {raw:wc.raw+etp.raw, printed:wc.printed+etp.printed, wc, etp};
 }
+// 표시용 통합 재고: 원유리=색상 무관 공용(이벤트 우선, 폴백 WC+ETP), 인쇄유리=색상별
+// (원유리는 에토프/웜코튼이 같은 소재를 공용으로 쓰므로 색상별로 나누지 않는다)
+function getSzStockView(w,h,color){
+  const rawKey=`${w}x${h}`;
+  let raw;
+  if(stockEvents[rawKey] && stockEvents[rawKey].length){
+    raw=getRawQty(w,h);
+  } else {
+    raw=(getSzStock(w,h,'WC').raw||0)+(getSzStock(w,h,'ETP').raw||0);
+  }
+  const pKey=`${w}x${h}_${color}`;
+  let printed;
+  if(stockEvents[pKey] && stockEvents[pKey].length){
+    printed=getPrintedQty(w,h,color);
+  } else {
+    printed=getSzStock(w,h,color).printed||0;
+  }
+  return {raw, printed};
+}
 let wSelSize=null;
 let wSelModel=null; // {short, color, w, h}
 let wlColor='WC';
@@ -4392,7 +4411,7 @@ function setWlColor(color, btn){
     btn.style.borderColor='var(--etp)'; btn.style.color='var(--etp)';
   }
   if(wSelSize){
-    const s=getSzStock(wSelSize.w,wSelSize.h,color);
+    const s=getSzStockView(wSelSize.w,wSelSize.h,color);
     const el=document.getElementById('wm-size-stock');
     if(el) el.textContent=(color==='WC'?'🔵 웜코튼':'🟠 에토프')+' — 원유리 '+s.raw+'장 | 인쇄유리 '+s.printed+'장';
   }
@@ -4701,7 +4720,7 @@ function selectWorkModel(short, color, w, h){
   wlColor=color||'WC';
   wQty=1;
 
-  const s=getSzStock(w,`${h}${lr}`,color);
+  const s=getSzStockView(w,`${h}${lr}`,color);
   const colorLabel=color==='WC'?'🔵 웜코튼':color==='ETP'?'🟠 에토프':'';
   document.getElementById('wm-size-label').textContent=short;
   document.getElementById('wm-size-models').innerHTML=
@@ -4741,7 +4760,7 @@ function selectWorkSize(w,h){
   const modelTagsHtml=sg.models.map(m=>`<span style="display:inline-block;background:var(--s2);border:1px solid var(--b2);border-radius:4px;padding:2px 7px;font-size:10px;margin:2px 2px 0 0">${m}</span>`).join('');
   document.getElementById('wm-size-models').innerHTML=modelTagsHtml;
 
-  const s=getSzStock(w,h,wlColor);
+  const s=getSzStockView(w,h,wlColor);
   const colorLabel=wlColor==='WC'?'🔵 웜코튼':'🟠 에토프';
   document.getElementById('wm-size-stock').textContent=colorLabel+' — 원유리 '+s.raw+'장 | 인쇄유리 '+s.printed+'장';
 
