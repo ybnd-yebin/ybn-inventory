@@ -318,6 +318,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
     <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
     <button class="main-nav-btn" onclick="showMain('delivery')">📦 납품서</button>
+    <button class="main-nav-btn" onclick="showMain('glassneed')">🖨️ 인쇄유리소요</button>
     <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
   </nav>
 </div>
@@ -1131,6 +1132,27 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <input class="inp" id="analysis-search" placeholder="🔍 모델명 / 코드 검색..." oninput="renderAnalysis()">
 
   <div id="analysis-list"></div>
+</div>
+
+<!-- 인쇄유리 소요 (납품서 → 인쇄실 대상 유리 · 오더날짜별) -->
+<div class="sec-pg" id="pg-glassneed" style="padding:14px 14px 80px">
+  <div class="card" style="border-left:3px solid var(--acc)">
+    <div class="card-ttl"><span>🖨️ 인쇄유리 소요 (오더날짜별)</span></div>
+    <div class="info-note" style="margin-top:6px">
+      납품서에 올라온 오더를 인쇄유리 대상 모델만 골라, 오더 날짜별로 인쇄해야 할 유리를 사이즈별로 보여줍니다.
+      합적(BD3U 등) 모델은 세트당 여러 장으로 자동 전개됩니다. <b>재고 대조는 하지 않습니다</b>(당일 생산 기준 소요량만).
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+      <label style="font-size:11px;color:var(--tx2)">기간</label>
+      <input type="date" id="gn-from" style="padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px">
+      <span style="color:var(--tx3)">~</span>
+      <input type="date" id="gn-to" style="padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px">
+      <button onclick="renderGlassNeed()" style="padding:7px 14px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">조회</button>
+      <button onclick="gnResetRange()" style="padding:7px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:16px;color:var(--tx2);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체</button>
+    </div>
+    <div id="gn-summary" style="margin-top:10px"></div>
+  </div>
+  <div id="gn-body"></div>
 </div>
 
 <!-- SETTINGS -->
@@ -2468,8 +2490,13 @@ function showMain(id){
   curMain=id;
   document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
   document.querySelectorAll('.main-nav-btn').forEach(b=>b.classList.remove('on'));
-  document.getElementById('pg-'+id).classList.add('on');
-  document.querySelectorAll('.main-nav-btn')[MAINS.indexOf(id)].classList.add('on');
+  const pg=document.getElementById('pg-'+id);
+  if(pg) pg.classList.add('on');
+  // 버튼 하이라이트: onclick의 showMain('id')로 정확히 매칭 (인덱스 불일치 방지)
+  document.querySelectorAll('.main-nav-btn').forEach(b=>{
+    const oc=b.getAttribute('onclick')||'';
+    if(oc.indexOf("showMain('"+id+"')")>=0) b.classList.add('on');
+  });
   const fab=document.getElementById('fab-btn');
   fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
   if(id==='home')renderHome();
@@ -2477,6 +2504,7 @@ function showMain(id){
   if(id==='board'){renderNotices();renderSchedules();}
   if(id==='stock')renderSub(curSub);
   if(id==='mat')renderMat();
+  if(id==='glassneed')renderGlassNeed();
   if(id==='settings')initGsUI();
 }
 function showSub(id){
@@ -2505,6 +2533,112 @@ function renderMat(){
   renderSheetLog();
   renderYieldTable();
 }
+
+// ── 🖨️ 인쇄유리 소요 (납품서 → 인쇄유리 대상만 → 오더날짜별 사이즈 전개) ──
+function gnResetRange(){
+  const f=document.getElementById('gn-from'), t=document.getElementById('gn-to');
+  if(f) f.value=''; if(t) t.value='';
+  renderGlassNeed();
+}
+function renderGlassNeed(){
+  const sumEl=document.getElementById('gn-summary');
+  const bodyEl=document.getElementById('gn-body');
+  if(!bodyEl) return;
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  if(!log.length){
+    if(sumEl) sumEl.innerHTML='';
+    bodyEl.innerHTML='<div class="card"><div class="empty"><div class="empty-ico">📭</div>납품서가 없습니다<br><span style="font-size:11px">납품서 탭에서 PDF를 올리면 여기에 인쇄유리 소요가 잡힙니다</span></div></div>';
+    return;
+  }
+  const fromV=(document.getElementById('gn-from')||{}).value||'';
+  const toV=(document.getElementById('gn-to')||{}).value||'';
+
+  // 오더날짜(delivDate) → { sizeKey: {w,h,color,short,qty, models} } 전개
+  const byDate={};
+  let skippedNoBom=0;   // 인쇄유리 대상 아님(BOM 없음)
+  const dates=[];
+
+  log.forEach(doc=>{
+    const date=doc.delivDate||doc.date||'(날짜없음)';
+    if(fromV && date<fromV) return;
+    if(toV && date>toV) return;
+    (doc.items||[]).forEach(it=>{
+      const bom=bomOf(it.short||it.code);
+      if(!bom || !bom.glass || !bom.glass.length){ skippedNoBom+=(it.qty||0); return; } // 인쇄유리 대상 아님 → 제외
+      const color=it.color||'';
+      bom.glass.forEach(g=>{
+        const qty=(g.qty||1)*(it.qty||0);
+        if(qty<=0) return;
+        const key=`${g.w}x${g.h}_${color}`;
+        if(!byDate[date]) byDate[date]={};
+        if(!byDate[date][key]) byDate[date][key]={w:g.w,h:g.h,color,qty:0,models:{}};
+        byDate[date][key].qty+=qty;
+        const mn=it.short||it.code;
+        byDate[date][key].models[mn]=(byDate[date][key].models[mn]||0)+qty;
+      });
+    });
+  });
+
+  Object.keys(byDate).forEach(d=>dates.push(d));
+  dates.sort((a,b)=>String(b).localeCompare(String(a))); // 최신 오더 위로
+
+  let grandTotal=0, grandWc=0, grandEtp=0;
+  dates.forEach(d=>Object.values(byDate[d]).forEach(a=>{
+    grandTotal+=a.qty;
+    if(a.color==='WC') grandWc+=a.qty; else if(a.color==='ETP') grandEtp+=a.qty;
+  }));
+  if(sumEl){
+    if(!dates.length){
+      sumEl.innerHTML='<div style="font-size:12px;color:var(--tx3)">해당 기간에 인쇄유리 대상 오더가 없습니다.</div>';
+    } else {
+      sumEl.innerHTML=
+        `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline">
+           <span style="font-size:12px;color:var(--tx2)">오더일 <b style="color:var(--tx1)">${dates.length}</b>일</span>
+           <span style="font-size:12px;color:var(--tx2)">총 인쇄유리 <b style="color:var(--acc)">${grandTotal}</b>장</span>
+           <span style="font-size:11px;color:var(--wc)">🔵 웜코튼 ${grandWc}</span>
+           <span style="font-size:11px;color:var(--etp)">🟠 에토프 ${grandEtp}</span>
+           ${skippedNoBom?`<span style="font-size:10px;color:var(--tx3)">· 인쇄유리 대상 아님 ${skippedNoBom}건 제외</span>`:''}
+         </div>`;
+    }
+  }
+
+  if(!dates.length){ bodyEl.innerHTML=''; return; }
+
+  bodyEl.innerHTML=dates.map(date=>{
+    const rows=Object.values(byDate[date]).sort((a,b)=>{
+      if(a.color!==b.color) return (a.color||'').localeCompare(b.color||'');
+      if(a.h!==b.h) return a.h-b.h;
+      return a.w-b.w;
+    });
+    const dayTotal=rows.reduce((s,r)=>s+r.qty,0);
+    const rowHtml=rows.map(r=>{
+      const cDot=r.color==='WC'?'var(--wc)':r.color==='ETP'?'var(--etp)':'var(--tx3)';
+      const cLabel=r.color==='WC'?'웜코튼':r.color==='ETP'?'에토프':'미지정';
+      const modelList=Object.entries(r.models).map(([m,q])=>`${m} <span style="color:var(--tx3)">×${q}</span>`).join(' · ');
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--b1)">
+        <span style="width:8px;height:8px;border-radius:50%;background:${cDot};flex:none"></span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:var(--tx1)">
+            ${r.w}<span style="color:var(--tx3);font-weight:400">×</span>${r.h}
+            <span style="font-size:11px;font-weight:700;color:${cDot};margin-left:6px">${cLabel}</span>
+          </div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${modelList}</div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc);flex:none">
+          ${r.qty}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="card" style="margin-top:12px">
+      <div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center">
+        <span>📅 ${date}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--tx2);text-transform:none;letter-spacing:0">인쇄유리 ${dayTotal}장 · ${rows.length}종</span>
+      </div>
+      <div style="margin-top:4px">${rowHtml}</div>
+    </div>`;
+  }).join('');
+}
+
 function onFab(){
   if(curMain==='todo')openTodoModal();
   else if(curMain==='worklog')openWorkModal();
@@ -4405,21 +4539,24 @@ function renderWorkSearch(){
       // 색상 버튼 클릭 시 해당 색상으로 selectWorkModel 호출
       const firstModel=pickBestModel(sg.models, raw)||`${sg.w}×${sg.h}`;
       const safeFirst=firstModel.replace(/'/g,"\\'");
+      // L/R 그룹은 h가 "693L" 같은 문자열 → 숫자 hnum을 넘겨야 재고키가 어긋나지 않음
+      const hNumForClick = (sg.hnum!=null?sg.hnum:sg.h);
+      const dispH = (sg.hnum!=null?sg.hnum:sg.h);
       return `<div style="padding:12px 14px;border-bottom:1px solid var(--b1)">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc)">${sg.w} × ${sg.h}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc)">${sg.w} × ${dispH}${sg.lr?` <span style="font-size:12px;color:${sg.lr==='L'?'var(--acc)':'var(--acc4)'}">(${sg.lr==='L'?'좌·L':'우·R'})</span>`:''}</span>
           <span style="font-size:10px;color:var(--tx3)">mm</span>
         </div>
         <div style="margin-bottom:8px;line-height:1.6">${modelTags}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${sg.h},'WC')"
+          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${hNumForClick},'WC')"
             style="padding:9px 12px;background:rgba(121,192,255,.12);border:1.5px solid var(--wc);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
             <span style="font-size:12px;font-weight:700;color:var(--wc)">🔵 웜코튼</span>
             <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${wcS.raw>0?'var(--acc)':'var(--tx3)'}">
               ${wcS.raw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
             </span>
           </div>
-          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${sg.h},'ETP')"
+          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${hNumForClick},'ETP')"
             style="padding:9px 12px;background:rgba(255,166,87,.12);border:1.5px solid var(--etp);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
             <span style="font-size:12px;font-weight:700;color:var(--etp)">🟠 에토프</span>
             <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${etpS.raw>0?'var(--acc)':'var(--tx3)'}">
@@ -4555,6 +4692,8 @@ function lrGlassSuffix(short){
   return '';
 }
 function selectWorkModel(short, color, w, h){
+  // h가 "693L" 같은 문자열로 들어와도 숫자만 사용 (L/R 접미사 중복 방지)
+  h = parseInt(h,10);
   const lr=lrGlassSuffix(short);
   wSelModel={short, color, w, h, lr};
   wSelSize={w,h,label:`${w}×${h}`,lr};
