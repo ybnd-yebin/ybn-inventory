@@ -1063,6 +1063,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
 </div>
 
+</div>
+
+<!-- 📊 발주분석 탭 (발주 흐름 분석 모음) -->
+<div class="sec-pg" id="pg-order-analysis" style="padding:14px 14px 80px">
   <!-- 내가 넣은 발주 통계 (orderLog 기반) -->
   <div class="card" style="border-left:3px solid var(--acc3)">
     <div class="card-ttl">📈 내 발주 통계 <span style="font-weight:400;color:var(--tx3);font-size:11px">(앱에서 기록한 발주 기준)</span></div>
@@ -8948,14 +8952,18 @@ function saveMatData(){
 }
 // ── 자재탭 포함 네비게이션 재정의 ──
 const MAINS_EXT=['home','todo','board','stock','mat','settings'];
-document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
-  const pages=['home','worklog','stock','order','order-analysis','ledger','vendors','delivery','settings'];
+document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
+  // id는 버튼의 onclick 문자열에서 직접 읽음 → 버튼 순서/개수와 무관하게 항상 정확히 매칭
+  const oc=btn.getAttribute('onclick')||'';
+  const m=oc.match(/showMain\('([^']+)'\)/);
+  const id=m?m[1]:null;
+  if(!id) return;
   btn.onclick=function(){
-    const id=pages[i];
     curMain=id;
     document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
     document.querySelectorAll('.main-nav-btn').forEach(b=>b.classList.remove('on'));
-    document.getElementById('pg-'+id).classList.add('on');
+    const pg=document.getElementById('pg-'+id);
+    if(pg) pg.classList.add('on');
     this.classList.add('on');
     const fab=document.getElementById('fab-btn');
     fab.style.display=(id==='todo'||id==='worklog')?'flex':'none';
@@ -8968,6 +8976,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn,i)=>{
     else if(id==='mat')renderMat();
     else if(id==='order')renderOrderPage();
     else if(id==='order-analysis')renderAnalysis();
+    else if(id==='glassneed')renderGlassNeed();
     else if(id==='ledger')renderLedger();
     else if(id==='vendors')renderVendors();
     else if(id==='settings')initGsUI();
