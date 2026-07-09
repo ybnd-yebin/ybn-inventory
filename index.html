@@ -976,7 +976,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="act-btn blue" onclick="odCopyImage()" style="background:var(--acc)">📋 카톡용 이미지 복사</button>
     <button class="act-btn blue" onclick="odSaveOrder()" style="background:var(--acc5)">💾 발주 리스트에 기록</button>
     <button onclick="odMakeExcel()" style="width:100%;padding:11px;background:none;border:1px solid var(--b2);border-radius:10px;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">📊 엑셀 발주서 저장 (선택)</button>
-    <button onclick="document.getElementById('od-import-file').click()" style="width:100%;padding:11px;background:none;border:1px dashed var(--acc5);border-radius:10px;color:var(--acc5);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">📥 발주서 엑셀 불러오기 (직원 작성본)</button>
+    <button onclick="document.getElementById('od-import-pdf').click()" style="width:100%;padding:11px;background:none;border:1px dashed var(--acc5);border-radius:10px;color:var(--acc5);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">📥 발주서 PDF 불러오기 (여러 장 가능)</button>
+    <input type="file" id="od-import-pdf" accept="application/pdf,.pdf" multiple style="display:none" onchange="odImportPdf(this)">
     <input type="file" id="od-import-file" accept=".xlsx,.xls" style="display:none" onchange="odImportExcel(this)">
   </div>
 
@@ -993,19 +994,19 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- 발주서 이미지 캡쳐용 (화면 밖 렌더) -->
 <div id="od-capture-host" style="position:fixed;left:-9999px;top:0;background:#fff"></div>
 
-<!-- 발주서 엑셀 불러오기: 시트 선택 모달 -->
+<!-- 발주서 불러오기: 선택 모달 (PDF 페이지 / 엑셀 시트 공용) -->
 <div class="modal-bg" id="od-import-modal">
   <div class="modal-sheet" style="max-width:600px;margin:0 auto">
     <button class="close-btn" onclick="closeM('od-import-modal')">×</button>
-    <div class="modal-ttl">📥 발주서 시트 선택</div>
+    <div class="modal-ttl">📥 발주서 선택</div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:12px">
-      엑셀 안의 시트별로 <b>발주처·종류·품목수</b>를 읽었어요.<br>
-      발주 리스트에 넣을 시트를 고르세요. (작성 폼에도 자동으로 채워집니다)
+      발주서에서 <b>발주처·종류·품목</b>을 읽었어요.<br>
+      발주 리스트에 넣을 항목을 고르세요. (작성 폼에도 자동으로 채워집니다)
     </div>
     <div id="od-import-list" style="margin-bottom:12px"></div>
     <div style="display:flex;gap:8px">
       <button onclick="closeM('od-import-modal')" style="flex:1;padding:12px;background:var(--s3);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">닫기</button>
-      <button onclick="odImportApply()" id="od-import-apply" style="flex:2;padding:12px;background:var(--acc5);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">선택한 시트 기록</button>
+      <button onclick="odImportApply()" id="od-import-apply" style="flex:2;padding:12px;background:var(--acc5);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">선택한 발주서 기록</button>
     </div>
   </div>
 </div>
@@ -2586,9 +2587,14 @@ function renderGlassNeed(){
     if(fromV && date<fromV) return;
     if(toV && date>toV) return;
     (doc.items||[]).forEach(it=>{
-      const bom=bomOf(it.short||it.code);
+      // ── 모델 매칭: 납품서 품목코드(code)를 CODE_MODEL_MAP으로 실제 모델명으로 변환한 뒤 bomOf 조회 ──
+      //   납품서의 short는 긴 마케팅 품명이라 MODEL_BOM 키와 안 맞음 → code 우선 사용
+      const mapped = (typeof CODE_MODEL_MAP!=='undefined' && it.code) ? CODE_MODEL_MAP[it.code] : null;
+      const modelName = mapped ? mapped.short : (it.short||it.code);
+      const bom=bomOf(modelName);
       if(!bom || !bom.glass || !bom.glass.length){ skippedNoBom+=(it.qty||0); return; } // 인쇄유리 대상 아님 → 제외
-      const color=it.color||'';
+      // color: 납품서 값 우선, 없으면 CODE_MODEL_MAP 보완
+      const color=it.color || (mapped && mapped.color) || '';
       bom.glass.forEach(g=>{
         const qty=(g.qty||1)*(it.qty||0);
         if(qty<=0) return;
@@ -2596,7 +2602,7 @@ function renderGlassNeed(){
         if(!byDate[date]) byDate[date]={};
         if(!byDate[date][key]) byDate[date][key]={w:g.w,h:g.h,color,qty:0,models:{}};
         byDate[date][key].qty+=qty;
-        const mn=it.short||it.code;
+        const mn=modelName;
         byDate[date][key].models[mn]=(byDate[date][key].models[mn]||0)+qty;
       });
     });
@@ -9568,6 +9574,168 @@ function odImportExcel(input){
   reader.readAsArrayBuffer(file);
 }
 
+// ══════════════════════════════════════════════════════════
+//  발주서 PDF 불러오기 (엑셀 양식을 PDF로 저장한 발주서 → 발주 리스트)
+//  한 PDF의 각 페이지 = 발주 1건.
+//  ※ 컬럼 위치를 고정하지 않고, 표 헤더(NO/품명/규격/수량/납기/비고/업체명)의
+//    실제 x좌표를 읽어 경계를 계산한다. → 6컬럼·7컬럼, 인쇄배율이 달라도 대응.
+//  ※ NO가 숫자인 행만 품목. 합계('총 수량')·빈 슬롯은 자동 제외.
+//  ※ 〃(동일 기호)는 바로 위 행의 품명을 상속. 규격·수량은 각 행 값 그대로.
+// ══════════════════════════════════════════════════════════
+const OD_PDF_LABELS=['NO','품명','규격','수량','납기','비고','업체명'];
+const OD_DITTO=/^["'"″〃"”\s]+$/;                 // 〃 " ″ 등
+const odNorm=s=>String(s||'').replace(/\s/g,'');
+
+// pdf.js 텍스트 아이템 → y기준 행 묶음 (같은 행인데 y가 0.5쯤 어긋나므로 ±2 병합)
+function odPdfRows(items){
+  const A=items.map(it=>({
+    s:(it.str||'').trim(), x:+it.transform[4],
+    x2:+it.transform[4]+(it.width||0), y:+it.transform[5]
+  })).filter(i=>i.s);
+  const b={}; A.forEach(i=>{ const k=Math.round(i.y); (b[k]=b[k]||[]).push(i); });
+  const keys=Object.keys(b).map(Number).sort((a,b)=>b-a);   // 위→아래
+  const rows=[];
+  keys.forEach(k=>{
+    const last=rows[rows.length-1];
+    if(last && Math.abs(last.y-k)<=2) last.items.push(...b[k]);
+    else rows.push({ y:k, items:[...b[k]] });
+  });
+  rows.forEach(r=>r.items.sort((a,b)=>a.x-b.x));
+  return rows;
+}
+function odPdfLine(row){ return row.items.map(i=>i.s).join(' '); }
+
+// 헤더행에서 컬럼 앵커 찾기 ('품'+'명'처럼 쪼개진 글자도 재조립)
+function odPdfHeaderCols(row){
+  const found=[], its=row.items;
+  for(let i=0;i<its.length;i++){
+    for(const L of OD_PDF_LABELS){
+      if(found.some(f=>f.label===L)) continue;
+      let acc='', j=i, x1=its[i].x, x2=its[i].x2;
+      while(j<its.length && acc.length<L.length){
+        acc+=odNorm(its[j].s); x2=its[j].x2;
+        if(acc===L){ found.push({label:L, x:x1, x2, cx:(x1+x2)/2}); i=j; break; }
+        if(!L.startsWith(acc)) break;
+        j++;
+      }
+      if(found.length && found[found.length-1].label===L) break;
+    }
+  }
+  return found.sort((a,b)=>a.cx-b.cx);
+}
+// 인접 컬럼 사이(내 끝 ~ 다음 시작)의 중간을 경계로
+function odPdfColRanges(cols){
+  const R={};
+  cols.forEach((c,i)=>{
+    R[c.label]={
+      lo: i===0 ? -1e9 : (cols[i-1].x2 + c.x)/2,
+      hi: i===cols.length-1 ? 1e9 : (c.x2 + cols[i+1].x)/2
+    };
+  });
+  return R;
+}
+function odPdfCell(row,R,name){
+  const g=R[name]; if(!g) return '';
+  return row.items.filter(i=>{ const c=(i.x+i.x2)/2; return c>=g.lo && c<g.hi; })
+                  .map(i=>i.s).join(' ').trim();
+}
+// '26-07-08' → '2026-07-08'
+function odPdfDate(s){
+  const m=String(s||'').match(/(\d{2,4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+  if(!m) return '';
+  let y=+m[1]; if(y<100) y+=2000;
+  return `${y}-${('0'+m[2]).slice(-2)}-${('0'+m[3]).slice(-2)}`;
+}
+
+function odParsePdfPage(items){
+  const rows=odPdfRows(items);
+  const h=rows.findIndex(r=>/NO/i.test(odPdfLine(r)) && /품/.test(odPdfLine(r)));
+  if(h<0) return null;
+  const cols=odPdfHeaderCols(rows[h]);
+  if(!cols.length) return null;
+  const R=odPdfColRanges(cols);
+
+  // 표 좌우 끝 → 좌측 40%만이 수신/발주일/대분류 영역 (우측은 회사주소·결재란)
+  const noCol=cols.find(c=>c.label==='NO');
+  const tableLeft = noCol ? noCol.x : cols[0].x;
+  const tableRight = cols[cols.length-1].x2;
+  const mid = tableLeft + (tableRight-tableLeft)*0.40;
+
+  let vendor='', date='';
+  rows.forEach(r=>{
+    const L=odNorm(odPdfLine(r));
+    if(!vendor && /^수신[:：]/.test(L)){
+      const idx=r.items.findIndex(i=>/[:：]/.test(i.s));
+      const rest=r.items.slice(idx+1).filter(i=>i.x<mid).map(i=>i.s).join(' ').trim();
+      if(rest) vendor=rest;
+    }
+    if(!date && /^발주일[:：]/.test(L)){
+      const idx=r.items.findIndex(i=>/[:：]/.test(i.s));
+      date=odPdfDate(r.items.slice(idx+1).filter(i=>i.x<mid).map(i=>i.s).join(' '));
+    }
+  });
+
+  // 대분류(종류): 표 헤더 위쪽, 좌측 영역의 텍스트 ('3.2T 백사틴','백샤틴(정규격)' 등)
+  let type='';
+  const JUNK=/^(결|재|담당|차장|이사|사장)$/;
+  for(let i=h-1;i>=0 && i>h-5;i--){
+    const c=rows[i].items.filter(it=>it.x>=tableLeft-10 && it.x<mid && !JUNK.test(odNorm(it.s)));
+    if(c.length){ const t=c.map(i=>i.s).join(' ').trim(); if(t){ type=t; break; } }
+  }
+
+  const out=[]; let lastName='';
+  for(let i=h+1;i<rows.length;i++){
+    const r=rows[i];
+    const no=odPdfCell(r,R,'NO');
+    if(!/^\d+$/.test(no)) continue;                 // 합계행('총 수량')·잡행 제외
+    let pname=odPdfCell(r,R,'품명');
+    if(OD_DITTO.test(pname) || !pname) pname=lastName;   // 〃 → 위 행 품명 상속
+    else lastName=pname;
+    const sp=odParseSpec(odPdfCell(r,R,'규격'));
+    const qty=parseInt(odPdfCell(r,R,'수량').replace(/[^\d]/g,''))||0;
+    if(!(sp.w&&sp.h) && qty===0) continue;          // 빈 슬롯 제외
+    let due=odPdfCell(r,R,'납기');    if(OD_DITTO.test(due))    due='';
+    let bigo=odPdfCell(r,R,'비고');   if(OD_DITTO.test(bigo))   bigo='';
+    let client=odPdfCell(r,R,'업체명'); if(OD_DITTO.test(client)) client='';
+    out.push({ w:sp.w, h:sp.h, qty, pname, due, bigo, client });
+  }
+  if(!out.length) return null;
+  // 대표 업체명(첫 행 값) — 발주서 전체에 공통
+  const client=(out.find(i=>i.client)||{}).client||'';
+  return { vendor:vendor||'(미상)', type:type||'', date, client, items:out };
+}
+
+async function odImportPdf(input){
+  const files=[...(input.files||[])];
+  input.value='';
+  if(!files.length) return;
+  if(typeof pdfjsLib==='undefined'){ showToast('PDF 기능 로딩 중 — 잠시 후 다시'); return; }
+  showToast('⏳ PDF 읽는 중...');
+  odImportParsed=[];
+  let fail=0;
+  for(const file of files){
+    try{
+      const buf=await file.arrayBuffer();
+      const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+      for(let p=1;p<=pdf.numPages;p++){
+        const page=await pdf.getPage(p);
+        const tc=await page.getTextContent();
+        const parsed=odParsePdfPage(tc.items);
+        if(parsed){
+          parsed.sheet = file.name + (pdf.numPages>1?` (p${p})`:'');
+          odImportParsed.push(parsed);
+        }
+      }
+    }catch(err){ console.log('발주서 PDF 파싱 실패', file.name, err); fail++; }
+  }
+  if(!odImportParsed.length){
+    showToast(fail?'PDF를 읽지 못했어요 — 양식을 확인하세요':'읽을 발주 품목이 없어요');
+    return;
+  }
+  renderOdImportList();
+  document.getElementById('od-import-modal').classList.add('on');
+}
+
 function renderOdImportList(){
   const host=document.getElementById('od-import-list');
   host.innerHTML=odImportParsed.map((s,i)=>{
@@ -9588,19 +9756,20 @@ function renderOdImportList(){
 
 function odImportApply(){
   const cks=[...document.querySelectorAll('.od-imp-ck:checked')];
-  if(!cks.length){ showToast('기록할 시트를 선택하세요'); return; }
+  if(!cks.length){ showToast('기록할 발주서를 선택하세요'); return; }
   const picks=cks.map(ck=>odImportParsed[parseInt(ck.dataset.i)]);
   let added=0;
   picks.forEach(s=>{
+    const isPdf = /\.pdf\b/i.test(s.sheet||'');
     const order={
       id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
       vendor:s.vendor, type:s.type||'', thick:'', title:s.type||'',
       date:s.date||new Date().toISOString().slice(0,10),
       due:(s.items.find(it=>it.due)||{}).due||'',
-      client:'',
+      client: s.client||'',
       createdAt:new Date().toISOString(),
       by:getActor()||'',
-      src:'excel-import', srcSheet:s.sheet,
+      src: isPdf?'pdf-import':'excel-import', srcSheet:s.sheet,
       items:s.items.map(it=>({ w:it.w, h:it.h, qty:it.qty, pname:it.pname, bigo:it.bigo||'',
         received:false, recvAt:null, eventId:null }))
     };
