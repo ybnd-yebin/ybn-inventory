@@ -553,7 +553,18 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
     <button class="sub-nav-btn" onclick="showSub('nonspec')"><span class="ico">🔲</span>비규격</button>
     <button class="sub-nav-btn" onclick="showSub('mat')"><span class="ico">📒</span>원장재고</button>
+    <button class="sub-nav-btn" onclick="showSub('storage')"><span class="ico">🗄️</span>수납유리재고</button>
   </nav>
+  <!-- 수납유리재고 (신규) -->
+  <div id="sp-storage" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div id="soonap-warn"></div>
+    <div class="card">
+      <div class="card-ttl"><span>🗄️ 수납유리재고</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">납품서 자동 반영 · 37종</span></div>
+      <div class="info-note">📥 한샘 납품서를 올리면 대상 유리가 <b>자동 차감</b>됩니다(같은 납품서는 중복차감 안 됨). <b>실재고</b>=실측 기준, <b>가용</b>=실재고−예정출고, <b>발주재고</b>=실재고+발주수량. 실재고·발주수량은 칸에 직접 입력하세요. 비규격은 아래 별도 표(코드+사이즈)로 관리합니다.</div>
+      <div class="filter-row" id="soonap-filter"></div>
+      <div id="soonap-body"></div>
+    </div>
+  </div>
   <!-- 대시보드 -->
   <div id="sp-dashboard" class="sub-pg" style="padding:14px 14px 80px">
     <div class="card"><div class="card-ttl">⚡ 긴급 부족 모델</div><div id="d-urgent"></div></div>
@@ -1972,6 +1983,184 @@ let vendorBook=J(localStorage.getItem('ybn-vendors-v1'))||[];
 let odCustomVendors=J(localStorage.getItem('ybn-od-vendors-v1'))||{}; // {대분류: [발주처명,...]}
 let wkExamples=J(localStorage.getItem('ybn-wk-examples-v1'))||[]; // 주차 예상 예시 [{id,ym,week,qty,note}]
 
+/* ══════════════════════════════════════════════════════════════════════
+   수납유리재고 (신규 블록) — 기존 코드는 훅 몇 줄만 추가, 로직은 전부 여기.
+   · 대상 37종: 카탈로그(ybn-data.js)에 실재하는 코드만. 매칭은 HANSAEM_CATALOG/DAEGUBUN 재사용.
+   · 납품서(delivLog) 자동 반영. id 기준이라 중복차감 불가(툼스톤 delivDeleted 제외).
+   · 변하는 값만 localStorage 'ybn-soonap-v1'. 카탈로그/매칭은 안 건드림.
+   · 재고: 실재고=실측−(실측 이후 출고), 가용=실재고−예정출고, 발주재고=실재고+발주수량(수동입력).
+   · 비규격(isBig)은 정규품과 절대 안 합침 → 코드+사이즈 키로 별도 표.
+   ══════════════════════════════════════════════════════════════════════ */
+const SOONAP_GROUPS = {
+  '글래스도어': ['CAIB13894','CAIB13895'],
+  '유리장식장': ['ME1TM0001','ME1TM0002','ME1TM0003','ME1TM0004','ME1WM0001','ME1WM0002','ME1WM0003'],
+  '에어힌지': ['MK1WM0001','MK1WM0002','MK1MM0001','MK1TM0005'],
+  '빗각': ['MK1WM0004','MK1WM0005','MK1WM0006','MK1WM0007','MK1TM0006'],
+  '빌트인': ['CAIT00442','CAIT00443','CAIT00444','CAIT00445','CAIT00450','CAIT00451','CAIT00452','CAIT00453','CAIT00454','CAIT00455','CAIT00456','CAIT00457','CDIT00277','CAIT00875','CAIT00484','FGIT00072','SAE000227','SAE000327','MALWF0392']
+};
+const SOONAP_CODES = Object.keys(SOONAP_GROUPS).reduce((a,g)=>a.concat(SOONAP_GROUPS[g]),[]);
+const SOONAP_CODE_SET = new Set(SOONAP_CODES);
+const SOONAP_GROUP_OF = {}; Object.keys(SOONAP_GROUPS).forEach(g=>SOONAP_GROUPS[g].forEach(c=>{SOONAP_GROUP_OF[c]=g;}));
+const SOONAP_CATS = new Set(['시그니처','EURO','에어힌지','빗각','빌트인']); // 비규격(연장 등) 판정용 대분류
+const SOONAP_DEFAULT_INACTIVE = ['MALWF0392']; // 6개월 0건 → 초기 비활성 (AL55브론즈매직)
+
+let soonap = J(localStorage.getItem('ybn-soonap-v1')) || {counts:{},onorder:{},active:{}};
+if(!soonap.counts) soonap.counts={};
+if(!soonap.onorder) soonap.onorder={};
+if(!soonap.active) soonap.active={};
+function saveSoonap(){ localStorage.setItem('ybn-soonap-v1', JSON.stringify(soonap)); }
+function soonapActive(code){ return soonap.active[code]!==undefined ? !!soonap.active[code] : (SOONAP_DEFAULT_INACTIVE.indexOf(code)<0); }
+function soonapName(code){ try{ return (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[code]) ? HANSAEM_CATALOG[code][0] : code; }catch(e){ return code; } }
+let soonapCat='all';
+
+// 납품서(delivLog)에서 수납 대상 유리의 출고/예정 집계. id 기준 중복 없음, 삭제(툼스톤) 제외.
+function soonapAgg(){
+  const today = todayStr();
+  const norm = {}; // code -> {code, evs:[{ship,qty,dest,future}]}
+  const big  = {}; // 'code@size' -> {code,size, evs:[...]}
+  const warn = {}; // code -> 예정수량 (비활성인데 납품 예정)
+  if(typeof delivLog==='undefined' || !Array.isArray(delivLog)) return {norm,big,warn};
+  for(const d of delivLog){
+    if(!d || (d.id && delivDeleted && delivDeleted[d.id]) || !Array.isArray(d.items)) continue;
+    const destG = (typeof delivDestGroup==='function') ? delivDestGroup(d.dest) : (d.dest||'기타');
+    let ship = d.shipDate || '';
+    if(!ship && typeof _shipOf==='function') ship = _shipOf(d);
+    if(!ship) ship = d.delivReqDate || '';
+    const future = !!(ship && ship>today);
+    for(const it of d.items){
+      if(!it || !it.code) continue;
+      const q = Number(it.qty)||0; if(!q) continue;
+      const cat = (typeof DAEGUBUN!=='undefined') ? DAEGUBUN[it.code] : '';
+      if(it.isBig){
+        if(!(SOONAP_CODE_SET.has(it.code) || SOONAP_CATS.has(cat))) continue;
+        const key = it.code+'@'+(it.size||'');
+        (big[key] = big[key] || {code:it.code, size:(it.size||''), evs:[]}).evs.push({ship,qty:q,dest:destG,future});
+      } else {
+        if(!SOONAP_CODE_SET.has(it.code)) continue;
+        (norm[it.code] = norm[it.code] || {code:it.code, evs:[]}).evs.push({ship,qty:q,dest:destG,future});
+      }
+      if(!soonapActive(it.code) && (future || ship===today)) warn[it.code] = (warn[it.code]||0)+q;
+    }
+  }
+  return {norm,big,warn};
+}
+
+// 한 키(코드 또는 코드@사이즈)의 재고 계산
+function soonapCalc(key, evs){
+  const cnt = soonap.counts[key];
+  const cAt = cnt ? String(cnt.at||'').slice(0,10) : '';
+  let shippedSince=0, future=0;
+  const dest={};
+  for(const e of (evs||[])){
+    if(!dest[e.dest]) dest[e.dest]={shipped:0,future:0};
+    if(e.future){ future+=e.qty; dest[e.dest].future+=e.qty; }
+    else { dest[e.dest].shipped+=e.qty; if(!cAt || e.ship>cAt) shippedSince+=e.qty; }
+  }
+  const counted = !!cnt;
+  const real = counted ? (Number(cnt.qty)||0) - shippedSince : null;
+  const avail = counted ? real - future : null;
+  const order = Number(soonap.onorder[key])||0;
+  const orderStock = counted ? real + order : null;
+  return {counted, real, avail, future, order, orderStock, dest};
+}
+
+// 한 행(카드) HTML
+function soonapRow(key, code, nameHtml, c, active){
+  const realVal = c.counted ? c.real : '';
+  const availTxt = c.counted ? c.avail : '—';
+  const orderStockTxt = c.counted ? c.orderStock : '—';
+  const negStyle = (c.counted && c.avail<0) ? 'color:var(--acc4);font-weight:700' : '';
+  const destChips = Object.keys(c.dest).map(dn=>{
+    const dd=c.dest[dn]; const ic = dn==='오이도'?'📦':'🏠';
+    return `<span style="font-size:10px;color:var(--tx3);margin-right:9px">${ic}${dn} 출고 ${dd.shipped}${dd.future?` · 예정 ${dd.future}`:''}</span>`;
+  }).join('');
+  const kEsc = key.replace(/'/g,"\\'");
+  const cEsc = code.replace(/'/g,"\\'");
+  return `<div style="border:1px solid var(--b2);background:var(--s1);border-radius:8px;padding:9px 10px;margin-bottom:7px;${active?'':'opacity:.5'}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+      <div style="font-size:12.5px;font-weight:600;color:var(--tx1);line-height:1.35">${nameHtml}<div style="font-size:10px;color:var(--tx3);font-weight:400;margin-top:1px">${code}</div></div>
+      <label style="font-size:10px;color:var(--tx2);white-space:nowrap;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" ${active?'checked':''} onchange="soonapToggle('${cEsc}')">활성</label>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:7px;align-items:end">
+      <div><div style="font-size:9px;color:var(--tx3);margin-bottom:2px">실재고(실측)</div><input class="inp" style="padding:6px;font-size:13px;text-align:center" type="number" value="${realVal}" placeholder="미실측" onchange="soonapSetCount('${kEsc}',this.value)"></div>
+      <div><div style="font-size:9px;color:var(--tx3);margin-bottom:2px">가용</div><div style="padding:6px;text-align:center;font-size:14px;font-weight:700;${negStyle}">${availTxt}</div></div>
+      <div><div style="font-size:9px;color:var(--tx3);margin-bottom:2px">발주수량</div><input class="inp" style="padding:6px;font-size:13px;text-align:center" type="number" value="${c.order||''}" placeholder="0" onchange="soonapSetOrder('${kEsc}',this.value)"></div>
+      <div><div style="font-size:9px;color:var(--tx3);margin-bottom:2px">발주재고</div><div style="padding:6px;text-align:center;font-size:14px;font-weight:700;color:var(--acc3)">${orderStockTxt}</div></div>
+    </div>
+    ${destChips?`<div style="margin-top:6px">${destChips}</div>`:''}
+  </div>`;
+}
+
+function renderSoonap(){
+  if(!document.getElementById('sp-storage')) return;
+  const body = document.getElementById('soonap-body'); if(!body) return;
+  const {norm,big,warn} = soonapAgg();
+  // 당일생산 경고 배너 (비활성 코드가 오늘/예정 납품에 잡힘)
+  const warnHost=document.getElementById('soonap-warn');
+  if(warnHost){
+    const ws=Object.keys(warn);
+    warnHost.innerHTML = ws.length ? `<div class="card" style="border:1px solid var(--acc4);background:rgba(220,38,38,.08)"><div style="color:var(--acc4);font-weight:700;font-size:13px;margin-bottom:5px">⚠️ 당일생산 경고</div><div style="font-size:12px;color:var(--tx2);line-height:1.6">비활성 코드가 납품서에 잡혔습니다 — 재고가 없으니 <b>당일 생산</b>이 필요할 수 있어요:<br>${ws.map(c=>`· ${soonapName(c)} <span style="color:var(--tx3)">(${c})</span> — ${warn[c]}장`).join('<br>')}</div></div>` : '';
+  }
+  // 대분류 필터 버튼
+  const fh=document.getElementById('soonap-filter');
+  if(fh){
+    const cats=['all'].concat(Object.keys(SOONAP_GROUPS));
+    fh.innerHTML=cats.map(c=>`<button class="f-btn${soonapCat===c?' on':''}" onclick="soonapSetCat('${c}')">${c==='all'?'전체':c}</button>`).join('');
+  }
+  // 정규품
+  let html='';
+  const cats = (soonapCat==='all') ? Object.keys(SOONAP_GROUPS) : [soonapCat];
+  for(const g of cats){
+    if(!SOONAP_GROUPS[g]) continue;
+    html += `<div style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--acc)">${g} <span style="color:var(--tx3);font-weight:400">${SOONAP_GROUPS[g].length}종</span></div>`;
+    for(const code of SOONAP_GROUPS[g]){
+      const rec=norm[code];
+      const c=soonapCalc(code, rec?rec.evs:[]);
+      html += soonapRow(code, code, soonapName(code), c, soonapActive(code));
+    }
+  }
+  // 비규격 — 모델(코드)별로 묶고, 사이즈는 모델 안에 칩으로 나열 (일회성 사이즈라 재고관리 X, 요약만)
+  const bigByCode={};
+  for(const key of Object.keys(big)){
+    const rec=big[key];
+    let shipped=0, future=0;
+    for(const e of rec.evs){ if(e.future) future+=e.qty; else shipped+=e.qty; }
+    (bigByCode[rec.code] = bigByCode[rec.code] || {code:rec.code, sizes:[]}).sizes.push({size:rec.size||'?', shipped, future});
+  }
+  let bigHtml='';
+  for(const code of Object.keys(bigByCode).sort()){
+    const g=bigByCode[code];
+    g.sizes.sort((a,b)=>String(a.size).localeCompare(String(b.size)));
+    const chips=g.sizes.map(s=>`<span style="display:inline-block;border:1px solid var(--b2);border-radius:6px;padding:3px 8px;margin:0 5px 5px 0;font-size:11px;color:var(--tx1);background:var(--s2)">${s.size} <b style="color:var(--acc2)">${s.shipped}장</b>${s.future?` <span style="color:var(--tx3)">·예정 ${s.future}</span>`:''}</span>`).join('');
+    const totQty=g.sizes.reduce((a,s)=>a+s.shipped+s.future,0);
+    bigHtml += `<div style="border:1px solid var(--b2);background:var(--s1);border-radius:8px;padding:9px 10px;margin-bottom:7px">
+      <div style="font-size:12.5px;font-weight:600;color:var(--tx1);line-height:1.35">${soonapName(code)} <span style="font-size:10px;color:var(--tx3);font-weight:400">${code}</span> <span style="font-size:10px;color:var(--acc2)">· ${g.sizes.length}개 사이즈 / ${totQty}장</span></div>
+      <div style="margin-top:7px">${chips}</div>
+    </div>`;
+  }
+  body.innerHTML = html
+    + `<div style="margin:20px 0 6px;font-size:12px;font-weight:700;color:var(--acc2)">🔲 비규격 <span style="color:var(--tx3);font-weight:400">(모델별 · 사이즈는 안에 표시 · 정규품과 분리)</span></div>`
+    + (bigHtml || `<div style="font-size:12px;color:var(--tx3);padding:8px 2px">아직 비규격 납품 내역이 없습니다.</div>`);
+}
+
+// 핸들러 (전역)
+function soonapSetCount(key,val){
+  val=String(val).trim();
+  if(val==='') delete soonap.counts[key];
+  else soonap.counts[key]={qty:Number(val)||0, at:new Date().toISOString(), by:(typeof getActor==='function'?getActor():'')||''};
+  saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
+}
+function soonapSetOrder(key,val){
+  const n=Number(String(val).trim())||0;
+  if(!n) delete soonap.onorder[key]; else soonap.onorder[key]=n;
+  saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
+}
+function soonapToggle(code){
+  soonap.active[code]=!soonapActive(code);
+  saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
+}
+function soonapSetCat(c){ soonapCat=c; renderSoonap(); }
+
 // ── 재고 이력 (StockEvents) ──
 // 키: "595x729" (원유리) 또는 "595x729_WC" / "595x729_ETP" (인쇄유리)
 // 각 키마다 events 배열: [{id, at, type, qty, by, byAt, note, source}]
@@ -2455,6 +2644,7 @@ function saveAll(){
   localStorage.setItem('ybn-vendors-v1',JSON.stringify(vendorBook));
   localStorage.setItem('ybn-od-vendors-v1',JSON.stringify(odCustomVendors));
   localStorage.setItem(LS.stockEvents,JSON.stringify(stockEvents));
+  if(typeof soonap!=='undefined') localStorage.setItem('ybn-soonap-v1',JSON.stringify(soonap)); // 수납유리재고
   if(typeof assemblyStock!=='undefined') localStorage.setItem('ybn-asm-v1',JSON.stringify(assemblyStock));
   if(typeof matStock!=='undefined') localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
   if(typeof matLog!=='undefined') localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
@@ -2503,7 +2693,7 @@ function calcDday(due){
 
 // ── NAV ──
 const MAINS=['home','todo','board','stock','settings'];
-const SUBS=['stocklist','assembly','activity','dashboard','trend','spec','ink','nonspec','mat'];
+const SUBS=['stocklist','assembly','activity','dashboard','trend','spec','ink','nonspec','mat','storage'];
 let curMain='home', curSub='stocklist';
 // 달력 상태 (renderHome가 renderCal을 호출하므로 미리 선언)
 let calYear=new Date().getFullYear();
@@ -2551,6 +2741,7 @@ function renderSub(id){
   if(id==='spec')renderSpec();
   if(id==='nonspec')renderNonspec();
   if(id==='mat')renderMat();
+  if(id==='storage')renderSoonap();
 }
 function renderMat(){
   renderSheetSummary();
@@ -6192,6 +6383,14 @@ function applyMergedFromSheet(data){
     orderLog=orderLog.filter(o=>!orderDeleted[o && o.id]); // 삭제된 발주는 부활 금지
     saveOrderLog();
   }
+  // ── 수납유리재고(soonap) 병합: 받은 스냅샷 채택 (단일 사용자 위주) ──
+  if(data.soonap!==undefined && data.soonap && typeof soonap!=='undefined'){
+    soonap=data.soonap;
+    if(!soonap.counts) soonap.counts={};
+    if(!soonap.onorder) soonap.onorder={};
+    if(!soonap.active) soonap.active={};
+    saveSoonap();
+  }
   // 스냅샷 값: 받은 쪽 채택 (서버가 이미 병합본을 보내줌)
   if(data.stock!==undefined) stock=data.stock;
   if(data.matStock!==undefined) matStock=data.matStock;
@@ -6277,7 +6476,7 @@ async function autoSync(){
       clientLastSync: meta.lastGsSync || null,
       clientTs: ts,
       actor: getActor(),
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[])}
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
     });
     // 서버가 충돌을 알려주면 result.conflict === true (서버 가드 추가 시)
     if(result && result.conflict){
@@ -6323,7 +6522,7 @@ async function syncToSheet(){
       clientTs: new Date().toISOString(),
       actor: getActor(),
       force: true, // 사용자가 직접 누른 경우 force 플래그
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[])}
+      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
     });
     if(result && result.conflict && !result.forced){
       updateGsStatus('error');
@@ -11457,6 +11656,7 @@ async function handleDelivPdf(ev){
     }catch(e){ console.log('PDF 파싱 실패',file.name,e); fail++; }
   }
   if(added){ saveAll(); if(typeof autoSync==='function') autoSync(); }
+  if(added && typeof renderSoonap==='function') renderSoonap(); // 수납유리재고 자동 반영
   statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${fail?` · 실패 ${fail}건`:''}`;
   ev.target.value='';
   renderDelivery();
@@ -11944,7 +12144,7 @@ window.addEventListener('beforeunload', function(){
         clientTs: new Date().toISOString(),
         actor: (typeof getActor==='function'?getActor():'') || '',
         force: true,
-        data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[])}
+        data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
       });
       // sendBeacon: 창이 닫혀도 백그라운드로 전송 보장
       if(navigator.sendBeacon){
