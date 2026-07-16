@@ -433,7 +433,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <!-- 납품서 추천 체크리스트 -->
     <div class="card" id="wl-recommend-card">
       <div class="card-ttl">
-        <span>📦 오늘 납품서 작업 목록</span>
+        <span>📦 다가오는 유리 작업 <span style="font-size:10px;color:var(--tx3);font-weight:400">납품요청일순</span></span>
         <div style="display:flex;gap:6px">
           <button onclick="checkAllWork()" style="padding:3px 10px;background:var(--acc3);border:none;border-radius:12px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체선택</button>
           <button onclick="uncheckAllWork()" style="padding:3px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:12px;color:var(--tx2);font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체해제</button>
@@ -444,8 +444,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <div id="wl-checklist-actions" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--b1)">
         <div style="font-size:11px;color:var(--tx2);margin-bottom:8px" id="wl-checked-summary"></div>
         <div style="display:flex;gap:8px">
-          <button onclick="confirmCheckedWork()" style="flex:1;padding:12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">✅ 작업 완료</button>
-          <button onclick="postponeCheckedWork()" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📅 내일로 미루기</button>
+          <button onclick="wlOrderChecked()" style="flex:1;padding:12px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">🧾 선택한 원유리 발주하기 →</button>
         </div>
       </div>
     </div>
@@ -560,7 +559,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="soonap-warn"></div>
     <div class="card">
       <div class="card-ttl"><span>🗄️ 수납유리재고</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">납품서 자동 반영 · 37종</span></div>
-      <div class="info-note">📥 한샘 납품서를 올리면 대상 유리가 <b>자동 차감</b>됩니다(같은 납품서는 중복차감 안 됨). <b>실재고</b>=실측 기준, <b>가용</b>=실재고−예정출고, <b>발주재고</b>=실재고+발주수량. 실재고·발주수량은 칸에 직접 입력하세요. 비규격은 아래 별도 표(코드+사이즈)로 관리합니다.</div>
+      <div class="info-note">📊 <b>＋입고</b> 버튼으로 입고 수량을 넣으면 <b>총재고</b>가 쌓이고, 한샘 납품서를 올리면 <b>출고가 자동 차감</b>됩니다(중복 없음). 이번주·이번달 출고와 6개월 월평균은 자동 집계돼요. <b>발주</b> 버튼으로 발주 수량을 적어두면 나중에 입고 누를 때 자동으로 채워집니다. 표를 옆으로 밀면 모든 열이 보입니다. 비규격은 맨 아래 별도로 모아둡니다.</div>
       <div class="filter-row" id="soonap-filter"></div>
       <div id="soonap-body"></div>
     </div>
@@ -2004,9 +2003,9 @@ const SOONAP_GROUP_OF = {}; Object.keys(SOONAP_GROUPS).forEach(g=>SOONAP_GROUPS[
 const SOONAP_CATS = new Set(['시그니처','EURO','에어힌지','빗각','빌트인']); // 비규격(연장 등) 판정용 대분류
 const SOONAP_DEFAULT_INACTIVE = ['MALWF0392']; // 6개월 0건 → 초기 비활성 (AL55브론즈매직)
 
-let soonap = J(localStorage.getItem('ybn-soonap-v1')) || {counts:{},onorder:{},active:{}};
-if(!soonap.counts) soonap.counts={};
-if(!soonap.onorder) soonap.onorder={};
+let soonap = J(localStorage.getItem('ybn-soonap-v1')) || {ins:{},onorder:{},active:{}};
+if(!soonap.ins) soonap.ins={};       // 코드 -> [{qty,at,by}] 입고 이력 (총재고 계산의 기준)
+if(!soonap.onorder) soonap.onorder={}; // 코드 -> 발주중 수량
 if(!soonap.active) soonap.active={};
 function saveSoonap(){ localStorage.setItem('ybn-soonap-v1', JSON.stringify(soonap)); }
 function soonapActive(code){ return soonap.active[code]!==undefined ? !!soonap.active[code] : (SOONAP_DEFAULT_INACTIVE.indexOf(code)<0); }
@@ -2045,50 +2044,28 @@ function soonapAgg(){
   return {norm,big,warn};
 }
 
-// 한 키(코드 또는 코드@사이즈)의 재고 계산
-function soonapCalc(key, evs){
-  const cnt = soonap.counts[key];
-  const cAt = cnt ? String(cnt.at||'').slice(0,10) : '';
-  let shippedSince=0, future=0;
-  const dest={};
+// 코드별 지표: 총재고 = 입고누적 − (첫 입고일 이후 출고분) / 이번주·이번달·6개월평균 출고
+function soonapMetrics(code, evs, ctx){
+  const ins = soonap.ins[code] || [];
+  let sumIn=0, firstAt='';
+  for(const e of ins){ sumIn += Number(e.qty)||0; const a=String(e.at||'').slice(0,10); if(a && (!firstAt || a<firstAt)) firstAt=a; }
+  let week=0, month=0, six=0, sinceFirst=0;
   for(const e of (evs||[])){
-    if(!dest[e.dest]) dest[e.dest]={shipped:0,future:0};
-    if(e.future){ future+=e.qty; dest[e.dest].future+=e.qty; }
-    else { dest[e.dest].shipped+=e.qty; if(!cAt || e.ship>cAt) shippedSince+=e.qty; }
+    const s=e.ship; if(!s) continue;
+    const q=Number(e.qty)||0;
+    if(s>=ctx.monS && s<=ctx.friS) week+=q;              // 이번주 월~금
+    if(s.slice(0,7)===ctx.ym) month+=q;                  // 이번달
+    if(s>=ctx.sixS && s<=ctx.todayS) six+=q;             // 최근 6개월(오늘까지)
+    if(firstAt && s>firstAt && s<=ctx.todayS) sinceFirst+=q; // 첫 입고 이후 출고분
   }
-  const counted = !!cnt;
-  const real = counted ? (Number(cnt.qty)||0) - shippedSince : null;
-  const avail = counted ? real - future : null;
-  const order = Number(soonap.onorder[key])||0;
-  const orderStock = counted ? real + order : null;
-  return {counted, real, avail, future, order, orderStock, dest};
-}
-
-// 한 행(카드) HTML
-function soonapRow(key, code, nameHtml, c, active){
-  const realVal = c.counted ? c.real : '';
-  const availTxt = c.counted ? c.avail : '—';
-  const orderStockTxt = c.counted ? c.orderStock : '—';
-  const negStyle = (c.counted && c.avail<0) ? 'color:var(--acc4);font-weight:700' : '';
-  const destChips = Object.keys(c.dest).map(dn=>{
-    const dd=c.dest[dn]; const ic = dn==='오이도'?'📦':'🏠';
-    return `<span style="font-size:10px;color:var(--tx3);margin-right:9px">${ic}${dn} 출고 ${dd.shipped}${dd.future?` · 예정 ${dd.future}`:''}</span>`;
-  }).join('');
-  const kEsc = key.replace(/'/g,"\\'");
-  const cEsc = code.replace(/'/g,"\\'");
-  return `<div style="border:1px solid var(--b2);background:var(--s1);border-radius:8px;padding:9px 10px;margin-bottom:7px;${active?'':'opacity:.5'}">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
-      <div style="font-size:12.5px;font-weight:600;color:var(--tx1);line-height:1.35">${nameHtml}<div style="font-size:10px;color:var(--tx3);font-weight:400;margin-top:1px">${code}</div></div>
-      <label style="font-size:10px;color:var(--tx2);white-space:nowrap;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" ${active?'checked':''} onchange="soonapToggle('${cEsc}')">활성</label>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:7px;align-items:end">
-      <div><div style="font-size:9px;color:var(--tx3);margin-bottom:2px">실재고(실측)</div><input class="inp" style="padding:6px;font-size:13px;text-align:center" type="number" value="${realVal}" placeholder="미실측" onchange="soonapSetCount('${kEsc}',this.value)"></div>
-      <div><div style="font-size:9px;color:var(--tx3);margin-bottom:2px">가용</div><div style="padding:6px;text-align:center;font-size:14px;font-weight:700;${negStyle}">${availTxt}</div></div>
-      <div><div style="font-size:9px;color:var(--tx3);margin-bottom:2px">발주수량</div><input class="inp" style="padding:6px;font-size:13px;text-align:center" type="number" value="${c.order||''}" placeholder="0" onchange="soonapSetOrder('${kEsc}',this.value)"></div>
-      <div><div style="font-size:9px;color:var(--tx3);margin-bottom:2px">발주재고</div><div style="padding:6px;text-align:center;font-size:14px;font-weight:700;color:var(--acc3)">${orderStockTxt}</div></div>
-    </div>
-    ${destChips?`<div style="margin-top:6px">${destChips}</div>`:''}
-  </div>`;
+  const hasIn = ins.length>0;
+  return {
+    hasIn,
+    total: hasIn ? sumIn - sinceFirst : null,
+    week, month,
+    avg: Math.round((six/6)*10)/10,
+    onorder: Number(soonap.onorder[code])||0
+  };
 }
 
 function renderSoonap(){
@@ -2107,18 +2084,54 @@ function renderSoonap(){
     const cats=['all'].concat(Object.keys(SOONAP_GROUPS));
     fh.innerHTML=cats.map(c=>`<button class="f-btn${soonapCat===c?' on':''}" onclick="soonapSetCat('${c}')">${c==='all'?'전체':c}</button>`).join('');
   }
-  // 정규품
-  let html='';
+  // 날짜 기준 (로컬 YYYY-MM-DD — UTC 밀림 방지)
+  const _now=new Date();
+  const _ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const _todayS=_ymd(_now);
+  const _dow=(_now.getDay()+6)%7;                          // 0=월요일
+  const _mon=new Date(_now); _mon.setDate(_now.getDate()-_dow);
+  const _fri=new Date(_mon); _fri.setDate(_mon.getDate()+4);
+  const _six=new Date(_now.getFullYear(), _now.getMonth()-5, 1);
+  const ctx={todayS:_todayS, monS:_ymd(_mon), friS:_ymd(_fri), ym:_todayS.slice(0,7), sixS:_ymd(_six)};
+  // 정규품 표 (한 줄 = 한 품목)
+  let rows='';
   const cats = (soonapCat==='all') ? Object.keys(SOONAP_GROUPS) : [soonapCat];
   for(const g of cats){
     if(!SOONAP_GROUPS[g]) continue;
-    html += `<div style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--acc)">${g} <span style="color:var(--tx3);font-weight:400">${SOONAP_GROUPS[g].length}종</span></div>`;
+    rows += `<tr><td colspan="8" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${g} <span style="color:var(--tx3);font-weight:400">${SOONAP_GROUPS[g].length}종</span></td></tr>`;
     for(const code of SOONAP_GROUPS[g]){
       const rec=norm[code];
-      const c=soonapCalc(code, rec?rec.evs:[]);
-      html += soonapRow(code, code, soonapName(code), c, soonapActive(code));
+      const m=soonapMetrics(code, rec?rec.evs:[], ctx);
+      const act=soonapActive(code);
+      const cEsc=code.replace(/'/g,"\\'");
+      rows += `<tr style="border-bottom:1px solid var(--b1);${act?'':'opacity:.5'}">
+        <td style="padding:6px 8px;min-width:160px;line-height:1.3">${soonapName(code)}<div style="font-size:9px;color:var(--tx3)">${code}</div></td>
+        <td style="text-align:center;font-weight:700;font-size:15px;color:${m.hasIn&&m.total<=0?'var(--acc4)':'var(--tx1)'}">${m.hasIn?m.total:'—'}</td>
+        <td style="text-align:center;color:var(--tx1)">${m.week||'·'}</td>
+        <td style="text-align:center;color:var(--tx1)">${m.month||'·'}</td>
+        <td style="text-align:center;color:var(--tx2)">${m.avg||'·'}</td>
+        <td style="text-align:center;color:var(--acc2);font-weight:600">${m.onorder||'·'}</td>
+        <td style="text-align:center;white-space:nowrap;padding:4px 6px">
+          <button onclick="soonapInPrompt('${cEsc}')" style="background:var(--acc);color:#fff;border:none;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px">＋입고</button>
+          <button onclick="soonapOrderPrompt('${cEsc}')" style="background:var(--s2);color:var(--tx1);border:1px solid var(--b2);border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;font-family:inherit">발주</button>
+        </td>
+        <td style="text-align:center"><input type="checkbox" ${act?'checked':''} onchange="soonapToggle('${cEsc}')"></td>
+      </tr>`;
     }
   }
+  const html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px;border:1px solid var(--b1);border-radius:8px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+      <thead><tr style="background:var(--s1);border-bottom:2px solid var(--b2);color:var(--tx2);font-size:10px">
+        <th style="text-align:left;padding:7px 8px">품목 (코드)</th>
+        <th style="padding:7px 6px">총재고</th>
+        <th style="padding:7px 6px">이번주<br>출고(월-금)</th>
+        <th style="padding:7px 6px">이번달<br>출고</th>
+        <th style="padding:7px 6px">월평균<br>(6개월)</th>
+        <th style="padding:7px 6px">발주중</th>
+        <th style="padding:7px 6px">입고·발주</th>
+        <th style="padding:7px 6px">활성</th>
+      </tr></thead><tbody>${rows}</tbody>
+    </table></div>`;
   // 비규격 — 모델(코드)별로 묶고, 사이즈는 모델 안에 칩으로 나열 (일회성 사이즈라 재고관리 X, 요약만)
   const bigByCode={};
   for(const key of Object.keys(big)){
@@ -2144,15 +2157,26 @@ function renderSoonap(){
 }
 
 // 핸들러 (전역)
-function soonapSetCount(key,val){
-  val=String(val).trim();
-  if(val==='') delete soonap.counts[key];
-  else soonap.counts[key]={qty:Number(val)||0, at:new Date().toISOString(), by:(typeof getActor==='function'?getActor():'')||''};
+function soonapInPrompt(code){
+  const pend=Number(soonap.onorder[code])||0;
+  const msg=pend>0
+    ? `📥 입고 수량 입력\n${soonapName(code)} (${code})\n\n발주중 ${pend}장 — 입고하면 발주중에서 자동 차감됩니다.`
+    : `📥 입고 수량 입력\n${soonapName(code)} (${code})`;
+  const v=window.prompt(msg, pend>0?String(pend):'');
+  if(v===null) return;
+  const q=Number(String(v).trim());
+  if(!q || q<=0){ if(String(v).trim()!=='' && typeof alert==='function') alert('숫자(1 이상)를 입력하세요.'); return; }
+  (soonap.ins[code]=soonap.ins[code]||[]).push({qty:q, at:new Date().toISOString(), by:(typeof getActor==='function'?getActor():'')||''});
+  if(pend>0){ const left=Math.max(0,pend-q); if(left) soonap.onorder[code]=left; else delete soonap.onorder[code]; }
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
+  if(typeof showToast==='function') showToast(`✅ ${code} 입고 ${q}장`);
 }
-function soonapSetOrder(key,val){
-  const n=Number(String(val).trim())||0;
-  if(!n) delete soonap.onorder[key]; else soonap.onorder[key]=n;
+function soonapOrderPrompt(code){
+  const cur=Number(soonap.onorder[code])||0;
+  const v=window.prompt(`🧾 발주중 수량 설정\n${soonapName(code)} (${code})\n\n발주한 수량을 적어두면, 입고 누를 때 자동으로 채워집니다.\n(0 입력 시 발주중 지움)`, cur?String(cur):'');
+  if(v===null) return;
+  const q=Number(String(v).trim())||0;
+  if(q<=0) delete soonap.onorder[code]; else soonap.onorder[code]=q;
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
 }
 function soonapToggle(code){
@@ -6386,7 +6410,7 @@ function applyMergedFromSheet(data){
   // ── 수납유리재고(soonap) 병합: 받은 스냅샷 채택 (단일 사용자 위주) ──
   if(data.soonap!==undefined && data.soonap && typeof soonap!=='undefined'){
     soonap=data.soonap;
-    if(!soonap.counts) soonap.counts={};
+    if(!soonap.ins) soonap.ins={};
     if(!soonap.onorder) soonap.onorder={};
     if(!soonap.active) soonap.active={};
     saveSoonap();
@@ -8162,99 +8186,120 @@ function renderWlPrint(){
   renderWlTodayList();
 }
 
-// 납품서 기반 추천 체크리스트
+// 납품요청일이 오늘 이후인 유리를 날짜별로 묶어 표시(미리 검토). 지난 요청일은 자동 완료(제외). 체크 → 발주서.
 function renderWlRecommend(){
   const el = document.getElementById('wl-recommend-list');
   if(!el) return;
-
   const td = todayStr();
 
-  // 오늘 납품서 + 미뤄진 항목 합치기
-  // 납품서에서 오늘 또는 가장 최근 납품일 찾기
-  let targetDelivItems = [];
-  if(delivLog && delivLog.length){
-    const _dkey = d => d.delivDate || d.delivReqDate || d.orderDate || '';
-    const sorted = [...delivLog].sort((a,b)=>String(_dkey(b)).localeCompare(String(_dkey(a))));
-    // 오늘 납품일이 있으면 오늘 것, 없으면 가장 최근
-    const target = sorted.find(d=>_dkey(d)===td) || sorted[0];
-    if(target){
-      targetDelivItems = target.items.filter(i=>{
-        // Grace 모델만 (DB에 있는 것)
-        return MODELS.find(m=>m.code===i.code);
-      });
-    }
-  }
-
-  // 체크리스트 초기화 (납품서 기준, 이미 있으면 유지)
-  if(wlChecklist.length === 0 && targetDelivItems.length > 0){
-    wlChecklist = targetDelivItems.map(i=>({
-      code: i.code,
-      short: i.short || (MODELS.find(m=>m.code===i.code)||{}).short || i.code,
-      size: i.size || '',
-      qty: i.qty,
-      checked: false,
-      done: false, // 이미 작업 완료된 것
-    }));
-  }
-
-  // 이미 오늘 작업된 항목 done 표시
-  const td2 = todayStr();
-  const todayLog = workLog.find(d=>d.date===td2);
-  if(todayLog){
-    wlChecklist.forEach(item=>{
-      const worked = todayLog.items.find(i=>i.code===item.code && i.type==='work');
-      if(worked && worked.qty >= item.qty) item.done = true;
+  // 납품요청일 >= 오늘 인 납품들의 유리항목을 (요청일 → 유리모델)로 묶어 수량 합산
+  const dateGroups={};  // reqDate -> { modelKey -> {key,date,short,color,w,h,qty,codes} }
+  let pastDone=0;
+  (delivLog||[]).forEach(d=>{
+    if(!d) return;
+    const rq = d.delivReqDate || d.delivDate || d.orderDate || '';
+    if(!rq) return;
+    if(!Array.isArray(d.items)) return;
+    (d.items||[]).forEach(it=>{
+      const fm = (typeof findModel==='function') ? findModel(it.code) : null;
+      if(!fm || !fm.glass_w || !fm.glass_h) return;   // 유리모델 연결되는 인쇄 대상만
+      if(rq < td){ pastDone += Number(it.qty)||0; return; }  // 지난 요청일 = 자동 완료(목록 제외)
+      const color = fm.color || it.color || '';
+      const mkey = `${fm.glass_w}x${fm.glass_h}_${color}_${fm.short||it.code}`;
+      const dg = dateGroups[rq] = dateGroups[rq] || {};
+      const g = dg[mkey] = dg[mkey] || {key:`${rq}|${mkey}`, date:rq, short:fm.short||it.short||it.code, color, w:fm.glass_w, h:fm.glass_h, qty:0, codes:new Set()};
+      g.qty += Number(it.qty)||0; g.codes.add(it.code);
     });
-  }
+  });
+  const dates = Object.keys(dateGroups).sort();
 
-  if(!wlChecklist.length && !wlPostponed.filter(p=>p.targetDate===td).length){
+  // flat wlChecklist (발주 넘기기·체크상태 보존용)
+  const prevChecked = new Set((wlChecklist||[]).filter(i=>i.checked).map(i=>i.key));
+  const flat=[];
+  dates.forEach(dt=>{ Object.values(dateGroups[dt]).sort((a,b)=>String(a.short).localeCompare(String(b.short))).forEach(g=>{ flat.push({...g, codes:[...g.codes], checked:prevChecked.has(g.key)}); }); });
+  wlChecklist = flat;
+
+  if(!flat.length){
     el.innerHTML = `<div class="empty-sm" style="padding:12px 0;text-align:center">
-      오늘 납품서 데이터 없음<br>
-      <span style="font-size:11px;color:var(--tx3)">발주서 엑셀 업로드 후 자동 표시됩니다</span>
+      다가오는 유리 작업 없음<br>
+      <span style="font-size:11px;color:var(--tx3)">납품요청일이 오늘 이후인 납품서가 없습니다${pastDone?` (지난 요청일 ${pastDone}장은 완료 처리)`:''}</span>
     </div>`;
-    document.getElementById('wl-checklist-actions').style.display='none';
+    const a=document.getElementById('wl-checklist-actions'); if(a) a.style.display='none';
     return;
   }
 
-  // 체크된 수량 계산
-  const checkedItems = wlChecklist.filter(i=>i.checked && !i.done);
-  const checkedQty = checkedItems.reduce((a,i)=>a+i.qty, 0);
-
-  // 버튼 영역 표시
+  const checkedItems = wlChecklist.filter(i=>i.checked);
   const actEl = document.getElementById('wl-checklist-actions');
   const sumEl = document.getElementById('wl-checked-summary');
-  if(checkedItems.length > 0){
-    actEl.style.display='block';
-    if(sumEl) sumEl.textContent = `${checkedItems.length}개 모델 / ${checkedQty}장 선택됨`;
-  } else {
-    actEl.style.display='none';
-  }
+  if(actEl) actEl.style.display = checkedItems.length ? 'block' : 'none';
+  if(sumEl) sumEl.textContent = `${checkedItems.length}개 유리 / ${checkedItems.reduce((a,i)=>a+i.qty,0)}장 선택됨`;
 
-  el.innerHTML = wlChecklist.map((item, idx)=>{
-    const m = MODELS.find(x=>x.code===item.code);
-    const dot = m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';
-    const doneStyle = item.done ? 'opacity:.4;text-decoration:line-through' : '';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1);${doneStyle}"
-      onclick="${item.done?'':` toggleWlCheck(${idx})`}">
-      <div style="width:22px;height:22px;border-radius:6px;border:2px solid ${item.checked||item.done?'var(--acc3)':'var(--b2)'};background:${item.checked||item.done?'var(--acc3)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff">
-        ${item.checked||item.done?'✓':''}
-      </div>
+  // 한 유리모델 줄 렌더
+  function rowHtml(item, idx){
+    const dotc = item.color==='WC'?'var(--wc)':item.color==='ETP'?'var(--etp)':'var(--tx2)';
+    const colorLbl = item.color==='WC'?'웜코튼':item.color==='ETP'?'에토프':'';
+    const need = Number(item.qty)||0;
+    const raw = (typeof getRawQty==='function') ? getRawQty(item.w, item.h) : null;            // 원유리
+    const printed = (item.color && typeof getPrintedQty==='function') ? getPrintedQty(item.w, item.h, item.color) : null; // 인쇄유리
+    const printedEnough = printed!=null && printed>=need;
+    const rawShort = !printedEnough && (raw!=null) && raw < Math.max(0, need-(printed||0));
+    const hint = printedEnough
+      ? '<span style="color:var(--acc3);font-weight:700">🟢 인쇄재고 충분</span>'
+      : rawShort
+        ? '<span style="color:var(--acc4);font-weight:700">🔴 원유리 발주 먼저</span>'
+        : '<span style="color:var(--acc2);font-weight:700">🟡 인쇄하면 됨</span>';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--b1)" onclick="toggleWlCheck(${idx})">
+      <div style="width:22px;height:22px;border-radius:6px;border:2px solid ${item.checked?'var(--acc3)':'var(--b2)'};background:${item.checked?'var(--acc3)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff">${item.checked?'✓':''}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-          ${m?hlName(item.short,m.color):item.short||item.code}
-          ${item.done?'<span style="font-size:10px;color:var(--acc3);margin-left:4px">완료</span>':''}
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotc};margin-right:5px"></span>${item.short}${colorLbl?` <span style="font-size:9px;color:${dotc}">${colorLbl}</span>`:''}
         </div>
-        <div style="font-size:10px;color:var(--tx2)">${item.code} ${item.size?'| 📐 '+item.size:''}</div>
+        <div style="font-size:10px;color:var(--tx2)">📐 ${item.w}×${item.h} <span style="color:var(--tx3)">· ${item.codes.join(', ')}</span></div>
+        <div style="font-size:11px;margin-top:4px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <span style="color:var(--tx2)">원유리 <b style="color:${rawShort?'var(--acc4)':'var(--tx1)'};font-family:'JetBrains Mono',monospace">${raw!=null?raw:'-'}</b></span>
+          ${printed!=null?`<span style="color:var(--tx2)">인쇄유리 <b style="color:${printedEnough?'var(--acc3)':'var(--tx1)'};font-family:'JetBrains Mono',monospace">${printed}</b></span>`:''}
+          ${hint}
+        </div>
       </div>
       <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--acc2);flex-shrink:0">${item.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
     </div>`;
-  }).join('');
+  }
+
+  // 날짜별 섹션 렌더
+  let html='';
+  let idx=0;
+  dates.forEach(dt=>{
+    const isToday = dt===td;
+    const dlabel = (typeof fmtDateSafe==='function') ? fmtDateSafe(dt) : dt;
+    const dayTotal = Object.values(dateGroups[dt]).reduce((a,g)=>a+g.qty,0);
+    html += `<div style="display:flex;align-items:center;gap:6px;margin:${idx===0?'2px':'16px'} 0 4px;padding:5px 8px;background:${isToday?'rgba(37,99,235,.08)':'var(--s2)'};border-radius:7px">
+      <span style="font-size:12px;font-weight:800;color:${isToday?'var(--acc)':'var(--tx1)'}">${isToday?'🟢 오늘 · ':'📅 '}${dlabel}</span>
+      <span style="font-size:10px;color:var(--tx3);margin-left:auto">납품요청 ${dayTotal}장</span>
+    </div>`;
+    Object.values(dateGroups[dt]).sort((a,b)=>String(a.short).localeCompare(String(b.short))).forEach(g=>{
+      html += rowHtml(wlChecklist[idx], idx);
+      idx++;
+    });
+  });
+  html += `<div style="font-size:10px;color:var(--tx3);text-align:center;padding:10px 0 2px">지난 납품요청일 건은 자동 완료되어 목록에서 빠집니다${pastDone?` · 오늘까지 완료 ${pastDone}장`:''}</div>`;
+  el.innerHTML = html;
 }
 
 function toggleWlCheck(idx){
   if(!wlChecklist[idx]) return;
   wlChecklist[idx].checked = !wlChecklist[idx].checked;
   renderWlRecommend();
+}
+
+// 체크한 유리를 발주서(발주 탭)로 바로 넘기기 — 원유리 사이즈·수량 자동 입력
+function wlOrderChecked(){
+  const checked = (wlChecklist||[]).filter(i=>i.checked);
+  if(!checked.length){ if(typeof showToast==='function') showToast('발주할 유리를 선택하세요'); return; }
+  const lines = checked.map(i=>({ w:i.w, h:i.h, qty:Number(i.qty)||1, pname:i.short||'', bigo:'' }));
+  showMain('order');
+  if(typeof odLines!=='undefined') odLines = lines;
+  if(typeof renderOdLines==='function') renderOdLines();
+  if(typeof showToast==='function') showToast(`🧾 ${lines.length}개 유리를 발주서로 옮겼어요 — 발주처만 고르면 됩니다`);
 }
 
 function checkAllWork(){
