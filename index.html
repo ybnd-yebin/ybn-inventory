@@ -6831,8 +6831,58 @@ function mergeOdVendorsLocal(localObj, remoteObj){
   });
   return out;
 }
+/* ══════════════════════════════════════════════════════════════════════
+   시트가 안 받아주는 항목을 meta에 얹어 나르기 (2026-07-22)
+
+   증상: 수납유리 재고(원재고·입고)를 다른 기기에서 못 봤다.
+   원인: 구글시트 스크립트가 정해진 16가지만 저장하고 나머지는 버린다.
+         앱은 25가지를 보내는데 아래 9가지가 통째로 사라지고 있었다.
+   확인: read 응답 키 목록에 이 9가지가 아예 없음.
+
+   고친 방법: meta에 얹어 보낸다. meta는 시트가 저장해 주기 때문.
+   ★ 반드시 JSON 글자열 하나로 말아서 보낼 것.
+     meta는 칸마다 나눠 저장되므로 중첩 구조를 그대로 넣으면 깨진다.
+     실측: [1,2,3] 을 넣었더니 "[Ljava.lang.Object;@4adcf22f" 로 돌아왔다.
+   ※ 시트 스크립트를 고치는 게 정공법이지만 그건 구글 쪽에서 손봐야 해서,
+     앱만 고쳐 되게 한 방법이다. 나중에 스크립트를 고치면 이 우회는 걷어내도 된다. */
+const GS_EXT_LIMIT=45000;   // 시트 한 칸 5만자 제한 — 넘기면 통째로 날아가므로 미리 막는다
+function metaForSync(){
+  const ext={};
+  const put=(k,v)=>{ if(v!==undefined) ext[k]=v; };
+  put('soonap',        typeof soonap!=='undefined'        ? soonap        : undefined);
+  put('delivDeleted',  typeof delivDeleted!=='undefined'  ? delivDeleted  : undefined);
+  put('finishedStock', typeof finishedStock!=='undefined' ? finishedStock : undefined);
+  put('assemblyStock', typeof assemblyStock!=='undefined' ? assemblyStock : undefined);
+  put('inkRates',      typeof inkRates!=='undefined'      ? inkRates      : undefined);
+  put('noticeState',   typeof noticeState!=='undefined'   ? noticeState   : undefined);
+  put('wkExamples',    typeof wkExamples!=='undefined'    ? wkExamples    : undefined);
+  put('wlPostponed',   typeof wlPostponed!=='undefined'   ? wlPostponed   : undefined);
+  put('orderDeleted',  typeof orderDeleted!=='undefined'  ? orderDeleted  : undefined);
+  let s='';
+  try{ s=JSON.stringify(ext); }catch(e){ s=''; }
+  if(s.length>GS_EXT_LIMIT){
+    console.warn('[동기화] 딸려보낼 자료가 한 칸 한도를 넘어 보내지 않습니다:', s.length);
+    if(typeof showToast==='function') showToast('⚠️ 자료가 너무 커져 일부 항목이 동기화에서 빠졌습니다');
+    s='';
+  }
+  return Object.assign({}, meta, {_ext:s});
+}
+// 받은 쪽에서 다시 풀기. 시트가 직접 준 값이 있으면 그쪽이 우선이고, 없을 때만 채운다.
+function expandSheetExtras(data){
+  if(!data || !data.meta) return;
+  const raw=data.meta._ext;
+  delete data.meta._ext;                 // 로컬 meta·localStorage 를 더럽히지 않게 떼어낸다
+  delete data.meta._probe;               // 2026-07-22 점검 때 생긴 빈 칸. 시트에 남아 있어 무시한다
+  if(!raw || typeof raw!=='string') return;
+  let ext=null;
+  try{ ext=JSON.parse(raw); }catch(e){ console.warn('[동기화] 딸려온 자료를 못 읽었습니다', e); return; }
+  if(!ext || typeof ext!=='object') return;
+  for(const k in ext){ if(data[k]===undefined) data[k]=ext[k]; }
+}
+
 // 받은 data를 현재 로컬 변수들에 병합 적용
 function applyMergedFromSheet(data){
+  expandSheetExtras(data);   // meta에 얹혀온 9가지를 먼저 풀어 놓는다 (아래 병합이 그대로 처리)
   if(data.worklog!==undefined) workLog=mergeWorkLogLocal(workLog, data.worklog);
   if(data.delivDeleted!==undefined && data.delivDeleted && typeof data.delivDeleted==='object'){
     for(const k in data.delivDeleted){ if(!delivDeleted[k]) delivDeleted[k]=data.delivDeleted[k]; }
@@ -6985,7 +7035,7 @@ async function autoSync(){
       clientLastSync: meta.lastGsSync || null,
       clientTs: ts,
       actor: getActor(),
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
+      data:{stock,worklog:workLog,inklog:inkLog,meta:metaForSync(),notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
     });
     // 서버가 충돌을 알려주면 result.conflict === true (서버 가드 추가 시)
     if(result && result.conflict){
@@ -7031,7 +7081,7 @@ async function syncToSheet(){
       clientTs: new Date().toISOString(),
       actor: getActor(),
       force: true, // 사용자가 직접 누른 경우 force 플래그
-      data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
+      data:{stock,worklog:workLog,inklog:inkLog,meta:metaForSync(),notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
     });
     if(result && result.conflict && !result.forced){
       updateGsStatus('error');
@@ -12730,7 +12780,7 @@ window.addEventListener('beforeunload', function(){
         clientTs: new Date().toISOString(),
         actor: (typeof getActor==='function'?getActor():'') || '',
         force: true,
-        data:{stock,worklog:workLog,inklog:inkLog,meta,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
+        data:{stock,worklog:workLog,inklog:inkLog,meta:metaForSync(),notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
       });
       // sendBeacon: 창이 닫혀도 백그라운드로 전송 보장
       if(navigator.sendBeacon){
