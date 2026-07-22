@@ -2303,6 +2303,8 @@ const SOONAP_SHEET = [
 
 let soonapYm     = todayStr().slice(0,7);  // 보고 있는 달
 let soonapGridAS = false;                  // AS(54*) 포함 여부 — 기본은 제외
+// 날짜칸(1~31) 접기. 화면을 반으로 나눠 엑셀과 대조할 때 가로 스크롤을 없애려는 것.
+let soonapGridCompact = localStorage.getItem('ybn-soonap-compact')==='1';
 // 손으로 쓰시는 엑셀과 대조할 때만 쓰는 임시값 {코드: 엑셀 오더합계}.
 // 진단용이라 저장하지 않는다 — 새로고침하면 사라진다.
 let soonapCmp    = null;
@@ -2390,16 +2392,24 @@ function renderSoonapGrid(){
      +`<button class="f-btn" onclick="soonapGridStep(1)">다음달 ›</button>`
      +`<span style="width:14px;display:inline-block"></span>`
      +`<button class="f-btn${soonapGridAS?' on':''}" onclick="soonapGridToggleAS()">AS(54) 포함</button>`
-     +`<button class="f-btn${soonapCmp?' on':''}" onclick="soonapCmpPrompt()">📋 엑셀 대조</button>`;
+     +`<button class="f-btn${soonapCmp?' on':''}" onclick="soonapCmpPrompt()">📋 엑셀 대조</button>`
+     +`<button class="f-btn${soonapGridCompact?' on':''}" onclick="soonapGridToggleCompact()" title="1~31일 칸을 접어 좌우 스크롤 없이 봅니다">${soonapGridCompact?'📅 날짜칸 펼치기':'📅 날짜칸 접기'}</button>`;
   }
   const ordIdx=soonapOrderIndex(), inIdx=soonapInIndex();
-  const days=[]; for(let i=1;i<=nDays;i++) days.push(i);
+  // 접기 상태면 날짜 칸을 아예 안 그린다. 오더합계는 cells에서 직접 더하므로 영향 없음.
+  const days=[]; if(!soonapGridCompact){ for(let i=1;i<=nDays;i++) days.push(i); }
+  // 왼쪽 고정 열 — 좌우로 밀어도 품명·실재고가 따라오게 한다.
+  //   폭을 고정해야 left 오프셋을 계산할 수 있으므로 th/td 양쪽에 같은 값을 준다.
+  const SW={name:150, size:62, base:50, real:50};
+  const SL={name:0, size:SW.name, base:SW.name+SW.size, real:SW.name+SW.size+SW.base};
+  const stk=(k,bg,z)=>`position:sticky;left:${SL[k]}px;min-width:${SW[k]}px;width:${SW[k]}px;background:${bg};z-index:${z};`;
   const dowOf=d=>['일','월','화','수','목','금','토'][new Date(+ym.slice(0,4), +ym.slice(5,7)-1, d).getDay()];
 
   let rows='', dayTot={}, gOrd=0, missing=0, gapN=0, gapList=[];
-  const nCols=5+nDays+1+(soonapCmp?2:0);
+  const nCols=5+days.length+1+(soonapCmp?2:0);
   for(const [group,items] of SOONAP_SHEET){
-    rows+=`<tr><td colspan="${nCols}" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${group} <span style="color:var(--tx3);font-weight:400">${items.length}종</span></td></tr>`;
+    // 묶음 이름은 칸을 통째로 쓰므로, 안쪽 span을 붙여둬 좌우로 밀어도 이름이 보이게 한다
+    rows+=`<tr><td colspan="${nCols}" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px"><span style="position:sticky;left:8px">${group} <span style="color:var(--tx3);font-weight:400">${items.length}종</span></span></td></tr>`;
     for(const [code,size,label] of items){
       const cells=((ordIdx[ym]||{})[code])||{};
       let sum=0; for(const k in cells) sum+=cells[k];
@@ -2413,10 +2423,10 @@ function renderSoonapGrid(){
         ? `<span style="color:var(--acc4)">?</span>`
         : `${op.v}${op.src==='auto'?'<span style="font-size:9px;color:var(--tx3)">↩</span>':''}`;
       rows+=`<tr style="border-bottom:1px solid var(--b1)">
-        <td style="padding:5px 8px;position:sticky;left:0;background:var(--s1);min-width:150px;line-height:1.3;z-index:1">${label}<div style="font-size:9px;color:var(--tx3)">${code}</div></td>
-        <td style="text-align:center;color:var(--tx3);font-size:10px">${size||'·'}</td>
-        <td style="text-align:center;cursor:pointer" onclick="soonapBasePrompt('${cEsc}')" title="눌러서 원재고 수정">${opCell}</td>
-        <td style="text-align:center;font-weight:700;color:${closing!=null&&closing<=0?'var(--acc4)':'var(--tx1)'}">${closing!=null?closing:'—'}</td>
+        <td style="padding:5px 8px;line-height:1.3;${stk('name','var(--s1)',2)}">${label}<div style="font-size:9px;color:var(--tx3)">${code}</div></td>
+        <td style="text-align:center;color:var(--tx3);font-size:10px;${stk('size','var(--s1)',2)}">${size||'·'}</td>
+        <td style="text-align:center;cursor:pointer;${stk('base','var(--s1)',2)}" onclick="soonapBasePrompt('${cEsc}')" title="눌러서 원재고 수정">${opCell}</td>
+        <td style="text-align:center;font-weight:700;border-right:2px solid var(--b2);color:${closing!=null&&closing<=0?'var(--acc4)':'var(--tx1)'};${stk('real','var(--s1)',2)}">${closing!=null?closing:'—'}</td>
         <td style="text-align:center;color:var(--acc2)">${inSum||'·'}</td>`
         + days.map(d=>{
             const q=cells[d]||0; if(q) dayTot[d]=(dayTot[d]||0)+q;
@@ -2433,17 +2443,22 @@ function renderSoonapGrid(){
     }
   }
   const head=`<tr style="background:var(--s1);border-bottom:2px solid var(--b2);color:var(--tx2);font-size:10px">
-      <th style="text-align:left;padding:7px 8px;position:sticky;left:0;background:var(--s1);z-index:2">품명</th>
-      <th style="padding:7px 6px">사이즈</th><th style="padding:7px 6px">원재고</th>
-      <th style="padding:7px 6px">실재고</th><th style="padding:7px 6px">입고</th>`
+      <th style="text-align:left;padding:7px 8px;${stk('name','var(--s1)',5)}">품명</th>
+      <th style="padding:7px 6px;${stk('size','var(--s1)',5)}">사이즈</th>
+      <th style="padding:7px 6px;${stk('base','var(--s1)',5)}">원재고</th>
+      <th style="padding:7px 6px;border-right:2px solid var(--b2);${stk('real','var(--s1)',5)}">실재고</th>
+      <th style="padding:7px 6px">입고</th>`
     + days.map(d=>{const w=dowOf(d);return `<th style="padding:7px 4px;min-width:26px;${w==='토'||w==='일'?'color:var(--acc4)':''}">${d}<div style="font-size:8px;font-weight:400">${w}</div></th>`;}).join('')
     + `<th style="padding:7px 6px;background:var(--s2)">오더합계</th>`
     + (soonapCmp?`<th style="padding:7px 6px">엑셀</th><th style="padding:7px 6px">차이</th>`:'')
     + `</tr>`;
   const gXl=soonapCmp?Object.values(soonapCmp).reduce((a,b)=>a+(Number(b)||0),0):0;
   const totRow=`<tr style="border-top:2px solid var(--b2);background:var(--s2)">
-      <td style="padding:6px 8px;font-weight:700;position:sticky;left:0;background:var(--s2)">일자 합계</td>
-      <td></td><td></td><td></td><td></td>`
+      <td style="padding:6px 8px;font-weight:700;${stk('name','var(--s2)',2)}">일자 합계</td>
+      <td style="${stk('size','var(--s2)',2)}"></td>
+      <td style="${stk('base','var(--s2)',2)}"></td>
+      <td style="border-right:2px solid var(--b2);${stk('real','var(--s2)',2)}"></td>
+      <td></td>`
     + days.map(d=>`<td style="text-align:center;font-weight:700;color:var(--acc)">${dayTot[d]||'·'}</td>`).join('')
     + `<td style="text-align:center;font-weight:800;color:var(--acc)">${gOrd||'·'}</td>`
     + (soonapCmp?`<td style="text-align:center;font-weight:700;color:var(--tx2)">${gXl||'·'}</td>`
@@ -2468,13 +2483,16 @@ function renderSoonapGrid(){
     (missing?`<div style="font-size:11.5px;color:var(--acc4);margin:8px 0;line-height:1.6">⚠️ 원재고가 아직 없는 품목이 ${missing}개 있습니다. <b>원재고 칸(?)</b>을 눌러 이번 달 시작 수량을 한 번만 넣어주시면, 다음 달부터는 자동으로 넘어갑니다.`
         + (ym==='2026-07'?` <button class="f-btn on" style="margin-left:6px" onclick="soonapSeedBase()">엑셀에서 7월 원재고 가져오기</button>`:'')
         + `</div>`:'')
-    + `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px;border:1px solid var(--b1);border-radius:8px">
+    // 상자 안에서 가로·세로가 같이 굴러가야 머리글 고정(sticky)이 먹는다.
+    + `<div style="overflow:auto;-webkit-overflow-scrolling:touch;max-height:72vh;margin-top:8px;border:1px solid var(--b1);border-radius:8px">
         <table style="width:100%;border-collapse:collapse;font-size:11.5px;white-space:nowrap">
-          <thead>${head}</thead><tbody>${rows}${totRow}</tbody>
+          <thead style="position:sticky;top:0;z-index:4">${head}</thead><tbody>${rows}${totRow}</tbody>
         </table></div>
        <div style="font-size:10.5px;color:var(--tx3);margin-top:7px;line-height:1.6">
          ↩ 표시는 지난달 실재고가 자동으로 넘어온 값입니다. · 실재고 = 원재고 − 오더합계 + 입고합계
-         · 비규격은 이 표에서 빠집니다(위 잔량표 아래에 따로 있습니다).</div>`;
+         · 비규격은 이 표에서 빠집니다(위 잔량표 아래에 따로 있습니다).<br>
+         ${soonapGridCompact?'📅 지금은 <b>날짜칸을 접은</b> 상태입니다. 어느 날 나갔는지 보시려면 위 <b>날짜칸 펼치기</b>를 누르세요.'
+                            :'📅 화면을 반으로 놓고 엑셀과 맞춰보실 때는 위 <b>날짜칸 접기</b>를 누르시면 좌우로 밀지 않아도 됩니다.'}</div>`;
 }
 
 // 2026-07 원재고 — 손으로 쓰시던 엑셀 '7월 재고' 시트 D열(원재고) 그대로.
@@ -2526,6 +2544,11 @@ function soonapCmpPrompt(){
 
 function soonapGridStep(n){ soonapYm = n>0 ? soonapNextYm(soonapYm) : soonapPrevYm(soonapYm); renderSoonapGrid(); }
 function soonapGridToggleAS(){ soonapGridAS=!soonapGridAS; renderSoonapGrid(); }
+function soonapGridToggleCompact(){
+  soonapGridCompact=!soonapGridCompact;
+  try{ localStorage.setItem('ybn-soonap-compact', soonapGridCompact?'1':'0'); }catch(e){}
+  renderSoonapGrid();
+}
 function soonapBasePrompt(code){
   const ordIdx=soonapOrderIndex(), inIdx=soonapInIndex();
   const cur=soonapOpening(soonapYm,code,ordIdx,inIdx);
