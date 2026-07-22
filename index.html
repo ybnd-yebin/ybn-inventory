@@ -1987,7 +1987,7 @@ let todos=J(localStorage.getItem(LS.todos))||INITIAL_TODOS;
 const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycby2fhWdU5Uc39vMDObAqd7w5uuTcz8y2C5suH3FYxVaP--0UCtOGoGEUTry-hGdj89Y/exec';
 let gsUrl=localStorage.getItem(LS.gsUrl)||DEFAULT_GS_URL;
 let actor=localStorage.getItem(LS.actor)||'';
-let delivLog=J(localStorage.getItem(LS.delivLog))||[];
+let delivLog=J(localStorage.getItem(LS.delivLog))||[]; // 중복 정리는 선언 직후 아래에서 한 번 (dedupeDelivLog 정의부 참고)
 let delivDeleted=J(localStorage.getItem('ybn-deliv-del-v1'))||{}; // {id: 삭제시각} 삭제된 납품서 묘비(병합 시 부활 방지)
 let orderDeleted=J(localStorage.getItem('ybn-order-del-v1'))||{}; // {id: 삭제시각} 삭제된 발주 묘비(병합 시 부활 방지)
 let noticeState=J(localStorage.getItem('ybn-notice-state-v1'))||{}; // {id:{archived,deleted,at}} 공지 보관/삭제 묘비(병합 후 강제 적용)
@@ -1995,6 +1995,50 @@ let ledgerLog=J(localStorage.getItem('ybn-ledger-v1'))||[];
 let vendorBook=J(localStorage.getItem('ybn-vendors-v1'))||[];
 let odCustomVendors=J(localStorage.getItem('ybn-od-vendors-v1'))||{}; // {대분류: [발주처명,...]}
 let wkExamples=J(localStorage.getItem('ybn-wk-examples-v1'))||[]; // 주차 예상 예시 [{id,ym,week,qty,note}]
+
+/* ══════════════════════════════════════════════════════════════════════
+   납품서 중복 정리 (2026-07-22)
+   왜 필요한가: 업로드마다 id를 무작위로 새로 만들었는데 구글시트 병합은
+   id로 맞춰보기 때문에, 지웠던 사본이 다음 동기화 때 되살아났다.
+   그래서 같은 납품번호가 최대 4벌까지 쌓였다(567건 중 실제는 256건).
+   같은 납품번호 = 같은 납품서이므로 한 건만 남긴다.
+
+   남길 판 고르는 순서 (뒤로 갈수록 약한 기준):
+     1) 이미 재고를 차감한 판  — 차감 이력을 잃으면 재고가 어긋난다
+     2) parseMode==='text' 판 — 옛 좌표 파서('cell')는 제품명 끝의 모델번호를
+        수량으로 잘못 읽었다(총량 3이 807로 찍힌 실제 사례가 있다)
+     3) 마지막에 올린 판
+   ※ 납품번호가 다른데 내용이 같은 건(취소 후 재발행)은 여기서 건드리지 않는다.
+      사람이 봐야 하는 판단이라 별도로 확인받는다.
+   ══════════════════════════════════════════════════════════════════════ */
+function _delivKeepScore(d){
+  return (d && d.deducted ? 1000 : 0) + (d && d.parseMode==='text' ? 100 : 0);
+}
+function dedupeDelivLog(arr){
+  if(!Array.isArray(arr)) return [];
+  const best=new Map(), order=[];
+  arr.forEach(d=>{
+    if(!d) return;
+    // 납품번호가 없으면 합칠 근거가 없으므로 그대로 둔다
+    const k=d.delivNo ? 'no:'+d.delivNo : 'id:'+(d.id||Math.random());
+    const cur=best.get(k);
+    if(!cur){ order.push(k); best.set(k,d); return; }
+    const sd=_delivKeepScore(d), sc=_delivKeepScore(cur);
+    if(sd>sc || (sd===sc && String(d.uploadedAt||'')>String(cur.uploadedAt||''))) best.set(k,d);
+  });
+  return order.map(k=>best.get(k));
+}
+// 시작할 때 한 번 걷어낸다. 시트에서 옛 사본이 다시 와도 병합 직후 또 돌린다.
+{
+  const _before=delivLog.length;
+  delivLog=dedupeDelivLog(delivLog);
+  if(delivLog.length!==_before){
+    // 화면에만 반영하면 저장소엔 계속 남으므로 바로 덮어쓴다.
+    // saveAll()은 동기화까지 건드리므로 초기화 시점엔 쓰지 않는다.
+    try{ localStorage.setItem(LS.delivLog, JSON.stringify(delivLog)); }catch(e){}
+    console.log('[납품서] 중복 정리:', _before, '→', delivLog.length);
+  }
+}
 
 /* ══════════════════════════════════════════════════════════════════════
    수납유리재고 (신규 블록) — 기존 코드는 훅 몇 줄만 추가, 로직은 전부 여기.
@@ -6694,6 +6738,7 @@ function applyMergedFromSheet(data){
   if(data.delivLog!==undefined){
     delivLog=mergeById(delivLog, data.delivLog, 'id');
     delivLog=delivLog.filter(d=>!delivDeleted[d && d.id]); // 삭제된 납품서는 부활 금지
+    delivLog=dedupeDelivLog(delivLog); // 시트에 남은 옛 사본(무작위 id)이 되살아나도 여기서 걷어낸다
     if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
   if(typeof invalidateTrendAgg==="function") invalidateTrendAgg();
   }
@@ -12060,8 +12105,13 @@ async function handleDelivPdf(ev){
       const reqD=_ymd8(parsed.reqDate);
       const orderD=_ymd8(parsed.orderDate);
       const shipD=_addBizDays(reqD,2);
+      // 묘비 해제: id가 납품번호로 고정되면서, 예전에 지운 납품서를 일부러 다시 올려도
+      // 삭제 목록에 걸려 바로 사라지게 된다. 다시 올린 것은 되살리려는 뜻이므로 풀어준다.
+      if(delivDeleted['dv_'+parsed.delivNo]) delete delivDeleted['dv_'+parsed.delivNo];
       delivLog.push({
-        id:'dv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        // id를 납품번호로 고정한다. 예전엔 올릴 때마다 무작위라 구글시트 병합(id 기준)이
+        // 지운 사본을 되살렸고, 같은 납품서가 몇 벌씩 쌓였다. 번호가 같으면 같은 칸에 맞물린다.
+        id:'dv_'+parsed.delivNo,
         source:'pdf', delivNo:parsed.delivNo, refNo:parsed.refNo, dest:parsed.dest,
         delivReqDate:reqD, orderDate:orderD, shipDate:shipD, deducted:false,
         items:finalItems, uploadedAt:new Date().toISOString(), by:getActor()||'',
@@ -12070,7 +12120,7 @@ async function handleDelivPdf(ev){
       added++;
     }catch(e){ console.log('PDF 파싱 실패',file.name,e); fail++; }
   }
-  if(added){ saveAll(); if(typeof autoSync==='function') autoSync(); }
+  if(added){ delivLog=dedupeDelivLog(delivLog); saveAll(); if(typeof autoSync==='function') autoSync(); }
   if(added && typeof renderSoonap==='function') renderSoonap(); // 수납유리재고 자동 반영
   statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${fail?` · 실패 ${fail}건`:''}`;
   ev.target.value='';
