@@ -563,6 +563,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <div class="filter-row" id="soonap-filter"></div>
       <div id="soonap-body"></div>
     </div>
+    <div class="card">
+      <div class="card-ttl"><span>📅 월 격자</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">손으로 적던 엑셀 그대로 · 자동</span></div>
+      <div class="info-note">📅 엑셀 <b>재고 시트</b>를 그대로 옮긴 표입니다. 품목·사이즈·품명·행 순서까지 엑셀과 같습니다. 1~31일 칸은 <b>납품서의 발주일</b>을 기준으로 <b>자동으로</b> 채워지니 손으로 적지 않으셔도 됩니다. <b>실재고 = 원재고 − 오더합계 + 입고합계</b>로, 엑셀 검산식과 같습니다. <b>원재고</b>는 지난달 실재고가 자동으로 넘어오고, 실사하시면 그 칸을 눌러 고치시면 됩니다. 표를 옆으로 밀면 31일까지 보입니다.</div>
+      <div class="filter-row" id="soonap-grid-ctl"></div>
+      <div id="soonap-grid"></div>
+    </div>
   </div>
   <!-- 대시보드 -->
   <div id="sp-dashboard" class="sub-pg" style="padding:14px 14px 80px">
@@ -2003,10 +2009,11 @@ const SOONAP_GROUP_OF = {}; Object.keys(SOONAP_GROUPS).forEach(g=>SOONAP_GROUPS[
 const SOONAP_CATS = new Set(['시그니처','EURO','에어힌지','빗각','빌트인']); // 비규격(연장 등) 판정용 대분류
 const SOONAP_DEFAULT_INACTIVE = ['MALWF0392']; // 6개월 0건 → 초기 비활성 (AL55브론즈매직)
 
-let soonap = J(localStorage.getItem('ybn-soonap-v1')) || {ins:{},onorder:{},active:{}};
+let soonap = J(localStorage.getItem('ybn-soonap-v1')) || {ins:{},onorder:{},active:{},base:{}};
 if(!soonap.ins) soonap.ins={};       // 코드 -> [{qty,at,by}] 입고 이력 (총재고 계산의 기준)
 if(!soonap.onorder) soonap.onorder={}; // 코드 -> 발주중 수량
 if(!soonap.active) soonap.active={};
+if(!soonap.base) soonap.base={};     // 'YYYY-MM' -> {코드: 원재고}  월 격자에서 손으로 넣은 월초 재고만
 function saveSoonap(){ localStorage.setItem('ybn-soonap-v1', JSON.stringify(soonap)); }
 function soonapActive(code){ return soonap.active[code]!==undefined ? !!soonap.active[code] : (SOONAP_DEFAULT_INACTIVE.indexOf(code)<0); }
 function soonapName(code){ try{ return (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[code]) ? HANSAEM_CATALOG[code][0] : code; }catch(e){ return code; } }
@@ -2154,6 +2161,7 @@ function renderSoonap(){
   body.innerHTML = html
     + `<div style="margin:20px 0 6px;font-size:12px;font-weight:700;color:var(--acc2)">🔲 비규격 <span style="color:var(--tx3);font-weight:400">(모델별 · 사이즈는 안에 표시 · 정규품과 분리)</span></div>`
     + (bigHtml || `<div style="font-size:12px;color:var(--tx3);padding:8px 2px">아직 비규격 납품 내역이 없습니다.</div>`);
+  if(typeof renderSoonapGrid==='function') renderSoonapGrid();   // 월 격자도 같이 갱신
 }
 
 // 핸들러 (전역)
@@ -2184,6 +2192,253 @@ function soonapToggle(code){
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
 }
 function soonapSetCat(c){ soonapCat=c; renderSoonap(); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   수납유리 월 격자 — 손으로 적던 엑셀(월별 재고 시트)을 그대로 재현.
+   · 행 순서·그룹명·사이즈·품명 전부 엑셀 원본 그대로 (SOONAP_SHEET).
+     37행 = SOONAP_CODES 37종과 1:1로 맞음 (2026-07-21 대조 완료).
+   · 1~31일 칸 = 납품서(delivLog)에서 뽑은 그날 수량. 손으로 안 적어도 채워진다.
+   · 실재고 = 원재고 − 오더합계 + 입고합계   ← 엑셀 검산식 그대로
+   · 원재고는 전월 실재고를 자동 이월. 실사하면 그 달만 손으로 덮어쓴다(soonap.base).
+   · 날짜 기준 = 납품서의 발주일(orderDate). 출고일 아님 — 2026-07-21 확정.
+     엑셀 헤더가 '오더 수량'인 것과 맞는다. 헷갈려서 되돌리지 말 것.
+   ══════════════════════════════════════════════════════════════════════ */
+const SOONAP_SHEET = [
+  ['글래스 도어', [
+    ['CAIB13894','441*2165','글래스 도어 450'],
+    ['CAIB13895','491*2165','글래스 도어 500']]],
+  ['유리장식장', [
+    ['ME1TM0003','571*2089','60222'],
+    ['ME1TM0004','571*2217','60235'],
+    ['ME1TM0001','421*2089','45222'],
+    ['ME1TM0002','421*2217','45235'],
+    ['ME1WM0001','421*836','4586'],
+    ['ME1WM0002','471*836','5086'],
+    ['ME1WM0003','571*836','6086']]],
+  ['AL 프레임 에어힌지', [
+    ['MK1WM0001','405*698','벽장유리도어 445*738'],
+    ['MK1WM0002','455*698','벽장유리도어 495*738'],
+    ['MK1MM0001','555*1305','분리장유리도어 595*1345'],
+    ['MK1TM0005','505*2073','키큰장유리도어 545*2113']]],
+  ['KB 미러장식장', [
+    ['MK1TM0006','500*2103','키큰장용 빗면 60211'],
+    ['MK1WM0004','350*728','벽장용 빗면 4574'],
+    ['MK1WM0005','400*728','벽장용 빗면 5074'],
+    ['MK1WM0006','900*528','플랩장용 빗면 10054'],
+    ['MK1WM0007','1100*528','플랩장용 빗면 12054']]],
+  ['빌트인', [
+    ['SAE000327','','밀란 다크미러 AL리프트업 도어 (H:485)'],
+    ['SAE000227','','AL55 리프트업 도어 600'],
+    ['MALWF0392','','AL55 브론즈 매직 12051'],
+    ['CAIT00442','','B/I 2단 브론즈 400L'],
+    ['CAIT00443','','B/I 2단 브론즈 400R'],
+    ['CAIT00444','','B/I 2단 브론즈 600L'],
+    ['CAIT00445','','B/I 2단 브론즈 600R'],
+    ['CAIT00450','','B/I 3단 브론즈 400L'],
+    ['CAIT00451','','B/I 3단 브론즈 400R'],
+    ['CAIT00452','','B/I 3단 브론즈 600L'],
+    ['CAIT00453','','B/I 3단 브론즈 600R'],
+    ['CAIT00454','','B/I 4단 브론즈 400'],
+    ['CAIT00455','','B/I 4단 브론즈 600'],
+    ['CAIT00484','','TV 장 2000전용 흑경 도어']]],
+  ['빌트인 MTS', [
+    ['CAIT00456','(아름)389*2161','B/I 6단 브론즈 400'],
+    ['CAIT00457','','B/I 6단 브론즈 600'],
+    ['CDIT00277','','B/I 거울 EP'],
+    ['CAIT00875','','B/I 슬림 파우더장  거울도어'],
+    ['FGIT00072','(대원)브론즈경 763*1198','B/I 현관 오픈장 브론즈 거울 767*1202']]]
+];
+
+let soonapYm     = todayStr().slice(0,7);  // 보고 있는 달
+let soonapGridAS = false;                  // AS(54*) 포함 여부 — 기본은 제외
+
+function soonapNextYm(ym){
+  let y=+ym.slice(0,4), m=+ym.slice(5,7)+1;
+  if(m>12){ m=1; y++; }
+  return y+'-'+String(m).padStart(2,'0');
+}
+function soonapPrevYm(ym){
+  let y=+ym.slice(0,4), m=+ym.slice(5,7)-1;
+  if(m<1){ m=12; y--; }
+  return y+'-'+String(m).padStart(2,'0');
+}
+function soonapDaysInYm(ym){ return new Date(+ym.slice(0,4), +ym.slice(5,7), 0).getDate(); }
+
+// 납품서 → {ym:{code:{day:qty}}}. 비규격(isBig)은 재고관리 대상이 아니라 제외.
+function soonapOrderIndex(){
+  const idx={};
+  if(typeof delivLog==='undefined' || !Array.isArray(delivLog)) return idx;
+  for(const d of delivLog){
+    if(!d || (d.id && delivDeleted && delivDeleted[d.id]) || !Array.isArray(d.items)) continue;
+    if(!soonapGridAS && (d.refNo||'').startsWith('54')) continue;   // AS 제외 (CLAUDE.md 4번)
+    const dt = d.orderDate || d.delivReqDate || '';                 // 발주일 기준 (출고일 아님)
+    if(!dt || dt.length<10) continue;
+    const ym=dt.slice(0,7), day=+dt.slice(8,10);
+    for(const it of d.items){
+      if(!it || !it.code || it.isBig) continue;
+      if(!SOONAP_CODE_SET.has(it.code)) continue;
+      const q=Number(it.qty)||0; if(!q) continue;
+      const m=idx[ym]=idx[ym]||{};
+      const c=m[it.code]=m[it.code]||{};
+      c[day]=(c[day]||0)+q;
+    }
+  }
+  return idx;
+}
+
+// 입고 이력 → {ym:{code:{day:qty}}}
+function soonapInIndex(){
+  const idx={};
+  for(const code of Object.keys(soonap.ins||{})){
+    for(const e of (soonap.ins[code]||[])){
+      const at=String(e.at||'').slice(0,10); if(at.length<10) continue;
+      const q=Number(e.qty)||0; if(!q) continue;
+      const m=idx[at.slice(0,7)]=idx[at.slice(0,7)]||{};
+      const c=m[code]=m[code]||{};
+      const day=+at.slice(8,10);
+      c[day]=(c[day]||0)+q;
+    }
+  }
+  return idx;
+}
+
+function soonapSumOf(idx,ym,code){
+  const c=((idx[ym]||{})[code])||{};
+  let s=0; for(const k in c) s+=c[k];
+  return s;
+}
+
+// 원재고: 손으로 넣은 값이 있으면 그것, 없으면 가장 가까운 손입력 달부터 굴려서 이월.
+// 앵커(손입력)가 하나도 없으면 null — 화면에 '?'로 띄워 넣어달라고 알린다.
+function soonapOpening(ym, code, ordIdx, inIdx){
+  const B=soonap.base||{};
+  if(B[ym] && B[ym][code]!=null) return {v:Number(B[ym][code]), src:'manual'};
+  let anchor='';
+  for(const m in B){ if(m<ym && B[m] && B[m][code]!=null && m>anchor) anchor=m; }
+  if(!anchor) return {v:null, src:'none'};
+  let v=Number(B[anchor][code]), m=anchor, guard=0;
+  while(m<ym && guard++<60){
+    v = v - soonapSumOf(ordIdx,m,code) + soonapSumOf(inIdx,m,code);
+    m = soonapNextYm(m);
+  }
+  return {v, src:'auto'};
+}
+
+function renderSoonapGrid(){
+  const host=document.getElementById('soonap-grid'); if(!host) return;
+  const ctl=document.getElementById('soonap-grid-ctl');
+  const ym=soonapYm, nDays=soonapDaysInYm(ym);
+  if(ctl){
+    ctl.innerHTML=
+      `<button class="f-btn" onclick="soonapGridStep(-1)">‹ 이전달</button>`
+     +`<button class="f-btn on" style="cursor:default">${ym.replace('-','년 ')}월</button>`
+     +`<button class="f-btn" onclick="soonapGridStep(1)">다음달 ›</button>`
+     +`<span style="width:14px;display:inline-block"></span>`
+     +`<button class="f-btn${soonapGridAS?' on':''}" onclick="soonapGridToggleAS()">AS(54) 포함</button>`;
+  }
+  const ordIdx=soonapOrderIndex(), inIdx=soonapInIndex();
+  const days=[]; for(let i=1;i<=nDays;i++) days.push(i);
+  const dowOf=d=>['일','월','화','수','목','금','토'][new Date(+ym.slice(0,4), +ym.slice(5,7)-1, d).getDay()];
+
+  let rows='', dayTot={}, gOrd=0, missing=0;
+  for(const [group,items] of SOONAP_SHEET){
+    rows+=`<tr><td colspan="${5+nDays+1}" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${group} <span style="color:var(--tx3);font-weight:400">${items.length}종</span></td></tr>`;
+    for(const [code,size,label] of items){
+      const cells=((ordIdx[ym]||{})[code])||{};
+      let sum=0; for(const k in cells) sum+=cells[k];
+      const inSum=soonapSumOf(inIdx,ym,code);
+      const op=soonapOpening(ym,code,ordIdx,inIdx);
+      if(op.v==null) missing++;
+      const closing = op.v==null ? null : (op.v - sum + inSum);
+      gOrd+=sum;
+      const cEsc=code.replace(/'/g,"\\'");
+      const opCell = op.v==null
+        ? `<span style="color:var(--acc4)">?</span>`
+        : `${op.v}${op.src==='auto'?'<span style="font-size:9px;color:var(--tx3)">↩</span>':''}`;
+      rows+=`<tr style="border-bottom:1px solid var(--b1)">
+        <td style="padding:5px 8px;position:sticky;left:0;background:var(--s1);min-width:150px;line-height:1.3;z-index:1">${label}<div style="font-size:9px;color:var(--tx3)">${code}</div></td>
+        <td style="text-align:center;color:var(--tx3);font-size:10px">${size||'·'}</td>
+        <td style="text-align:center;cursor:pointer" onclick="soonapBasePrompt('${cEsc}')" title="눌러서 원재고 수정">${opCell}</td>
+        <td style="text-align:center;font-weight:700;color:${closing!=null&&closing<=0?'var(--acc4)':'var(--tx1)'}">${closing!=null?closing:'—'}</td>
+        <td style="text-align:center;color:var(--acc2)">${inSum||'·'}</td>`
+        + days.map(d=>{
+            const q=cells[d]||0; if(q) dayTot[d]=(dayTot[d]||0)+q;
+            return `<td style="text-align:center;${q?'font-weight:600;color:var(--tx1)':'color:var(--b2)'}">${q||'·'}</td>`;
+          }).join('')
+        + `<td style="text-align:center;font-weight:700;background:var(--s2)">${sum||'·'}</td></tr>`;
+    }
+  }
+  const head=`<tr style="background:var(--s1);border-bottom:2px solid var(--b2);color:var(--tx2);font-size:10px">
+      <th style="text-align:left;padding:7px 8px;position:sticky;left:0;background:var(--s1);z-index:2">품명</th>
+      <th style="padding:7px 6px">사이즈</th><th style="padding:7px 6px">원재고</th>
+      <th style="padding:7px 6px">실재고</th><th style="padding:7px 6px">입고</th>`
+    + days.map(d=>{const w=dowOf(d);return `<th style="padding:7px 4px;min-width:26px;${w==='토'||w==='일'?'color:var(--acc4)':''}">${d}<div style="font-size:8px;font-weight:400">${w}</div></th>`;}).join('')
+    + `<th style="padding:7px 6px;background:var(--s2)">오더합계</th></tr>`;
+  const totRow=`<tr style="border-top:2px solid var(--b2);background:var(--s2)">
+      <td style="padding:6px 8px;font-weight:700;position:sticky;left:0;background:var(--s2)">일자 합계</td>
+      <td></td><td></td><td></td><td></td>`
+    + days.map(d=>`<td style="text-align:center;font-weight:700;color:var(--acc)">${dayTot[d]||'·'}</td>`).join('')
+    + `<td style="text-align:center;font-weight:800;color:var(--acc)">${gOrd||'·'}</td></tr>`;
+
+  host.innerHTML =
+    (missing?`<div style="font-size:11.5px;color:var(--acc4);margin:8px 0;line-height:1.6">⚠️ 원재고가 아직 없는 품목이 ${missing}개 있습니다. <b>원재고 칸(?)</b>을 눌러 이번 달 시작 수량을 한 번만 넣어주시면, 다음 달부터는 자동으로 넘어갑니다.`
+        + (ym==='2026-07'?` <button class="f-btn on" style="margin-left:6px" onclick="soonapSeedBase()">엑셀에서 7월 원재고 가져오기</button>`:'')
+        + `</div>`:'')
+    + `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px;border:1px solid var(--b1);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:11.5px;white-space:nowrap">
+          <thead>${head}</thead><tbody>${rows}${totRow}</tbody>
+        </table></div>
+       <div style="font-size:10.5px;color:var(--tx3);margin-top:7px;line-height:1.6">
+         ↩ 표시는 지난달 실재고가 자동으로 넘어온 값입니다. · 실재고 = 원재고 − 오더합계 + 입고합계
+         · 비규격은 이 표에서 빠집니다(위 잔량표 아래에 따로 있습니다).</div>`;
+}
+
+// 2026-07 원재고 — 손으로 쓰시던 엑셀 '7월 재고' 시트 D열(원재고) 그대로.
+// 첫 달만 심어주면 8월부터는 자동 이월된다. 실사하시면 칸을 눌러 덮어쓰면 됨.
+// ※ 6월 실재고 → 7월 원재고 이월은 37개 중 27개만 일치했다. 나머지 10개는 월초 실사로
+//   고친 값이라, 계산으로 만들지 않고 엑셀 값을 그대로 옮긴다.
+const SOONAP_SEED_202607 = {
+  CAIB13894:159, CAIB13895:147,
+  ME1TM0003:8, ME1TM0004:8, ME1TM0001:12, ME1TM0002:23,
+  ME1WM0001:6, ME1WM0002:12, ME1WM0003:16,
+  MK1WM0001:15, MK1WM0002:31, MK1MM0001:16, MK1TM0005:5,
+  MK1TM0006:3, MK1WM0004:7, MK1WM0005:18, MK1WM0006:5, MK1WM0007:48,
+  SAE000327:36, SAE000227:23, MALWF0392:8,
+  CAIT00442:25, CAIT00443:24, CAIT00444:18, CAIT00445:20,
+  CAIT00450:25, CAIT00451:25, CAIT00452:15, CAIT00453:15,
+  CAIT00454:30, CAIT00455:15, CAIT00484:90,
+  CAIT00456:17, CAIT00457:19, CDIT00277:9, CAIT00875:88, FGIT00072:51
+};
+function soonapSeedBase(){
+  if(!confirm('엑셀 7월 재고 시트의 원재고 37종을 그대로 넣습니다.\n\n이미 넣으신 값이 있으면 덮어씁니다.\n넣은 뒤에도 칸을 눌러 하나씩 고치실 수 있습니다.'))return;
+  soonap.base=soonap.base||{};
+  soonap.base['2026-07']=Object.assign({}, soonap.base['2026-07']||{}, SOONAP_SEED_202607);
+  saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonapGrid();
+  if(typeof showToast==='function') showToast('✅ 7월 원재고 37종 반영');
+}
+
+function soonapGridStep(n){ soonapYm = n>0 ? soonapNextYm(soonapYm) : soonapPrevYm(soonapYm); renderSoonapGrid(); }
+function soonapGridToggleAS(){ soonapGridAS=!soonapGridAS; renderSoonapGrid(); }
+function soonapBasePrompt(code){
+  const ordIdx=soonapOrderIndex(), inIdx=soonapInIndex();
+  const cur=soonapOpening(soonapYm,code,ordIdx,inIdx);
+  const v=window.prompt(
+    `📦 ${soonapYm} 원재고 (월초 재고)\n${soonapName(code)} (${code})\n\n`
+    + (cur.src==='auto' ? '지금은 지난달 실재고가 자동으로 넘어온 값입니다.\n실사하신 값을 넣으면 이 달부터 그 값이 기준이 됩니다.\n' : '')
+    + '(빈칸으로 두면 자동 이월로 되돌아갑니다)',
+    cur.v!=null?String(cur.v):'');
+  if(v===null) return;
+  soonap.base=soonap.base||{};
+  const s=String(v).trim();
+  if(s===''){ if(soonap.base[soonapYm]) delete soonap.base[soonapYm][code]; }
+  else {
+    const q=Number(s);
+    if(!Number.isFinite(q)){ if(typeof alert==='function') alert('숫자를 입력하세요.'); return; }
+    (soonap.base[soonapYm]=soonap.base[soonapYm]||{})[code]=q;
+  }
+  saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonapGrid();
+  if(typeof showToast==='function') showToast(`✅ ${soonapYm} 원재고 반영`);
+}
 
 // ── 재고 이력 (StockEvents) ──
 // 키: "595x729" (원유리) 또는 "595x729_WC" / "595x729_ETP" (인쇄유리)
@@ -6413,6 +6668,7 @@ function applyMergedFromSheet(data){
     if(!soonap.ins) soonap.ins={};
     if(!soonap.onorder) soonap.onorder={};
     if(!soonap.active) soonap.active={};
+    if(!soonap.base) soonap.base={};   // 월 격자 원재고 — 옛 스냅샷엔 없으니 채워둔다
     saveSoonap();
   }
   // 스냅샷 값: 받은 쪽 채택 (서버가 이미 병합본을 보내줌)
