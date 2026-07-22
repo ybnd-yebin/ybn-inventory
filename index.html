@@ -2251,6 +2251,9 @@ const SOONAP_SHEET = [
 
 let soonapYm     = todayStr().slice(0,7);  // 보고 있는 달
 let soonapGridAS = false;                  // AS(54*) 포함 여부 — 기본은 제외
+// 손으로 쓰시는 엑셀과 대조할 때만 쓰는 임시값 {코드: 엑셀 오더합계}.
+// 진단용이라 저장하지 않는다 — 새로고침하면 사라진다.
+let soonapCmp    = null;
 
 function soonapNextYm(ym){
   let y=+ym.slice(0,4), m=+ym.slice(5,7)+1;
@@ -2334,15 +2337,17 @@ function renderSoonapGrid(){
      +`<button class="f-btn on" style="cursor:default">${ym.replace('-','년 ')}월</button>`
      +`<button class="f-btn" onclick="soonapGridStep(1)">다음달 ›</button>`
      +`<span style="width:14px;display:inline-block"></span>`
-     +`<button class="f-btn${soonapGridAS?' on':''}" onclick="soonapGridToggleAS()">AS(54) 포함</button>`;
+     +`<button class="f-btn${soonapGridAS?' on':''}" onclick="soonapGridToggleAS()">AS(54) 포함</button>`
+     +`<button class="f-btn${soonapCmp?' on':''}" onclick="soonapCmpPrompt()">📋 엑셀 대조</button>`;
   }
   const ordIdx=soonapOrderIndex(), inIdx=soonapInIndex();
   const days=[]; for(let i=1;i<=nDays;i++) days.push(i);
   const dowOf=d=>['일','월','화','수','목','금','토'][new Date(+ym.slice(0,4), +ym.slice(5,7)-1, d).getDay()];
 
-  let rows='', dayTot={}, gOrd=0, missing=0;
+  let rows='', dayTot={}, gOrd=0, missing=0, gapN=0, gapList=[];
+  const nCols=5+nDays+1+(soonapCmp?2:0);
   for(const [group,items] of SOONAP_SHEET){
-    rows+=`<tr><td colspan="${5+nDays+1}" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${group} <span style="color:var(--tx3);font-weight:400">${items.length}종</span></td></tr>`;
+    rows+=`<tr><td colspan="${nCols}" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${group} <span style="color:var(--tx3);font-weight:400">${items.length}종</span></td></tr>`;
     for(const [code,size,label] of items){
       const cells=((ordIdx[ym]||{})[code])||{};
       let sum=0; for(const k in cells) sum+=cells[k];
@@ -2365,7 +2370,14 @@ function renderSoonapGrid(){
             const q=cells[d]||0; if(q) dayTot[d]=(dayTot[d]||0)+q;
             return `<td style="text-align:center;${q?'font-weight:600;color:var(--tx1)':'color:var(--b2)'}">${q||'·'}</td>`;
           }).join('')
-        + `<td style="text-align:center;font-weight:700;background:var(--s2)">${sum||'·'}</td></tr>`;
+        + `<td style="text-align:center;font-weight:700;background:var(--s2)">${sum||'·'}</td>`;
+      if(soonapCmp){
+        const xl=Number(soonapCmp[code])||0, diff=sum-xl;
+        if(diff){ gapN++; gapList.push({label,diff,sum,xl}); }
+        rows+=`<td style="text-align:center;color:var(--tx2)">${xl||'·'}</td>`
+            + `<td style="text-align:center;font-weight:800;color:${diff?'var(--acc4)':'var(--tx3)'}">${diff?(diff>0?'+'+diff:diff):'·'}</td>`;
+      }
+      rows+=`</tr>`;
     }
   }
   const head=`<tr style="background:var(--s1);border-bottom:2px solid var(--b2);color:var(--tx2);font-size:10px">
@@ -2373,14 +2385,34 @@ function renderSoonapGrid(){
       <th style="padding:7px 6px">사이즈</th><th style="padding:7px 6px">원재고</th>
       <th style="padding:7px 6px">실재고</th><th style="padding:7px 6px">입고</th>`
     + days.map(d=>{const w=dowOf(d);return `<th style="padding:7px 4px;min-width:26px;${w==='토'||w==='일'?'color:var(--acc4)':''}">${d}<div style="font-size:8px;font-weight:400">${w}</div></th>`;}).join('')
-    + `<th style="padding:7px 6px;background:var(--s2)">오더합계</th></tr>`;
+    + `<th style="padding:7px 6px;background:var(--s2)">오더합계</th>`
+    + (soonapCmp?`<th style="padding:7px 6px">엑셀</th><th style="padding:7px 6px">차이</th>`:'')
+    + `</tr>`;
+  const gXl=soonapCmp?Object.values(soonapCmp).reduce((a,b)=>a+(Number(b)||0),0):0;
   const totRow=`<tr style="border-top:2px solid var(--b2);background:var(--s2)">
       <td style="padding:6px 8px;font-weight:700;position:sticky;left:0;background:var(--s2)">일자 합계</td>
       <td></td><td></td><td></td><td></td>`
     + days.map(d=>`<td style="text-align:center;font-weight:700;color:var(--acc)">${dayTot[d]||'·'}</td>`).join('')
-    + `<td style="text-align:center;font-weight:800;color:var(--acc)">${gOrd||'·'}</td></tr>`;
+    + `<td style="text-align:center;font-weight:800;color:var(--acc)">${gOrd||'·'}</td>`
+    + (soonapCmp?`<td style="text-align:center;font-weight:700;color:var(--tx2)">${gXl||'·'}</td>`
+        +`<td style="text-align:center;font-weight:800;color:${gOrd-gXl?'var(--acc4)':'var(--tx3)'}">${gOrd-gXl?(gOrd-gXl>0?'+'+(gOrd-gXl):gOrd-gXl):'·'}</td>`:'')
+    + `</tr>`;
 
-  host.innerHTML =
+  // 엑셀 대조 요약 — 어느 품목이 몇 장 어긋났는지 한 줄로 먼저 보여준다
+  let cmpBox='';
+  if(soonapCmp){
+    cmpBox = gapN
+      ? `<div style="font-size:11.5px;color:var(--tx1);background:rgba(220,38,38,.07);border:1px solid var(--acc4);border-radius:8px;padding:9px 11px;margin:8px 0;line-height:1.7">
+           <b style="color:var(--acc4)">📋 엑셀과 다른 품목 ${gapN}개</b> <span style="color:var(--tx3)">(＋는 앱이 더 셈 · －는 앱이 덜 셈)</span><br>
+           ${gapList.map(g=>`· ${g.label} — 앱 ${g.sum} / 엑셀 ${g.xl} <b style="color:var(--acc4)">${g.diff>0?'+'+g.diff:g.diff}</b>`).join('<br>')}
+           <div style="margin-top:7px;color:var(--tx2);font-size:11px">
+             <b>－(앱이 덜 셈)</b>이면 그 날짜 납품서가 안 올라왔거나 AS(54)일 수 있어요. 위 <b>AS(54) 포함</b>을 눌러 다시 보세요.<br>
+             <b>＋(앱이 더 셈)</b>이면 엑셀에 적다 빠뜨린 건일 수 있어요. 그 품목 줄의 날짜 칸을 보시면 어느 날인지 나옵니다.</div>
+         </div>`
+      : `<div style="font-size:11.5px;color:var(--acc3);background:rgba(22,163,74,.08);border:1px solid var(--acc3);border-radius:8px;padding:9px 11px;margin:8px 0">
+           ✅ 엑셀과 <b>37종 전부 일치</b>합니다.</div>`;
+  }
+  host.innerHTML = cmpBox +
     (missing?`<div style="font-size:11.5px;color:var(--acc4);margin:8px 0;line-height:1.6">⚠️ 원재고가 아직 없는 품목이 ${missing}개 있습니다. <b>원재고 칸(?)</b>을 눌러 이번 달 시작 수량을 한 번만 넣어주시면, 다음 달부터는 자동으로 넘어갑니다.`
         + (ym==='2026-07'?` <button class="f-btn on" style="margin-left:6px" onclick="soonapSeedBase()">엑셀에서 7월 원재고 가져오기</button>`:'')
         + `</div>`:'')
@@ -2415,6 +2447,29 @@ function soonapSeedBase(){
   soonap.base['2026-07']=Object.assign({}, soonap.base['2026-07']||{}, SOONAP_SEED_202607);
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonapGrid();
   if(typeof showToast==='function') showToast('✅ 7월 원재고 37종 반영');
+}
+
+/* 손으로 쓰시는 엑셀과 대조 — 엑셀 재고 시트의 '오더합계' 열을 통째로 붙여넣으면
+   품목마다 앱 값과 나란히 놓고 차이를 짚어준다.
+   ※ 순서는 SOONAP_SHEET = 엑셀 행 순서 그대로라 위에서부터 그냥 맞물린다.
+   ※ 진단용이라 저장하지 않는다. */
+function soonapCmpPrompt(){
+  const order=SOONAP_SHEET.reduce((a,[g,items])=>a.concat(items.map(it=>it[0])),[]);
+  const v=window.prompt(
+    `📋 엑셀 '오더합계' 열 붙여넣기\n\n`
+    +`엑셀 ${soonapYm.slice(5)}월 재고 시트에서 <오더합계> 열의 ${order.length}칸을\n`
+    +`위에서부터 그대로 복사해 붙여넣으세요. (글래스 도어 450 → 아래로)\n\n`
+    +`빈칸으로 확인하면 대조를 끕니다.`,
+    soonapCmp ? order.map(c=>soonapCmp[c]||0).join('\n') : '');
+  if(v===null) return;
+  const nums=String(v).split(/[\s,]+/).filter(s=>s!=='').map(s=>Number(String(s).replace(/[^0-9.\-]/g,''))||0);
+  if(!nums.length){ soonapCmp=null; renderSoonapGrid(); return; }
+  if(nums.length!==order.length){
+    alert(`숫자가 ${order.length}칸이어야 하는데 ${nums.length}칸이 들어왔습니다.\n\n엑셀에서 <오더합계> 열만 ${order.length}칸 골라 복사해 주세요.\n(품명이나 빈 줄이 섞이면 칸 수가 어긋납니다)`);
+    return;
+  }
+  soonapCmp={}; order.forEach((c,i)=>{ soonapCmp[c]=nums[i]; });
+  renderSoonapGrid();
 }
 
 function soonapGridStep(n){ soonapYm = n>0 ? soonapNextYm(soonapYm) : soonapPrevYm(soonapYm); renderSoonapGrid(); }
