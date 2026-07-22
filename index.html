@@ -291,6 +291,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 .cal-dot-wrap{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
 .cal-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
 .cal-event-chip{font-size:9px;padding:1px 4px;border-radius:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;margin-top:1px;font-weight:600}
+/* 거래처·자사 휴무 */
+.cal-break-chip{font-size:9px;padding:1px 4px;border-radius:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;margin-top:1px;font-weight:700;background:rgba(234,88,12,.14);color:#c2410c}
+.cal-break-chip.self{background:rgba(220,38,38,.16);color:#b91c1c}
+.cal-break-chip.more{background:var(--s2);color:var(--tx3);font-weight:600}
+.cal-day.self-break{background:rgba(220,38,38,.05)}
+.cal-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:10px;color:var(--tx3);align-items:center}
+.cal-legend i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:-1px}
 /* MISC */
 .empty{text-align:center;padding:36px 20px;color:var(--tx3);font-size:12px}
 .empty-ico{font-size:28px;margin-bottom:8px}
@@ -379,6 +386,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <div style="text-align:center;font-size:10px;font-weight:700;color:var(--acc);padding:4px 0">토</div>
     </div>
     <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+    <div id="cal-legend" class="cal-legend"></div>
     <div id="cal-day-detail" style="margin-top:12px"></div>
   </div>
 
@@ -3033,6 +3041,25 @@ let curMain='home', curSub='stocklist';
 let calYear=new Date().getFullYear();
 let calMonth=new Date().getMonth(); // 0-based
 let calSelectedDate=todayStr();
+
+// ── 거래처·자사 휴무 (기간). 달력 표시 전용 — 리드타임·출고일 계산에는 넣지 않음.
+//    영업일 계산까지 바꾸려면 KR_HOLIDAYS 쪽을 손봐야 합니다(지금은 일부러 안 넣음).
+//    새 휴무는 여기 한 줄만 더 적으면 됩니다. self:true 는 우리회사.
+const VENDOR_BREAKS=[
+  {name:'대원유리', from:'2026-07-29', to:'2026-07-31'},
+  {name:'아름유리', from:'2026-08-01', to:'2026-08-04'},
+  {name:'명글라스', from:'2026-08-01', to:'2026-08-05'},
+  {name:'우리회사', from:'2026-08-01', to:'2026-08-04', self:true}
+];
+// 그 날짜에 걸린 휴무 목록 (문자열 비교라 YYYY-MM-DD 형식이어야 합니다)
+function breaksOn(dateStr){
+  if(!dateStr) return [];
+  // 우리회사를 맨 앞으로 — 칸이 좁아 뒤로 밀리면 '외 N곳'에 가려집니다
+  return VENDOR_BREAKS.filter(b=>dateStr>=b.from&&dateStr<=b.to)
+    .sort((a,b)=>(b.self?1:0)-(a.self?1:0));
+}
+// 7/29 → "7/29" 처럼 짧게
+function brShort(s){ const p=String(s||'').split('-'); return p.length===3?(+p[1])+'/'+(+p[2]):s; }
 
 function showMain(id){
   curMain=id;
@@ -7692,9 +7719,15 @@ function renderCal(){
     const dots=events.slice(0,3).map(s=>`<div class="cal-dot" style="background:${CC[s.cat]||'var(--tx3)'}"></div>`).join('');
     const chips=events.slice(0,2).map(s=>`<div class="cal-event-chip" style="background:${CC[s.cat]}22;color:${CC[s.cat]}">${s.content.slice(0,6)}</div>`).join('');
 
-    html+=`<div class="cal-day${isToday?' today':''}${isSelected?' selected':''}" onclick="selectCalDate('${dateStr}')">
+    // 휴무 띠 — 우리회사는 빨강, 거래처는 주황
+    const brs=breaksOn(dateStr);
+    const brChips=brs.slice(0,2).map(b=>`<div class="cal-break-chip${b.self?' self':''}">${b.name}</div>`).join('')
+      +(brs.length>2?`<div class="cal-break-chip more">외 ${brs.length-2}곳</div>`:'');
+
+    html+=`<div class="cal-day${isToday?' today':''}${isSelected?' selected':''}${brs.some(b=>b.self)?' self-break':''}" onclick="selectCalDate('${dateStr}')">
       <div class="cal-day-num ${numClass}">${isToday?`<span style="background:var(--acc);color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">${d}</span>`:d}</div>
       ${events.length>0?`<div class="cal-dot-wrap">${dots}</div>${chips}`:''}
+      ${brChips}
     </div>`;
   }
 
@@ -7705,6 +7738,19 @@ function renderCal(){
   }
 
   el.innerHTML=html;
+
+  // 범례 — 이 달에 걸친 휴무만
+  const lg=document.getElementById('cal-legend');
+  if(lg){
+    const mFrom=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-01';
+    const mTo=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(lastDate).padStart(2,'0');
+    const inMonth=VENDOR_BREAKS.filter(b=>b.from<=mTo&&b.to>=mFrom);
+    lg.innerHTML=inMonth.length
+      ? '<span style="font-weight:700;color:var(--tx2)">휴무</span>'+inMonth.map(b=>
+          `<span><i style="background:${b.self?'rgba(220,38,38,.45)':'rgba(234,88,12,.4)'}"></i>${b.name} ${brShort(b.from)}~${brShort(b.to)}</span>`).join('')
+      : '';
+  }
+
   renderCalDayDetail(calSelectedDate);
 }
 
@@ -7724,12 +7770,25 @@ function renderCalDayDetail(dateStr){
   const CC={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
   const CL={work:'작업',delivery:'납품',order:'발주',etc:'기타'};
 
+  // 그 날 걸린 휴무
+  const brs=breaksOn(dateStr);
+  const brBox=brs.map(b=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${b.self?'rgba(220,38,38,.07)':'rgba(234,88,12,.07)'};border-radius:8px;margin-bottom:5px;border-left:3px solid ${b.self?'#b91c1c':'#c2410c'}">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:700;color:${b.self?'#b91c1c':'#c2410c'}">${b.name} 휴무</div>
+        <div style="font-size:10px;color:var(--tx3)">${brShort(b.from)} ~ ${brShort(b.to)}${b.self?' · 우리회사':''}</div>
+      </div>
+    </div>`).join('');
+
   if(!events.length){
-    el.innerHTML=`<div style="padding:10px 0;font-size:12px;color:var(--tx3);border-top:1px solid var(--b1)">${dateLabel} — 일정 없음 <button onclick="openSchModalWithDate('${dateStr}')" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline">+ 추가</button></div>`;
+    el.innerHTML=`<div style="border-top:1px solid var(--b1);padding-top:10px">
+      ${brBox}
+      <div style="font-size:12px;color:var(--tx3)">${dateLabel} — 일정 없음 <button onclick="openSchModalWithDate('${dateStr}')" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline">+ 추가</button></div>
+    </div>`;
     return;
   }
 
   el.innerHTML=`<div style="border-top:1px solid var(--b1);padding-top:10px">
+    ${brBox}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:12px;font-weight:700">${dateLabel}</div>
       <button onclick="openSchModalWithDate('${dateStr}')" style="padding:3px 10px;background:var(--acc2);border:none;border-radius:12px;color:#0d1117;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">+ 추가</button>
