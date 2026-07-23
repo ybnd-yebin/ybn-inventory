@@ -8880,8 +8880,8 @@ function renderWlRecommend(){
         </div>
         <div style="font-size:10px;color:var(--tx2)">📐 ${item.w}×${item.h} <span style="color:var(--tx3)">· ${item.codes.join(', ')}</span></div>
         <div style="font-size:11px;margin-top:4px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-          <span style="color:var(--tx2)">원유리 <b style="color:${rawShort?'var(--acc4)':'var(--tx1)'};font-family:'JetBrains Mono',monospace">${raw!=null?raw:'-'}</b></span>
-          ${printed!=null?`<span style="color:var(--tx2)">인쇄유리 <b style="color:${printedEnough?'var(--acc3)':'var(--tx1)'};font-family:'JetBrains Mono',monospace">${printed}</b></span>`:''}
+          <span onclick="event.stopPropagation();wlEditStock(${item.w},${item.h},'')" style="color:var(--tx2);cursor:pointer;border-bottom:1px dashed var(--b2)">원유리 <b style="color:${rawShort?'var(--acc4)':'var(--tx1)'};font-family:'JetBrains Mono',monospace">${raw!=null?raw:'-'}</b> ✏️</span>
+          ${printed!=null?`<span onclick="event.stopPropagation();wlEditStock(${item.w},${item.h},'${item.color}')" style="color:var(--tx2);cursor:pointer;border-bottom:1px dashed var(--b2)">인쇄유리 <b style="color:${printedEnough?'var(--acc3)':'var(--tx1)'};font-family:'JetBrains Mono',monospace">${printed}</b> ✏️</span>`:''}
           ${hint}
         </div>
       </div>
@@ -8913,6 +8913,25 @@ function toggleWlCheck(idx){
   if(!wlChecklist[idx]) return;
   wlChecklist[idx].checked = !wlChecklist[idx].checked;
   renderWlRecommend();
+}
+
+// 작업일지 인쇄실 목록에서 바로 원유리/인쇄유리 재고 수정 (실측값으로 덮어씀).
+//   color='' → 원유리(사이즈만) · 'WC'/'ETP' → 인쇄유리(사이즈+색)
+function wlEditStock(w, h, color){
+  const key = color ? `${w}x${h}_${color}` : `${w}x${h}`;
+  const cur = color ? getPrintedQty(w,h,color) : getRawQty(w,h);
+  const kind = color ? (color==='WC'?'인쇄유리(웜코튼)':color==='ETP'?'인쇄유리(에토프)':'인쇄유리') : '원유리';
+  const v = window.prompt(`✏️ ${kind} 재고 수정\n${w}×${h}\n\n현재 ${cur}장 → 새 수량 (실측값으로 덮어씁니다)`, String(cur));
+  if(v===null) return;
+  const n = parseInt(String(v).trim(),10);
+  if(!Number.isFinite(n) || n<0){ if(typeof showToast==='function') showToast('0 이상 숫자를 입력하세요'); return; }
+  if(n===cur){ return; }
+  addCountWithAutoAdjust(key, {qty:n, note:'작업일지 인쇄실에서 수정'});
+  saveAll();
+  if(typeof renderWorklogMain==='function') renderWorklogMain();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+  if(typeof showToast==='function') showToast(`✅ ${kind} ${w}×${h} → ${n}장`);
 }
 
 // 체크한 유리를 발주서(발주 탭)로 바로 넘기기 — 원유리 사이즈·수량 자동 입력
