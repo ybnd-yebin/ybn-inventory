@@ -763,6 +763,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
   <!-- 원장재고 (구 자재관리) -->
   <div id="sp-mat" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <div class="info-note">📅 <b>일주일 단위 재고관리</b> · 기본재고 <b>20장</b> 기준입니다. 재료마다 <b>이번 주 소진량</b>과 <b>20장까지 부족분</b>을 함께 보여줍니다. 주초에 부족분만큼 채워두면 한 주가 넉넉합니다.</div>
+    <div id="sheet-week-banner"></div>
     <!-- 원장 재고 요약 -->
     <div class="g3" id="sheet-summary" style="margin-top:0"></div>
     <!-- 입고/출고 버튼 -->
@@ -7658,6 +7660,7 @@ function confirmOrderUpload(){
 // ══════════════════════════════════════════════════
 
 const SHEET_W=1200, SHEET_H=2400;
+const SHEET_BASE_STOCK=20;   // 기본재고: 이 아래로 떨어지면 부족 경고 (일주일 단위 관리 기준)
 
 // 원판 1장에서 해당 사이즈 몇 개 나오는지
 function calcYield(gw, gh){
@@ -7685,22 +7688,57 @@ function getSheetStock(mat){
   return Math.max(0,total);
 }
 
+// 이번 주(월~오늘) 소진량 — 원판 출고 합계. 주간 재고관리용.
+function sheetOutThisWeek(mat){
+  const now=new Date();
+  const dow=(now.getDay()+6)%7;                 // 0=월요일
+  const mon=new Date(now); mon.setDate(now.getDate()-dow);
+  const monStr=`${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+  const logs=typeof sheetLog!=='undefined'?sheetLog:[];
+  let out=0;
+  logs.forEach(l=>{ if(l.mat===mat && l.type==='out' && String(l.date||'')>=monStr) out+=(l.qty||0); });
+  return out;
+}
+
 // 원장 탭 렌더
 function renderSheetMgr(){
+  renderSheetWeekBanner();
   renderSheetSummary();
   renderSheetLog();
+}
+
+// 주간 재고관리 배너 — 20장 기준 부족한 재료를 모아 한 줄로. 부족 없으면 안 띄움.
+function renderSheetWeekBanner(){
+  const el=document.getElementById('sheet-week-banner'); if(!el) return;
+  const BASE=SHEET_BASE_STOCK;
+  const short=Object.entries(MAT_TYPES).map(([key,info])=>{
+    const stock=Math.max(0,getSheetStock(key));
+    return {label:info.label.split('(')[0], color:info.color, need:Math.max(0,BASE-stock), stock};
+  }).filter(x=>x.need>0);
+  if(!short.length){ el.innerHTML=''; return; }
+  el.innerHTML=`<div class="card" style="border:1px solid var(--acc4);background:rgba(220,38,38,.06);margin-bottom:12px">
+    <div style="font-weight:700;color:var(--acc4);font-size:13px;margin-bottom:6px">⚠️ 이번 주 채울 원판 (기본재고 ${BASE}장 기준)</div>
+    <div style="font-size:12.5px;color:var(--tx1);line-height:1.9">
+      ${short.map(x=>`· <b style="color:${x.color}">${x.label}</b> — 현재 ${x.stock}장, <b>${x.need}장 발주</b>`).join('<br>')}
+    </div></div>`;
 }
 
 function renderSheetSummary(){
   const el=document.getElementById('sheet-summary');
   if(!el) return;
+  const BASE=SHEET_BASE_STOCK;
   el.innerHTML=Object.entries(MAT_TYPES).map(([key,info])=>{
     const stock=Math.max(0,getSheetStock(key));
-    const isLow=stock<=3;
+    const isLow=stock<BASE;
+    const short=Math.max(0,BASE-stock);   // 20까지 채우려면 몇 장
+    const wk=sheetOutThisWeek(key);
     return `<div class="stat" style="border-left:3px solid ${info.color}">
       <div class="stat-l" style="color:${info.color}">${info.label.split('(')[0]}</div>
       <div class="stat-v" style="color:${isLow?'var(--acc4)':info.color}">${stock}</div>
-      <div class="stat-s">장 ${isLow?'⚠️ 부족':''}</div>
+      <div class="stat-s">장 / 기본 ${BASE}</div>
+      <div style="font-size:10.5px;margin-top:4px;font-weight:700;color:${isLow?'var(--acc4)':'var(--acc3)'}">
+        ${isLow?`⚠️ ${short}장 부족 (${BASE}까지)`:'✓ 여유'}</div>
+      <div style="font-size:10px;color:var(--tx3);margin-top:2px">이번주 소진 ${wk}장</div>
     </div>`;
   }).join('');
 }
