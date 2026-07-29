@@ -7193,7 +7193,11 @@ function mergeOdVendorsLocal(localObj, remoteObj){
      실측: [1,2,3] 을 넣었더니 "[Ljava.lang.Object;@4adcf22f" 로 돌아왔다.
    ※ 시트 스크립트를 고치는 게 정공법이지만 그건 구글 쪽에서 손봐야 해서,
      앱만 고쳐 되게 한 방법이다. 나중에 스크립트를 고치면 이 우회는 걷어내도 된다. */
-const GS_EXT_LIMIT=45000;   // 시트 한 칸 5만자 제한 — 넘기면 통째로 날아가므로 미리 막는다
+const GS_EXT_LIMIT=45000;      // 시트 한 칸 5만자 제한 — 넘기면 통째로 날아가므로 미리 막는다
+/* 한 칸에 다 안 들어가면 여러 칸(_ext1.._ext8)에 나눠 담고 _extN 에 칸 수를 적습니다.
+   2026-07-30: 한 칸만 쓰다가 45,000자를 넘겨 11가지가 통째로 동기화에서 빠지는 일이 있었습니다.
+   여덟 칸이면 약 36만 자까지 실립니다. 그래도 넘치면 그건 시트 스크립트를 고쳐야 할 신호입니다. */
+const GS_EXT_MAX_PARTS=8;
 function metaForSync(){
   const ext={};
   const put=(k,v)=>{ if(v!==undefined) ext[k]=v; };
@@ -7210,22 +7214,43 @@ function metaForSync(){
   put('wlTombs',       typeof wlTombs!=='undefined'       ? wlTombs       : undefined);
   let s='';
   try{ s=JSON.stringify(ext); }catch(e){ s=''; }
-  if(s.length>GS_EXT_LIMIT){
-    console.warn('[동기화] 딸려보낼 자료가 한 칸 한도를 넘어 보내지 않습니다:', s.length);
-    if(typeof showToast==='function') showToast('⚠️ 자료가 너무 커져 일부 항목이 동기화에서 빠졌습니다');
-    s='';
+  const out=Object.assign({}, meta);
+  out._ext='';                     // 옛 한 칸 방식은 비워둡니다 (아래 여러 칸이 정본)
+  const n=Math.ceil(s.length/GS_EXT_LIMIT);
+  if(n>GS_EXT_MAX_PARTS){
+    // 여기까지 오면 진짜로 손봐야 합니다. 무엇이 큰지 같이 알려줍니다.
+    const big=Object.keys(ext).map(k=>{
+      let len=0; try{ len=JSON.stringify(ext[k]).length; }catch(e){}
+      return {k,len};
+    }).sort((a,b)=>b.len-a.len).slice(0,3).map(x=>`${x.k} ${Math.round(x.len/1000)}k`).join(' / ');
+    console.warn('[동기화] 딸려보낼 자료가 칸 수를 넘어 보내지 않습니다:', s.length, '가장 큰 것:', big);
+    if(typeof showToast==='function') showToast(`⚠️ 자료가 너무 커 일부가 동기화에서 빠졌습니다 (${Math.round(s.length/1000)}k · ${big})`);
+    out._extN=0;
+    for(let i=1;i<=GS_EXT_MAX_PARTS;i++) out['_ext'+i]='';
+    return out;
   }
-  return Object.assign({}, meta, {_ext:s});
+  out._extN=n;
+  // 안 쓰는 칸도 빈 값으로 덮어 시트에 남은 옛 조각을 지웁니다
+  for(let i=1;i<=GS_EXT_MAX_PARTS;i++){
+    out['_ext'+i] = (i<=n) ? s.slice((i-1)*GS_EXT_LIMIT, i*GS_EXT_LIMIT) : '';
+  }
+  return out;
 }
 // 받은 쪽에서 다시 풀기. 시트가 직접 준 값이 있으면 그쪽이 우선이고, 없을 때만 채운다.
 function expandSheetExtras(data){
   if(!data || !data.meta) return;
-  const raw=data.meta._ext;
-  delete data.meta._ext;                 // 로컬 meta·localStorage 를 더럽히지 않게 떼어낸다
-  delete data.meta._probe;               // 2026-07-22 점검 때 생긴 빈 칸. 시트에 남아 있어 무시한다
-  if(!raw || typeof raw!=='string') return;
+  const m=data.meta;
+  const n=Number(m._extN)||0;
+  let raw='';
+  if(n>0){ for(let i=1;i<=n;i++) raw += String(m['_ext'+i]||''); }   // 새 방식: 여러 칸 이어붙이기
+  else if(typeof m._ext==='string') raw=m._ext;                       // 옛 방식: 한 칸
+  // 로컬 meta·localStorage 를 더럽히지 않게 떼어낸다
+  delete m._ext; delete m._extN;
+  for(let i=1;i<=GS_EXT_MAX_PARTS;i++) delete m['_ext'+i];
+  delete m._probe;                       // 2026-07-22 점검 때 생긴 빈 칸. 시트에 남아 있어 무시한다
+  if(!raw) return;
   let ext=null;
-  try{ ext=JSON.parse(raw); }catch(e){ console.warn('[동기화] 딸려온 자료를 못 읽었습니다', e); return; }
+  try{ ext=JSON.parse(raw); }catch(e){ console.warn('[동기화] 딸려온 자료를 못 읽었습니다', e, raw.length); return; }
   if(!ext || typeof ext!=='object') return;
   for(const k in ext){ if(data[k]===undefined) data[k]=ext[k]; }
 }
