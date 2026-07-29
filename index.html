@@ -402,6 +402,15 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="sch-history"></div>
   </div>
 
+  <!-- 거래처·자사 휴무 (기간, 편집 가능) -->
+  <div class="card">
+    <div class="card-ttl"><span>🏭 휴무 · 출장</span>
+      <button onclick="openBreakModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 추가</button>
+    </div>
+    <div id="break-list"></div>
+    <div style="font-size:10.5px;color:var(--tx3);margin-top:8px;line-height:1.5">달력에 기간 막대로 표시됩니다. 리드타임·출고일 계산에는 넣지 않습니다.</div>
+  </div>
+
   <!-- 오늘 작업 요약 -->
   <div class="card">
     <div class="card-ttl"><span>✏️ 오늘 작업</span><button onclick="showMain('stock');setTimeout(()=>showSub('worklog'),50)" style="font-size:10px;color:var(--acc);background:none;border:none;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0">작업입력</button></div>
@@ -572,7 +581,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="soonap-warn"></div>
     <div class="card">
       <div class="card-ttl"><span>🗄️ 수납유리재고</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">납품서 자동 반영 · 37종</span></div>
-      <div class="info-note">📊 <b>＋입고</b> 버튼으로 입고 수량을 넣으면 <b>총재고</b>가 쌓이고, 한샘 납품서를 올리면 <b>출고가 자동 차감</b>됩니다(중복 없음). 이번주·이번달 출고와 6개월 월평균은 자동 집계돼요. <b>발주</b> 버튼으로 발주 수량을 적어두면 나중에 입고 누를 때 자동으로 채워집니다. 표를 옆으로 밀면 모든 열이 보입니다. 비규격은 맨 아래 별도로 모아둡니다.</div>
+      <div class="info-note">📊 <b>＋입고</b> 버튼으로 입고 수량을 넣으면 <b>총재고</b>가 쌓이고, 한샘 납품서를 올리면 <b>출고가 자동 차감</b>됩니다(중복 없음). 지난 날짜로 넣으실 때는 수량 뒤에 날짜를 붙이면 됩니다 — <b>30 7/28</b> 처럼요. 이번주·이번달 출고와 6개월 월평균은 자동 집계돼요. <b>발주</b> 버튼으로 발주 수량을 적어두면 나중에 입고 누를 때 자동으로 채워집니다. 표를 옆으로 밀면 모든 열이 보입니다. 비규격은 맨 아래 별도로 모아둡니다.</div>
       <div class="filter-row" id="soonap-filter"></div>
       <div id="soonap-body"></div>
     </div>
@@ -581,6 +590,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <div class="info-note">📅 엑셀 <b>재고 시트</b>를 그대로 옮긴 표입니다. 품목·사이즈·품명·행 순서까지 엑셀과 같습니다. 1~31일 칸은 <b>납품서의 발주일</b>을 기준으로 <b>자동으로</b> 채워지니 손으로 적지 않으셔도 됩니다. <b>실재고 = 원재고 − 오더합계 + 입고합계</b>로, 엑셀 검산식과 같습니다. <b>원재고</b>는 지난달 실재고가 자동으로 넘어오고, 실사하시면 그 칸을 눌러 고치시면 됩니다. 표를 옆으로 밀면 31일까지 보입니다.</div>
       <div class="filter-row" id="soonap-grid-ctl"></div>
       <div id="soonap-grid"></div>
+    </div>
+    <div class="card">
+      <div class="card-ttl"><span>📥 입고 시트</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">언제 얼마나 들어왔는지</span></div>
+      <div class="info-note">📥 <b>＋입고</b>로 넣은 내역만 모아 봅니다. 위 표는 <b>품목별로 어느 날</b> 들어왔는지, 아래 목록은 <b>들어온 순서</b>대로입니다. 선입선출이 되고 있는지는 아래 목록으로 보시면 됩니다. 잘못 넣으셨으면 목록에서 <b>✏️</b>로 고치고 <b>🗑</b>로 지우시면 됩니다. 달은 위 월 격자와 함께 움직입니다.</div>
+      <div id="soonap-in-sheet"></div>
     </div>
   </div>
   <!-- 대시보드 -->
@@ -1335,6 +1349,32 @@ Euro700 Grace W/Cotton	6
   </div>
 </div>
 
+<!-- BREAK MODAL -->
+<div class="modal-bg" id="break-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('break-modal')">×</button>
+    <div class="modal-ttl" id="bm-title">🏭 기간 일정 추가</div>
+    <span class="lbl">이름</span><input id="bm-name" class="inp" placeholder="예: 대원유리 / 중국 출장 / 예빈 휴가" list="bm-name-list">
+    <datalist id="bm-name-list"></datalist>
+    <span class="lbl">구분</span>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="q-btn" id="bkind-휴무" onclick="setBreakKind('휴무',this)" style="flex:1;padding:10px">🏭 휴무</button>
+      <button class="q-btn" id="bkind-출장" onclick="setBreakKind('출장',this)" style="flex:1;padding:10px">✈️ 출장</button>
+      <button class="q-btn" id="bkind-휴가" onclick="setBreakKind('휴가',this)" style="flex:1;padding:10px">🌴 휴가</button>
+      <button class="q-btn" id="bkind-기타" onclick="setBreakKind('기타',this)" style="flex:1;padding:10px">기타</button>
+    </div>
+    <span class="lbl">시작일</span><input type="date" id="bm-from" class="inp" onchange="bmUpdateDays()">
+    <span class="lbl">종료일</span><input type="date" id="bm-to" class="inp" onchange="bmUpdateDays()">
+    <div id="bm-days" style="font-size:11px;color:var(--tx3);margin-bottom:12px"></div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;padding:10px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px">
+      <input type="checkbox" id="bm-self" style="width:18px;height:18px;accent-color:var(--acc4);cursor:pointer">
+      <span style="font-size:13px;font-weight:600">🏠 우리 공장 휴무</span>
+      <span style="font-size:10px;color:var(--tx3);margin-left:auto">와이비앤디</span>
+    </label>
+    <button class="act-btn orange" id="bm-confirm" onclick="confirmBreak()">✓ 저장</button>
+  </div>
+</div>
+
 <!-- WORK MODAL -->
 <div class="modal-bg" id="work-modal">
   <div class="modal-sheet">
@@ -1786,7 +1826,7 @@ const MONTH_LABELS={"2025-11": "25년 11월", "2025-12": "25년 12월", "2026-01
 
 /* NONSPEC_GROUPS → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
 const DATA_GENERATED="2026-05-20";
-const INITIAL_TODOS=[{"id": "t1", "content": "코아스 자재 기름얼룩 체크", "assignee": "", "company": "코아스", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t2", "content": "전체 재고 파악", "assignee": "", "company": "전체", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t3", "content": "한샘 클레임 유형 파악시트 만들기", "assignee": "", "company": "한샘", "priority": "보통", "status": "진행중", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t4", "content": "재고량 파악 (유리/프레임/원부자재 기준 설정)", "assignee": "", "company": "전체", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t5", "content": "사무실 인수인계 제작", "assignee": "원영", "company": "와이비앤디", "priority": "여유", "status": "진행중", "date": "2026-04-30", "dueDate": "2026-05-22", "createdAt": "2026-04-30T00:00:00"}, {"id": "t6", "content": "마감자료 정리 (자동화 공부중)", "assignee": "예빈", "company": "전체", "priority": "여유", "status": "진행중", "date": "2026-04-28", "dueDate": "", "createdAt": "2026-04-28T00:00:00"}];
+const INITIAL_TODOS=[{"id": "t1", "content": "코아스 자재 기름얼룩 체크", "assignee": "", "company": "코아스", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t2", "content": "전체 재고 파악", "assignee": "", "company": "전체", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t3", "content": "한샘 클레임 유형 파악시트 만들기", "assignee": "", "company": "한샘", "priority": "보통", "status": "진행중", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t4", "content": "재고량 파악 (유리/프레임/원부자재 기준 설정)", "assignee": "", "company": "전체", "priority": "보통", "status": "시작전", "date": "2026-05-12", "dueDate": "", "createdAt": "2026-05-12T00:00:00"}, {"id": "t5", "content": "사무실 인수인계 제작", "assignee": "원영", "company": "와이비앤디", "priority": "여유", "status": "진행중", "date": "2026-04-30", "dueDate": "2026-05-22", "createdAt": "2026-04-30T00:00:00"}, {"id": "t6", "content": "마감자료 정리 (자동화 공부중)", "assignee": "예빈", "company": "전체", "priority": "여유", "status": "진행중", "date": "2026-04-28", "dueDate": "", "createdAt": "2026-04-28T00:00:00"}, {"id": "t-isaek-20260724", "content": "7/24 판정 이색건 4장 — 2층 복도 보관. 한 달 뒤 색깔 재확인", "assignee": "", "company": "와이비앤디", "priority": "보통", "status": "시작전", "date": "2026-07-24", "dueDate": "2026-08-24", "createdAt": "2026-07-24T00:00:00"}];
 const INITIAL_NOTICES=[{"id": "n1", "title": "송영훈 휴가", "content": "5월 13일(수) 휴가", "pri": "normal", "createdAt": "2026-05-12T09:00:00"}, {"id": "n2", "title": "실장님 휴가", "content": "5월 19-20일 휴가", "pri": "normal", "createdAt": "2026-05-12T09:00:00"}, {"id": "n3", "title": "중국 출장", "content": "5월 27일(수) ~ 5월 28일(목)", "pri": "important", "createdAt": "2026-05-12T09:00:00"}];
 /* ANALYSIS → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
 /* SIZE_GROUPS → ybn-data.js 로 분리됨 (제품 마스터 데이터) */
@@ -1990,6 +2030,23 @@ let inkRates=J(localStorage.getItem(LS.inkRate))||{WC:1.5,ETP:1.5};
 let notices=J(localStorage.getItem(LS.notices))||INITIAL_NOTICES;
 let schedules=J(localStorage.getItem(LS.schedules))||[];
 let todos=J(localStorage.getItem(LS.todos))||INITIAL_TODOS;
+/* ── 할일 한 번만 끼워넣기 ──
+   INITIAL_TODOS 는 앱을 처음 여는 브라우저에서만 쓰입니다.
+   이미 쓰던 브라우저는 저장된 목록만 보므로, 없을 때 한 번만 넣어줍니다.
+   ★ 반드시 여기(todos 만드는 자리)에서 바로 처리합니다.
+     뒤쪽에 두고 setTimeout 으로 돌렸더니, 중간 어딘가에서 멈추면 이 줄까지 못 와서
+     메모가 안 들어가는 일이 있었습니다(2026-07-29). saveAll 은 아직 못 씁니다 —
+     다른 변수들이 아래에서 만들어져서, 여기서는 할일만 직접 저장합니다. */
+[
+  {id:'t-isaek-20260724', content:'7/24 판정 이색건 4장 — 2층 복도 보관. 한 달 뒤 색깔 재확인',
+   assignee:'', company:'와이비앤디', priority:'보통', status:'시작전',
+   date:'2026-07-24', dueDate:'2026-08-24', createdAt:'2026-07-24T00:00:00'}
+].forEach(s=>{
+  if(!todos.some(t=>t.id===s.id)){
+    todos.push({...s});
+    try{ localStorage.setItem(LS.todos, JSON.stringify(todos)); }catch(e){}
+  }
+});
 // 기본 시트 연동 주소 (새 기기/새 브라우저도 설정 없이 자동 연결)
 const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycby2fhWdU5Uc39vMDObAqd7w5uuTcz8y2C5suH3FYxVaP--0UCtOGoGEUTry-hGdj89Y/exec';
 let gsUrl=localStorage.getItem(LS.gsUrl)||DEFAULT_GS_URL;
@@ -1997,6 +2054,46 @@ let actor=localStorage.getItem(LS.actor)||'';
 let delivLog=J(localStorage.getItem(LS.delivLog))||[]; // 중복 정리는 선언 직후 아래에서 한 번 (dedupeDelivLog 정의부 참고)
 let delivDeleted=J(localStorage.getItem('ybn-deliv-del-v1'))||{}; // {id: 삭제시각} 삭제된 납품서 묘비(병합 시 부활 방지)
 let orderDeleted=J(localStorage.getItem('ybn-order-del-v1'))||{}; // {id: 삭제시각} 삭제된 발주 묘비(병합 시 부활 방지)
+/* 작업일지에서 옮기거나 지운 항목 묘비 — {날짜: {at:시각, evs:[고유번호,...], sigs:[보조표시,...]}}
+   이게 없으면 날짜를 옮겨도 시트에 남은 옛 날짜가 동기화 때 그대로 되살아납니다.
+   날짜 통째로 막지 않고 '그때 있던 항목'만 막습니다.
+   날짜로만 막으면 나중에 그 날짜에 진짜 작업이 들어올 때 같이 막혀 버립니다. */
+let wlTombs=J(localStorage.getItem('ybn-wl-tombs-v1'))||{};
+function saveWlTombs(){ try{ localStorage.setItem('ybn-wl-tombs-v1',JSON.stringify(wlTombs)); }catch(e){} }
+// 항목 하나를 가리키는 표시. 수량까지 넣어야 같은 품목의 새 작업을 잘못 막지 않습니다.
+// ※ 보조 수단입니다. 주 열쇠는 아래 eventIds 입니다.
+function wlSig(it){
+  if(!it) return '';
+  // 시트를 오가며 수량이 문자열이 되어도 같은 표시가 나오도록 숫자로 맞춥니다
+  return [it.sizeKey||it.code||'', it.color||'', it.type||'', it.loc||'', Number(it.qty)||0].join('|');
+}
+// 항목에 붙은 고유번호. 작업 입력 때 만들어지고 시트를 오가도 바뀌지 않아 가장 확실한 열쇠입니다.
+function wlEvIds(it){ return (it&&Array.isArray(it.eventIds))?it.eventIds.filter(Boolean).map(String):[]; }
+// 묘비 세우기 (옮기기 전 항목들을 기억해 둡니다)
+function wlTombAdd(date, items){
+  if(!date||!Array.isArray(items)||!items.length) return;
+  const cur=wlTombs[date]||{};
+  const oldS=Array.isArray(cur.sigs)?cur.sigs:[];
+  const oldE=Array.isArray(cur.evs)?cur.evs:[];
+  wlTombs[date]={
+    at:new Date().toISOString(),
+    evs:[...new Set([...oldE, ...items.flatMap(wlEvIds)])],
+    sigs:[...new Set([...oldS, ...items.map(wlSig).filter(Boolean)])]
+  };
+  saveWlTombs();
+}
+// 시트에서 돌아온 항목이 "이미 옮겨간 것"인가?
+function wlIsTombed(tomb, it){
+  if(!tomb) return false;
+  const evs=Array.isArray(tomb.evs)?tomb.evs:[];
+  if(evs.length){
+    const ids=wlEvIds(it);
+    // 고유번호가 하나라도 겹치면 같은 작업입니다
+    if(ids.length && ids.some(id=>evs.indexOf(id)>=0)) return true;
+    if(ids.length) return false;   // 번호가 있는데 안 겹치면 다른 작업 — 막지 않습니다
+  }
+  return (Array.isArray(tomb.sigs)?tomb.sigs:[]).indexOf(wlSig(it))>=0;   // 번호 없는 옛 항목만 보조 열쇠로
+}
 let noticeState=J(localStorage.getItem('ybn-notice-state-v1'))||{}; // {id:{archived,deleted,at}} 공지 보관/삭제 묘비(병합 후 강제 적용)
 let ledgerLog=J(localStorage.getItem('ybn-ledger-v1'))||[];
 let vendorBook=J(localStorage.getItem('ybn-vendors-v1'))||[];
@@ -2221,22 +2318,148 @@ function renderSoonap(){
     + `<div style="margin:20px 0 6px;font-size:12px;font-weight:700;color:var(--acc2)">🔲 비규격 <span style="color:var(--tx3);font-weight:400">(모델별 · 사이즈는 안에 표시 · 정규품과 분리)</span></div>`
     + (bigHtml || `<div style="font-size:12px;color:var(--tx3);padding:8px 2px">아직 비규격 납품 내역이 없습니다.</div>`);
   if(typeof renderSoonapGrid==='function') renderSoonapGrid();   // 월 격자도 같이 갱신
+  if(typeof renderSoonapInSheet==='function') renderSoonapInSheet();   // 입고 시트도 같이
 }
 
 // 핸들러 (전역)
+/* 입고 날짜 풀기 — "7/28" · "07-28" · "2026-07-28" 을 받습니다.
+   월/일만 적으면 올해로 봅니다. 다만 그 날짜가 앞으로 30일보다 더 뒤면 작년으로 잡습니다.
+   (1월 초에 "12/30" 을 적는 연말연시 상황 대비) */
+function soonapParseDate(s){
+  s=String(s||'').trim();
+  let m=s.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})$/);
+  const pad=n=>String(+n).padStart(2,'0');
+  let iso='';
+  if(m){ iso=`${m[1]}-${pad(m[2])}-${pad(m[3])}`; }
+  else{
+    m=s.match(/^(\d{1,2})[-.\/](\d{1,2})$/);
+    if(!m) return '';
+    const y=+todayStr().slice(0,4);
+    iso=`${y}-${pad(m[1])}-${pad(m[2])}`;
+    const gap=(new Date(iso)-new Date(todayStr()))/86400000;
+    if(gap>30) iso=`${y-1}-${pad(m[1])}-${pad(m[2])}`;
+  }
+  const d=new Date(iso);
+  if(isNaN(d.getTime()) || iso.slice(0,10)!==d.toISOString().slice(0,10)) return '';  // 2/31 같은 날 거르기
+  return iso;
+}
+/* "30" → 오늘 / "30 7/28" → 그 날짜. 쉼표·여러 칸 띄어쓰기 모두 받습니다. */
+function soonapParseIn(v){
+  const s=String(v==null?'':v).trim().replace(/,/g,' ').replace(/\s+/g,' ');
+  if(!s) return null;
+  const p=s.split(' ');
+  const q=Number(p[0]);
+  if(!q || q<=0) return null;
+  if(p.length===1) return {qty:q, date:todayStr()};
+  const d=soonapParseDate(p.slice(1).join(' '));
+  if(!d) return {qty:q, badDate:p.slice(1).join(' ')};
+  return {qty:q, date:d};
+}
 function soonapInPrompt(code){
   const pend=Number(soonap.onorder[code])||0;
-  const msg=pend>0
-    ? `📥 입고 수량 입력\n${soonapName(code)} (${code})\n\n발주중 ${pend}장 — 입고하면 발주중에서 자동 차감됩니다.`
-    : `📥 입고 수량 입력\n${soonapName(code)} (${code})`;
+  const head=`📥 입고 수량 입력\n${soonapName(code)} (${code})`;
+  const hint=`\n\n수량만 적으면 오늘 입고로 들어갑니다.\n지난 날짜면 뒤에 날짜를 붙이세요.  예) 30 7/28`;
+  const msg=(pend>0
+    ? `${head}\n\n발주중 ${pend}장 — 입고하면 발주중에서 자동 차감됩니다.`
+    : head) + hint;
   const v=window.prompt(msg, pend>0?String(pend):'');
   if(v===null) return;
-  const q=Number(String(v).trim());
-  if(!q || q<=0){ if(String(v).trim()!=='' && typeof alert==='function') alert('숫자(1 이상)를 입력하세요.'); return; }
-  (soonap.ins[code]=soonap.ins[code]||[]).push({qty:q, at:new Date().toISOString(), by:(typeof getActor==='function'?getActor():'')||''});
+  const r=soonapParseIn(v);
+  if(!r){ if(String(v).trim()!=='' && typeof alert==='function') alert('수량은 1 이상의 숫자로 적어주세요.\n예) 30   또는   30 7/28'); return; }
+  if(r.badDate){ if(typeof alert==='function') alert(`날짜를 못 읽었습니다: "${r.badDate}"\n예) 7/28   07-28   2026-07-28`); return; }
+  const q=r.qty;
+  // 날짜만 바꾸고 시각은 지금 것을 씁니다 — 같은 날 여러 번 넣어도 순서가 남습니다
+  const at = (r.date===todayStr())
+    ? new Date().toISOString()
+    : r.date+'T'+new Date().toISOString().slice(11);
+  (soonap.ins[code]=soonap.ins[code]||[]).push({qty:q, at, by:(typeof getActor==='function'?getActor():'')||''});
   if(pend>0){ const left=Math.max(0,pend-q); if(left) soonap.onorder[code]=left; else delete soonap.onorder[code]; }
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
-  if(typeof showToast==='function') showToast(`✅ ${code} 입고 ${q}장`);
+  if(typeof showToast==='function') showToast(`✅ ${code} 입고 ${q}장${r.date===todayStr()?'':' ('+r.date.slice(5).replace('-','/')+')'}`);
+}
+/* ── 입고 시트 (격자 + 날짜순 목록) ────────────────────────────────
+   달은 월 격자와 같은 soonapYm 을 씁니다. 날짜 칸은 그 달에 입고가 있는 날만 세웁니다
+   (1~31 전부 세우면 대부분 빈 칸이라 옆으로 밀어야 해서). */
+function soonapInRows(ym){
+  const out=[];
+  for(const code of Object.keys(soonap.ins||{})){
+    for(const e of (soonap.ins[code]||[])){
+      const at=String(e.at||''); if(at.slice(0,7)!==ym) continue;
+      const q=Number(e.qty)||0; if(!q) continue;
+      out.push({code, at, qty:q, by:e.by||'', day:+at.slice(8,10)});
+    }
+  }
+  return out.sort((a,b)=> a.at<b.at?-1 : a.at>b.at?1 : 0);
+}
+function renderSoonapInSheet(){
+  const el=document.getElementById('soonap-in-sheet'); if(!el) return;
+  const ym=soonapYm, rows=soonapInRows(ym);
+  const mLabel=(+ym.slice(5))+'월';
+  if(!rows.length){
+    el.innerHTML=`<div class="empty"><div class="empty-ico">📥</div>${mLabel}에 입고된 내역이 없습니다</div>`;
+    return;
+  }
+  // ── 격자: 행=품목, 열=입고가 있었던 날
+  const days=[...new Set(rows.map(r=>r.day))].sort((a,b)=>a-b);
+  const byCode={};
+  rows.forEach(r=>{ (byCode[r.code]=byCode[r.code]||{})[r.day]=((byCode[r.code]||{})[r.day]||0)+r.qty; });
+  const codes=Object.keys(byCode).sort((a,b)=>soonapName(a).localeCompare(soonapName(b),'ko'));
+  const total=rows.reduce((s,r)=>s+r.qty,0);
+  let g=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">`
+   +`<thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--b2);white-space:nowrap">품목</th>`
+   +days.map(d=>`<th style="padding:6px 6px;border-bottom:2px solid var(--b2);white-space:nowrap">${d}일</th>`).join('')
+   +`<th style="padding:6px 8px;border-bottom:2px solid var(--b2);white-space:nowrap">합계</th></tr></thead><tbody>`;
+  codes.forEach(c=>{
+    const row=byCode[c]; const sum=days.reduce((s,d)=>s+(row[d]||0),0);
+    g+=`<tr><td style="padding:6px 8px;border-bottom:1px solid var(--b1);white-space:nowrap">${brEsc(soonapName(c))}</td>`
+      +days.map(d=>`<td style="text-align:center;padding:6px 6px;border-bottom:1px solid var(--b1);${row[d]?'font-weight:700':'color:var(--tx3)'}">${row[d]||'·'}</td>`).join('')
+      +`<td style="text-align:center;padding:6px 8px;border-bottom:1px solid var(--b1);font-weight:800;color:var(--acc)">${sum}</td></tr>`;
+  });
+  g+=`</tbody></table></div>`;
+  // ── 목록: 들어온 순서
+  let l=`<div style="margin-top:14px;font-size:11px;font-weight:800;color:var(--tx2)">${mLabel} 입고 내역 — ${rows.length}건 · ${total}장</div>`;
+  l+=rows.map(r=>{
+    const atEsc=brEsc(r.at), cEsc=brEsc(r.code);
+    return `<div class="sch-item">`
+      +`<div class="sch-date">${r.at.slice(5,10).replace('-','/')}</div>`
+      +`<div class="sch-info"><div class="sch-content">${brEsc(soonapName(r.code))}</div>`
+      +`<div class="sch-cat">${r.qty}장${r.by?' · '+brEsc(r.by):''}</div></div>`
+      +`<div class="todo-actions">`
+      +`<button class="icon-btn" onclick="soonapInEdit('${cEsc}','${atEsc}')">✏️</button>`
+      +`<button class="icon-btn del" onclick="soonapInDelete('${cEsc}','${atEsc}')">🗑</button></div></div>`;
+  }).join('');
+  el.innerHTML=g+l;
+}
+function soonapInFind(code,at){
+  const arr=soonap.ins[code]||[];
+  return {arr, i:arr.findIndex(e=>String(e.at)===at)};
+}
+function soonapInEdit(code,at){
+  const {arr,i}=soonapInFind(code,at); if(i<0){ showToast('그 입고 기록을 찾지 못했습니다'); return; }
+  const e=arr[i];
+  const cur=`${e.qty} ${String(e.at).slice(5,10).replace('-','/')}`;
+  const v=window.prompt(`✏️ 입고 수정\n${soonapName(code)} (${code})\n\n수량만 적으면 날짜는 그대로 둡니다.\n날짜도 바꾸시려면 뒤에 붙이세요.  예) 30 7/28`, cur);
+  if(v===null) return;
+  const r=soonapParseIn(v);
+  if(!r){ if(typeof alert==='function') alert('수량은 1 이상의 숫자로 적어주세요.'); return; }
+  if(r.badDate){ if(typeof alert==='function') alert(`날짜를 못 읽었습니다: "${r.badDate}"\n예) 7/28   07-28   2026-07-28`); return; }
+  const time=String(e.at).slice(11)||new Date().toISOString().slice(11);
+  // 날짜를 안 적으셨으면(오늘로 잡힌 경우) 원래 날짜를 지킵니다
+  const keep=(String(v).trim().split(/[\s,]+/).length===1);
+  e.qty=r.qty;
+  e.at=(keep?String(e.at).slice(0,10):r.date)+'T'+time;
+  e.updatedAt=new Date().toISOString();
+  saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
+  showToast(`✅ ${r.qty}장 · ${e.at.slice(5,10).replace('-','/')}`);
+}
+function soonapInDelete(code,at){
+  const {arr,i}=soonapInFind(code,at); if(i<0){ showToast('그 입고 기록을 찾지 못했습니다'); return; }
+  const e=arr[i];
+  if(!confirm(`${soonapName(code)}\n${String(e.at).slice(0,10)} 입고 ${e.qty}장을 지웁니다.`)) return;
+  arr.splice(i,1);
+  if(!arr.length) delete soonap.ins[code];
+  saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
+  showToast('삭제됨');
 }
 function soonapOrderPrompt(code){
   const cur=Number(soonap.onorder[code])||0;
@@ -2594,7 +2817,7 @@ function soonapCmpPrompt(){
   renderSoonapGrid();
 }
 
-function soonapGridStep(n){ soonapYm = n>0 ? soonapNextYm(soonapYm) : soonapPrevYm(soonapYm); renderSoonapGrid(); }
+function soonapGridStep(n){ soonapYm = n>0 ? soonapNextYm(soonapYm) : soonapPrevYm(soonapYm); renderSoonapGrid(); if(typeof renderSoonapInSheet==='function') renderSoonapInSheet(); }
 function soonapGridToggleAS(){ soonapGridAS=!soonapGridAS; renderSoonapGrid(); }
 function soonapGridToggleCompact(){
   soonapGridCompact=!soonapGridCompact;
@@ -3192,18 +3415,23 @@ let calSelectedDate=todayStr();
 
 // ── 거래처·자사 휴무 (기간). 달력 표시 전용 — 리드타임·출고일 계산에는 넣지 않음.
 //    영업일 계산까지 바꾸려면 KR_HOLIDAYS 쪽을 손봐야 합니다(지금은 일부러 안 넣음).
-//    새 휴무는 여기 한 줄만 더 적으면 됩니다. self:true 는 와이비앤디(우리 공장).
-const VENDOR_BREAKS=[
-  {name:'대원유리', from:'2026-07-29', to:'2026-07-31'},
-  {name:'아름유리', from:'2026-08-01', to:'2026-08-04'},
-  {name:'명글라스', from:'2026-08-01', to:'2026-08-05'},
-  {name:'와이비앤디', from:'2026-08-01', to:'2026-08-04', self:true}
+//    이제는 앱(게시판 탭 🏭 휴무)에서 직접 넣고 고칩니다. 아래는 처음 한 번만 심는 씨앗입니다.
+//    self:true 는 와이비앤디(우리 공장).
+const INITIAL_BREAKS=[
+  {id:'br-daewon-202607',  name:'대원유리',  from:'2026-07-29', to:'2026-07-31'},
+  {id:'br-areum-202608',   name:'아름유리',  from:'2026-08-01', to:'2026-08-04'},
+  {id:'br-myeong-202608',  name:'명글라스',  from:'2026-08-01', to:'2026-08-05'},
+  {id:'br-ybnd-202608',    name:'와이비앤디', from:'2026-08-01', to:'2026-08-04', self:true}
 ];
+let vendorBreaks=J(localStorage.getItem('ybn-breaks-v1'))||INITIAL_BREAKS.map(b=>({...b}));
+function saveBreaks(){ try{ localStorage.setItem('ybn-breaks-v1',JSON.stringify(vendorBreaks)); }catch(e){} }
+// 지운 휴무는 묘비(deleted)로 남겨두고 화면에서만 뺍니다. 목록을 볼 때는 항상 이 함수를 씁니다.
+function activeBreaks(){ return vendorBreaks.filter(b=>b&&!b.deleted&&b.name&&b.from&&b.to); }
 // 그 날짜에 걸린 휴무 목록 (문자열 비교라 YYYY-MM-DD 형식이어야 합니다)
 function breaksOn(dateStr){
   if(!dateStr) return [];
   // 와이비앤디를 맨 앞으로 — 막대 줄 순서와 날짜 상세 목록이 이 순서를 따릅니다
-  return VENDOR_BREAKS.filter(b=>dateStr>=b.from&&dateStr<=b.to)
+  return activeBreaks().filter(b=>dateStr>=b.from&&dateStr<=b.to)
     .sort((a,b)=>(b.self?1:0)-(a.self?1:0));
 }
 // 7/29 → "7/29" 처럼 짧게
@@ -3224,7 +3452,7 @@ function showMain(id){
   fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
   if(id==='home')renderHome();
   if(id==='todo')renderTodo();
-  if(id==='board'){renderNotices();renderSchedules();}
+  if(id==='board'){renderNotices();renderSchedules();renderBreaks();}
   if(id==='stock')renderSub(curSub);
   if(id==='mat')renderMat();
   if(id==='glassneed')renderGlassNeed();
@@ -3706,6 +3934,115 @@ function confirmSch(){
   }
   editSchId=null;
   saveAll();closeM('sch-modal');renderSchedules();renderHome();renderCal();renderNotices();autoSync();
+}
+
+// ── 기간 일정 (휴무·출장·휴가 등. 달력에 기간 막대로 그려집니다) ──
+let editBreakId=null, breakKind='휴무';
+// 구분별 막대 색. 없는 구분이 들어와도 기타 색으로 떨어집니다.
+const BREAK_KIND={'휴무':{ico:'🏭',color:'var(--acc2)'},'출장':{ico:'✈️',color:'var(--acc)'},
+                  '휴가':{ico:'🌴',color:'var(--acc3)'},'기타':{ico:'📌',color:'var(--tx2)'}};
+function breakKindOf(b){ return (b&&BREAK_KIND[b.kind])?b.kind:'휴무'; }
+function setBreakKind(k,btn){
+  breakKind=k;
+  document.querySelectorAll('#break-modal .q-btn').forEach(x=>{x.style.background='';x.style.color='';x.style.borderColor='';});
+  if(btn){ const c=BREAK_KIND[k].color; btn.style.background=c; btn.style.color='#0d1117'; btn.style.borderColor=c; }
+}
+// 업체명이 그대로 화면에 들어가므로 따옴표·꺾쇠만 막아둡니다
+function brEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function renderBreaks(){
+  const el=document.getElementById('break-list');
+  if(!el) return;
+  const list=activeBreaks().slice().sort((a,b)=>a.from<b.from?-1:a.from>b.from?1:0);
+  if(!list.length){ el.innerHTML='<div class="empty"><div class="empty-ico">🏭</div>등록된 휴무가 없습니다</div>'; return; }
+  const today=todayStr();
+  el.innerHTML=list.map(b=>{
+    const past=b.to<today;
+    const now=today>=b.from&&today<=b.to;
+    const days=breakDays(b.from,b.to);
+    const k=breakKindOf(b), ki=BREAK_KIND[k];
+    return '<div class="sch-item"'+(past?' style="opacity:.5"':'')+'>'
+      +'<div class="sch-bar2" style="background:'+(b.self?'var(--acc4)':ki.color)+'"></div>'
+      +'<div class="sch-info">'
+        +'<div class="sch-content">'+ki.ico+' '+brEsc(b.name)+(b.self?' <span style="font-size:10px;color:var(--tx3)">· 우리 공장</span>':'')
+          +(now?' <span style="font-size:10px;color:var(--acc3);font-weight:700">진행중</span>':'')+'</div>'
+        +'<div class="sch-cat">'+k+' · '+brShort(b.from)+' ~ '+brShort(b.to)+' · '+days+'일</div>'
+      +'</div>'
+      +'<div class="todo-actions"><button onclick="editBreak(\''+b.id+'\')" class="icon-btn">✏️</button>'
+      +'<button onclick="deleteBreak(\''+b.id+'\')" class="icon-btn del">🗑</button></div>'
+      +'</div>';
+  }).join('');
+}
+// 시작일·종료일 모두 포함한 날수 (7/29~7/31 = 3일)
+function breakDays(from,to){
+  if(!from||!to) return 0;
+  const d=Math.floor((new Date(to)-new Date(from))/86400000)+1;
+  return d>0?d:0;
+}
+function breakNameList(){
+  const el=document.getElementById('bm-name-list');
+  if(!el) return;
+  const names=[...new Set(vendorBreaks.map(b=>(b.name||'').trim()).filter(Boolean))].sort();
+  el.innerHTML=names.map(n=>'<option value="'+brEsc(n)+'">').join('');
+}
+function bmUpdateDays(){
+  const el=document.getElementById('bm-days');
+  if(!el) return;
+  const f=document.getElementById('bm-from').value, t=document.getElementById('bm-to').value;
+  if(!f||!t){ el.textContent=''; return; }
+  const d=breakDays(f,t);
+  el.textContent=d>0?('총 '+d+'일 (시작일·종료일 포함)'):'종료일이 시작일보다 앞섭니다';
+  el.style.color=d>0?'var(--tx3)':'var(--acc4)';
+}
+function openBreakModal(){
+  editBreakId=null;
+  document.getElementById('bm-title').textContent='🏭 기간 일정 추가';
+  document.getElementById('bm-confirm').textContent='✓ 저장';
+  document.getElementById('bm-name').value='';
+  document.getElementById('bm-from').value=todayStr();
+  document.getElementById('bm-to').value=todayStr();
+  document.getElementById('bm-self').checked=false;
+  setBreakKind('휴무',document.getElementById('bkind-휴무'));
+  breakNameList(); bmUpdateDays();
+  document.getElementById('break-modal').classList.add('on');
+}
+function editBreak(id){
+  const b=vendorBreaks.find(x=>x.id===id); if(!b) return;
+  editBreakId=id;
+  document.getElementById('bm-title').textContent='🏭 기간 일정 수정';
+  document.getElementById('bm-confirm').textContent='✓ 수정';
+  document.getElementById('bm-name').value=b.name||'';
+  document.getElementById('bm-from').value=b.from||todayStr();
+  document.getElementById('bm-to').value=b.to||todayStr();
+  document.getElementById('bm-self').checked=!!b.self;
+  const k=breakKindOf(b);
+  setBreakKind(k,document.getElementById('bkind-'+k));
+  breakNameList(); bmUpdateDays();
+  document.getElementById('break-modal').classList.add('on');
+}
+function deleteBreak(id){
+  const b=vendorBreaks.find(x=>x.id===id); if(!b) return;
+  if(!confirm(b.name+' 휴무를 삭제합니까?')) return;
+  // 지워도 목록에는 묘비로 남깁니다 — 빼버리면 동기화 때 다른 기기 것이 되살아납니다
+  b.deleted=true; b.updatedAt=new Date().toISOString();
+  saveBreaks(); renderBreaks(); renderCal(); autoSync(); showToast('삭제됨');
+}
+function confirmBreak(){
+  const name=document.getElementById('bm-name').value.trim();
+  const from=document.getElementById('bm-from').value;
+  const to=document.getElementById('bm-to').value;
+  const self=!!document.getElementById('bm-self').checked;
+  if(!name||!from||!to){ showToast('이름과 기간을 입력하세요'); return; }
+  if(to<from){ showToast('종료일이 시작일보다 앞섭니다'); return; }
+  if(editBreakId){
+    const b=vendorBreaks.find(x=>x.id===editBreakId);
+    if(b){ b.name=name; b.from=from; b.to=to; b.self=self; b.kind=breakKind; b.updatedAt=new Date().toISOString(); }
+    showToast('✅ 수정됨');
+  } else {
+    vendorBreaks.push({id:'br-'+Date.now(), name, from, to, self, kind:breakKind, createdAt:new Date().toISOString()});
+    showToast('✅ '+breakKind+' 추가됨 ('+breakDays(from,to)+'일)');
+  }
+  editBreakId=null;
+  saveBreaks(); closeM('break-modal'); renderBreaks(); renderCal(); autoSync();
 }
 
 // ── STOCK DASHBOARD ──
@@ -6808,19 +7145,28 @@ function mergeStockEventsLocal(localObj, remoteObj){
 function mergeWorkLogLocal(localArr, remoteArr){
   localArr=Array.isArray(localArr)?localArr:[];
   remoteArr=Array.isArray(remoteArr)?remoteArr:[];
+  const localDates=new Set(localArr.map(d=>d&&d.date).filter(Boolean));
   const byDate={}, order=[];
-  function addDay(day){
+  function addDay(day, fromRemote){
     if(!day||!day.date) return;
+    // 시트에서 온 것만 묘비로 거릅니다. 로컬은 지금 화면에 보이는 것이라 그대로 둡니다.
+    const tomb=fromRemote?wlTombs[day.date]:null;
+    let items=day.items||[];
+    if(tomb) items=items.filter(it=>!wlIsTombed(tomb,it));
+    if(fromRemote && !items.length && !byDate[day.date]) return;   // 빈 날은 만들지 않습니다
     if(!byDate[day.date]){ byDate[day.date]={date:day.date,items:[]}; order.push(day.date); }
     const b=byDate[day.date];
-    (day.items||[]).forEach(it=>{
+    items.forEach(it=>{
       const sig=(it.eventIds&&it.eventIds.length)?it.eventIds.slice().sort().join(','):null;
       if(sig){ const dup=b.items.find(x=>x.eventIds&&x.eventIds.slice().sort().join(',')===sig); if(dup) return; }
       b.items.push(it);
     });
   }
-  localArr.forEach(addDay); remoteArr.forEach(addDay);
-  return order.map(d=>byDate[d]).sort((a,b)=>a.date.localeCompare(b.date));
+  localArr.forEach(d=>addDay(d,false)); remoteArr.forEach(d=>addDay(d,true));
+  // 묘비로 다 걸러져 빈 껍데기만 남은 날은 뺍니다. 원래 로컬에 있던 날은 비어 있어도 그대로 둡니다.
+  return order.map(d=>byDate[d])
+    .filter(d=>d.items.length||localDates.has(d.date))
+    .sort((a,b)=>a.date.localeCompare(b.date));
 }
 function mergeOdVendorsLocal(localObj, remoteObj){
   localObj=(localObj&&typeof localObj==='object')?localObj:{};
@@ -6860,6 +7206,8 @@ function metaForSync(){
   put('wkExamples',    typeof wkExamples!=='undefined'    ? wkExamples    : undefined);
   put('wlPostponed',   typeof wlPostponed!=='undefined'   ? wlPostponed   : undefined);
   put('orderDeleted',  typeof orderDeleted!=='undefined'  ? orderDeleted  : undefined);
+  put('vendorBreaks',  typeof vendorBreaks!=='undefined'  ? vendorBreaks  : undefined);
+  put('wlTombs',       typeof wlTombs!=='undefined'       ? wlTombs       : undefined);
   let s='';
   try{ s=JSON.stringify(ext); }catch(e){ s=''; }
   if(s.length>GS_EXT_LIMIT){
@@ -6884,7 +7232,17 @@ function expandSheetExtras(data){
 
 // 받은 data를 현재 로컬 변수들에 병합 적용
 function applyMergedFromSheet(data){
-  expandSheetExtras(data);   // meta에 얹혀온 9가지를 먼저 풀어 놓는다 (아래 병합이 그대로 처리)
+  expandSheetExtras(data);   // meta에 얹혀온 것들을 먼저 풀어 놓는다 (아래 병합이 그대로 처리)
+  // ★ 작업일지 묘비를 worklog 병합보다 먼저 받아야 합니다. 순서가 뒤바뀌면 비운 날이 한 번 되살아납니다.
+  if(data.wlTombs!==undefined && data.wlTombs && typeof data.wlTombs==='object'){
+    for(const k in data.wlTombs){
+      const r=data.wlTombs[k]; if(!r||!Array.isArray(r.sigs)) continue;
+      const l=wlTombs[k];
+      if(!l||!Array.isArray(l.sigs)) wlTombs[k]={at:r.at, sigs:r.sigs.slice()};
+      else wlTombs[k]={at:(r.at>l.at?r.at:l.at), sigs:[...new Set([...l.sigs, ...r.sigs])]};  // 양쪽 것을 모두 막습니다
+    }
+    saveWlTombs();
+  }
   if(data.worklog!==undefined) workLog=mergeWorkLogLocal(workLog, data.worklog);
   if(data.delivDeleted!==undefined && data.delivDeleted && typeof data.delivDeleted==='object'){
     for(const k in data.delivDeleted){ if(!delivDeleted[k]) delivDeleted[k]=data.delivDeleted[k]; }
@@ -6912,6 +7270,11 @@ function applyMergedFromSheet(data){
   }
   if(data.schedules!==undefined) schedules=mergeById(schedules, data.schedules, 'id');
   if(data.todos!==undefined) todos=mergeById(todos, data.todos, 'id');
+  // 휴무: 지운 것은 목록에 묘비(deleted)로 남겨둡니다. 빼버리면 다른 기기 것이 되살아납니다.
+  if(data.vendorBreaks!==undefined && Array.isArray(data.vendorBreaks)){
+    vendorBreaks=mergeById(vendorBreaks, data.vendorBreaks, 'id');
+    saveBreaks();
+  }
   if(data.matLog!==undefined) matLog=mergeById(matLog, data.matLog, 'id');
   if(data.sheetLog!==undefined && typeof sheetLog!=='undefined') sheetLog=mergeById(sheetLog, data.sheetLog, 'id');
   if(data.vendorBook!==undefined) vendorBook=mergeById(vendorBook, data.vendorBook, 'id');
@@ -7100,7 +7463,7 @@ function rerenderAfterSync(){
   try{ renderHome(); }catch(e){}
   try{ if(curMain==='stock'){ renderSub(curSub); } }catch(e){}
   try{ if(curMain==='todo') renderTodo(); }catch(e){}
-  try{ if(curMain==='board'){ renderNotices(); renderSchedules(); } }catch(e){}
+  try{ if(curMain==='board'){ renderNotices(); renderSchedules(); renderBreaks(); } }catch(e){}
   try{ if(curMain==='mat') renderMat(); }catch(e){}
   try{ if(typeof renderDelivery==='function') renderDelivery(); }catch(e){}
   try{ if(typeof renderLedger==='function') renderLedger(); }catch(e){}
@@ -7936,7 +8299,7 @@ function renderCal(){
   // 날짜마다 순서를 다시 매기면, 앞 휴무가 끝난 날부터 아래 막대가 위로 올라와 계단처럼 어긋난다.
   const mFrom=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-01';
   const mTo=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(lastDate).padStart(2,'0');
-  const laneBreaks=VENDOR_BREAKS.filter(b=>b.from<=mTo&&b.to>=mFrom)
+  const laneBreaks=activeBreaks().filter(b=>b.from<=mTo&&b.to>=mFrom)
     .sort((a,b)=>(b.self?1:0)-(a.self?1:0) || (a.from<b.from?-1:a.from>b.from?1:0));
   // 한 칸에 그릴 막대들. 이름은 막대가 시작하는 칸(범위 첫날·주 첫칸·달 첫날)에만 적는다.
   function breakBars(dateStr, d, dow){
@@ -9603,14 +9966,25 @@ function applyWlDateChange(oldDate, inputId){
   const dayLog = workLog.find(d=>d.date===oldDate);
   if(!dayLog) return;
 
+  // 옮기기 전에 그 날 항목들을 묘비에 적어 둡니다.
+  // 시트에는 옛 날짜가 그대로 남아 있어, 이걸 안 하면 동기화 때 되살아납니다.
+  wlTombAdd(oldDate, dayLog.items);
+
   const existing = workLog.find(d=>d.date===newDate);
   if(existing){
+    let dup=0;
     dayLog.items.forEach(it=>{
+      // ★ 같은 작업을 두 번 옮기면 수량이 계속 더해집니다.
+      //   고유번호(eventIds)가 이미 옮겨간 쪽에 있으면 건너뜁니다.
+      //   (7/30이 동기화로 되살아나 여러 번 옮기시면서 6/30 수량이 부풀던 원인)
+      const ids = wlEvIds(it);
+      if(ids.length && existing.items.some(x=>wlEvIds(x).some(id=>ids.indexOf(id)>=0))){ dup++; return; }
       const ex = existing.items.find(i=>(i.code&&i.code===it.code||i.sizeKey&&i.sizeKey===it.sizeKey)&&i.color===it.color&&i.type===it.type);
-      if(ex) ex.qty+=it.qty;
+      if(ex){ ex.qty+=it.qty; ex.eventIds=[...new Set([...(ex.eventIds||[]), ...ids])]; }
       else existing.items.push({...it});
     });
     workLog = workLog.filter(d=>d.date!==oldDate);
+    if(dup) showToast(`이미 옮겨진 ${dup}건은 건너뛰었습니다`);
   } else {
     dayLog.date = newDate;
   }
