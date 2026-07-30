@@ -3638,7 +3638,17 @@ function renderHome(){
   if(!tl||!tl.items.length){document.getElementById('home-work').innerHTML='<div class="empty-sm">오늘 작업 기록 없음</div>';return;}
   const wcQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='WC';}).reduce((a,i)=>a+i.qty,0);
   const etpQ=tl.items.filter(i=>{const c=i.color||(MODELS.find(x=>x.code===i.code)||{}).color;return c==='ETP';}).reduce((a,i)=>a+i.qty,0);
-  document.getElementById('home-work').innerHTML='<div class="work-stats"><div class="ws"><div class="ws-l">총계</div><div class="ws-v acc3">'+tw+'장</div></div><div class="ws"><div class="ws-l wc">웜코튼</div><div class="ws-v wc">'+wcQ+'</div></div><div class="ws"><div class="ws-l etp">에토프</div><div class="ws-v etp">'+etpQ+'</div></div></div>'+tl.items.slice(0,5).map(it=>{const m=MODELS.find(x=>x.code===it.code);const dot=m&&m.color==='WC'?'var(--wc)':m&&m.color==='ETP'?'var(--etp)':'var(--tx2)';return '<div class="wsum-row"><div class="dot" style="background:'+dot+'"></div><div class="wsum-name">'+(m?hlName(m.short,m.color):it.code)+'</div><div class="wsum-qty">'+it.qty+'장</div></div>';}).join('');
+  document.getElementById('home-work').innerHTML='<div class="work-stats"><div class="ws"><div class="ws-l">총계</div><div class="ws-v acc3">'+tw+'장</div></div><div class="ws"><div class="ws-l wc">웜코튼</div><div class="ws-v wc">'+wcQ+'</div></div><div class="ws"><div class="ws-l etp">에토프</div><div class="ws-v etp">'+etpQ+'</div></div></div>'+tl.items.slice(0,5).map(it=>{
+    // 인쇄실 방식 항목은 code 가 없고 short·sizeKey 를 씁니다.
+    // code 로만 찾다가 못 찾으면 undefined 가 그대로 찍혔습니다(2026-07-30).
+    // 작업일지 목록과 같은 순서로 받쳐 둡니다.
+    const m=it.code?MODELS.find(x=>x.code===it.code):null;
+    const ic=it.color||(m&&m.color)||'';
+    const dot=ic==='WC'?'var(--wc)':ic==='ETP'?'var(--etp)':'var(--tx2)';
+    const szDisp=it.sizeLabel||(it.sizeKey?it.sizeKey.replace('sz_','').replace('x','×'):'');
+    const nm=m?hlName(m.short,ic):(it.short?hlName(it.short,ic):(szDisp||it.code||'이름 없음'));
+    const sub=(it.short&&szDisp)?' <span style="font-weight:400;color:var(--tx3);font-size:10px">'+szDisp+'</span>':'';
+    return '<div class="wsum-row"><div class="dot" style="background:'+dot+'"></div><div class="wsum-name">'+nm+sub+'</div><div class="wsum-qty">'+it.qty+'장</div></div>';}).join('');
 }
 
 // ── TODO ──
@@ -8361,8 +8371,13 @@ function renderCal(){
     const events=schDateMap[dateStr]||[];
     const numClass=isToday?'today-num':dayOfWeek===0?'sun':dayOfWeek===6?'sat':'';
 
-    const dots=events.slice(0,3).map(s=>`<div class="cal-dot" style="background:${CC[s.cat]||'var(--tx3)'}"></div>`).join('');
-    const chips=events.slice(0,2).map(s=>`<div class="cal-event-chip" style="background:${CC[s.cat]}22;color:${CC[s.cat]}">${s.content.slice(0,6)}</div>`).join('');
+    // 그날 마감인 할일(아직 안 끝난 것)도 칩으로 띄웁니다.
+    // 할일에 기한을 적어도 달력에는 안 보여서 "그날 확인" 이 안 되던 문제(2026-07-30).
+    const dueTodos=(typeof todos!=='undefined'?todos:[]).filter(t=>t&&t.dueDate===dateStr&&t.status!=='완료');
+    const dots=events.slice(0,3).map(s=>`<div class="cal-dot" style="background:${CC[s.cat]||'var(--tx3)'}"></div>`).join('')
+      +(dueTodos.length?`<div class="cal-dot" style="background:var(--acc4)"></div>`:'');
+    const chips=events.slice(0,2).map(s=>`<div class="cal-event-chip" style="background:${CC[s.cat]}22;color:${CC[s.cat]}">${s.content.slice(0,6)}</div>`).join('')
+      +dueTodos.slice(0,2).map(t=>`<div class="cal-event-chip" style="background:rgba(220,38,38,.12);color:var(--acc4)" title="${brEsc(t.content)}">✅ ${brEsc(String(t.content||'').slice(0,6))}</div>`).join('');
 
     // 휴무 막대 — 와이비앤디는 빨강, 거래처는 주황. 며칠짜리는 칸을 넘어 이어진다.
     // 일정 칩보다 먼저 그린다. 뒤에 두면 일정이 있는 칸만 막대가 아래로 밀려 줄이 어긋난다.
@@ -8372,7 +8387,7 @@ function renderCal(){
     html+=`<div class="cal-day${isToday?' today':''}${isSelected?' selected':''}${brs.some(b=>b.self)?' self-break':''}" onclick="selectCalDate('${dateStr}')">
       <div class="cal-day-num ${numClass}">${isToday?`<span style="background:var(--acc);color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">${d}</span>`:d}</div>
       ${bars}
-      ${events.length>0?`<div class="cal-dot-wrap">${dots}</div>${chips}`:''}
+      ${(events.length>0||dueTodos.length>0)?`<div class="cal-dot-wrap">${dots}</div>${chips}`:''}
     </div>`;
   }
 
@@ -8412,25 +8427,37 @@ function renderCalDayDetail(dateStr){
   const CC={work:'var(--acc)',delivery:'var(--acc3)',order:'var(--acc2)',etc:'var(--tx2)'};
   const CL={work:'작업',delivery:'납품',order:'발주',etc:'기타'};
 
-  // 그 날 걸린 휴무
+  // 그 날 걸린 휴무·출장
   const brs=breaksOn(dateStr);
-  const brBox=brs.map(b=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${b.self?'rgba(220,38,38,.07)':'rgba(234,88,12,.07)'};border-radius:8px;margin-bottom:5px;border-left:3px solid ${b.self?'#b91c1c':'#c2410c'}">
+  const brBox=brs.map(b=>{
+    const k=(typeof breakKindOf==='function')?breakKindOf(b):'휴무';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${b.self?'rgba(220,38,38,.07)':'rgba(234,88,12,.07)'};border-radius:8px;margin-bottom:5px;border-left:3px solid ${b.self?'#b91c1c':'#c2410c'}">
       <div style="flex:1">
-        <div style="font-size:12px;font-weight:700;color:${b.self?'#b91c1c':'#c2410c'}">${b.name} 휴무</div>
+        <div style="font-size:12px;font-weight:700;color:${b.self?'#b91c1c':'#c2410c'}">${b.name} ${k}</div>
         <div style="font-size:10px;color:var(--tx3)">${brShort(b.from)} ~ ${brShort(b.to)}${b.self?' · 우리 공장':''}</div>
       </div>
+    </div>`;}).join('');
+
+  // 그 날 마감인 할일 (아직 안 끝난 것)
+  const dueTodos=(typeof todos!=='undefined'?todos:[]).filter(t=>t&&t.dueDate===dateStr&&t.status!=='완료');
+  const dueBox=dueTodos.map(t=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:rgba(220,38,38,.07);border-radius:8px;margin-bottom:5px;border-left:3px solid var(--acc4)">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:700;color:var(--acc4)">✅ ${brEsc(t.content)}</div>
+        <div style="font-size:10px;color:var(--tx3)">할일 기한${t.company?' · '+brEsc(t.company):''}${t.assignee?' · '+brEsc(t.assignee):''}</div>
+      </div>
+      <button onclick="showMain('todo')" class="icon-btn" style="font-size:11px" title="할일 탭으로">↗</button>
     </div>`).join('');
 
   if(!events.length){
     el.innerHTML=`<div style="border-top:1px solid var(--b1);padding-top:10px">
-      ${brBox}
+      ${brBox}${dueBox}
       <div style="font-size:12px;color:var(--tx3)">${dateLabel} — 일정 없음 <button onclick="openSchModalWithDate('${dateStr}')" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;text-decoration:underline">+ 추가</button></div>
     </div>`;
     return;
   }
 
   el.innerHTML=`<div style="border-top:1px solid var(--b1);padding-top:10px">
-    ${brBox}
+    ${brBox}${dueBox}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:12px;font-weight:700">${dateLabel}</div>
       <button onclick="openSchModalWithDate('${dateStr}')" style="padding:3px 10px;background:var(--acc2);border:none;border-radius:12px;color:#0d1117;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">+ 추가</button>
