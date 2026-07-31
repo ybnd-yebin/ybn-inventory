@@ -6537,7 +6537,8 @@ let asmQuickOn=false;
 let asmQuickTarget='glass';   // 'glass' 조립실 유리 / 'done' 완제품
 let asmQuickMode='count';     // 'count' 실측(덮어쓰기) / 'in' 입고(더하기)
 let asmQuickDate='';          // 넣을 날짜 (비면 오늘)
-let asmQuickCart=[];          // 담은 것 [{itemId,name,color,gw,gh,qty}]
+let asmQuickCart=[];          // 담은 것 [{itemId,name,color,qty}]
+let _asmQuickShown=[];        // 지금 화면에 뿌린 검색 결과 — 담기 버튼이 이걸 그대로 봅니다
 
 // ── EURO700 인쇄유리 품목: HANSAEM_CATALOG에서 실시간 생성 (복붙 없음) ──
 // 정규격만 (비규격 '비규격' 제외). 색상은 카탈로그 [2](WC/ETP) + 제품명(Veil BRZ/Shade) 판별.
@@ -6579,6 +6580,19 @@ function euroItemFromCode(code){
 // {id, glass, done, events:[...], updatedAt, by}
 // glass=조립실 유리재고, done=완제품재고
 let assemblyStock = (typeof J==='function' ? J(localStorage.getItem('ybn-asm-v1')) : null) || [];
+/* 2026-07-31 빠른 입력 버그 뒷정리.
+   항목 id 를 '|' 로 이어 붙였다가 쪼개면서 'euro' 라는 id 만 남은 껍데기가 생겼습니다.
+   실제 규격은 'euro|코드' 라 id 가 정확히 'euro' 인 것은 그때 생긴 쓰레기뿐입니다. */
+(function cleanBadAsmIds(){
+  try{
+    const before=assemblyStock.length;
+    assemblyStock=assemblyStock.filter(a=>a && a.id && a.id!=='euro');
+    if(assemblyStock.length!==before){
+      localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock));
+      console.warn('[조립실] 잘못 만들어진 항목 '+(before-assemblyStock.length)+'건을 지웠습니다');
+    }
+  }catch(e){}
+})();
 function saveAssembly(){
   try{ localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock)); }catch(e){}
   if(typeof asmQuickIndexReset==='function') asmQuickIndexReset();   // 새 규격이 생겼을 수 있음
@@ -7071,11 +7085,13 @@ function asmQuickSearch(){
   if(!rows.length){ box.innerHTML=`<div style="font-size:11px;color:var(--tx3);padding:8px 2px">찾는 규격이 없습니다. 비규격·베일은 조립실 대상이 아니라 안 나옵니다.</div>`; return; }
   const isGlass=asmQuickTarget==='glass';
   const CORDER=['ETP','WC'];
+  _asmQuickShown=rows;          // 담기 버튼이 이 자료를 그대로 봅니다
   box.innerHTML=rows.map((r,ri)=>{
     const cols=Object.keys(r.cols).sort((a,b)=>{
       const ra=CORDER.indexOf(a), rb=CORDER.indexOf(b);
       return (ra<0?99:ra)-(rb<0?99:rb);
     });
+    r._cols=cols;
     const inputs=cols.map(c=>{
       const it=r.cols[c];
       const a=asmFind(it.id);
@@ -7087,30 +7103,37 @@ function asmQuickSearch(){
           style="width:100%;padding:9px 6px;text-align:center;font-size:15px;background:var(--bg);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-family:'JetBrains Mono',monospace">
       </div>`;
     }).join('');
-    const ids=cols.map(c=>r.cols[c].id).join('|');
     return `<div style="padding:10px 0;border-bottom:1px solid var(--b1)">
       <div style="font-size:13px;font-weight:800;margin-bottom:6px">${brEsc(r.name)}
         ${r.gw?`<span style="font-size:10px;color:var(--tx3);font-weight:400">${r.gw}×${r.gh}</span>`:''}</div>
       <div style="display:flex;gap:8px;align-items:flex-end">
         ${inputs}
-        <button onclick="asmQuickPut(${ri},'${ids}','${cols.join('|')}','${brEsc(r.name)}')"
+        <button onclick="asmQuickPut(${ri})"
           style="flex-shrink:0;padding:9px 14px;background:var(--acc3);border:none;border-radius:7px;color:#0d1117;font-size:12px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">➕ 담기</button>
       </div>
     </div>`;
   }).join('');
 }
-/* 담기 — 그 줄에서 값이 적힌 색상만 담습니다 */
-function asmQuickPut(ri, idsStr, colsStr, name){
-  const ids=String(idsStr).split('|'), cols=String(colsStr).split('|');
+/* 담기 — 그 줄에서 값이 적힌 색상만 담습니다.
+   ※ 전에는 항목 id 여러 개를 '|' 로 이어 붙여 버튼에 넘겼는데,
+     id 자체가 'euro|CODE' 라 '|' 를 품고 있어 쪼갤 때 어긋났습니다.
+     에토프 칸이 전부 'euro' 라는 같은 id 를 받아 서로 덮어쓰고,
+     웜코튼은 에토프 코드에 들어갈 뻔했습니다(2026-07-31).
+     그래서 문자열로 넘기지 않고 화면에 그린 자료를 그대로 봅니다. */
+function asmQuickPut(ri){
+  const r=(_asmQuickShown||[])[ri];
+  if(!r){ showToast('다시 검색해 주세요'); return; }
+  const cols=r._cols||[];
   let added=0;
-  cols.forEach((c,i)=>{
+  cols.forEach(c=>{
+    const it=r.cols[c]; if(!it) return;
     const el=document.getElementById(`aq_${ri}_${c}`); if(!el) return;
     const raw=String(el.value).trim(); if(raw==='') return;
     const v=parseInt(raw); if(isNaN(v)||v<0) return;
     if(asmQuickMode==='in' && v<=0) return;
-    const ex=asmQuickCart.find(x=>x.itemId===ids[i]);
+    const ex=asmQuickCart.find(x=>x.itemId===it.id);
     if(ex) ex.qty=v;                       // 같은 것을 또 담으면 마지막 값으로
-    else asmQuickCart.push({itemId:ids[i], name, color:c, qty:v});
+    else asmQuickCart.push({itemId:it.id, name:r.name, color:c, qty:v});
     el.value=''; added++;
   });
   if(!added){ showToast('수량을 적고 담아주세요'); return; }
