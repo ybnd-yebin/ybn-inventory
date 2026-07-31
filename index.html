@@ -7626,6 +7626,7 @@ function applyMergedFromSheet(data){
   // ── 작업 미룬 항목 병합 ──
   if(data.wlPostponed!==undefined && Array.isArray(data.wlPostponed) && typeof wlPostponed!=='undefined'){
     wlPostponed=mergeById(wlPostponed, data.wlPostponed, 'id');
+    if(typeof prunePostponed==='function') prunePostponed();   // 시트에 남은 옛 항목이 다시 실려오지 않게
     localStorage.setItem('ybn-wl-postponed',JSON.stringify(wlPostponed));
   }
   // ── 발주(orderLog) 병합: id 기준 최신 우선, 삭제 묘비로 부활 방지 ──
@@ -9492,6 +9493,25 @@ let wlRoom = 'print'; // 'print' | 'assembly'
 let wlChecklist = []; // 오늘 체크리스트 상태
 // postponed: [{code, short, size, qty, fromDate}]
 let wlPostponed = JSON.parse(localStorage.getItem('ybn-wl-postponed')||'[]');
+
+/* 지난 날짜로 미뤄진 항목 걷어내기 (2026-07-31)
+   화면은 targetDate 가 오늘인 것만 봅니다(renderWlPrint 계열).
+   그래서 어제 날짜가 된 항목은 다시 못 보는데도 지워지지 않아 계속 쌓였습니다.
+   1.9MB 까지 불어나 저장 공간을 73% 먹고, 동기화에서도 11가지가 통째로 빠지고 있었습니다.
+   못 보는 기록이라 지워도 잃는 것이 없습니다. */
+function prunePostponed(){
+  const td=(typeof todayStr==='function')?todayStr():'';
+  if(!td) return 0;
+  const before=wlPostponed.length;
+  wlPostponed=wlPostponed.filter(p=>p && p.targetDate && p.targetDate>=td);
+  const cut=before-wlPostponed.length;
+  if(cut>0){
+    try{ localStorage.setItem('ybn-wl-postponed', JSON.stringify(wlPostponed)); }catch(e){}
+    console.warn('[미룬항목] 지난 날짜 '+cut+'건을 정리했습니다 (남은 '+wlPostponed.length+'건)');
+  }
+  return cut;
+}
+prunePostponed();
 
 function savePostponed(){
   localStorage.setItem('ybn-wl-postponed', JSON.stringify(wlPostponed));
