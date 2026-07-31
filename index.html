@@ -7068,8 +7068,13 @@ function asmQuickFind(q){
   for(const r of asmQuickIndex()){
     if(r.hay.indexOf(q)<0) continue;
     const it=r.it;
-    const key=(it.name||'')+'│'+(it.gw||'')+'x'+(it.gh||'');
-    if(!out[key]){ out[key]={name:it.name||'', gw:it.gw, gh:it.gh, cols:{}}; n++; }
+    /* 이름만으로 묶습니다.
+       사이즈를 열쇠에 넣었더니, 한쪽 색만 유리 사이즈가 등록된 규격
+       (예: OB WFED 9053 M — 웜코튼만 895×531)이 두 줄로 갈렸습니다(2026-07-31).
+       이름에 모델번호가 들어 있어 이름만으로도 규격이 갈리지 않습니다. */
+    const key=it.name||'';
+    if(!out[key]){ out[key]={name:key, gw:it.gw, gh:it.gh, cols:{}}; n++; }
+    if(!out[key].gw && it.gw){ out[key].gw=it.gw; out[key].gh=it.gh; }   // 있는 쪽 사이즈를 씁니다
     if(!out[key].cols[it.color||'-']) out[key].cols[it.color||'-']=it;
     if(n>40) break;                                     // 너무 많이 모으지 않습니다
   }
