@@ -7017,10 +7017,20 @@ function renderAsmQuick(){
         : '적은 값만큼 <b>더합니다.</b>'}
       빈 칸은 건드리지 않습니다.${isGlass?'':' 완제품은 실측만 됩니다 — 입고는 조립이라 유리가 차감됩니다.'}
     </div>`;
-  if(!rows.length){ el.innerHTML=h+`<div class="empty"><div class="empty-ico">📋</div>위 필터에 보이는 항목이 없습니다</div>`; return; }
+  // 규격 추가 자리 — 표가 비었을 때가 오히려 더 필요하므로 양쪽에 붙입니다
+  const addPanel=`<div style="margin-top:14px;border-top:1px solid var(--b1);padding-top:10px">
+      <div style="font-size:11px;font-weight:800;color:var(--tx2);margin-bottom:6px">＋ 표에 없는 규격 추가</div>
+      <div style="font-size:10.5px;color:var(--tx3);margin-bottom:6px;line-height:1.5">재고가 있거나 납품 요청이 있는 규격만 표에 오릅니다. 종이엔 있는데 안 보이면 여기서 찾아 올리세요.</div>
+      <input class="inp" id="asm-quick-add-q" placeholder="규격·약어로 찾기 (예: 6073, WHMH, 4586)" oninput="asmQuickAddSearch()" style="margin-bottom:4px">
+      <div id="asm-quick-add-list"></div>
+    </div>`;
+  if(!rows.length){ el.innerHTML=h+`<div class="empty"><div class="empty-ico">📋</div>위 필터에 보이는 항목이 없습니다</div>`+addPanel; return; }
   // 열에 세울 색상 — 이 목록에 실제로 있는 것만
   const colors=[]; rows.forEach(r=>Object.keys(r.cols).forEach(c=>{ if(colors.indexOf(c)<0) colors.push(c); }));
-  colors.sort((a,b)=>['ETP','WC'].indexOf(b)-['ETP','WC'].indexOf(a));   // 종이 순서대로 에토프 → 웜코튼
+  // 수기 재고표와 같은 순서로 세웁니다: 에토프 → 웜코튼 → 나머지
+  const CORDER=['ETP','WC'];
+  const crank=c=>{ const i=CORDER.indexOf(c); return i<0?99:i; };
+  colors.sort((a,b)=>crank(a)-crank(b));
   h+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--b2);white-space:nowrap">규격</th>`
     +colors.map(c=>`<th colspan="2" style="padding:6px 8px;border-bottom:2px solid var(--b2);white-space:nowrap">${c==='-'?'수량':(ASM_COLOR_LABEL[c]||c)}</th>`).join('')
@@ -7048,10 +7058,62 @@ function renderAsmQuick(){
     <div style="display:flex;gap:8px;margin-top:10px">
       <button onclick="asmQuickClear()" style="padding:11px 16px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">지우기</button>
       <button id="asm-quick-save" onclick="asmQuickSave()" style="flex:1;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">적은 칸이 없습니다</button>
-    </div>`;
+    </div>`+addPanel;
   el.innerHTML=h;
   asmQuickCount();
 }
+/* ── 규격 추가 ─────────────────────────────────────────────
+   조립실 목록에는 '재고가 있거나 납품 요청이 있는' 코드만 올라옵니다(asmVisibleItems).
+   그래서 실사할 때 종이엔 있는데 표에 없는 규격이 생깁니다.
+   여기서 한샘 카탈로그를 뒤져 직접 올릴 수 있게 합니다.
+   asmGet 이 없는 항목을 만들어 주므로, 불러 두기만 하면 목록에 뜹니다. */
+function asmQuickCandidates(q){
+  q=String(q||'').trim().toLowerCase();
+  if(q.length<2 || typeof HANSAEM_CATALOG==='undefined') return [];
+  const out={};
+  for(const code in HANSAEM_CATALOG){
+    if(asmFind('euro|'+code)) continue;              // 이미 목록에 있음
+    const a=HANSAEM_CATALOG[code];
+    if(!a || a[1]!=='EURO700') continue;             // 값싼 검사 먼저 (카탈로그가 큽니다)
+    if(((a[0]||'')+' '+code).toLowerCase().indexOf(q)<0) continue;
+    const e=euroItemFromCode(code);
+    if(!e) continue;                                  // 비규격·베일은 여기서 걸러집니다
+    const key=e.name+'│'+(e.gw||'')+'x'+(e.gh||'');
+    if(!out[key]) out[key]={name:e.name, gw:e.gw, gh:e.gh, codes:[]};
+    out[key].codes.push({code, color:e.color});
+  }
+  return Object.keys(out).sort((a,b)=>a.localeCompare(b,'ko')).slice(0,15).map(k=>out[k]);
+}
+function asmQuickAddSearch(){
+  const q=document.getElementById('asm-quick-add-q');
+  const box=document.getElementById('asm-quick-add-list');
+  if(!q||!box) return;
+  const list=asmQuickCandidates(q.value);
+  if(String(q.value).trim().length<2){ box.innerHTML=`<div style="font-size:11px;color:var(--tx3);padding:6px 2px">두 글자 이상 적어주세요 (예: 6073, WHMH)</div>`; return; }
+  if(!list.length){ box.innerHTML=`<div style="font-size:11px;color:var(--tx3);padding:6px 2px">찾는 규격이 없습니다. 이미 표에 있거나, 비규격·베일이면 여기 안 나옵니다.</div>`; return; }
+  box.innerHTML=list.map(r=>{
+    const codes=r.codes.map(c=>c.code).join(',');
+    const cols=r.codes.map(c=>ASM_COLOR_LABEL[c.color]||c.color||'-').join(' · ');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--b1)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700">${brEsc(r.name)}</div>
+        <div style="font-size:10px;color:var(--tx3)">${r.gw?r.gw+'×'+r.gh+' · ':''}${cols}</div>
+      </div>
+      <button onclick="asmQuickAdd('${codes}')" style="flex-shrink:0;padding:6px 12px;background:var(--acc);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">＋ 추가</button>
+    </div>`;
+  }).join('');
+}
+function asmQuickAdd(codesCsv){
+  const codes=String(codesCsv||'').split(',').filter(Boolean);
+  if(!codes.length) return;
+  codes.forEach(c=>asmGet('euro|'+c));   // 없으면 만들어집니다 (유리 0 · 완제품 0)
+  saveAssembly();
+  const q=document.getElementById('asm-quick-add-q'); if(q) q.value='';
+  renderAssembly(); renderAsmQuick();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`✅ 규격 ${codes.length}건 추가됨 — 표에서 수량을 넣으세요`);
+}
+
 function asmQuickSave(){
   const ids=Object.keys(asmQuickVals).filter(k=>String(asmQuickVals[k]).trim()!=='');
   if(!ids.length){ showToast('적은 칸이 없습니다'); return; }
