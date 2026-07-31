@@ -757,8 +757,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <!-- 빠른 입력 — 수기 재고표를 보고 줄로 넣는 화면 -->
     <div class="card" style="margin-bottom:10px">
-      <div class="card-ttl"><span>📋 빠른 입력</span>
-        <button class="f-btn" id="asm-quick-toggle" onclick="asmQuickToggle()">펼치기</button>
+      <div class="card-ttl" onclick="asmQuickToggle()" style="cursor:pointer;user-select:none">
+        <span>📋 빠른 입력</span>
+        <span id="asm-quick-caret" style="font-size:11px;color:var(--tx3);font-weight:400">▾</span>
       </div>
       <div id="asm-quick" style="display:none"></div>
     </div>
@@ -7011,10 +7012,13 @@ function renderAssembly(){
 function asmQuickToggle(){
   asmQuickOn=!asmQuickOn;
   const box=document.getElementById('asm-quick');
-  const btn=document.getElementById('asm-quick-toggle');
+  const car=document.getElementById('asm-quick-caret');
   if(box) box.style.display=asmQuickOn?'block':'none';
-  if(btn) btn.textContent=asmQuickOn?'접기':'펼치기';
-  if(asmQuickOn) renderAsmQuick();
+  if(car) car.textContent=asmQuickOn?'▴':'▾';
+  if(asmQuickOn){
+    renderAsmQuick();
+    const q=document.getElementById('asm-quick-q'); if(q) q.focus();   // 바로 검색할 수 있게
+  }
 }
 function asmQuickSetTarget(t){
   if(asmQuickCart.length && !confirm('담은 것이 있습니다. 대상을 바꾸면 비워집니다. 계속할까요?')) return;
@@ -7080,7 +7084,13 @@ function asmQuickSearchLater(){
 function asmQuickSearch(){
   const box=document.getElementById('asm-quick-res'); if(!box) return;
   const q=(document.getElementById('asm-quick-q')?.value||'').trim();
-  if(!q){ box.innerHTML=`<div style="font-size:11px;color:var(--tx3);padding:8px 2px">규격을 검색하세요. 예) 6073 · 4586 · WHMH</div>`; return; }
+  if(!q){
+    const hint=(asmQuickTarget==='done')
+      ? '완제품은 실측만 됩니다. 입고는 조립이라 유리가 차감됩니다.'
+      : (asmQuickMode==='count' ? '적은 값으로 덮어씁니다.' : '적은 값만큼 더합니다.');
+    box.innerHTML=`<div style="font-size:11px;color:var(--tx3);padding:8px 2px;line-height:1.6">${hint}<br>규격을 검색하세요. 예) 6073 · 4586 · WHMH</div>`;
+    return;
+  }
   const rows=asmQuickFind(q);
   if(!rows.length){ box.innerHTML=`<div style="font-size:11px;color:var(--tx3);padding:8px 2px">찾는 규격이 없습니다. 비규격·베일은 조립실 대상이 아니라 안 나옵니다.</div>`; return; }
   const isGlass=asmQuickTarget==='glass';
@@ -7198,24 +7208,16 @@ function renderAsmQuick(){
   const isGlass=asmQuickTarget==='glass';
   const on=c=>c?'f-btn on':'f-btn';
   el.innerHTML=`
-    <div class="filter-row" style="margin-bottom:6px">
-      <button class="${on(isGlass)}" onclick="asmQuickSetTarget('glass')">📦 조립실 유리</button>
+    <div class="filter-row" style="margin-bottom:8px;flex-wrap:wrap;align-items:center">
+      <button class="${on(isGlass)}" onclick="asmQuickSetTarget('glass')">📦 유리</button>
       <button class="${on(!isGlass)}" onclick="asmQuickSetTarget('done')">🚪 완제품</button>
+      <span style="width:1px;height:18px;background:var(--b2);margin:0 4px"></span>
+      <button class="${on(asmQuickMode==='count')}" onclick="asmQuickSetMode('count')">🔢 실측</button>
+      ${isGlass?`<button class="${on(asmQuickMode==='in')}" onclick="asmQuickSetMode('in')">＋ 입고</button>`:''}
+      <input type="date" value="${asmQuickDate||todayStr()}" onchange="asmQuickSetDate(this.value)"
+        style="margin-left:auto;padding:6px 8px;font-size:12px;background:var(--bg);border:1px solid var(--b2);border-radius:14px;color:var(--tx1);font-family:'Noto Sans KR',sans-serif">
     </div>
-    <div class="filter-row" style="margin-bottom:8px">
-      <button class="${on(asmQuickMode==='count')}" onclick="asmQuickSetMode('count')">🔢 실측 (덮어쓰기)</button>
-      ${isGlass?`<button class="${on(asmQuickMode==='in')}" onclick="asmQuickSetMode('in')">＋ 입고 (더하기)</button>`:''}
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <span style="font-size:11px;color:var(--tx2);white-space:nowrap">날짜</span>
-      <input type="date" class="inp" value="${asmQuickDate||todayStr()}" onchange="asmQuickSetDate(this.value)" style="flex:1;padding:8px 10px;font-size:13px;margin:0">
-    </div>
-    <div style="font-size:11px;color:var(--tx3);margin-bottom:8px;line-height:1.5">
-      ${asmQuickMode==='count' ? '적은 값으로 <b>덮어씁니다.</b>' : '적은 값만큼 <b>더합니다.</b>'}
-      규격을 검색해 수량을 넣고 <b>담기</b>, 다 담았으면 <b>올리기</b>를 누르세요.
-      ${isGlass?'':' 완제품은 실측만 됩니다 — 입고는 조립이라 유리가 차감됩니다.'}
-    </div>
-    <input class="inp" id="asm-quick-q" placeholder="🔍 규격 검색 (예: 6073, 4586, WHMH)" oninput="asmQuickSearchLater()" style="margin-bottom:4px">
+    <input class="inp" id="asm-quick-q" placeholder="🔍 규격 검색 → 수량 → 담기 (예: 6073)" oninput="asmQuickSearchLater()" style="margin-bottom:4px">
     <div id="asm-quick-res"></div>
     <div id="asm-quick-cart"></div>`;
   asmQuickSearch();
