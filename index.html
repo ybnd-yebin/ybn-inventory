@@ -755,6 +755,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="f-btn" onclick="setAsmWarehouse('키친·에어힌지',this)">키친·에어힌지</button>
       <button class="f-btn" onclick="setAsmWarehouse('키친·미러',this)">키친·미러</button>
     </div>
+    <!-- 빠른 입력 — 수기 재고표를 보고 줄로 넣는 화면 -->
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-ttl"><span>📋 빠른 입력</span>
+        <button class="f-btn" id="asm-quick-toggle" onclick="asmQuickToggle()">펼치기</button>
+      </div>
+      <div id="asm-quick" style="display:none"></div>
+    </div>
     <div id="asm-list"></div>
   </div>
   <!-- 제품규격 (한샘 AL 발주 규격 마스터) -->
@@ -6525,6 +6532,11 @@ let asmGlassSub = 'all';        // 'all' | 'plain' | 'printed'  유리 소분류
 
 // 색상 라벨
 const ASM_COLOR_LABEL = {WC:'웜코튼', ETP:'에토프', BRZ:'베일브론즈', SHD:'베일셰이드'};
+// 빠른 입력 표의 상태 — renderAssembly 가 이 값을 보므로 그보다 먼저 만들어 둡니다
+let asmQuickOn=false;
+let asmQuickTarget='glass';   // 'glass' 조립실 유리 / 'done' 완제품
+let asmQuickMode='count';     // 'count' 실측(덮어쓰기) / 'in' 입고(더하기)
+let asmQuickVals={};          // {itemId: '입력값'} — 다시 그려도 적은 값이 남게
 
 // ── EURO700 인쇄유리 품목: HANSAEM_CATALOG에서 실시간 생성 (복붙 없음) ──
 // 정규격만 (비규격 '비규격' 제외). 색상은 카탈로그 [2](WC/ETP) + 제품명(Veil BRZ/Shade) 판별.
@@ -6870,6 +6882,8 @@ function asmItemCard(it, needMap){
 function renderAssembly(){
   const el=document.getElementById('asm-list');
   if(!el) return;
+  // 빠른 입력 표도 같은 필터를 따라가게 (펼쳐져 있을 때만)
+  if(asmQuickOn && typeof renderAsmQuick==='function') setTimeout(renderAsmQuick,0);
   const q=(document.getElementById('asm-search')?.value||'').toLowerCase().trim();
   const qd=q.replace(/[^0-9]/g,'');
   const needMap=asmNeedMap();
@@ -6934,6 +6948,136 @@ function renderAssembly(){
 // ════════════════════════════════════════════════════════════════
 //  모달 (prompt 방식)
 // ════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════
+   빠른 입력 — 손으로 적은 재고표를 그대로 옮겨 적는 표
+
+   왜 만들었나: 카드는 색상마다 따로라, 종이 한 줄(6073 · ETP 6 · 웜코튼 13)을
+   넣으려면 카드 두 개를 오가며 버튼을 네 번 눌러야 했습니다(2026-07-31).
+   종이와 같은 모양으로 한 줄에 두 색을 나란히 놓습니다.
+
+   적은 칸만 반영합니다. 빈 칸은 건드리지 않습니다.
+   저장은 기존 asmApply 를 그대로 부르므로 이력·되돌리기·동기화가 똑같이 붙습니다.
+   ══════════════════════════════════════════════════════════════════ */
+function asmQuickToggle(){
+  asmQuickOn=!asmQuickOn;
+  const box=document.getElementById('asm-quick');
+  const btn=document.getElementById('asm-quick-toggle');
+  if(box) box.style.display=asmQuickOn?'block':'none';
+  if(btn) btn.textContent=asmQuickOn?'접기':'펼치기';
+  if(asmQuickOn) renderAsmQuick();
+}
+function asmQuickSetTarget(t){
+  asmQuickTarget=t;
+  if(t==='done') asmQuickMode='count';   // 완제품은 실측만 (입고는 조립이라 유리를 차감합니다)
+  asmQuickVals={}; renderAsmQuick();
+}
+function asmQuickSetMode(m){ asmQuickMode=m; renderAsmQuick(); }
+function asmQuickInput(id,v){ if(String(v).trim()==='') delete asmQuickVals[id]; else asmQuickVals[id]=v; asmQuickCount(); }
+function asmQuickCount(){
+  const n=Object.keys(asmQuickVals).filter(k=>String(asmQuickVals[k]).trim()!=='').length;
+  const b=document.getElementById('asm-quick-save');
+  if(b){ b.textContent=n?`✓ 저장 (${n}건)`:'적은 칸이 없습니다'; b.disabled=!n; b.style.opacity=n?'1':'.5'; }
+}
+function asmQuickClear(){ asmQuickVals={}; renderAsmQuick(); }
+
+// 지금 화면 필터에 보이는 항목을 모델 한 줄로 묶습니다 (색상은 열로)
+function asmQuickRows(){
+  const needMap=asmNeedMap();
+  let items=asmVisibleItems(needMap);
+  if(asmWarehouse!=='전체') items=items.filter(it=>it.series===asmWarehouse);
+  if(asmMainCat==='glass' && asmGlassSub!=='all'){
+    items=items.filter(it=> asmGlassSub==='printed' ? it.glassType==='printed' : it.glassType==='plain');
+  }
+  const q=(document.getElementById('asm-search')?.value||'').toLowerCase().trim();
+  if(q) items=items.filter(it=>((it.name||'')+' '+(it.code||'')+' '+(ASM_COLOR_LABEL[it.color]||'')).toLowerCase().includes(q));
+  const byName={};
+  items.forEach(it=>{
+    const key=(it.name||'')+'│'+(it.gw||'')+'x'+(it.gh||'');
+    if(!byName[key]) byName[key]={name:it.name||'', gw:it.gw, gh:it.gh, series:it.series, cols:{}};
+    byName[key].cols[it.color||'-']=it;
+  });
+  return Object.keys(byName).sort((a,b)=>a.localeCompare(b,'ko')).map(k=>byName[k]);
+}
+function renderAsmQuick(){
+  const el=document.getElementById('asm-quick'); if(!el) return;
+  const rows=asmQuickRows();
+  const isGlass=asmQuickTarget==='glass';
+  const on=(c)=>c?'f-btn on':'f-btn';
+  let h=`<div class="filter-row" style="margin-bottom:6px">
+      <button class="${on(isGlass)}" onclick="asmQuickSetTarget('glass')">📦 조립실 유리</button>
+      <button class="${on(!isGlass)}" onclick="asmQuickSetTarget('done')">🚪 완제품</button>
+    </div>
+    <div class="filter-row" style="margin-bottom:8px">
+      <button class="${on(asmQuickMode==='count')}" onclick="asmQuickSetMode('count')">🔢 실측 (덮어쓰기)</button>
+      ${isGlass?`<button class="${on(asmQuickMode==='in')}" onclick="asmQuickSetMode('in')">＋ 입고 (더하기)</button>`:''}
+    </div>
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:8px;line-height:1.5">
+      ${asmQuickMode==='count'
+        ? '적은 값으로 <b>덮어씁니다.</b> 차이는 조정 이력으로 남습니다.'
+        : '적은 값만큼 <b>더합니다.</b>'}
+      빈 칸은 건드리지 않습니다.${isGlass?'':' 완제품은 실측만 됩니다 — 입고는 조립이라 유리가 차감됩니다.'}
+    </div>`;
+  if(!rows.length){ el.innerHTML=h+`<div class="empty"><div class="empty-ico">📋</div>위 필터에 보이는 항목이 없습니다</div>`; return; }
+  // 열에 세울 색상 — 이 목록에 실제로 있는 것만
+  const colors=[]; rows.forEach(r=>Object.keys(r.cols).forEach(c=>{ if(colors.indexOf(c)<0) colors.push(c); }));
+  colors.sort((a,b)=>['ETP','WC'].indexOf(b)-['ETP','WC'].indexOf(a));   // 종이 순서대로 에토프 → 웜코튼
+  h+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--b2);white-space:nowrap">규격</th>`
+    +colors.map(c=>`<th colspan="2" style="padding:6px 8px;border-bottom:2px solid var(--b2);white-space:nowrap">${c==='-'?'수량':(ASM_COLOR_LABEL[c]||c)}</th>`).join('')
+    +`</tr><tr><th style="border-bottom:1px solid var(--b1)"></th>`
+    +colors.map(()=>`<th style="font-size:10px;color:var(--tx3);font-weight:400;padding:2px 4px;border-bottom:1px solid var(--b1)">현재</th><th style="font-size:10px;color:var(--tx3);font-weight:400;padding:2px 4px;border-bottom:1px solid var(--b1)">입력</th>`).join('')
+    +`</tr></thead><tbody>`;
+  rows.forEach(r=>{
+    h+=`<tr><td style="padding:5px 8px;border-bottom:1px solid var(--b1);white-space:nowrap">
+        <div style="font-weight:700">${brEsc(r.name)}</div>
+        ${r.gw?`<div style="font-size:10px;color:var(--tx3)">${r.gw}×${r.gh}</div>`:''}</td>`;
+    colors.forEach(c=>{
+      const it=r.cols[c];
+      if(!it){ h+=`<td colspan="2" style="text-align:center;color:var(--tx3);border-bottom:1px solid var(--b1)">·</td>`; return; }
+      const a=asmFind(it.id);
+      const cur=a?(isGlass?a.glass:a.done):0;
+      const v=asmQuickVals[it.id]!==undefined?asmQuickVals[it.id]:'';
+      h+=`<td style="text-align:center;padding:4px;border-bottom:1px solid var(--b1);${cur?'font-weight:700':'color:var(--tx3)'}">${cur||'·'}</td>`
+        +`<td style="padding:4px;border-bottom:1px solid var(--b1)">
+            <input type="number" inputmode="numeric" value="${v}" oninput="asmQuickInput('${it.id}',this.value)"
+              style="width:56px;padding:6px 4px;text-align:center;font-size:13px;background:var(--bg);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-family:'JetBrains Mono',monospace"></td>`;
+    });
+    h+=`</tr>`;
+  });
+  h+=`</tbody></table></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button onclick="asmQuickClear()" style="padding:11px 16px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">지우기</button>
+      <button id="asm-quick-save" onclick="asmQuickSave()" style="flex:1;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">적은 칸이 없습니다</button>
+    </div>`;
+  el.innerHTML=h;
+  asmQuickCount();
+}
+function asmQuickSave(){
+  const ids=Object.keys(asmQuickVals).filter(k=>String(asmQuickVals[k]).trim()!=='');
+  if(!ids.length){ showToast('적은 칸이 없습니다'); return; }
+  const isGlass=asmQuickTarget==='glass';
+  const modeKor=asmQuickMode==='count'?'실측':'입고';
+  if(!confirm(`${isGlass?'조립실 유리':'완제품'} ${modeKor} — ${ids.length}건을 반영합니다.\n계속할까요?`)) return;
+  let n=0;
+  ids.forEach(id=>{
+    const v=parseInt(asmQuickVals[id]);
+    if(isNaN(v)||v<0) return;
+    if(asmQuickMode==='in'){
+      if(v<=0) return;
+      asmApply(id,{type:'glass_in', qty:v, memo:'빠른 입력 · 유리 입고'});
+    } else if(isGlass){
+      asmApply(id,{type:'glass_count', absGlass:v, memo:'빠른 입력 · 유리 실측'});
+    } else {
+      asmApply(id,{type:'done_count', absDone:v, memo:'빠른 입력 · 완제품 실측'});
+    }
+    n++;
+  });
+  asmQuickVals={};
+  renderAssembly(); renderAsmQuick();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`✅ ${n}건 반영됨 (${isGlass?'유리':'완제품'} ${modeKor})`);
+}
+
 function asmOpenGlassIn(itemId){
   const n=prompt(`📦 ${asmItemName(itemId)}\n유리 입고 수량 (장):`, '');
   if(n===null) return;
