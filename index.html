@@ -13169,7 +13169,9 @@ function delivDeductStock(d, opt){
       const color=it.color||m.color||'WC';
       const s=getSzStock(m.glass_w,m.glass_h,color);
       setSzStock(m.glass_w,m.glass_h,color,s.raw,s.printed-it.qty,{allowNeg:true});
-      const atIso=`${_shipOf(d)||todayStr()}T05:00:00.000Z`;
+      // 유리는 조립할 때 쓰이므로 소모 날짜는 발주일로 찍습니다(2026-07-31).
+      // 실측보다 앞선 날짜여도 recalcAutoAdjusts 가 실측값을 지켜줍니다.
+      const atIso=`${d.orderDate||_shipOf(d)||todayStr()}T05:00:00.000Z`;
       if(typeof addStockEvent==='function')
         addStockEvent(`${m.glass_w}x${m.glass_h}_${color}`,{at:atIso,type:'out',qty:it.qty,note:`출고 ${d.delivNo}${d.dest?' ('+d.dest+')':''}`,source:'deliv'});
       ok++;
@@ -13196,8 +13198,8 @@ function delivAutoDeduct(){
     if(!d || d.deducted) return;
     if((d.refNo||'').startsWith('54')) return;      // AS 제외 (CLAUDE.md 4번)
     if(d.shipHeld) return;                           // 손으로 되돌린 것 — 자동으로 다시 잡지 않습니다
-    const sd=_shipOf(d);
-    if(!sd || sd>td) return;                         // 아직 출고일 전
+    const sd=d.orderDate||_shipOf(d);                // 발주일 기준 — 부족한 걸 빨리 알아채려고
+    if(!sd || sd>td) return;                         // 아직 발주일 전
     const r=delivDeductStock(d,{silent:true});
     docs++; ok+=r.ok; skip+=r.skip;
   });
@@ -13240,7 +13242,7 @@ function delivPendingList(){
   return (typeof delivLog!=='undefined'?delivLog:[]).filter(d=>{
     if(!d || d.deducted) return false;
     if((d.refNo||'').startsWith('54')) return false;
-    const sd=_shipOf(d);
+    const sd=d.orderDate||_shipOf(d);
     return sd && sd<=td;
   });
 }
@@ -13350,11 +13352,11 @@ function renderDelivPending(){
   if(!list.length){ el.innerHTML=''; return; }
   el.innerHTML=`<div class="card" style="border-left:3px solid var(--acc4)">
     <div class="card-ttl"><span>🚫 미출고 ${list.length}건</span></div>
-    <div style="font-size:11px;color:var(--tx3);margin-bottom:8px;line-height:1.5">출고일이 지났는데 재고에서 안 빠진 납품서입니다. 실제로 나갔으면 <b>출고 처리</b>를, 아직 안 나갔으면 그대로 두세요.</div>`
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:8px;line-height:1.5">발주일이 지났는데 재고에서 안 빠진 납품서입니다. 실제로 작업했으면 <b>출고 처리</b>를, 아직 아니면 그대로 두세요.</div>`
     +list.map(d=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--b1)">
       <div style="flex:1;min-width:0">
         <div style="font-size:12.5px;font-weight:700">${d.delivNo||d.id}${d.shipHeld?' <span style="font-size:9px;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 6px;border-radius:6px">되돌림</span>':''}</div>
-        <div style="font-size:10px;color:var(--tx3)">출고일 ${_shipOf(d)||'-'} · ${(d.items||[]).length}품목 · ${d.dest||''}</div>
+        <div style="font-size:10px;color:var(--tx3)">발주일 ${d.orderDate||'-'} · 출고일 ${_shipOf(d)||'-'} · ${(d.items||[]).length}품목 · ${d.dest||''}</div>
       </div>
       <button onclick="delivDeductStock(delivLog.find(x=>x.id==='${d.id}'))" style="flex-shrink:0;padding:6px 11px;background:var(--acc3);border:none;border-radius:7px;color:#0d1117;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">출고 처리</button>
       ${d.shipHeld?`<button onclick="delivUnhold(delivLog.find(x=>x.id==='${d.id}'))" style="flex-shrink:0;padding:6px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">자동에 다시</button>`:''}
