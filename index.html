@@ -734,7 +734,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <!-- 조립실 재고 (인쇄 안 하는 제품: 시그니처/투웨이/키친) -->
   <div id="sp-assembly" class="sub-pg" style="display:none;padding:14px 14px 80px">
     <div class="info-note">🔧 <b>유리</b>(일반/인쇄)와 <b>완제품</b> 재고를 관리합니다. 흐름: 인쇄실 원유리→인쇄→조립실 인쇄유리 / 일반유리 입고 → 조립 → 납품. 납품서 PDF를 올리면 작업할 수량이 자동으로 뜹니다.</div>
-    <input class="inp" id="asm-search" placeholder="🔍 제품명 / 사이즈 / 코드 / 색상 (예: 시그니처, 6073, 웜코튼)..." oninput="renderAssembly()">
+    <input class="inp" id="asm-search" placeholder="🔍 제품명 / 사이즈 / 코드 / 색상 (예: 시그니처, 6073, 웜코튼)..." oninput="renderAssemblyLater()">
     <!-- 대분류: 유리 / 완제품 -->
     <div class="filter-row" id="asm-maincat-row" style="margin-bottom:6px">
       <button class="f-btn on" onclick="setAsmMainCat('glass',this)">📦 유리</button>
@@ -6581,6 +6581,7 @@ function euroItemFromCode(code){
 let assemblyStock = (typeof J==='function' ? J(localStorage.getItem('ybn-asm-v1')) : null) || [];
 function saveAssembly(){
   try{ localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock)); }catch(e){}
+  if(typeof asmQuickIndexReset==='function') asmQuickIndexReset();   // 새 규격이 생겼을 수 있음
   if(typeof saveAll==='function') saveAll();
 }
 function asmFind(itemId){ return assemblyStock.find(a=>a.id===itemId); }
@@ -6720,15 +6721,28 @@ function asmMatchAnyId(code){
 function asmIsManaged(code){ return !!asmMatchAnyId(code); }
 
 // 전체 납품서에서 품목별 미납 합계
+/* 납품서 전체를 훑어 품목별 요청 수량을 냅니다.
+   무겁습니다 — 납품서 수 × 항목 수 × ASM_ITEMS 코드 대조.
+   화면을 다시 그릴 때마다 새로 계산하면 글자 하나 칠 때도 멎어서,
+   잠깐 동안은 계산한 값을 다시 씁니다(2026-07-31). */
+let _asmNeedCache=null, _asmNeedAt=0;
+const ASM_NEED_TTL=1500;   // 1.5초
+function asmNeedReset(){ _asmNeedCache=null; }
 function asmNeedMap(){
+  const now=Date.now();
+  if(_asmNeedCache && (now-_asmNeedAt)<ASM_NEED_TTL) return _asmNeedCache;
   const map={};
+  const codeCache={};       // 같은 코드를 여러 번 대조하지 않게
   (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
     if((d.refNo||'').startsWith('54')) return; // AS 제외
     (d.items||[]).forEach(it=>{
-      const id=asmMatchAnyId(it.code);
+      const c=it.code||'';
+      let id=codeCache[c];
+      if(id===undefined){ id=asmMatchAnyId(c); codeCache[c]=id; }
       if(id) map[id]=(map[id]||0)+(it.qty||0);
     });
   });
+  _asmNeedCache=map; _asmNeedAt=now;
   return map;
 }
 
@@ -6882,6 +6896,12 @@ function asmItemCard(it, needMap){
   </div>`;
 }
 
+// 검색창은 글자마다 바로 그리지 않고 살짝 미룹니다 (목록 렌더가 무겁습니다)
+let _asmRenderTimer=null;
+function renderAssemblyLater(){
+  if(_asmRenderTimer) clearTimeout(_asmRenderTimer);
+  _asmRenderTimer=setTimeout(renderAssembly,220);
+}
 function renderAssembly(){
   const el=document.getElementById('asm-list');
   if(!el) return;
@@ -6994,31 +7014,54 @@ function asmQuickSetMode(m){
 }
 function asmQuickSetDate(v){ asmQuickDate=v||''; }
 
-/* 검색 — 조립실에 있는 것 + 한샘 카탈로그(EURO700 정규격). 규격 이름으로 묶습니다. */
-function asmQuickFind(q){
-  q=String(q||'').trim().toLowerCase();
-  if(q.length<1) return [];
-  const out={};
+/* 검색 자료를 한 번만 만들어 둡니다.
+   ※ 전에는 글자를 칠 때마다 asmNeedMap(납품서 전체 × ASM_ITEMS 대조)과
+     한샘 카탈로그 전체를 다시 훑어, 다섯 글자 치면 그 일을 다섯 번 했습니다.
+     화면 전체가 멎을 만큼 무거웠습니다(2026-07-31).
+   needMap 은 검색에 필요 없습니다 — 아래 2)가 카탈로그를 다 훑기 때문입니다. */
+let _asmQuickIdx=null;
+function asmQuickIndex(){
+  if(_asmQuickIdx) return _asmQuickIdx;
+  const rows=[];
+  const seen={};
   const put=(it)=>{
     if(!it) return;
-    const key=(it.name||'')+'│'+(it.gw||'')+'x'+(it.gh||'');
-    if(!out[key]) out[key]={name:it.name||'', gw:it.gw, gh:it.gh, cols:{}};
-    if(!out[key].cols[it.color||'-']) out[key].cols[it.color||'-']=it;
+    const k=it.id; if(seen[k]) return; seen[k]=1;
+    rows.push({it, hay:((it.name||'')+' '+(it.code||'')).toLowerCase()});
   };
-  // 1) 조립실에 이미 있는 항목 (일반유리 포함)
-  asmVisibleItems(asmNeedMap()).forEach(it=>{
-    if(((it.name||'')+' '+(it.code||'')).toLowerCase().indexOf(q)>=0) put(it);
-  });
-  // 2) 카탈로그 — 아직 조립실에 없는 EURO700 정규격
+  asmVisibleItems({}).forEach(put);                    // 조립실에 이미 있는 것 (일반유리 포함)
   if(typeof HANSAEM_CATALOG!=='undefined'){
     for(const code in HANSAEM_CATALOG){
       const a=HANSAEM_CATALOG[code];
       if(!a || a[1]!=='EURO700') continue;
-      if(((a[0]||'')+' '+code).toLowerCase().indexOf(q)<0) continue;
-      put(euroItemFromCode(code));   // 비규격·베일은 null 이라 알아서 걸러집니다
+      put(euroItemFromCode(code));                     // 비규격·베일은 null 이라 걸러집니다
     }
   }
+  _asmQuickIdx=rows;
+  return rows;
+}
+function asmQuickIndexReset(){ _asmQuickIdx=null; }
+/* 검색 — 미리 만들어 둔 자료에서 고르기만 합니다 */
+function asmQuickFind(q){
+  q=String(q||'').trim().toLowerCase();
+  if(q.length<1) return [];
+  const out={};
+  let n=0;
+  for(const r of asmQuickIndex()){
+    if(r.hay.indexOf(q)<0) continue;
+    const it=r.it;
+    const key=(it.name||'')+'│'+(it.gw||'')+'x'+(it.gh||'');
+    if(!out[key]){ out[key]={name:it.name||'', gw:it.gw, gh:it.gh, cols:{}}; n++; }
+    if(!out[key].cols[it.color||'-']) out[key].cols[it.color||'-']=it;
+    if(n>40) break;                                     // 너무 많이 모으지 않습니다
+  }
   return Object.keys(out).sort((a,b)=>a.localeCompare(b,'ko')).slice(0,12).map(k=>out[k]);
+}
+// 글자를 칠 때마다 바로 돌지 않게 살짝 미룹니다
+let _asmQuickTimer=null;
+function asmQuickSearchLater(){
+  if(_asmQuickTimer) clearTimeout(_asmQuickTimer);
+  _asmQuickTimer=setTimeout(asmQuickSearch,180);
 }
 function asmQuickSearch(){
   const box=document.getElementById('asm-quick-res'); if(!box) return;
@@ -7149,7 +7192,7 @@ function renderAsmQuick(){
       규격을 검색해 수량을 넣고 <b>담기</b>, 다 담았으면 <b>올리기</b>를 누르세요.
       ${isGlass?'':' 완제품은 실측만 됩니다 — 입고는 조립이라 유리가 차감됩니다.'}
     </div>
-    <input class="inp" id="asm-quick-q" placeholder="🔍 규격 검색 (예: 6073, 4586, WHMH)" oninput="asmQuickSearch()" style="margin-bottom:4px">
+    <input class="inp" id="asm-quick-q" placeholder="🔍 규격 검색 (예: 6073, 4586, WHMH)" oninput="asmQuickSearchLater()" style="margin-bottom:4px">
     <div id="asm-quick-res"></div>
     <div id="asm-quick-cart"></div>`;
   asmQuickSearch();
@@ -7509,6 +7552,7 @@ function applyMergedFromSheet(data){
     delivLog=delivLog.filter(d=>!delivDeleted[d && d.id]); // 삭제된 납품서는 부활 금지
     delivLog=dedupeDelivLog(delivLog); // 시트에 남은 옛 사본(무작위 id)이 되살아나도 여기서 걷어낸다
     if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
+    if(typeof asmNeedReset==='function') asmNeedReset();   // 납품서가 바뀌면 조립 요청 수량도 다시
   if(typeof invalidateTrendAgg==="function") invalidateTrendAgg();
   }
   if(data.noticeState!==undefined && data.noticeState && typeof data.noticeState==='object'){
