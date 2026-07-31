@@ -6598,11 +6598,69 @@ let assemblyStock = (typeof J==='function' ? J(localStorage.getItem('ybn-asm-v1'
     }
   }catch(e){}
 })();
+/* 이미 흩어져 쌓인 유리를 대표 항목으로 모읍니다 (한 번만).
+   합친 내역은 이력에 남겨 나중에 되짚을 수 있게 합니다. */
+function asmMergeLrGlass(){
+  let moved=0, sum=0;
+  const map=asmCanonMap();
+  assemblyStock.slice().forEach(a=>{
+    if(!a || !a.id) return;
+    const canon=map[a.id];
+    if(!canon || canon===a.id) return;
+    const q=Number(a.glass)||0; if(q<=0) return;
+    const c=asmGet(canon);
+    c.glass+=q;
+    c.events.push({ id:'ae_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
+      type:'glass_in', delta:q, at:new Date().toISOString(), by:'',
+      memo:'같은 유리로 합침 ('+a.id+' 에서)', source:'merge-glass' });
+    a.glass=0; moved++; sum+=q;
+  });
+  if(moved){
+    try{ localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock)); }catch(e){}
+    console.warn('[조립실] 인쇄유리 '+moved+'건 · '+sum+'장을 대표 항목으로 모았습니다');
+  }
+  return {moved, sum};
+}
 function saveAssembly(){
   try{ localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock)); }catch(e){}
   if(typeof asmQuickIndexReset==='function') asmQuickIndexReset();   // 새 규격이 생겼을 수 있음
   if(typeof saveAll==='function') saveAll();
 }
+/* ── 인쇄유리를 사이즈+색상으로 묶기 ─────────────────────────
+   유리는 한 종류로 만들고 조립하면서 갈립니다(2026-07-31).
+     · 좌우(L/R)  — HD B 6091 L / R
+     · 손잡이(HD/OB) — HD BTAO1U 6014 M / OB BTAO1U 6014 M (둘 다 595×139)
+   이름으로 묶으면 이런 게 계속 새어 나옵니다. 유리를 결정하는 건 결국 사이즈와 색상이라,
+   인쇄실이 쓰는 기준(595x139_ETP)과 똑같이 묶습니다. 완제품(done)은 지금처럼 따로 셉니다.
+   ※ 관통 보링처럼 사이즈가 같아도 나눠야 하는 모델은 나중에 예외로 뺍니다. */
+function asmGlassKey(it){
+  if(!it || !it.gw || !it.gh) return '';          // 사이즈가 없으면 묶지 않습니다
+  return it.gw+'x'+it.gh+'│'+(it.color||'');
+}
+let _asmCanonMap=null;
+function asmCanonMap(){
+  if(_asmCanonMap) return _asmCanonMap;
+  const byKey={};
+  const add=(e)=>{ const k=asmGlassKey(e); if(!k) return; (byKey[k]=byKey[k]||[]).push(e.id); };
+  if(typeof HANSAEM_CATALOG!=='undefined'){
+    for(const code in HANSAEM_CATALOG){
+      const a=HANSAEM_CATALOG[code];
+      if(!a || a[1]!=='EURO700') continue;
+      add(euroItemFromCode(code));
+    }
+  }
+  const map={};
+  for(const k in byKey){
+    const ids=[...new Set(byKey[k])].sort();
+    if(ids.length<2) continue;                    // 혼자면 묶을 것이 없습니다
+    ids.forEach(id=>{ map[id]=ids[0]; });         // 사전순 첫 번째를 대표로
+  }
+  _asmCanonMap=map;
+  return map;
+}
+// 이 항목의 유리를 어디에 담을지 (짝이 없으면 자기 자신)
+function asmGlassId(itemId){ try{ return asmCanonMap()[itemId]||itemId; }catch(e){ return itemId; } }
+
 function asmFind(itemId){ return assemblyStock.find(a=>a.id===itemId); }
 function asmGet(itemId){
   let a=asmFind(itemId);
@@ -6638,13 +6696,17 @@ function asmApply(itemId, opt){
   const by=(typeof getActor==='function'?getActor():'')||'';
   const t=opt.type; let delta=0;
   const q=Math.max(0, parseInt(opt.qty)||0);
-  if(t==='glass_in'){ a.glass += q; delta=q; }
-  else if(t==='assemble'){ a.glass = Math.max(0, a.glass - q); a.done += q; delta=q; } // 권장량 표시만, 입력 자유
-  else if(t==='defect'){ a.glass = Math.max(0, a.glass - q); delta=-q; }
+  /* 유리는 L/R 구분 없이 한 곳에 모읍니다 (완제품에서만 갈립니다).
+     그래서 유리를 건드리는 것은 대표 항목(g)에, 완제품은 그 항목(a)에 넣습니다. */
+  const g=asmGet(asmGlassId(itemId));
+  if(t==='glass_in'){ g.glass += q; delta=q; }
+  else if(t==='assemble'){ g.glass = Math.max(0, g.glass - q); a.done += q; delta=q; } // 권장량 표시만, 입력 자유
+  else if(t==='defect'){ g.glass = Math.max(0, g.glass - q); delta=-q; }
   else if(t==='ship'){ a.done = Math.max(0, a.done - q); delta=-q; }
-  else if(t==='glass_count'){ const target=Math.max(0, parseInt(opt.absGlass)||0); delta=target-a.glass; a.glass=target; }
+  else if(t==='glass_count'){ const target=Math.max(0, parseInt(opt.absGlass)||0); delta=target-g.glass; g.glass=target; }
   else if(t==='done_count'){ const target=Math.max(0, parseInt(opt.absDone)||0); delta=target-a.done; a.done=target; }
-  else if(t==='print_in'){ a.glass += q; delta=q; } // 인쇄실→조립실 자동 입고 (인쇄유리)
+  else if(t==='print_in'){ g.glass += q; delta=q; } // 인쇄실→조립실 자동 입고 (인쇄유리)
+  if(g!==a){ g.updatedAt=now; g.by=by; }
   a.updatedAt=now; a.by=by;
   a.events.push({ id:'ae_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
     type:t, delta, at:evAt, by, memo:(opt.memo||'').trim(), cause:opt.cause||'', source:opt.source||'manual' });
@@ -7076,8 +7138,17 @@ function asmQuickFind(q){
        사이즈를 열쇠에 넣었더니, 한쪽 색만 유리 사이즈가 등록된 규격
        (예: OB WFED 9053 M — 웜코튼만 895×531)이 두 줄로 갈렸습니다(2026-07-31).
        이름에 모델번호가 들어 있어 이름만으로도 규격이 갈리지 않습니다. */
-    const key=it.name||'';
-    if(!out[key]){ out[key]={name:key, gw:it.gw, gh:it.gh, cols:{}}; n++; }
+    /* 유리는 사이즈가 같으면 한 줄로 묶습니다 (L/R·HD/OB 가 같은 유리를 씁니다).
+       완제품은 모델마다 따로라 이름으로 갑니다. */
+    const key=(asmQuickTarget==='glass' && it.gw)
+      ? ('sz│'+it.gw+'x'+it.gh)
+      : (it.name||'');
+    if(!out[key]){ out[key]={name:it.name||'', gw:it.gw, gh:it.gh, cols:{}, alt:[]}; n++; }
+    if(asmQuickTarget==='glass' && it.gw){
+      // 대표 이름은 사전순 앞선 것으로, 나머지는 '같은 유리'로 적어 둡니다
+      if((it.name||'')<out[key].name) { out[key].alt.push(out[key].name); out[key].name=it.name||''; }
+      else if((it.name||'')!==out[key].name && out[key].alt.indexOf(it.name)<0) out[key].alt.push(it.name||'');
+    }
     if(!out[key].gw && it.gw){ out[key].gw=it.gw; out[key].gh=it.gh; }   // 있는 쪽 사이즈를 씁니다
     if(!out[key].cols[it.color||'-']) out[key].cols[it.color||'-']=it;
     if(n>40) break;                                     // 너무 많이 모으지 않습니다
@@ -7125,6 +7196,7 @@ function asmQuickSearch(){
     return `<div style="padding:10px 0;border-bottom:1px solid var(--b1)">
       <div style="font-size:13px;font-weight:800;margin-bottom:6px">${brEsc(r.name)}
         ${r.gw?`<span style="font-size:10px;color:var(--tx3);font-weight:400">${r.gw}×${r.gh}</span>`:''}</div>
+      ${(r.alt&&r.alt.length)?`<div style="font-size:10px;color:var(--tx3);margin:-3px 0 6px">같은 유리 · ${brEsc(r.alt.slice(0,3).join(' / '))}${r.alt.length>3?` 외 ${r.alt.length-3}종`:''}</div>`:''}
       <div style="display:flex;gap:8px;align-items:flex-end">
         ${inputs}
         <button onclick="asmQuickPut(${ri})"
@@ -10447,6 +10519,8 @@ function migrateWorkLogCodes(){
 setTimeout(migrateWorkLogCodes, 500);
 // 출고일 지난 납품서 자동 차감 — 데이터가 다 올라온 뒤에 한 번
 setTimeout(function(){ try{ delivAutoDeduct(); }catch(e){ console.warn('[자동출고]', e); } }, 1200);
+// 같은 유리인데 좌우·손잡이로 흩어져 쌓인 것을 대표 항목으로 모읍니다
+setTimeout(function(){ try{ asmMergeLrGlass(); }catch(e){ console.warn('[유리합치기]', e); } }, 900);
 
 // ── 작업일지 수정 모달 ──
 let wlEditTarget = null; // {date, idx}
