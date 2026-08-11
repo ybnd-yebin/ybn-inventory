@@ -12520,6 +12520,9 @@ async function autoSyncOnLoad(){
     window._skipLocalChange = true;
     saveAll();
     window._skipLocalChange = false;
+    // 시트로 받은 납품서 중 출고일이 지난 건을 자동 차감 — 최초 1.2초 실행 뒤 들어온 것도 여기서 잡습니다.
+    // (예전엔 로드 1.2초에 한 번만 돌아, 그 뒤 동기화로 들어온 지난-출고일 납품서가 미출고로 쌓였습니다)
+    try{ if(typeof delivAutoDeduct==='function') delivAutoDeduct(); }catch(e){ console.warn('[자동출고]', e); }
     updateGsStatus('ok');
     // 현재 보고 있는 탭 전체 갱신 (납품서·재고 등도 함께 다시 그림)
     if(typeof rerenderAfterSync==='function'){ try{ rerenderAfterSync(); }catch(e){ renderHome(); } }
@@ -13199,7 +13202,10 @@ async function handleDelivPdf(ev){
       added++;
     }catch(e){ console.log('PDF 파싱 실패',file.name,e); fail++; }
   }
-  if(added){ delivLog=dedupeDelivLog(delivLog); saveAll(); if(typeof autoSync==='function') autoSync(); }
+  if(added){ delivLog=dedupeDelivLog(delivLog); saveAll();
+    // 방금 올린 납품서 중 출고일이 지난 건은 바로 자동 차감 (업로드가 1.2초 창을 지나서 들어오는 경우 대비)
+    try{ if(typeof delivAutoDeduct==='function') delivAutoDeduct(); }catch(e){ console.warn('[자동출고]', e); }
+    if(typeof autoSync==='function') autoSync(); }
   if(added && typeof renderSoonap==='function') renderSoonap(); // 수납유리재고 자동 반영
   statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${fail?` · 실패 ${fail}건`:''}`;
   ev.target.value='';
@@ -13266,6 +13272,7 @@ function delivDeductStock(d, opt){
    되돌린 것은 heldUntil 로 표시해 두고 건너뜁니다. */
 function delivAutoDeduct(){
   if(typeof delivLog==='undefined' || !Array.isArray(delivLog)) return;
+  if(typeof findModel!=='function') return; // 모델 데이터가 아직이면 미룹니다 — 매칭 못 해 잘못 차감되는 것 방지
   const td=todayStr();
   let docs=0, ok=0, skip=0;
   delivLog.forEach(d=>{
