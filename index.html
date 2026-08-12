@@ -10020,13 +10020,29 @@ function renderWlHistory(){
   const totalDefect = allDefect.reduce((a,i)=>a+i.qty,0);
   const totalDays = workLog.filter(d=>d.items.some(i=>i.type==='work')).length;
 
+  // 영업일 기준 하루 평균 = 총 작업량 ÷ (첫 작업일~마지막 작업일 사이 영업일 수, 주말·공휴일 제외)
+  // 안 찍은 영업일도 분모에 넣어 실제 가동률이 드러나게 합니다. (_isHoliday: 주말+공휴일 판정)
+  const _workDates = workLog.filter(d=>d.items.some(i=>i.type==='work')).map(d=>d.date).filter(Boolean).sort();
+  let bizDaysSpan = 0;
+  if(_workDates.length){
+    const _cur = new Date(_workDates[0]+'T00:00:00');
+    const _end = new Date(_workDates[_workDates.length-1]+'T00:00:00');
+    let _g=0;
+    while(_cur<=_end && _g<3000){
+      const _off = (typeof _isHoliday==='function') ? _isHoliday(_cur) : (_cur.getDay()===0||_cur.getDay()===6);
+      if(!_off) bizDaysSpan++;
+      _cur.setDate(_cur.getDate()+1); _g++;
+    }
+  }
+  const avgPerBiz = bizDaysSpan>0 ? (totalAll/bizDaysSpan) : 0;
+
   // 선택 상태 초기화
   if(!window.wlChecked) window.wlChecked = new Set();
 
   const summaryHtml = `
   <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,var(--s2),var(--s1))">
     <div style="font-size:11px;font-weight:700;color:var(--tx2);margin-bottom:8px">📊 누적 작업 현황</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
       <div style="text-align:center">
         <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--acc3)">${totalAll}</div>
         <div style="font-size:10px;color:var(--tx2)">총 작업량</div>
@@ -10036,10 +10052,15 @@ function renderWlHistory(){
         <div style="font-size:10px;color:var(--tx2)">작업일수</div>
       </div>
       <div style="text-align:center">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:#8957e5">${avgPerBiz?avgPerBiz.toFixed(1):'0'}</div>
+        <div style="font-size:10px;color:var(--tx2)">하루 평균<span style="color:var(--tx3)"> · 영업일</span></div>
+      </div>
+      <div style="text-align:center">
         <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--acc4)">${totalDefect}</div>
         <div style="font-size:10px;color:var(--tx2)">누적 불량</div>
       </div>
     </div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.5">※ 하루 평균 = 총 작업량 ÷ 영업일 ${bizDaysSpan}일 (첫 작업일 ~ 마지막 작업일, 주말·공휴일 제외)</div>
   </div>`;
 
   // 일괄 액션 바 (선택 시 표시) + 항상 보이는 전체선택 바
