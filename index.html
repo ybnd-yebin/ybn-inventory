@@ -1406,6 +1406,16 @@ Euro700 Grace W/Cotton	6
     <!-- 모드 안내 -->
     <div id="wm-mode-hint" style="padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:11px;font-weight:600"></div>
 
+    <!-- 색 고정 (인쇄실 전용): 한 색을 고정하면 사이즈만 검색해 바로 담을 수 있음 -->
+    <div id="wm-pin-row" style="display:none;margin-bottom:10px">
+      <span class="lbl">색 고정 <span style="font-weight:400;color:var(--tx3)">— 정하면 사이즈만 검색해 바로 담김</span></span>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="q-btn" id="wpin-wc" onclick="setWlPin('WC')" style="padding:11px;font-size:13px;font-weight:700">🔵 웜코튼</button>
+        <button class="q-btn" id="wpin-etp" onclick="setWlPin('ETP')" style="padding:11px;font-size:13px;font-weight:700">🟠 에토프</button>
+      </div>
+      <div id="wm-pin-hint" style="font-size:10px;color:var(--tx3);margin-top:5px"></div>
+    </div>
+
     <span class="lbl" id="wm-search-label">검색</span>
     <input class="inp" id="wm-search" placeholder="사이즈 또는 모델명..." oninput="renderWorkSearch()" style="margin-bottom:6px">
     <div id="wm-results"></div>
@@ -3299,6 +3309,7 @@ function getSzStockView(w,h,color){
 let wSelSize=null;
 let wSelModel=null; // {short, color, w, h}
 let wlColor='WC';
+let wlPinColor = (typeof localStorage!=='undefined' && localStorage.getItem('ybn_wlPinColor')) || ''; // 인쇄실 색 고정(우선순위): '' | 'WC' | 'ETP'
 // ── 작업 담기(장바구니): 여러 항목을 담아뒀다 한 번에 올리기 ──
 let wlCart=[];
 // ── 작성자 (Actor) 관리 ──
@@ -5518,6 +5529,7 @@ function openWorkModal(){
     if(searchEl) searchEl.placeholder='모델명(예: OB M 6073, HD B 4591)...';
     if(lblEl) lblEl.textContent='모델 검색';
   }
+  updateWlPinUI();  // 색 고정 줄 표시/상태 갱신 (인쇄실에서만 노출)
 
   setWorkTab('normal');
   const wcBtn=document.getElementById('wcolor-wc');
@@ -5532,6 +5544,25 @@ function openWorkModal(){
   if(firstBtn){firstBtn.style.background='var(--acc4)';firstBtn.style.color='#fff';firstBtn.style.borderColor='var(--acc4)';}
   document.getElementById('work-modal').classList.add('on');
   wlCart=[]; renderCart();
+}
+// ── 인쇄실 색 고정(우선순위) ──
+// 한 색을 고정하면 사이즈 검색 결과가 그 색 한 칸으로 떠서 한 번에 담긴다. 같은 색을 다시 누르면 해제.
+function setWlPin(color){
+  wlPinColor = (wlPinColor===color) ? '' : color;
+  try{ localStorage.setItem('ybn_wlPinColor', wlPinColor); }catch(e){}
+  updateWlPinUI();
+  if(typeof renderWorkSearch==='function') renderWorkSearch();
+}
+function updateWlPinUI(){
+  const row=document.getElementById('wm-pin-row');
+  if(row) row.style.display = (wlRoom==='print') ? 'block' : 'none';   // 인쇄실에서만 노출
+  const wc=document.getElementById('wpin-wc'), etp=document.getElementById('wpin-etp');
+  if(wc){ const on=wlPinColor==='WC'; wc.style.background=on?'rgba(121,192,255,.25)':''; wc.style.borderColor=on?'var(--wc)':''; wc.style.color=on?'var(--wc)':''; }
+  if(etp){ const on=wlPinColor==='ETP'; etp.style.background=on?'rgba(255,166,87,.25)':''; etp.style.borderColor=on?'var(--etp)':''; etp.style.color=on?'var(--etp)':''; }
+  const hint=document.getElementById('wm-pin-hint');
+  if(hint) hint.textContent = wlPinColor
+    ? `${wlPinColor==='WC'?'웜코튼':'에토프'}로 고정됨 · 사이즈만 검색하면 됩니다 (다시 누르면 해제)`
+    : '고정하지 않으면 지금처럼 두 색이 다 나옵니다';
 }
 // ── 검색어에 가장 잘 맞는 대표 모델명 선택 ──
 // 예) 445×729 그룹 [BDI1R 4591, M 4573(공용), WMLDT 4573] 에서
@@ -5630,28 +5661,45 @@ function renderWorkSearch(){
       // L/R 그룹은 h가 "693L" 같은 문자열 → 숫자 hnum을 넘겨야 재고키가 어긋나지 않음
       const hNumForClick = (sg.hnum!=null?sg.hnum:sg.h);
       const dispH = (sg.hnum!=null?sg.hnum:sg.h);
+      // 색 고정 시: 고정 색 한 칸만 크게(옆에 다른 색 재고 작게). 미고정 시: 두 색 그대로.
+      let _colorSection;
+      if(wlPinColor){
+        const _pin=wlPinColor;
+        const _pinRaw=_pin==='WC'?wcS.raw:etpS.raw;
+        const _otherRaw=_pin==='WC'?etpS.raw:wcS.raw;
+        const _pinLabel=_pin==='WC'?'🔵 웜코튼':'🟠 에토프';
+        const _otherLabel=_pin==='WC'?'에토프':'웜코튼';
+        const _cv=_pin==='WC'?'var(--wc)':'var(--etp)';
+        const _bg=_pin==='WC'?'rgba(121,192,255,.12)':'rgba(255,166,87,.12)';
+        _colorSection=`<div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${hNumForClick},'${_pin}')"
+            style="padding:11px 14px;background:${_bg};border:1.5px solid ${_cv};border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;font-weight:800;color:${_cv}">${_pinLabel} <span style="font-size:10px;font-weight:400;color:var(--tx3)">눌러 담기</span></span>
+            <span style="display:flex;align-items:baseline;gap:10px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:${_pinRaw>0?'var(--acc)':'var(--tx3)'}">${_pinRaw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span></span>
+              <span style="font-size:10px;color:var(--tx3)">${_otherLabel} ${_otherRaw}</span>
+            </span>
+          </div>`;
+      } else {
+        _colorSection=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${hNumForClick},'WC')"
+            style="padding:9px 12px;background:rgba(121,192,255,.12);border:1.5px solid var(--wc);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:var(--wc)">🔵 웜코튼</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${wcS.raw>0?'var(--acc)':'var(--tx3)'}">${wcS.raw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span></span>
+          </div>
+          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${hNumForClick},'ETP')"
+            style="padding:9px 12px;background:rgba(255,166,87,.12);border:1.5px solid var(--etp);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:var(--etp)">🟠 에토프</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${etpS.raw>0?'var(--acc)':'var(--tx3)'}">${etpS.raw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span></span>
+          </div>
+        </div>`;
+      }
       return `<div style="padding:12px 14px;border-bottom:1px solid var(--b1)">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
           <span style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc)">${sg.w} × ${dispH}${sg.lr?` <span style="font-size:12px;color:${sg.lr==='L'?'var(--acc)':'var(--acc4)'}">(${sg.lr==='L'?'좌·L':'우·R'})</span>`:''}</span>
           <span style="font-size:10px;color:var(--tx3)">mm</span>
         </div>
         <div style="margin-bottom:8px;line-height:1.6">${modelTags}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${hNumForClick},'WC')"
-            style="padding:9px 12px;background:rgba(121,192,255,.12);border:1.5px solid var(--wc);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:var(--wc)">🔵 웜코튼</span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${wcS.raw>0?'var(--acc)':'var(--tx3)'}">
-              ${wcS.raw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
-            </span>
-          </div>
-          <div onclick="selectPrintSizeNamed('${safeFirst}',${sg.w},${hNumForClick},'ETP')"
-            style="padding:9px 12px;background:rgba(255,166,87,.12);border:1.5px solid var(--etp);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:var(--etp)">🟠 에토프</span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:900;color:${etpS.raw>0?'var(--acc)':'var(--tx3)'}">
-              ${etpS.raw}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
-            </span>
-          </div>
-        </div>
+        ${_colorSection}
       </div>`;
     }).join('');
 
