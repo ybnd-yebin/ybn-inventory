@@ -731,6 +731,11 @@ function libHasDoor(code, type){ return !!libDoor(code, type); }
 
 // ── 3c: 라이브러리 도면의 변수 텍스트 노드(X)를 앱 계산값으로 치환. DOM 노드 단위(정규식 문자열 치환 금지). ──
 // 코드별 X 값 공급원(기존 계산). 확정: BHBU=하부변환 · WTAP=변환값. WHBT·B·BDI1R은 확인 후 추가.
+// 11-7 보류 코드 — X 매핑이 확정되지 않아 라이브러리 도면에 변수 문자가 그대로 인쇄된다.
+//   WHBT: X 1개 · BDI1R: X 1개 · TH: X·Y·Z·Y-854 4개 · B(HD): 도면 변형 2개(어느 쪽인지 미확정)
+// 확정될 때까지 라이브러리를 쓰지 않고 파라메트릭 폴백(doorSVG)으로 보낸다.
+// 되돌리려면 이 Set에서 코드를 빼기만 하면 된다. (CLAUDE.md 11-7 / 11-9-2)
+const CAD_LIB_HOLD = new Set(['WHBT','B','BDI1R','TH']);
 function libDoorXValue(r, c){
   c = c || (typeof calc==='function' ? calc(r) : null);
   if(!c) return null;
@@ -740,6 +745,7 @@ function libDoorXValue(r, c){
 }
 // 라이브러리 SVG의 X 노드를 값으로 바꾼 SVG 반환. 값이 없으면 원본 그대로.
 function libDoorFilled(r){
+  if(CAD_LIB_HOLD.has(r.code)) return null;   // 보류 코드 → 파라메트릭 폴백(cadDoorSize가 doorSVG로 받는다)
   const type=(r.type==='HD')?'HD':'OB';
   const d=libDoor(r.code, type); if(!d) return null;
   const xVal=libDoorXValue(r);
