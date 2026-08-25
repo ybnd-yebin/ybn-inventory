@@ -10640,6 +10640,11 @@ function migrateWorkLogCodes(){
 setTimeout(migrateWorkLogCodes, 500);
 // 출고일 지난 납품서 자동 차감 — 데이터가 다 올라온 뒤에 한 번
 setTimeout(function(){ try{ delivAutoDeduct(); }catch(e){ console.warn('[자동출고]', e); } }, 1200);
+// 납기일 지난 발주 자동 입고 — 스위치를 켠 경우에만. 조용히 돌리고 결과는 콘솔에 남깁니다.
+setTimeout(function(){
+  try{ if(typeof odAuto!=='undefined' && odAuto.on && typeof odAutoRecvRun==='function') odAutoRecvRun({silent:true}); }
+  catch(e){ console.warn('[발주 자동입고]', e); }
+}, 1400);
 // 같은 유리인데 좌우·손잡이로 흩어져 쌓인 것을 대표 항목으로 모읍니다
 setTimeout(function(){ try{ asmMergeLrGlass(); }catch(e){ console.warn('[유리합치기]', e); } }, 900);
 
@@ -12023,8 +12028,9 @@ function renderOrderList(){
     (groups[ym]=groups[ym]||[]).push(o);
   });
   const yms=Object.keys(groups).sort((a,b)=>b.localeCompare(a)); // 최신월 먼저
+  const autoBanner=(typeof odAutoBannerHtml==='function')?odAutoBannerHtml():'';
 
-  host.innerHTML=yms.map(ym=>{
+  host.innerHTML=autoBanner+yms.map(ym=>{
     const orders=groups[ym];
     // 월 합계
     let ordTot=0, recvTot=0;
@@ -12082,8 +12088,9 @@ function renderOrderList(){
         <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--b1)">
           ${hasSize?`<button onclick="odToggleRecv('${o.id}',${i})" class="todo-check ${it.received?'done':''}" style="width:22px;height:22px;flex-shrink:0">${it.received?'✓':''}</button>`:'<span style="width:22px;flex-shrink:0;text-align:center;color:var(--tx3)">·</span>'}
           <div style="flex:1;min-width:0;${it.received?'opacity:.6':''}">
-            <div style="font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;${it.received?'text-decoration:line-through':''}">${titleLine}</div>
+            <div style="font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;${it.received?'text-decoration:line-through':''}">${titleLine}${it.auto?' <span style="font-size:9px;font-family:Noto Sans KR,sans-serif;background:rgba(46,160,67,.14);color:var(--acc3);padding:1px 6px;border-radius:6px;font-weight:700">자동</span>':''}${it.recvHeld&&!it.received?' <span style="font-size:9px;font-family:Noto Sans KR,sans-serif;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 6px;border-radius:6px;font-weight:700">되돌림</span>':''}</div>
             <div style="font-size:10px;color:var(--tx3)">${subLine}</div>
+            ${it.recvHeld&&!it.received?`<button onclick="odAutoUnhold('${o.id}',${i})" style="margin-top:4px;padding:3px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">자동에 다시</button>`:''}
             ${hasSize&&it.received?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:var(--acc3)">📦 입고일</span><input type="date" value="${it.recvDate||''}" onchange="odSetRecvDate('${o.id}',${i},this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif"></div>`:''}
           </div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc3)">${it.qty}</div>
@@ -12144,7 +12151,10 @@ function odToggleRecv(orderId, idx){
   } else {
     // 입고 취소 → 이벤트 제거
     if(it.eventId) removeStockEventsByIds([it.eventId]);
-    it.received=false; it.recvAt=null; it.recvDate=null; it.eventId=null;
+    const wasAuto=!!it.auto;
+    it.received=false; it.recvAt=null; it.recvDate=null; it.eventId=null; it.auto=false;
+    it.recvHeld=true;   // 손으로 되돌린 것 — 자동이 다시 잡지 않습니다(납품서 shipHeld와 같은 뜻)
+    if(wasAuto) console.log('[발주 자동입고] 되돌림 — 자동 대상에서 제외:', it.w+'x'+it.h);
     o.updatedAt=new Date().toISOString();
     if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
     saveAll();
@@ -12176,6 +12186,132 @@ function odSetRecvDate(orderId, idx, newDate){
   if(typeof renderDash==='function') renderDash();
   if(typeof autoSync==='function') autoSync();
   showToast(`입고일 ${newDate.slice(5).replace('-','/')}로 변경`);
+}
+
+/* ── 발주 자동 입고 ────────────────────────────────────────────────
+   납품서 쪽 delivAutoDeduct(출고일 지난 건 자동 차감)와 같은 짜임새로 만듭니다.
+   · 기준일 = 납기일. 납기가 '긴급'처럼 날짜로 안 읽히면 발주일 + N영업일.
+   · 재고 이벤트 날짜는 '기준일'로 찍습니다(늦게 앱을 열어도 월별 집계가 안 밀리게).
+   · 손으로 입고를 되돌린 항목은 recvHeld로 표시해 자동이 다시 잡지 않습니다.
+   · 규격(가로×세로) 없는 줄은 원유리 재고 대상이 아니라 건너뜁니다.
+   ⚠ 자동 입고는 아직 안 온 물건을 재고에 잡을 수 있습니다. 끄기 쉽게 스위치로 뒀습니다. */
+const LS_OD_AUTO='ybn-od-auto-v1';
+let odAuto=(function(){
+  try{ return Object.assign({on:false, fallbackDays:3}, JSON.parse(localStorage.getItem(LS_OD_AUTO))||{}); }
+  catch(e){ return {on:false, fallbackDays:3}; }
+})();
+function odAutoSave(){ try{ localStorage.setItem(LS_OD_AUTO, JSON.stringify(odAuto)); }catch(e){} }
+
+// 납기 텍스트 → 날짜(YYYY-MM-DD). '8/28' '8-28' '2026-08-28'만 읽고 '긴급' 등은 null.
+function odDueToDate(due, orderDate){
+  const s=String(due||'').trim();
+  if(!s) return null;
+  let y, m, d;
+  let mm=s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
+  if(mm){ y=+mm[1]; m=+mm[2]; d=+mm[3]; }
+  else{
+    mm=s.match(/^(\d{1,2})[.\-\/](\d{1,2})$/);
+    if(!mm) return null;
+    m=+mm[1]; d=+mm[2];
+    y=parseInt(String(orderDate||'').slice(0,4)) || new Date().getFullYear();
+  }
+  if(m<1||m>12||d<1||d>31) return null;
+  const pad=n=>String(n).padStart(2,'0');
+  let iso=`${y}-${pad(m)}-${pad(d)}`;
+  const dt=new Date(iso+'T00:00:00');
+  if(isNaN(dt.getTime()) || (dt.getMonth()+1)!==m || dt.getDate()!==d) return null;   // 2/30 같은 것 걸러냄
+  // 해 넘김: 납기가 발주일보다 앞서면 다음 해로 봅니다 (12월 발주 → 1월 납기)
+  if(orderDate && iso < orderDate) iso=`${y+1}-${pad(m)}-${pad(d)}`;
+  return iso;
+}
+// 이 발주의 자동 입고 기준일
+function odRecvBaseDate(o){
+  const byDue=odDueToDate(o&&o.due, o&&o.date);
+  if(byDue) return {date:byDue, from:'납기'};
+  const n=Math.max(0, parseInt(odAuto.fallbackDays)||0);
+  if(o && o.date && typeof _addBizDays==='function') return {date:_addBizDays(o.date, n), from:`발주일+${n}영업일`};
+  return {date:null, from:'기준 없음'};
+}
+// 지금 자동으로 잡을 수 있는 것 (미리보기 — 재고는 건드리지 않습니다)
+function odAutoRecvScan(){
+  const today=todayStr();
+  const hits=[], held=[], noBase=[];
+  (typeof orderLog!=='undefined'?orderLog:[]).forEach(o=>{
+    if(!o || !Array.isArray(o.items)) return;
+    const base=odRecvBaseDate(o);
+    o.items.forEach((it,idx)=>{
+      if(!it || it.received) return;
+      if(!(it.w && it.h)) return;                 // 규격 없는 줄(잡자재)은 원유리 재고 대상 아님
+      if(it.recvHeld){ held.push({o,idx,it}); return; }
+      if(!base.date){ noBase.push({o,idx,it}); return; }
+      if(base.date>today) return;                 // 아직 기준일 전
+      hits.push({o, idx, it, base:base.date, from:base.from});
+    });
+  });
+  return { hits, held, noBase, qty:hits.reduce((s,h)=>s+(parseInt(h.it.qty)||0),0) };
+}
+function odAutoRecvRun(opt){
+  opt=opt||{};
+  const scan=odAutoRecvScan();
+  if(!scan.hits.length){ if(!opt.silent) showToast('자동으로 잡을 발주가 없어요'); return {n:0,qty:0}; }
+  scan.hits.forEach(h=>{
+    const it=h.it, o=h.o;
+    const ev=addStockEvent(`${it.w}x${it.h}`,{
+      at:`${h.base}T00:00:00.000Z`, type:'in', qty:it.qty,
+      note:`발주입고(자동) ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`, source:'order'
+    });
+    it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=h.base;
+    it.eventId=ev.id; it.auto=true;
+    o.updatedAt=new Date().toISOString();
+    if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
+  });
+  saveAll(); saveOrderLog(); renderOrderList();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+  console.log('[발주 자동입고]', scan.hits.length+'품목', scan.qty+'장');
+  if(!opt.silent) showToast(`📦 자동 입고 ${scan.hits.length}품목 ${scan.qty}장`);
+  return {n:scan.hits.length, qty:scan.qty};
+}
+function odAutoToggle(){
+  odAuto.on=!odAuto.on; odAutoSave();
+  if(odAuto.on){ odAutoRecvRun(); }
+  else { renderOrderList(); showToast('자동 입고를 껐습니다'); }
+}
+function odAutoSetDays(v){
+  const n=parseInt(v);
+  if(isNaN(n)||n<0||n>60){ showToast('0~60 사이로 넣어주세요'); renderOrderList(); return; }
+  odAuto.fallbackDays=n; odAutoSave();
+  if(odAuto.on) odAutoRecvRun({silent:true});
+  renderOrderList();
+  showToast(`납기 없는 건은 발주일+${n}영업일 기준`);
+}
+// 되돌린(자동에서 뺀) 항목을 다시 자동 대상으로
+function odAutoUnhold(orderId, idx){
+  const o=_odFind(orderId); if(!o) return;
+  const it=o.items[idx]; if(!it) return;
+  it.recvHeld=false;
+  _odTouched(o);
+  if(odAuto.on) odAutoRecvRun({silent:true});
+  showToast('자동 입고 대상으로 되돌렸습니다');
+}
+function odAutoBannerHtml(){
+  const scan=odAutoRecvScan();
+  const n=scan.hits.length, q=scan.qty, heldN=scan.held.length;
+  const daysInput=`<input type="number" inputmode="numeric" value="${odAuto.fallbackDays}" onchange="odAutoSetDays(this.value)" style="width:46px;padding:2px 4px;text-align:center;font-size:11px;border:1px solid var(--b2);border-radius:5px;background:var(--s2);color:var(--tx1)">`;
+  if(odAuto.on){
+    return `<div style="background:rgba(46,160,67,.10);border:1px solid var(--acc3);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:11px;line-height:1.7;color:var(--tx2)">
+      <b style="color:var(--acc3)">⚡ 자동 입고 켜짐</b> — 납기일이 지나면 알아서 입고로 잡습니다.
+      납기가 날짜가 아닌 건은 <b>발주일 +${daysInput}영업일</b> 기준.
+      ${heldN?`<br><span style="color:var(--acc2)">되돌린 항목 ${heldN}건은 자동에서 빠져 있습니다.</span>`:''}
+      <br><button onclick="odAutoToggle()" style="margin-top:5px;padding:4px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">자동 입고 끄기</button>
+    </div>`;
+  }
+  return `<div style="background:var(--s2);border:1px dashed var(--b2);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:11px;line-height:1.7;color:var(--tx2)">
+    <b>⚡ 자동 입고 꺼짐</b> — 지금은 ☐를 손으로 눌러야 입고로 잡힙니다.
+    ${n?`<br>켜면 <b style="color:var(--acc3)">${n}품목 ${q}장</b>이 바로 입고로 잡힙니다. 켜기 전에 숫자를 한 번 봐주세요.`:'<br>지금 자동으로 잡을 건은 없습니다.'}
+    <br>납기가 날짜가 아닌 건은 발주일 +${daysInput}영업일 기준.
+    <br><button onclick="odAutoToggle()" style="margin-top:5px;padding:5px 11px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">자동 입고 켜기</button>
+  </div>`;
 }
 
 /* ── 기록된 발주 고치기 (납기 · 품목 추가 · 부분취소) ──────────────────
