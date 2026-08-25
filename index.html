@@ -1881,7 +1881,7 @@ function rollingShipStats(w, h, months){
   if(typeof delivLog==='undefined' || !delivLog.length) return null;
   const now=new Date();
   const cutoff=new Date(now.getFullYear(), now.getMonth()-months, now.getDate());
-  const cutoffStr=cutoff.toISOString().slice(0,10);
+  const cutoffStr=_ymdLocal(cutoff);
   // 이 사이즈에 속한 제품명 집합 (SIZE_GROUPS의 models)
   const sg=(typeof SIZE_GROUPS!=='undefined') ? SIZE_GROUPS.find(g=>g.w===w && g.h===h) : null;
   const sizeNames = sg ? new Set(sg.models.map(n=>n.replace(/\s+/g,'').toLowerCase())) : null;
@@ -1947,9 +1947,9 @@ function delivModelAgg(months){
   const agg=new Map();
   if(typeof delivLog==='undefined' || !delivLog.length){ _delivAggCache=agg; _delivAggSig=sig; return agg; }
   const now=new Date();
-  const cutoff=new Date(now.getFullYear(), now.getMonth()-months, now.getDate()).toISOString().slice(0,10);
+  const cutoff=_ymdLocal(new Date(now.getFullYear(), now.getMonth()-months, now.getDate()));
   // 최근 14일을 '오늘 필요분(긴급)' 가중 윈도우로 사용
-  const recentCut=new Date(now.getTime()-14*86400000).toISOString().slice(0,10);
+  const recentCut=_ymdLocal(new Date(now.getTime()-14*86400000));
   delivLog.forEach(d=>{
     if((d.refNo||'').startsWith('54')) return; // AS 제외
     const dt=d.delivReqDate||d.orderDate||'';
@@ -3403,7 +3403,17 @@ function updateHdr(){
   if(el) el.textContent=now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
 }
 setInterval(updateHdr,30000); updateHdr();
-function todayStr(){return new Date().toISOString().slice(0,10);}
+/* 날짜를 'YYYY-MM-DD'로 적는 단 하나의 방법.
+   toISOString()은 세계표준시로 바꿔 적기 때문에, 한국(UTC+9)에서는 자정 기준 날짜가 하루 전으로 밀립니다.
+     new Date('2026-08-25T00:00:00').toISOString().slice(0,10)  →  '2026-08-24'  ← 하루 손실
+   그래서 연·월·일을 로컬 그대로 읽어 적습니다. (인쇄실 집계 soonapCtx가 쓰던 방식과 같습니다)
+   ※ 날짜만 있는 문자열('2026-08-25')로 만든 Date는 UTC 자정이라 예외입니다 —
+      _normDate의 '2/31 거르기'와 엑셀 시리얼 변환은 그래서 toISOString을 그대로 둡니다. */
+function _ymdLocal(d){
+  if(!(d instanceof Date) || isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function todayStr(){return _ymdLocal(new Date());}
 
 // 날짜 문자열을 안전하게 YYYY-MM-DD로 변환
 function safeDate(str){
@@ -3413,7 +3423,7 @@ function safeDate(str){
   if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
   // 다른 형식 시도
   const d=new Date(s);
-  if(!isNaN(d.getTime())) return d.toISOString().slice(0,10);
+  if(!isNaN(d.getTime())) return _ymdLocal(d);
   return todayStr();
 }
 
@@ -3874,7 +3884,7 @@ function renderSchedules(){
   const today=todayStr();
   // 3년 전 컷오프
   const cut=new Date(); cut.setFullYear(cut.getFullYear()-3);
-  const cutStr=cut.toISOString().slice(0,10);
+  const cutStr=_ymdLocal(cut);
 
   // 날짜 정규화
   const normalized=schedules.map(s=>({...s, date:safeDate(s.date)}));
@@ -4309,7 +4319,7 @@ function renderActivityFeed(){
   const groups={};
   list.forEach(e=>{ const d=String(e.at||e.byAt).slice(0,10); (groups[d]=groups[d]||[]).push(e); });
   const today=todayStr();
-  const yest=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);})();
+  const yest=(()=>{const d=new Date();d.setDate(d.getDate()-1);return _ymdLocal(d);})();
   let html='';
   Object.keys(groups).sort((a,b)=>b.localeCompare(a)).forEach(date=>{
     const evs=groups[date];
@@ -9888,7 +9898,7 @@ function postponeCheckedWork(){
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate()+1);
-  const tomorrowStr = tomorrow.toISOString().slice(0,10);
+  const tomorrowStr = _ymdLocal(tomorrow);
 
   checked.forEach(item=>{
     wlPostponed.push({
@@ -10096,7 +10106,7 @@ function renderWlHistory(){
 
   const td = todayStr();
   const now = new Date();
-  const weekAgo = new Date(now-7*86400000).toISOString().slice(0,10);
+  const weekAgo = _ymdLocal(new Date(now-7*86400000));
 
   let logs = [...workLog].sort((a,b)=>b.date.localeCompare(a.date));
   if(wlMainFilter==='today') logs = logs.filter(d=>d.date===td);
@@ -10953,7 +10963,7 @@ function renderOrderPage(){
   odCatChanged();
   // 날짜 기본 오늘
   const d=document.getElementById('od-date');
-  if(!d.value) d.value=new Date().toISOString().slice(0,10);
+  if(!d.value) d.value=todayStr();
   if(!odLines.length){ odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}]; }
   renderOdLines();
   renderOrderList();
@@ -11157,7 +11167,7 @@ function odCollect(){
   const vendor=document.getElementById('od-vendor').value;
   const cat=(document.getElementById('od-cat')||{}).value||'유리';
   const {p}=curPreset();
-  const date=document.getElementById('od-date').value||new Date().toISOString().slice(0,10);
+  const date=document.getElementById('od-date').value||todayStr();
   const due=(document.getElementById('od-due').value||'').trim();
   const bigo=(document.getElementById('od-bigo').value||'').trim();
   const client=(document.getElementById('od-client').value||'').trim();
@@ -11679,7 +11689,7 @@ function odImportApply(){
     const order={
       id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
       vendor:s.vendor, type:s.type||'', thick:'', title:s.type||'',
-      date:s.date||new Date().toISOString().slice(0,10),
+      date:s.date||todayStr(),
       due:(s.items.find(it=>it.due)||{}).due||'',
       client: s.client||'',
       createdAt:new Date().toISOString(),
@@ -12123,7 +12133,7 @@ function odToggleRecv(orderId, idx){
   const it=o.items[idx]; if(!it)return;
   if(!it.received){
     // 입고 처리 → 체크한 날짜(오늘)로 원유리 입고 이벤트
-    const today=new Date().toISOString().slice(0,10);
+    const today=todayStr();
     const atIso=`${today}T00:00:00.000Z`;
     const ev=addStockEvent(`${it.w}x${it.h}`,{at:atIso,type:'in',qty:it.qty,note:`발주입고 ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`,source:'order'});
     it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=today; it.eventId=ev.id;
@@ -12261,7 +12271,7 @@ function setLedgerKind(k){
 
 function renderLedger(){
   const d=document.getElementById('lg-date');
-  if(d && !d.value) d.value=new Date().toISOString().slice(0,10);
+  if(d && !d.value) d.value=todayStr();
   // 거래처 자동완성
   const vl=document.getElementById('lg-vendor-list');
   if(vl){
@@ -12376,7 +12386,7 @@ function lgResetForm(){
   lgEditId=null; lgPhotoData=null; lgReadData=null;
   lgItems=[{item:'',price:'',qty:'',amount:''}];
   ['lg-vendor','lg-memo'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  const d=document.getElementById('lg-date'); if(d)d.value=new Date().toISOString().slice(0,10);
+  const d=document.getElementById('lg-date'); if(d)d.value=todayStr();
   document.getElementById('lg-photo-preview').innerHTML='';
   document.getElementById('lg-read-status').textContent='';
   document.getElementById('lg-save-btn').textContent='💾 기록 저장';
@@ -12654,7 +12664,7 @@ function lgMakeExcel(){
   ws['!cols']=[{wch:11},{wch:16},{wch:30},{wch:10},{wch:6},{wch:12},{wch:16}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,kindLabel);
-  const today=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const today=todayStr().replace(/-/g,'');
   XLSX.writeFile(wb,`매입매출_${kindLabel}_${today}.xlsx`);
   showToast('📊 '+kindLabel+' 엑셀 저장됨');
 }
@@ -12813,7 +12823,7 @@ function vdMakeExcel(){
   ws['!cols']=[{wch:18},{wch:15},{wch:8},{wch:34},{wch:14},{wch:14},{wch:10},{wch:14},{wch:16}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'거래처');
-  const today=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const today=todayStr().replace(/-/g,'');
   XLSX.writeFile(wb,`거래처목록_${today}.xlsx`);
   showToast('📊 거래처 엑셀 저장됨');
 }
@@ -12894,7 +12904,7 @@ function _ymd8(s){ if(!s||s.length!==8) return ''; return s.slice(0,4)+'-'+s.sli
 function _addDays(dateStr,n){
   if(!dateStr) return '';
   const d=new Date(dateStr+'T00:00:00'); if(isNaN(d.getTime())) return dateStr;
-  d.setDate(d.getDate()+n); return d.toISOString().slice(0,10);
+  d.setDate(d.getDate()+n); return _ymdLocal(d);
 }
 // 한국 공휴일(대체공휴일 포함). 매년 갱신 필요. 토·일은 별도로 항상 휴무.
 const KR_HOLIDAYS=new Set([
@@ -12907,6 +12917,7 @@ const KR_HOLIDAYS=new Set([
   '2026-05-24','2026-05-25', // 부처님오신날+대체
   '2026-06-03', // 지방선거
   '2026-06-06', // 현충일
+  '2026-07-17', // 제헌절 — 18년 만에 공휴일 재지정(시행 2026-05-11). 금요일이라 대체공휴일 없음
   '2026-08-15','2026-08-17', // 광복절+대체
   '2026-09-24','2026-09-25','2026-09-26', // 추석
   '2026-10-03', // 개천절
@@ -12919,7 +12930,7 @@ const KR_HOLIDAYS=new Set([
 function _isHoliday(d){
   const dow=d.getDay();
   if(dow===0||dow===6) return true;
-  return KR_HOLIDAYS.has(d.toISOString().slice(0,10));
+  return KR_HOLIDAYS.has(_ymdLocal(d));
 }
 // 휴일이면 평일로 보정. dir>0이면 다음 근무일, dir<0이면 직전 근무일
 function _toBizDay(dateStr,dir){
@@ -12928,7 +12939,7 @@ function _toBizDay(dateStr,dir){
   const step = (dir===undefined||dir>=0) ? 1 : -1;
   let guard=0;
   while(_isHoliday(d) && guard<30){ d.setDate(d.getDate()+step); guard++; }
-  return d.toISOString().slice(0,10);
+  return _ymdLocal(d);
 }
 // 공장 출고일 = 납품요청일 + 2근무일(주말·공휴일 제외). 저장된 옛 shipDate는 무시하고 항상 재계산.
 function _shipOf(d){
@@ -12944,7 +12955,7 @@ function _addBizDays(dateStr,n){
     d.setDate(d.getDate()+step); guard++;
     if(!_isHoliday(d)) remain--;
   }
-  return d.toISOString().slice(0,10);
+  return _ymdLocal(d);
 }
 
 // ── 칸(좌표) 기반 파서 (메인) ──────────────────────────────
