@@ -1,0 +1,2241 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>바스 재고운영</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#fff; --panel2:#f0f2f5; --line:#e0e3e9;
+  --txt:#1c2029; --sub:#6b7280; --accent:#2f7bed; --good:#1a9e6a;
+  --warn:#d18116; --bad:#e0453f; --chip:#eceef2;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+  background:var(--bg);color:var(--txt);font-size:15px;line-height:1.5}
+header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);
+  padding:12px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.3px}
+header .sub{color:var(--sub);font-size:12.5px;font-weight:500}
+.tabs{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.tab{padding:7px 14px;border-radius:9px;background:var(--chip);color:var(--sub);
+  cursor:pointer;font-size:13.5px;font-weight:600;user-select:none;border:1px solid transparent}
+.tab.active{background:var(--accent);color:#fff}
+main{padding:18px;max-width:1180px;margin:0 auto}
+.page{display:none}.page.active{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+  margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card h2{margin:0 0 12px;font-size:15px;font-weight:700}
+.card h2 .muted{color:var(--sub);font-weight:500;font-size:13px;margin-left:8px}
+label.fld{display:block;font-size:12.5px;color:var(--sub);margin-bottom:5px}
+select,input,button{font-family:inherit;font-size:14px;color:var(--txt);
+  background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+button{cursor:pointer;font-weight:600}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.ghost{background:var(--chip)}
+button.danger{background:#fdeceb;border-color:#f5c6c3;color:#b5322d}
+button:hover{filter:brightness(.97)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.right{margin-left:auto}
+.grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}
+.stat .k{color:var(--sub);font-size:12px}
+.stat .v{font-size:23px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+.stat .v.sm{font-size:17px}
+.stat .note{font-size:11.5px;color:var(--sub);margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--sub);font-weight:600;font-size:12px;position:sticky;top:0;background:var(--panel);z-index:1}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl-wrap{overflow:auto;max-height:540px;border:1px solid var(--line);border-radius:10px}
+.chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11.5px;font-weight:600}
+.chip.g{background:#e3f5ec;color:var(--good)}
+.chip.w{background:#fdf0dc;color:var(--warn)}
+.chip.b{background:#fdeceb;color:var(--bad)}
+.chip.n{background:var(--chip);color:var(--sub)}
+.hint{color:var(--sub);font-size:12.5px;margin:6px 0 0}
+.mini{font-size:11.5px;color:var(--sub)}
+.empty{padding:26px;text-align:center;color:var(--sub);font-size:13.5px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c2029;color:#fff;
+  border-radius:10px;padding:12px 18px;opacity:0;transition:.25s;pointer-events:none;z-index:50;
+  box-shadow:0 4px 16px rgba(0,0,0,.15)}
+.toast.show{opacity:1}
+.alert{border-radius:10px;padding:11px 14px;font-size:13px;margin-top:12px;border:1px solid}
+.alert.warn{background:#fdf0dc;border-color:#f0d5a8;color:#8a5a0d}
+.alert.bad{background:#fdeceb;border-color:#f5c6c3;color:#9c2b26}
+.alert.ok{background:#e3f5ec;border-color:#b9e3cd;color:#12704c}
+.alert b{font-weight:700}
+.dropzone{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;
+  background:var(--panel2);cursor:pointer}
+.dropzone.over{border-color:var(--accent);background:#eaf2fe}
+.dropzone .big{font-weight:700;font-size:14px}
+
+/* 시그니처: 발주점 게이지 */
+.gauge{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;
+  margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.gauge .top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.gauge .big{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+.gauge .unit{font-size:14px;color:var(--sub);font-weight:600}
+.track{position:relative;height:40px;border-radius:10px;background:var(--panel2);
+  border:1px solid var(--line);overflow:hidden}
+.track .fill{position:absolute;left:0;top:0;bottom:0;transition:width .3s}
+.track .rp{position:absolute;top:0;bottom:0;width:2px;background:#1c2029}
+.track .rp:after{content:'발주점';position:absolute;top:-1px;left:5px;font-size:10.5px;font-weight:700;
+  background:rgba(255,255,255,.88);padding:1px 4px;border-radius:3px;white-space:nowrap}
+.axis{display:flex;justify-content:space-between;margin-top:6px;font-size:11.5px;color:var(--sub)}
+.g-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:14px}
+.g-cell .k{font-size:11.5px;color:var(--sub)}
+.g-cell .v{font-size:16px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.diff-pos{color:var(--good)}.diff-neg{color:var(--bad)}
+tr.mismatch td{background:#fdeceb}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(max-width:720px){.gauge .big{font-size:26px}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>바스 재고운영 <span class="sub">· 드림하이텍</span></h1>
+  <div class="tabs">
+    <div class="tab active" data-p="now">현황</div>
+    <div class="tab" data-p="srm">창고 출고(SRM)</div>
+    <div class="tab" data-p="deliv">발주·납품</div>
+    <div class="tab" data-p="stock">실사·입고예정</div>
+    <div class="tab" data-p="close">월 마감</div>
+    <div class="tab" data-p="snap" style="opacity:.55">예시 입력</div>
+    <div class="tab" data-p="hit" style="display:none">예시 적중률</div>
+  </div>
+</header>
+<main>
+
+<!-- 현황 -->
+<section class="page active" id="page-now">
+  <div class="right mini" id="nowMeta" style="text-align:right;margin-bottom:8px"></div>
+  <div class="card">
+    <h2>📊 창고 출고 올린 범위 <span class="muted">재고 추측이 어디까지 반영됐는지</span></h2>
+    <div id="srmCov"></div>
+  </div>
+  <div class="card" style="border-color:var(--warn)">
+    <h2>📥 미납 발주 <span class="muted">발주는 왔는데 아직 안 보낸 것 — 창고가 비었다는 신호</span></h2>
+    <div class="tbl-wrap" id="poOpen"></div>
+  </div>
+  <div class="card">
+    <h2>📦 지금 창고 재고 <span class="muted">추측값 — 실사값에서 입고를 더하고 창고 출고를 뺀 것</span></h2>
+    <div id="stockSum" style="margin:10px 0 4px"></div>
+    <div class="tbl-wrap" id="stockTbl" style="margin-top:8px"></div>
+    <div class="hint" style="margin-top:10px">
+      <b>지금 재고</b>는 앞으로 들어올 입고를 뺀, 오늘 창고에 있는 양입니다.
+      <b>예상 남음</b> = 지금 재고 − 예정 출고.<br>
+      <b>입고 예정</b>은 일부러 따로 두었습니다. 두 값을 더해 한 칸에 적으면 입고가 잡힌 품목이 가장 여유로워 보이는데,
+      정작 위험한 구간은 <b>그 입고가 들어오기 전까지</b>이기 때문입니다.<br>
+      상태는 예상 남음 기준입니다 —
+      <span class="chip b">모자람</span> 마이너스 ·
+      <span class="chip b">급함</span> <span id="thCrit">5</span>장 이하 ·
+      <span class="chip w">주의</span> <span id="thLow">10</span>장 이하이거나 7일 안에 바닥 ·
+      <span class="chip g">여유</span> 그 밖.<br>
+      기준 재고가 <span class="chip g">실사</span>면 실제로 센 값, <span class="chip n">입고</span>면 실사 전이라
+      마지막 입고 배치로 잡은 <b>하한 추정</b>(값 앞의 <b>≥</b>)입니다.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📅 일자별 출고 <span class="muted" id="nowGridTitle"></span></h2>
+    <div class="hint">위 재고 추측이 무엇을 빼서 나온 값인지 그대로 보여줍니다.
+      <b>빈 칸이 이어지면 그날 자료를 아직 안 올린 것</b>일 수 있습니다.</div>
+    <div class="row" style="margin:10px 0">
+      <button class="ghost" onclick="srmShiftMonth(-1)">‹ 이전달</button>
+      <button class="ghost" onclick="srmShiftMonth(1)">다음달 ›</button>
+      <span class="mini" style="align-self:center">회색 칸은 아직 나가지 않은 예정분입니다.</span>
+    </div>
+    <div class="tbl-wrap" id="nowGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>발주 시점 한눈에 <span class="muted">발주 간격으로 다음 발주를 잡습니다</span></h2>
+    <div id="rhythmSum" style="margin:10px 0 4px"></div>
+    <div class="tbl-wrap" id="rhythmTbl"></div>
+    <div class="hint" style="margin-top:10px">
+      <b>발주 간격</b>은 지난 발주들 사이의 평균 날수입니다. 마지막 발주일에 이 간격을 더해
+      <b>다음 발주 예상</b>을 잡습니다. <span class="mini">(±는 들쭉날쭉한 정도 — 작을수록 규칙적입니다)</span><br>
+      <b>발주점</b>은 원래 방식으로, 발주와 발주 사이에 쌓인 <b>예시 소요</b>입니다.
+      예시 스냅샷을 매일 쌓으면 값이 생깁니다. 없으면 「모름」으로 두고 간격만 씁니다.
+    </div>
+  </div>
+</section>
+
+<!-- 실사·입고예정 (재고 추측의 기준점을 넣는 곳) -->
+<section class="page" id="page-stock">
+  <div class="card">
+    <h2>입고 예정 <span class="muted">앞으로 들어올 물량</span></h2>
+    <div class="hint">앞날 출고일로 <b>납품 기록</b>에 넣으시면 여기에 모여 보이고, 위 표의 「입고 예정」 칸에도 함께 뜹니다.
+      들어온 날이 지나면 저절로 <b>지금 재고</b>로 옮겨 갑니다.<br>
+      발주일과 출고일은 다른 날입니다 — 여기 적는 날짜는 <b>물건이 창고에 들어가는 날(출고일)</b>입니다.</div>
+    <div class="tbl-wrap" id="aheadTbl" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <h2>실사값 입력 <span class="muted">재고 업체가 알려준 월초 재고를 넣으면 기준점이 됩니다</span></h2>
+    <div class="row">
+      <div><label class="fld">실사 날짜 <span class="mini">(보통 매달 1일)</span></label>
+        <input type="date" id="countDate"></div>
+      <div class="mini" style="align-self:flex-end;padding-bottom:6px">
+        이 날짜의 실제 재고를 넣으면, 그 뒤 입고·출고로 추정을 이어갑니다.</div>
+    </div>
+    <div class="tbl-wrap" id="countTbl" style="margin-top:12px"></div>
+  </div>
+</section>
+
+<!-- 창고 출고(SRM) -->
+<section class="page" id="page-srm">
+  <div class="card">
+    <h2>SRM 판매오더 리스트 넣기 <span class="muted">창고에서 실제로 나간 물량</span></h2>
+    <div class="hint">한샘 밴더시스템에서 받은 「판매오더 리스트」 엑셀을 넣으세요.
+      <b>여러 개를 한꺼번에</b> 넣으셔도 됩니다. 같은 출고일이 다시 들어오면 <b>더하지 않고 새것으로 갈아끼웁니다</b> —
+      같은 파일을 몇 번 넣으셔도 수량이 부풀지 않습니다.</div>
+    <div class="row" style="margin:12px 0 10px">
+      <div><label class="fld">조회한 날짜 <span class="mini">(SRM에서 뽑은 날)</span></label>
+        <input type="date" id="srmAsof"></div>
+      <div class="mini" style="align-self:flex-end;padding-bottom:6px">
+        이 날짜까지의 출고일은 <b>확정</b>, 그 뒤는 <b>예정</b>으로 봅니다.</div>
+    </div>
+    <div class="dropzone" id="dzSrm">
+      <div class="big">SRM 엑셀 놓기 / 클릭 (여러 개 가능)</div>
+      <div class="mini" id="srmInfo">아직 없음</div>
+    </div>
+    <input type="file" id="fileSrm" accept=".xlsx,.xls,.xlsm,.csv" multiple hidden>
+  </div>
+
+  <div class="card">
+    <h2>수기로 넣기 <span class="muted">몇 건 안 될 때는 이게 더 빠릅니다</span></h2>
+    <div class="hint">제품칸에 <b>모델명 일부</b>(예: 매그놀리아)나 <b>코드</b>(BB1000240)를 치면 찾아줍니다.
+      같은 날 같은 제품을 또 넣으면 수량이 <b>합쳐집니다</b>.</div>
+    <div class="row" style="margin-top:12px">
+      <div><label class="fld">출고일</label><input type="date" id="sOutDate"></div>
+      <div><label class="fld">제품 (모델명 또는 코드)</label>
+        <input id="sCode" list="sCodeList" placeholder="예: 매그놀리아 · BB1000240" style="width:290px" autocomplete="off">
+        <datalist id="sCodeList"></datalist></div>
+      <div><label class="fld">수량</label><input type="number" id="sQty" min="1" style="width:85px"></div>
+      <button class="primary" id="btnSrmAdd">추가</button>
+    </div>
+    <div id="sCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
+    <div id="srmManual" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h2>보관 현황 <span class="muted" id="srmCount"></span></h2>
+    <div id="srmKpi" class="grid-stats" style="margin-bottom:12px"></div>
+    <div id="srmWarn"></div>
+    <div class="tbl-wrap" id="srmDayTbl"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" id="btnSrmExport">CSV 내보내기</button>
+      <button class="ghost" id="btnSrmClear">전체 지우기</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>모델 × 일자 <span class="muted" id="srmGridTitle"></span></h2>
+    <div class="row" style="margin-bottom:10px">
+      <button class="ghost" id="srmPrev">‹ 이전달</button>
+      <button class="ghost" id="srmNext">다음달 ›</button>
+      <span class="mini" style="align-self:center">회색 칸은 아직 나가지 않은 예정분입니다.</span>
+    </div>
+    <div class="tbl-wrap" id="srmGrid"></div>
+  </div>
+</section>
+
+<!-- 예시 입력 -->
+<section class="page" id="page-snap">
+  <div class="card">
+    <h2>출고예시분석에서 받기 <span class="muted">엑셀을 두 번 넣지 않기 위한 통로</span></h2>
+    <div class="hint">출고예시분석에 이미 쌓아둔 바스 스냅샷을 그대로 가져옵니다.
+      바스 판정과 중복 제거는 그쪽에서 이미 끝난 상태라, 여기서는 아래 엑셀 업로드를 하지 않으셔도 됩니다.</div>
+    <div class="row" style="margin-top:12px;align-items:center">
+      <button class="primary" id="btnBridgePull">예시분석에서 불러오기</button>
+      <button class="ghost" id="btnBridgeFile">브리지 파일 열기…</button>
+      <input type="file" id="fileBridge" accept=".json,application/json" hidden>
+    </div>
+    <div class="hint" id="bridgeInfo" style="margin-top:10px;min-height:16px"></div>
+    <div class="row" style="margin-top:6px;align-items:center">
+      <span class="mini" id="bridgeCount"></span>
+      <button class="ghost" id="btnBridgeClear" style="padding:4px 9px;font-size:12px">받아온 것만 지우기</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>예시표 업로드 <span class="muted">위에서 못 받았을 때만 쓰세요. 오늘 칸이 그날의 확정 물량입니다.</span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <div><label class="fld">뽑은 날짜(오늘)</label><input type="date" id="snapDate"></div>
+    </div>
+    <div class="row">
+      <div style="flex:1">
+        <label class="fld">① 드림하이텍 예시표 <span class="mini">(필수)</span></label>
+        <div class="dropzone" id="dzDream"><div class="big">드림 예시표 놓기 / 클릭</div>
+          <div class="mini" id="dreamInfo">아직 없음</div></div>
+      </div>
+      <div style="flex:1">
+        <label class="fld">② 와이비앤디 예시표 <span class="mini">(중복 제거용 · 같은 시각에 뽑은 것)</span></label>
+        <div class="dropzone" id="dzYbnd"><div class="big">와이비 예시표 놓기 / 클릭</div>
+          <div class="mini" id="ybndInfo">아직 없음</div></div>
+      </div>
+    </div>
+    <input type="file" id="fileDream" accept=".xlsx,.xls" hidden>
+    <input type="file" id="fileYbnd" accept=".xlsx,.xls" hidden>
+    <div class="hint">와이비앤디 예시를 기준으로 삼아, 거기 없는 코드만 바스 소요로 읽습니다. 시스템 오류로 생긴 중복(현재 41개)이 사라져도 결과는 그대로입니다.</div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="btnSaveSnap">스냅샷 저장</button>
+      <span class="hint" id="snapPreview"></span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>저장된 스냅샷 <span class="muted" id="snapCount"></span></h2>
+    <div class="tbl-wrap" id="snapTbl"></div>
+  </div>
+</section>
+
+<!-- 납품 기록 -->
+<section class="page" id="page-deliv">
+  <div class="card" style="border-color:var(--warn)">
+    <h2>📥 발주 받기 <span class="muted">한샘이 넣은 발주 — 아직 납품 안 한 것도 여기 넣습니다</span></h2>
+    <div class="hint">발주가 왔다는 건 <b>창고 물량이 떨어졌다</b>는 뜻입니다. 납품하기 전에 먼저 넣어두면
+      미납이 얼마인지, 발주가 얼마나 자주 오는지 보입니다.<br>
+      <b>P/O구매오더상세</b> 화면의 표를 그대로 복사해 붙여넣고, 위쪽 <b>오더번호·발주일자</b>만 채우면 됩니다.</div>
+    <div class="row" style="margin-top:10px">
+      <div><label class="fld">오더번호</label><input id="poOrd" placeholder="5100653156" style="width:130px" autocomplete="off"></div>
+      <div><label class="fld">발주일자</label><input type="date" id="poDate"></div>
+    </div>
+    <textarea id="poBox" rows="4" placeholder="P/O 표를 여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  51,062  2,553,100  20260825"
+      style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
+    <div class="row" style="margin-top:10px;align-items:center">
+      <button class="primary" id="btnPoAdd">발주 넣기</button>
+      <span class="hint" id="poInfo"></span>
+    </div>
+    <div id="poPreview" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h2>발주 현황 <span class="muted" id="poCount"></span></h2>
+    <div class="hint">미납 잔량은 <b>발주일이 이른 것부터</b> 납품분을 채워 계산합니다(선입선출).
+      참조문서번호가 적힌 납품은 그 오더에 먼저 붙습니다.</div>
+    <div class="tbl-wrap" id="poTbl"></div>
+  </div>
+
+  <div class="card">
+    <h2>납품 추가 <span class="muted">모델명으로 검색하면 제품코드가 자동으로 잡힙니다</span></h2>
+    <div class="row">
+      <div><label class="fld">발주일 <span class="muted">(한샘 발주 뜬 날)</span></label><input type="date" id="dOrd"></div>
+      <div><label class="fld">출고일 <span class="muted">(창고 들어간 날)</span></label><input type="date" id="dShip"></div>
+      <div><label class="fld">제품 (모델명 또는 코드)</label><input id="dCode" list="dCodeList" placeholder="예: 베일화이트 320 · BB1000108" style="width:270px" autocomplete="off"><datalist id="dCodeList"></datalist></div>
+      <div><label class="fld">수량</label><input type="number" id="dQty" style="width:85px"></div>
+      <div><label class="fld">참조문서번호 <span class="muted">(선택)</span></label><input id="dRef" placeholder="5100643754" style="width:120px"></div>
+      <button class="primary" id="btnAddDeliv">추가</button>
+    </div>
+    <div id="dCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
+  </div>
+
+  <div class="card">
+    <h2>붙여넣기로 여러 건 추가 <span class="muted">우리 업체 출고내역(=창고 입고) 복사 → 붙여넣기</span></h2>
+    <div class="hint">SRM 구매오더 상세의 표를 <b>그대로 복사</b>해 아래에 붙여넣으세요.
+      한 줄에 한 건입니다. <b>자재코드·수량·단가·납품일</b>을 알아서 뽑습니다(자재명에 공백·쉼표가 있어도 됩니다).<br>
+      순서: No · 순번 · <b>자재코드</b> · 자재명 · 납품처 · 저장소 · <b>수량</b> · 단위 · <b>단가</b> · … · <b>납품일(YYYYMMDD)</b></div>
+    <textarea id="pasteBox" rows="6" placeholder="여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  47280  0  20260604"
+      style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
+    <div class="row" style="margin-top:10px;align-items:center">
+      <button class="primary" id="btnPasteAdd">붙여넣은 것 추가</button>
+      <span class="hint" id="pasteInfo"></span>
+    </div>
+    <div id="pastePreview" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h2>발주 단위 <span class="muted">참조문서번호로 묶은 발주 — 줄을 눌러 펼치면 개별 건을 고치거나 지울 수 있습니다</span></h2>
+    <div class="tbl-wrap" id="orderTbl"></div>
+  </div>
+  <div class="card">
+    <h2>납품 내역 <span class="muted" id="delivCount"></span></h2>
+    <div class="hint">참조문서 칸을 눌러 번호를 채우면, 같은 번호끼리 자동으로 「발주 묶음」으로 정리됩니다.
+      붙여넣기로 들어온 건은 이 칸이 비어 있습니다.</div>
+    <div class="tbl-wrap" id="delivTbl"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="ghost" id="btnExportDeliv">CSV 내보내기</button>
+      <button class="ghost" id="btnClearDeliv" style="color:var(--bad)">전체 지우기</button>
+    </div>
+  </div>
+</section>
+
+<!-- 적중률 -->
+<section class="page" id="page-hit">
+  <div class="card">
+    <h2>예시 적중률 <span class="muted">며칠 전 예측이 실제 확정과 얼마나 맞았는가</span></h2>
+    <div id="hitStats" class="grid-stats"></div>
+    <div id="hitNote"></div>
+  </div>
+  <div class="card">
+    <h2>선행일수별 정확도 <span class="muted">N일 전에 예측한 값 vs 당일 확정값</span></h2>
+    <div class="tbl-wrap" id="leadTbl"></div>
+    <div class="hint">스냅샷이 2회 이상 쌓여야 계산됩니다. 매일 뽑을수록 정확해집니다.</div>
+  </div>
+  <div class="card">
+    <h2>일자별 대조 <span class="muted">예측(과거 스냅샷) vs 확정(그날 스냅샷)</span></h2>
+    <div class="tbl-wrap" id="hitTbl"></div>
+  </div>
+</section>
+
+<!-- 월 마감 -->
+<section class="page" id="page-close">
+  <div class="card">
+    <h2>월 마감 <span class="muted">납품일 기준 · 코드별 월합계 · 마감표와 같은 양식</span></h2>
+    <div class="row">
+      <div><label class="fld">마감 월</label><input type="month" id="closeMonth"></div>
+      <button class="ghost" id="btnCopyClose">표 복사</button>
+      <button class="ghost" id="btnEditPrice">단가 관리</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2 id="closeTitle">마감표</h2>
+    <div class="tbl-wrap" id="closeTbl"></div>
+    <div class="hint">한샘 마감 자료와 한 줄씩 대조하세요. 반품이 있으면 반품량 칸에 입력하면 마감수량·금액이 반영됩니다.</div>
+  </div>
+
+  <div class="card">
+    <h2>한샘 마감내역 대조 <span class="muted">받으신 마감내역을 붙여넣으면 우리 기록과 맞춰봅니다</span></h2>
+    <div class="hint">SRM 「마감내역」 화면에서 표를 긁어 복사한 뒤 아래 칸에 붙여넣으세요. 머리글·합계줄은 알아서 걸러냅니다.<br>
+      마감내역의 <b>입고기간</b>이 곧 그 달 마감입니다. 위의 <b>마감 월</b>이 같은 달인지 확인해 주세요
+      <span class="mini">(7월 초에 받으신 자료라도 입고기간이 6/1~6/30이면 6월 마감입니다)</span>.</div>
+    <textarea id="closePaste" rows="5" placeholder="여기에 붙여넣기…&#10;드림하이텍  1000  BB1000108  EURO5 베일화이트 하부장 새틴WH 도어 320 L  34,590  KRW  40  0  40  EA  1,383,600  KRW"
+      style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
+    <div class="row" style="margin-top:9px">
+      <button class="primary" id="btnCloseCmp">대조하기</button>
+      <button class="ghost" id="btnClosePrice">한샘 단가로 맞추기</button>
+      <button class="ghost" id="btnCloseCmpClear">대조 자료 지우기</button>
+      <span class="mini" id="closeCmpInfo" style="align-self:center"></span>
+    </div>
+    <div class="tbl-wrap" id="closeCmpTbl" style="margin-top:10px"></div>
+  </div>
+  <div class="card" id="priceCard" style="display:none">
+    <h2>단가 관리 <span class="muted">발주서에 적힌 금액으로 갱신하세요</span></h2>
+    <div class="tbl-wrap" id="priceTbl"></div>
+  </div>
+</section>
+
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const SEED_PRICES={"BB1000108":34590,"BB1000109":34590,"BB1000114":45000,"BB1000115":45000,"BB1000169":39630,"BB1000173":47280,"BB1000244":80000};
+const SEED_DELIVS=[{"no":"733195560","ref":"5100635470","req":"2026-05-28","ship":"2026-06-01","code":"BB1000108","qty":10},{"no":"733196080","ref":"5100634720","req":"2026-05-26","ship":"2026-06-02","code":"BB1000169","qty":49},{"no":"733196862","ref":"5100635470","req":"2026-05-28","ship":"2026-06-05","code":"BB1000108","qty":30},{"no":"733196863","ref":"5100634720","req":"2026-05-26","ship":"2026-06-05","code":"BB1000109","qty":30},{"no":"733197071","ref":"5100636676","req":"2026-06-04","ship":"2026-06-05","code":"BB1000173","qty":30},{"no":"733204440","ref":"5100639654","req":"2026-06-18","ship":"2026-06-18","code":"BB1000114","qty":40},{"no":"733205722","ref":"5100640188","req":"2026-06-22","ship":"2026-06-22","code":"BB1000115","qty":40},{"no":"733210229","ref":"5100641145","req":"2026-06-25","ship":"2026-06-29","code":"BB1000244","qty":20},{"no":"733215585","ref":"5100643754","req":"2026-07-08","ship":"2026-07-08","code":"BB1000108","qty":40},{"no":"733216103","ref":"5100644024","req":"2026-07-09","ship":"2026-07-09","code":"BB1000169","qty":50},{"no":"","ref":"","req":"","ship":"2026-08-20","code":"BB1000242","qty":50}];
+const SEED_NAMES={"BB1000108":"EURO5 베일화이트 하부장 새틴WH 도어 320 L","BB1000109":"EURO5 베일화이트 하부장 새틴WH 도어 320 R","BB1000111":"EURO5 베일화이트 상부장 새틴WH 도어 400 L","BB1000112":"EURO5 베일화이트 상부장 새틴WH 도어 400 R","BB1000114":"EURO5 베일화이트 새틴WH 상부장 도어 300 L","BB1000115":"EURO5 베일화이트 새틴WH 상부장 도어 300 R","BB1000169":"거울 여닫이장 450*500 도어 (448*498)","BB1000171":"거울 여닫이장 400*800 도어 (398*798)","BB1000173":"거울 여닫이장 450*800 도어 (448*798)","BB1000187":"EURO3 LED 삼면경 도어(388*798)","BB1000238":"거울 여닫이장 그레이 DOOR (397*498)","BB1000240":"거울 여닫이장 매그놀리아 DOOR (397*498)","BB1000242":"거울 여닫이장 매그놀리아 DOOR (447*498)","BB1000244":"거울 여닫이장 그레이 DOOR SET (298*798, 2ea)","SFY062044":"상부장 브론즈 도어(296*600,2개입)"};
+/* 7/31 마감 재고 — 대리님 재고운영 시트의 「재고」칸 (지방출고 반영 뒤 실재고) */
+const SEED_COUNTS={"2026-07-31":{"BB1000108":31,"BB1000109":28,"BB1000111":14,"BB1000112":9,"BB1000114":39,"BB1000115":40,"BB1000169":42,"BB1000171":54,"BB1000173":26,"BB1000187":29,"BB1000238":26,"BB1000240":36,"BB1000242":11,"BB1000244":27}};
+</script>
+<script>
+/* ========== 저장 ========== */
+const LS='bas-vmi-v2';
+function load(){
+  try{const s=JSON.parse(localStorage.getItem(LS));
+    if(s)return{snaps:s.snaps||[],delivs:s.delivs||SEED_DELIVS.slice(),
+      prices:Object.assign({},SEED_PRICES,s.prices||{}),
+      returns:s.returns||{},names:Object.assign({},SEED_NAMES,s.names||{}),
+      pos:s.pos||[],        // 발주(P/O) 기록 · 납품 전에도 넣어두는 것
+      srm:s.srm||{},        // 출고일 -> {asof, rows[]} · 창고에서 실제로 나간 물량
+      close:s.close||{},    // 마감월 -> {at, rows{코드:{...}}} · 한샘이 보내온 마감내역 원본
+      counts:Object.assign({},SEED_COUNTS,s.counts||{})}; // 실사날짜 -> {코드:수량} · 재고 업체가 알려준 월초 실사값
+  }catch(e){}
+  return{snaps:[],delivs:SEED_DELIVS.slice(),prices:Object.assign({},SEED_PRICES),
+    returns:{},names:Object.assign({},SEED_NAMES),pos:[],srm:{},close:{},counts:Object.assign({},SEED_COUNTS)};
+}
+let ST=load();
+function save(){localStorage.setItem(LS,JSON.stringify(ST));}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2300);}
+
+/* ========== 날짜 ========== */
+const DAY=86400000;
+const d=s=>new Date(s+'T00:00:00');
+const iso=x=>{const y=x.getFullYear(),m=String(x.getMonth()+1).padStart(2,'0'),dd=String(x.getDate()).padStart(2,'0');return`${y}-${m}-${dd}`;};
+const daysBetween=(a,b)=>Math.round((d(b)-d(a))/DAY);
+const addDays=(s,n)=>iso(new Date(d(s).getTime()+n*DAY));
+const TODAY=iso(new Date());
+const ym=s=>s.slice(0,7);
+const fmt=n=>Number.isFinite(n)?(Math.round(n*10)/10).toLocaleString():'—';
+const won=n=>Number.isFinite(n)?Math.round(n).toLocaleString():'—';
+const uid=()=>Math.random().toString(36).slice(2,10);
+
+/* ========== 엑셀 파싱 ==========
+   구조: row0=대분류, row1=헤더(코드/명/제품상태/벤더/일자...), row2~=데이터
+   일자 컬럼은 col 11부터. 라벨이 7.1(=7.10)처럼 잘리므로 순서로 날짜 복원. */
+function parseExcel(buf, baseDate){
+  const wb=XLSX.read(buf,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  if(aoa.length<3) throw new Error('시트가 비어 있습니다');
+  const hdr=aoa[1]||[];
+  // 일자 컬럼 인덱스 수집 (11번부터, 값이 있는 것)
+  const dayIdx=[];
+  for(let j=11;j<hdr.length;j++){ if(hdr[j]!=null && String(hdr[j]).trim()!=='') dayIdx.push(j); }
+  // 마지막 '전체수량' 컬럼은 row0에 '전체\n수량' 이 있는 위치 -> 보통 44
+  let totCol=-1;
+  const h0=aoa[0]||[];
+  for(let j=h0.length-1;j>=0;j--){ if(h0[j]&&String(h0[j]).includes('수량')){totCol=j;break;} }
+  // 일자 컬럼에서 totCol 제외
+  const days=dayIdx.filter(j=>j!==totCol);
+  const dates=days.map((_,i)=>addDays(baseDate,i));
+  const rows=[];
+  for(let i=2;i<aoa.length;i++){
+    const r=aoa[i]||[];
+    const code=r[1]; if(code==null||String(code).trim()==='')continue;
+    const daily={};
+    days.forEach((j,k)=>{
+      const v=r[j];
+      if(v!=null&&!isNaN(v)&&Number(v)!==0) daily[dates[k]]=Number(v);
+    });
+    rows.push({code:String(code).trim(),name:String(r[3]||'').trim(),
+      state:String(r[4]||'').trim(),vendor:String(r[8]||'').trim(),daily});
+  }
+  return{rows,dates};
+}
+
+let PEND={dream:null,ybnd:null};
+function setupDrop(zoneId,inputId,which,infoId){
+  const z=document.getElementById(zoneId),f=document.getElementById(inputId);
+  z.onclick=()=>f.click();
+  z.ondragover=e=>{e.preventDefault();z.classList.add('over');};
+  z.ondragleave=()=>z.classList.remove('over');
+  z.ondrop=e=>{e.preventDefault();z.classList.remove('over');
+    if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0],which,infoId);};
+  f.onchange=()=>{ if(f.files[0])handleFile(f.files[0],which,infoId); };
+}
+async function handleFile(file,which,infoId){
+  const base=document.getElementById('snapDate').value||TODAY;
+  try{
+    const buf=await file.arrayBuffer();
+    const p=parseExcel(buf,base);
+    PEND[which]=p;
+    const vendors=[...new Set(p.rows.map(r=>r.vendor))].filter(Boolean);
+    document.getElementById(infoId).textContent=
+      `${file.name} · ${p.rows.length}행 · ${vendors.join(', ')}`;
+    previewSnap();
+  }catch(err){
+    document.getElementById(infoId).textContent='읽기 실패: '+err.message;
+  }
+}
+function basRows(){
+  if(!PEND.dream)return null;
+  const ykeys=new Set((PEND.ybnd?PEND.ybnd.rows:[]).map(r=>r.code+'||'+r.name));
+  return PEND.dream.rows.filter(r=>!ykeys.has(r.code+'||'+r.name));
+}
+function previewSnap(){
+  const b=basRows();
+  const el=document.getElementById('snapPreview');
+  if(!b){el.textContent='드림 예시표를 넣어주세요';return;}
+  const base=document.getElementById('snapDate').value||TODAY;
+  const todayQty=b.reduce((a,r)=>a+(r.daily[base]||0),0);
+  const excluded=PEND.ybnd?PEND.dream.rows.length-b.length:0;
+  el.textContent=`바스 ${b.length}품목`+
+    (PEND.ybnd?` (중복 ${excluded}개 제외)`:' · 와이비 미첨부 → 중복 제거 안 됨')+
+    ` · ${base} 확정 ${todayQty}장`;
+}
+function saveSnap(){
+  const b=basRows();
+  if(!b){toast('드림 예시표를 먼저 넣어주세요');return;}
+  if(!PEND.ybnd && !confirm('와이비앤디 예시표가 없습니다. 중복이 제거되지 않아 소요량이 부풀 수 있습니다. 그래도 저장할까요?'))return;
+  const base=document.getElementById('snapDate').value||TODAY;
+  ST.snaps=ST.snaps.filter(s=>s.date!==base);
+  const rows=b.map(r=>({code:r.code,name:r.name,state:r.state,daily:r.daily}));
+  rows.forEach(r=>{ if(!ST.names[r.code])ST.names[r.code]=r.name; });
+  ST.snaps.push({id:uid(),date:base,rows,excluded:PEND.ybnd?PEND.dream.rows.length-b.length:null});
+  ST.snaps.sort((a,b2)=>d(a.date)-d(b2.date));
+  save();toast(`${base} 스냅샷 저장 (바스 ${rows.length}품목)`);
+  PEND={dream:null,ybnd:null};
+  document.getElementById('dreamInfo').textContent='아직 없음';
+  document.getElementById('ybndInfo').textContent='아직 없음';
+  document.getElementById('snapPreview').textContent='';
+  refresh();
+}
+
+/* ========== 출고예시분석 브리지 ==========
+   ★ 바스 판정(드림에 있고 와이비에 없는 코드)과 중복 제거는 출고예시분석이 이미 끝냈다.
+     여기서 다시 판정하지 않는다. 규칙이 바뀌면 고칠 곳은 그 파일 한 군데다.
+   · 받아온 스냅샷은 from:'yesi' 로 표시한다 → 직접 넣은 것과 구분되고, 통째로 되돌릴 수 있다.
+   · 같은 날짜에 직접 넣은 스냅샷이 있으면 덮지 않는다(사람이 넣은 쪽이 우선).
+   · 넘어오는 daily 는 출고일별 수량 전체다. '그날 확정분'은 confirmedByDate 가,
+     앞날 예보는 적중률 대조가 쓴다. */
+const BAS_BRIDGE_KEY='ybn_bas_bridge_v1';
+
+function applyBridge(p,how){
+  if(!p||p.kind!=='ybn-bas-bridge'||!Array.isArray(p.snaps)){
+    toast('출고예시분석 브리지 데이터가 아닙니다'); return false;
+  }
+  let added=0,updated=0,kept=0;
+  for(const s of p.snaps){
+    if(!s||!s.date||!Array.isArray(s.rows)||!s.rows.length)continue;
+    const rows=s.rows.map(r=>({code:r.code,name:r.name,state:'',daily:r.daily||{}}));
+    rows.forEach(r=>{if(!ST.names[r.code])ST.names[r.code]=r.name;});
+    const i=ST.snaps.findIndex(x=>x.date===s.date);
+    if(i<0){ST.snaps.push({id:uid(),date:s.date,rows,excluded:null,from:'yesi'});added++;}
+    else if(ST.snaps[i].from==='yesi'){ST.snaps[i].rows=rows;updated++;}
+    else kept++;
+  }
+  ST.snaps.sort((a,b2)=>d(a.date)-d(b2.date));
+  save();refresh();
+  const msg=`${how} — 새로 ${added}일 · 갱신 ${updated}일`
+    +(kept?` · 직접 넣으신 ${kept}일은 건드리지 않았습니다`:'');
+  document.getElementById('bridgeInfo').textContent=msg;
+  toast(added||updated?`${added+updated}일치를 받았습니다`:'새로 받을 것이 없었습니다');
+  return true;
+}
+
+function pullBridge(){
+  let raw=null;
+  try{raw=localStorage.getItem(BAS_BRIDGE_KEY);}catch(e){}
+  if(!raw){
+    document.getElementById('bridgeInfo').textContent=
+      '자동으로 찾지 못했습니다. 두 화면을 같은 주소(예: localhost)로 열어야 자동으로 넘어옵니다. '
+      +'주소가 다르면 출고예시분석에서 「바스 브리지 내보내기」를 누른 뒤, 옆의 「브리지 파일 열기」로 넣어주세요.';
+    toast('예시분석 데이터를 찾지 못했습니다');return;
+  }
+  try{applyBridge(JSON.parse(raw),'자동으로 받음');}
+  catch(e){toast('읽지 못했습니다');}
+}
+
+function clearBridge(){
+  const n=ST.snaps.filter(s=>s.from==='yesi').length;
+  if(!n){toast('받아온 스냅샷이 없습니다');return;}
+  if(!confirm(`출고예시분석에서 받은 스냅샷 ${n}일치를 지울까요?\n직접 넣으신 것은 그대로 남습니다.`))return;
+  ST.snaps=ST.snaps.filter(s=>s.from!=='yesi');
+  save();refresh();toast(`${n}일치를 지웠습니다`);
+}
+
+document.getElementById('btnBridgePull').onclick=pullBridge;
+document.getElementById('btnBridgeClear').onclick=clearBridge;
+document.getElementById('btnBridgeFile').onclick=()=>document.getElementById('fileBridge').click();
+document.getElementById('fileBridge').onchange=async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  try{applyBridge(JSON.parse(await f.text()),`${f.name} 에서 받음`);}
+  catch(err){toast('파일을 읽지 못했습니다');}
+  e.target.value='';
+};
+
+
+/* ══════════════════════════════════════════════════════════════════
+   영업일 — 발주일과 출고일 사이가 며칠인지 세려면 공휴일을 알아야 한다.
+   ※ 이 목록은 index.html의 KR_HOLIDAYS와 같은 내용이어야 한다. 한쪽만 고치면 조용히 어긋난다.
+     2026-07-17 제헌절은 CLAUDE.md 3번에 따라 여기 포함했다(index 쪽은 아직 빠져 있음).
+   ══════════════════════════════════════════════════════════════════ */
+const KR_HOLIDAYS=new Set([
+  '2026-01-01',                                     // 신정
+  '2026-02-16','2026-02-17','2026-02-18',           // 설날
+  '2026-03-01','2026-03-02',                        // 삼일절+대체
+  '2026-05-01',                                     // 노동절
+  '2026-05-05',                                     // 어린이날
+  '2026-05-24','2026-05-25',                        // 부처님오신날+대체
+  '2026-06-03',                                     // 지방선거
+  '2026-06-06',                                     // 현충일
+  '2026-07-17',                                     // 제헌절 (재지정)
+  '2026-08-15','2026-08-17',                        // 광복절+대체
+  '2026-09-24','2026-09-25','2026-09-26',           // 추석
+  '2026-10-03',                                     // 개천절
+  '2026-10-09',                                     // 한글날
+  '2026-12-25',                                     // 성탄절
+  '2027-01-01'
+]);
+function isBizDay(iso){
+  const w=d(iso).getDay();
+  return w!==0 && w!==6 && !KR_HOLIDAYS.has(iso);
+}
+/* 리드타임 = 발주일 당일을 포함한 영업일 수 (CLAUDE.md 2번).
+   예) 발주 8/14(금) → 출고 8/20(목) = 8/14·18·19·20 → 4일. (8/15 광복절·8/17 대체) */
+function bizLead(from,to){
+  if(!from||!to||to<from) return null;
+  let n=0, cur=from, guard=0;
+  while(cur<=to && guard<400){ if(isBizDay(cur)) n++; cur=addDays(cur,1); guard++; }
+  return n;
+}
+/* ══════════════════════════════════════════════════════════════════
+   창고 출고 (SRM 판매오더 리스트)
+   ── 무엇인가
+   그레이박스 창고에서 대리점으로 '실제로 나간' 물량. 예시(예측)와 달리 실측이다.
+   ── 왜 중복을 안 지우나
+   SRM은 출고일로만 검색된다. 오늘 뽑으면 아직 안 나간 앞날치까지 딸려온다.
+   그 앞날치는 오더가 더 들어오면 늘어난다. 그러니 '중복'이 아니라 '다시 뽑은 값'이다.
+   → 출고일을 열쇠로 삼아 통째로 갈아끼운다. 더하지 않는다. 그래서 몇 번을 넣어도 안전하다.
+   ── 확정 판정
+   출고일 D 의 자료를 D 이후에 뽑았으면(asof >= D) 더 바뀔 일이 없으니 '확정'.
+   D 가 지났는데 그 전에 뽑은 값만 갖고 있으면 '다시 뽑아야 함'으로 알린다.
+   ══════════════════════════════════════════════════════════════════ */
+/* 칸 이름은 SRM 화면 설정에 따라 조금씩 다르게 나옵니다.
+   그래서 하나만 박아두지 않고 쓰일 만한 이름을 함께 적어둡니다.
+   비교할 때 공백은 미리 지우므로 '출고 일' 같은 표기도 걸립니다. */
+const SRM_COLS = {
+  ship : ['출고일','출고일자','출고예정일','출하일'],
+  made : ['오더생성일','생성일','오더일','주문일'],
+  code : ['제품코드','자재코드','상품코드','품번','자재번호'],
+  name : ['제품명','자재내역','품명','자재명'],
+  qty  : ['수량','출고수량','주문수량','판매수량'],
+  po   : ['판매오더','오더번호','수주번호'],
+  agent: ['대리점','거래처','납품처'],
+  proc : ['공정'],
+};
+
+// 칸 찾기 — 이름이 똑같은 것을 먼저 보고, 없으면 이름이 들어 있는 것을 봅니다.
+// (먼저 '수량'만 보면 '전체수량' 같은 엉뚱한 칸에 걸리므로 순서가 중요합니다)
+function srmColAt(hdr, cands){
+  for(const c of cands){ const i=hdr.indexOf(c); if(i>=0) return i; }
+  for(const c of cands){ const i=hdr.findIndex(h=>h&&h.indexOf(c)>=0); if(i>=0) return i; }
+  return -1;
+}
+
+// 표의 머리글이 몇 번째 줄인지 찾습니다. 위에 제목 줄이 붙어 나와도 따라갑니다.
+function srmHeaderRow(aoa){
+  const lim=Math.min(aoa.length,15);
+  for(let i=0;i<lim;i++){
+    const hdr=(aoa[i]||[]).map(x=>String(x==null?'':x).replace(/\s+/g,''));
+    if(srmColAt(hdr,SRM_COLS.ship)>=0 && srmColAt(hdr,SRM_COLS.code)>=0 && srmColAt(hdr,SRM_COLS.qty)>=0)
+      return {row:i, hdr};
+  }
+  return null;
+}
+
+// 엑셀 날짜 → 'YYYY-MM-DD'. 일련번호·'2026-07-23 목'·'2026.07.23'·'20260723' 모두 받습니다.
+function srmDate(v){
+  if(v==null||v==='') return '';
+  const p2=x=>String(x).padStart(2,'0');
+  if(v instanceof Date && !isNaN(v))
+    return `${v.getFullYear()}-${p2(v.getMonth()+1)}-${p2(v.getDate())}`;
+  if(typeof v==='number'){
+    const t=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000);
+    return `${t.getUTCFullYear()}-${p2(t.getUTCMonth()+1)}-${p2(t.getUTCDate())}`;
+  }
+  const s=String(v).trim();
+  let m=s.match(/(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})/);
+  if(m) return `${m[1]}-${p2(m[2])}-${p2(m[3])}`;
+  m=s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return '';
+}
+
+// 수량 → 숫자. '1,000'처럼 쉼표가 섞이거나 '2 EA'처럼 단위가 붙어도 읽습니다.
+function srmNum(v){
+  const s=String(v==null?'':v).replace(/[,\s]/g,'');
+  const n=Number(s);
+  if(Number.isFinite(n)) return n;
+  const m=s.match(/-?\d+(?:\.\d+)?/);       // 단위가 붙었으면 숫자만 뽑는다
+  return m ? Number(m[0]) : 0;
+}
+
+// 헤더 이름으로 열을 찾는다. 열 위치가 바뀌어도 따라간다.
+// 못 읽었을 때는 왜 못 읽었는지(why)를 함께 돌려주어 화면에 그대로 보여준다.
+function srmParse(buf){
+  const wb=XLSX.read(buf,{type:'array'});
+  let why='';
+  for(const sn of (wb.SheetNames||[])){
+    const ws=wb.Sheets[sn]; if(!ws) continue;
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+    if(!aoa.length){ why=why||`「${sn}」 시트가 비어 있습니다`; continue; }
+    const h=srmHeaderRow(aoa);
+    if(!h){
+      const peek=(aoa[0]||[]).slice(0,12).map(x=>String(x==null?'':x).trim()).filter(Boolean).join(' | ');
+      why=why||`「${sn}」에서 출고일·제품코드·수량 칸을 못 찾았습니다 · 첫 줄: ${peek||'(빈 줄)'}`;
+      continue;
+    }
+    const ci={}; for(const k in SRM_COLS) ci[k]=srmColAt(h.hdr,SRM_COLS[k]);
+    const out=[]; let noDate=0, noQty=0;
+    for(let i=h.row+1;i<aoa.length;i++){
+      const r=aoa[i]||[];
+      const code=String(r[ci.code]==null?'':r[ci.code]).trim(); if(!code) continue;
+      const ship=srmDate(r[ci.ship]); if(!ship){ noDate++; continue; }
+      const qty=srmNum(r[ci.qty]);    if(!qty){ noQty++;  continue; }
+      out.push({ship, code, qty,
+        name : ci.name >=0 ? String(r[ci.name] ||'').trim() : '',
+        made : ci.made >=0 ? srmDate(r[ci.made]) : '',
+        po   : ci.po   >=0 ? String(r[ci.po]   ||'').trim() : '',
+        agent: ci.agent>=0 ? String(r[ci.agent]||'').trim() : ''});
+    }
+    if(out.length) return {rows:out, sheet:sn};
+    why=why||`「${sn}」 칸은 찾았는데 읽을 행이 없습니다`
+            +` (날짜를 못 읽은 행 ${noDate} · 수량이 비었거나 0인 행 ${noQty})`;
+  }
+  return {rows:[], why: why||'엑셀에서 표를 못 찾았습니다'};
+}
+
+// 출고일별로 통째 교체.
+// 단, 그 날에 '손으로 넣은' 행이 있으면 함부로 지우지 않고 먼저 물어본다.
+// (엑셀에 그 건이 이미 들어 있다면 남겨두는 쪽이 오히려 두 번 세는 길이라, 갈아끼우는 게 기본)
+function srmStore(rows, asof){
+  const byDay={};
+  rows.forEach(r=>{ (byDay[r.ship]=byDay[r.ship]||[]).push(r); });
+  let days=Object.keys(byDay);
+
+  const clash=days.filter(d=>(ST.srm[d]&&ST.srm[d].rows||[]).some(r=>r.src==='manual'));
+  let skip=new Set();
+  if(clash.length){
+    const n=clash.reduce((a,d)=>a+ST.srm[d].rows.filter(r=>r.src==='manual').length,0);
+    const ok=confirm(`손으로 넣으신 ${n}건이 아래 날짜에 있습니다.\n  ${clash.join(', ')}\n\n`
+      +`엑셀 자료로 갈아끼우면 그 손입력분은 사라집니다.\n`
+      +`엑셀에 같은 건이 들어 있다면 갈아끼우는 쪽이 맞습니다.\n\n`
+      +`[확인] 갈아끼우기   [취소] 그 날짜는 건드리지 않기`);
+    if(!ok) skip=new Set(clash);
+  }
+  let added=0, replaced=0, qty=0, kept=0;
+  for(const day of days){
+    if(skip.has(day)){ kept++; continue; }
+    if(ST.srm[day]) replaced++; else added++;
+    ST.srm[day]={asof, rows:byDay[day].map(r=>({code:r.code,name:r.name,qty:r.qty,made:r.made,po:r.po,agent:r.agent}))};
+    byDay[day].forEach(r=>{ qty+=r.qty; if(!ST.names[r.code]&&r.name) ST.names[r.code]=r.name; });
+  }
+  save();
+  return {added, replaced, kept, qty, days:days.length-kept};
+}
+
+/* ── 수기 입력 ──
+   엑셀을 못 받거나 몇 건 안 될 때. 행에 src:'manual' 을 붙여 엑셀분과 구분한다. */
+function srmAddManual(){
+  const day =document.getElementById('sOutDate').value;
+  const code=resolveCode(document.getElementById('sCode').value);
+  const qty =Number(document.getElementById('sQty').value);
+  if(!day){ toast('출고일을 골라주세요'); return; }
+  if(!code){ toast('제품을 못 찾았어요 — 모델명 일부나 코드를 넣어주세요'); return; }
+  if(!qty||qty<=0){ toast('수량을 넣어주세요'); return; }
+  const e = ST.srm[day] = ST.srm[day] || {asof:TODAY, rows:[]};
+  // 눈으로 보고 넣는 값이므로 오늘까지는 확인된 것으로 본다
+  if(!e.asof || e.asof<TODAY) e.asof=TODAY;
+  const hit=(e.rows||[]).find(r=>r.src==='manual'&&r.code===code);
+  if(hit) hit.qty+=qty;
+  else (e.rows=e.rows||[]).push({code, name:nameOf(code), qty, src:'manual', made:'', po:'', agent:''});
+  save();
+  document.getElementById('sQty').value='';
+  document.getElementById('sCode').value='';
+  document.getElementById('sCodeHint').textContent='';
+  document.getElementById('sCode').focus();
+  renderSrm();
+  toast(`${day} · ${nameOf(code)} ${qty}EA 넣었습니다`);
+}
+function srmDelManual(day,code){
+  const e=ST.srm[day]; if(!e) return;
+  if(!confirm(`${day} · ${nameOf(code)} 손입력분을 지울까요?`)) return;
+  e.rows=(e.rows||[]).filter(r=>!(r.src==='manual'&&r.code===code));
+  if(!e.rows.length) delete ST.srm[day];
+  save(); renderSrm(); toast('지웠습니다');
+}
+function renderSrmManual(){
+  const host=document.getElementById('srmManual'); if(!host) return;
+  const list=[];
+  srmDays().forEach(d=>(ST.srm[d].rows||[]).forEach(r=>{ if(r.src==='manual') list.push({d,r}); }));
+  if(!list.length){ host.innerHTML=`<div class="mini">손으로 넣은 자료는 아직 없습니다.</div>`; return; }
+  list.sort((a,b)=>a.d<b.d?1:-1);
+  host.innerHTML=`<table><thead><tr><th>출고일</th><th>제품</th><th class="num">수량</th><th></th></tr></thead><tbody>`
+    + list.map(({d,r})=>`<tr><td>${d}</td><td>${nameOf(r.code)} <span class="mini">${r.code}</span></td>
+        <td class="num">${r.qty}</td>
+        <td><button class="ghost" onclick="srmDelManual('${d}','${r.code}')" style="padding:4px 9px;font-size:12px">삭제</button></td></tr>`).join('')
+    + `</tbody></table>`;
+}
+
+function srmExport(){
+  const days=srmDays();
+  if(!days.length){ toast('내보낼 자료가 없습니다'); return; }
+  const q=s=>`"${String(s==null?'':s).replace(/"/g,'""')}"`;
+  const head='출고일,상태,제품코드,제품명,수량,판매오더No.,대리점,출처,조회일';
+  const lines=[];
+  days.forEach(dd=>{ const e=ST.srm[dd];
+    (e.rows||[]).forEach(r=>lines.push([dd,SRM_LABEL[srmState(dd)],r.code,q(r.name||nameOf(r.code)),r.qty,
+      q(r.po),q(r.agent),(r.src==='manual'?'수기':'엑셀'),e.asof||''].join(',')));
+  });
+  const blob=new Blob(['﻿'+[head,...lines].join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`바스_창고출고_${TODAY}.csv`; a.click();
+  toast(`${lines.length}행을 내려받았습니다`);
+}
+
+// 'fixed' 확정 · 'stale' 지난 날인데 예보값(다시 뽑아야 함) · 'plan' 예정
+function srmState(day){
+  const e=ST.srm[day]; if(!e) return 'none';
+  if((e.asof||'') >= day) return 'fixed';
+  return day<=TODAY ? 'stale' : 'plan';
+}
+const SRM_LABEL={fixed:'확정', stale:'재조회 필요', plan:'예정'};
+
+function srmDays(){ return Object.keys(ST.srm).sort(); }
+function srmDayQty(day){ return (ST.srm[day].rows||[]).reduce((a,r)=>a+r.qty,0); }
+
+/* ── 화면 ── */
+function renderSrm(){
+  const days=srmDays();
+  document.getElementById('srmCount').textContent = days.length?`${days.length}일치`:'';
+  // 요약
+  let fixedQ=0, planQ=0, staleN=0; const codes=new Set();
+  days.forEach(d=>{
+    const st=srmState(d), q=srmDayQty(d);
+    if(st==='fixed') fixedQ+=q; else if(st==='plan') planQ+=q; else { staleN++; planQ+=q; }
+    (ST.srm[d].rows||[]).forEach(r=>codes.add(r.code));
+  });
+  document.getElementById('srmKpi').innerHTML = !days.length ? '' : [
+    ['확정 출고', fixedQ+'EA', '출고일이 지나 더 안 바뀜'],
+    ['예정', planQ+'EA', '오더가 더 들어오면 늘어남'],
+    ['품목', codes.size+'종', ''],
+    ['기간', `${days[0].slice(5)} ~ ${days[days.length-1].slice(5)}`, days.length+'일']
+  ].map(([k,v,n])=>`<div class="stat"><div class="k">${k}</div><div class="v sm">${v}</div>
+    ${n?`<div class="note">${n}</div>`:''}</div>`).join('');
+
+  // 날짜별 표
+  const w=document.getElementById('srmDayTbl');
+  if(!days.length){
+    w.innerHTML=`<div class="empty">아직 넣은 자료가 없습니다.<br>
+      <span class="mini">SRM에서 받은 「판매오더 리스트」 엑셀을 위에 넣어주세요.</span></div>`;
+  } else {
+    w.innerHTML=`<table><thead><tr><th>출고일</th><th>요일</th><th>상태</th>
+      <th class="num">수량</th><th class="num">건수</th><th>조회일</th><th></th></tr></thead><tbody>`
+      + [...days].reverse().map(d=>{
+          const st=srmState(d), e=ST.srm[d];
+          const chip = st==='fixed' ? '<span class="chip g">확정</span>'
+                     : st==='stale' ? '<span class="chip b">재조회 필요</span>'
+                                    : '<span class="chip n">예정</span>';
+          const dw=['일','월','화','수','목','금','토'][new Date(d+'T00:00:00').getDay()];
+          return `<tr><td>${d}${d===TODAY?' <span class="chip g">오늘</span>':''}</td><td>${dw}</td><td>${chip}</td>
+            <td class="num">${srmDayQty(d)}</td><td class="num">${(e.rows||[]).length}</td>
+            <td class="mini">${e.asof||'-'}</td>
+            <td><button class="ghost" onclick="srmDelDay('${d}')" style="padding:4px 9px;font-size:12px">삭제</button></td></tr>`;
+        }).join('')+`</tbody></table>`;
+  }
+  // 전용 자리에 넣는다 — beforebegin 으로 붙이면 화면을 다시 그릴 때마다 경고가 쌓인다
+  document.getElementById('srmWarn').innerHTML = staleN
+    ? `<div class="hint" style="color:var(--bad)">⚠️ 출고일이 지났는데 그 전에 뽑은 값만 있는 날이 ${staleN}일 있습니다.
+        실제로는 더 나갔을 수 있으니 그 날짜를 다시 뽑아 넣어주세요.</div>` : '';
+
+  renderSrmManual();
+  renderSrmGrid();
+}
+
+let srmYm='';
+// 현황 탭에도 같은 격자를 띄우기 위해 대상 칸을 받는다. 인자가 없으면 예전처럼 SRM 탭에 그린다.
+function renderSrmGrid(hostId, titleId){
+  const host=document.getElementById(hostId||'srmGrid'); if(!host) return;
+  const titleEl=document.getElementById(titleId||'srmGridTitle');
+  const days=srmDays();
+  if(!days.length){ host.innerHTML='<div class="empty">아직 올린 창고 출고 자료가 없습니다.</div>'; if(titleEl) titleEl.textContent=''; return; }
+  if(!srmYm || !days.some(d=>d.slice(0,7)===srmYm)) srmYm=days[days.length-1].slice(0,7);
+  if(titleEl) titleEl.textContent=srmYm.replace('-','년 ')+'월';
+  const y=+srmYm.slice(0,4), mo=+srmYm.slice(5,7);
+  const nDays=new Date(y,mo,0).getDate();
+  const dow=n=>['일','월','화','수','목','금','토'][new Date(y,mo-1,n).getDay()];
+  const key=n=>`${srmYm}-${String(n).padStart(2,'0')}`;
+
+  const cell={}, tot={}, names={};
+  for(let n=1;n<=nDays;n++){
+    const e=ST.srm[key(n)]; if(!e) continue;
+    (e.rows||[]).forEach(r=>{
+      cell[r.code+'|'+n]=(cell[r.code+'|'+n]||0)+r.qty;
+      tot[r.code]=(tot[r.code]||0)+r.qty;
+      if(r.name) names[r.code]=r.name;
+    });
+  }
+  const codes=Object.keys(tot).sort((a,b)=>tot[b]-tot[a]);
+  if(!codes.length){ host.innerHTML=`<div class="empty">${srmYm.replace('-','년 ')}월 자료가 없습니다.</div>`; return; }
+  const isPlan=n=>{ const st=srmState(key(n)); return st==='plan'||st==='stale'; };
+  const dayTot=n=>codes.reduce((s,c)=>s+(cell[c+'|'+n]||0),0);
+  const grand=codes.reduce((s,c)=>s+tot[c],0);
+
+  let html=`<table style="font-size:12px"><thead><tr><th style="min-width:150px">품목</th>`;
+  for(let n=1;n<=nDays;n++) html+=`<th class="num" style="min-width:24px;${isPlan(n)?'background:var(--chip)':''}">${n}<br><span class="mini">${dow(n)}</span></th>`;
+  html+=`<th class="num">합계</th></tr></thead><tbody>`;
+  codes.forEach(c=>{
+    html+=`<tr><td style="white-space:nowrap">${nameOf(c)}<div class="mini">${c}</div></td>`;
+    for(let n=1;n<=nDays;n++){
+      const q=cell[c+'|'+n]||0;
+      html+=`<td class="num" style="${isPlan(n)?'background:var(--chip);':''}${q?'font-weight:700':'color:var(--line)'}">${q||'·'}</td>`;
+    }
+    html+=`<td class="num" style="font-weight:800">${tot[c]}</td></tr>`;
+  });
+  html+=`<tr style="border-top:2px solid var(--line)"><td style="font-weight:700">일자 합계</td>`;
+  for(let n=1;n<=nDays;n++) html+=`<td class="num" style="font-weight:700;${isPlan(n)?'background:var(--chip);':''}">${dayTot(n)||'·'}</td>`;
+  html+=`<td class="num" style="font-weight:800">${grand}</td></tr></tbody></table>`;
+  host.innerHTML=html;
+}
+
+function srmDelDay(d){
+  if(!confirm(`${d} 출고 자료를 지울까요?`))return;
+  delete ST.srm[d]; save(); renderSrm(); toast('지웠습니다');
+}
+function srmClearAll(){
+  const n=srmDays().length; if(!n){toast('지울 자료가 없습니다');return;}
+  if(!confirm(`창고 출고 자료 ${n}일치를 모두 지울까요?\n납품 기록과 예시는 그대로 남습니다.`))return;
+  ST.srm={}; save(); renderSrm(); toast(`${n}일치를 지웠습니다`);
+}
+function srmShiftMonth(k){
+  if(!srmYm) return;
+  let y=+srmYm.slice(0,4), m=+srmYm.slice(5,7)+k;
+  if(m>12){m=1;y++;} if(m<1){m=12;y--;}
+  srmYm=y+'-'+String(m).padStart(2,'0');
+  renderSrmGrid(); renderSrmGrid('nowGrid','nowGridTitle');   // 두 화면이 같은 달을 본다
+}
+
+/* ── 파일 받기 ── */
+async function srmTakeFiles(files){
+  const info=document.getElementById('srmInfo');
+  if(typeof XLSX==='undefined'){
+    info.textContent='엑셀 읽기 도구를 못 불러왔습니다. 인터넷 연결을 확인하신 뒤 새로고침해 주세요.';
+    toast('엑셀 읽기 도구를 못 불러왔습니다'); return;
+  }
+  const asof=document.getElementById('srmAsof').value||TODAY;
+  let rows=[], ok=0, bad=0; const whys=[];
+  for(const f of files){
+    try{
+      const r=srmParse(await f.arrayBuffer());
+      if(r.rows.length){ rows=rows.concat(r.rows); ok++; }
+      else { bad++; whys.push(`${f.name} — ${r.why}`); }
+    }catch(e){ console.warn(f.name,e); bad++; whys.push(`${f.name} — 읽다가 막혔습니다: ${e.message}`); }
+  }
+  if(!rows.length){
+    info.innerHTML='읽을 수 있는 판매오더 리스트가 없었습니다.<br>'
+      + whys.map(w=>`<span style="color:#c2410c">· ${w.replace(/</g,'&lt;')}</span>`).join('<br>');
+    toast('판매오더 리스트를 못 읽었습니다'); return;
+  }
+  const res=srmStore(rows, asof);
+  document.getElementById('srmInfo').textContent =
+    `파일 ${ok}개 · ${res.days}일치 ${res.qty}EA (새로 ${res.added}일 · 갱신 ${res.replaced}일)`
+    + (res.kept?` · 손입력 지키느라 건너뜀 ${res.kept}일`:'')
+    + (bad?` · 못 읽음 ${bad}개`:'');
+  toast(res.days?`${res.days}일치를 넣었습니다`:'건너뛰었습니다');
+  renderSrm();
+}
+
+/* ========== 확정 소요 ==========
+   각 스냅샷의 '뽑은 날짜' 칸 = 그날 확정 물량 */
+function confirmedByDate(code){
+  const out={};
+  ST.snaps.forEach(s=>{
+    const r=s.rows.find(x=>x.code===code);
+    if(r) out[s.date]=r.daily[s.date]||0;
+  });
+  return out;
+}
+function allCodes(){
+  const s=new Set();
+  ST.snaps.forEach(sn=>sn.rows.forEach(r=>s.add(r.code)));
+  ST.delivs.forEach(x=>s.add(x.code));
+  Object.values(ST.srm||{}).forEach(e=>(e.rows||[]).forEach(r=>s.add(r.code)));
+  Object.keys(ST.names).forEach(c=>s.add(c));
+  return [...s].sort();
+}
+function nameOf(c){return ST.names[c]||c;}
+
+/* ========== 재고 소진 추적 ==========
+   창고 출고(확정) = 재고 소진 · 우리 입고(납품) = 재고 보충.
+   추정 재고 = 실사값 + (그 이후 입고) − (그 이후 소진).
+   실사값이 없으면 기준을 0/첫 출고일로 두고 입고−출고로 추정한다. */
+function firstFixedDay(){ return srmDays().filter(x=>srmState(x)==='fixed')[0]||null; }
+// 오늘까지의 실사 중 가장 최근 것 (기준점)
+function latestCount(code){
+  let best=null;
+  Object.keys(ST.counts||{}).forEach(dt=>{
+    if(dt>TODAY) return;
+    const q=(ST.counts[dt]||{})[code];
+    if(q==null||q==='') return;
+    if(!best||dt>best.date) best={date:dt,qty:Number(q)||0};
+  });
+  return best;
+}
+// 기준일 이후(exclusive) ~ 오늘까지 우리 입고 합계
+function inSince(code,after){
+  return (ST.delivs||[]).reduce((a,x)=>
+    a+((x.code===code && x.ship<=TODAY && (!after||x.ship>after))?(x.qty||0):0),0);
+}
+// 기준일 이후 확정 출고(=소진) 합계
+function outFixedSince(code,after){
+  let s=0;
+  srmDays().forEach(day=>{
+    if(srmState(day)!=='fixed') return;
+    if(after && !(day>after)) return;
+    (ST.srm[day].rows||[]).forEach(r=>{ if(r.code===code) s+=r.qty||0; });
+  });
+  return s;
+}
+// 아직 안 나간 예정(+재조회 필요)분 — 곧 빠질 물량
+function outPlanSince(code,after){
+  let s=0;
+  srmDays().forEach(day=>{
+    if(srmState(day)==='fixed') return;
+    if(after && !(day>after)) return;
+    (ST.srm[day].rows||[]).forEach(r=>{ if(r.code===code) s+=r.qty||0; });
+  });
+  return s;
+}
+// 오늘까지의 마지막 입고일 (그 배치만 현재 재고로 본다 — 그 전 재고는 소진 가정)
+function lastInboundDate(code){
+  let best=null;
+  (ST.delivs||[]).forEach(x=>{ if(x.code===code && x.ship<=TODAY && (!best||x.ship>best)) best=x.ship; });
+  return best;
+}
+function inboundOn(code,date){
+  return (ST.delivs||[]).reduce((a,x)=>a+((x.code===code && x.ship===date)?(x.qty||0):0),0);
+}
+function totalInbound(code){ return inSince(code,null); }   // 4월 이후 누적 입고(참고용)
+
+/* 재고 경보 문턱 — 예상 남음이 이 아래로 떨어지면 알린다. 여기만 고치면 전체가 바뀐다. */
+const STOCK_CRIT=5, STOCK_LOW=10;
+
+/* 아직 안 들어온 입고 — 납품 기록에 앞날로 적어둔 것.
+   대리님 시트에서 표 바깥 쪽지로 떠 있던 「50장 8/14」가 들어갈 자리다.
+   예정일은 밀리기도 하므로(실제로 8/20 입고) 지금 재고와는 반드시 따로 센다. */
+function inboundAhead(code){
+  const list=(ST.delivs||[]).filter(x=>x.code===code && x.ship>TODAY)
+                            .sort((a,b)=>a.ship<b.ship?-1:1);
+  return {qty:list.reduce((a,x)=>a+(x.qty||0),0), first:list[0]?list[0].ship:null, list};
+}
+/* 기준점 우선순위: 실사값 > 마지막 입고 배치 > 없음
+   · 실사값이 있으면 그 값을 믿는다 (그 뒤 입고는 더하고 출고는 뺀다).
+   · 실사 전에는, "새 입고 = 직전 재고 바닥" 규칙에 따라 마지막 입고 배치만 남은 것으로 본다. */
+function stockOf(code){
+  const cnt=latestCount(code);
+  let anchor,baseDate,base;
+  if(cnt){ anchor='실사'; baseDate=cnt.date; base=cnt.qty; }
+  else{
+    const lastIn=lastInboundDate(code);
+    if(lastIn){ anchor='입고'; baseDate=lastIn; base=inboundOn(code,lastIn); }
+    else{ anchor='none'; baseDate=firstFixedDay(); base=0; }
+  }
+  const inn=inSince(code,baseDate), out=outFixedSince(code,baseDate);
+  const stock=base+inn-out;                       // 지금 재고 (앞으로 들어올 입고는 뺀 값)
+  const days=baseDate?Math.max(1,daysBetween(baseDate,TODAY)):0;
+  const rate=days?out/days:0;
+  const daysLeft=(rate>0)?stock/rate:null;
+  const planOut=outPlanSince(code,baseDate);
+  const ahead=inboundAhead(code);
+  const left=stock-planOut;                       // 예상 남음 = 대리님 시트의 '예상재고'
+  // 급함/주의 판정은 '입고 전' 값으로 본다. 입고를 미리 더하면 가장 급한 품목이 가장 여유로워 보인다.
+  const rank = (stock<0||left<0) ? 0 : (left<=STOCK_CRIT ? 1
+             : (left<=STOCK_LOW || (daysLeft!=null&&daysLeft<=7)) ? 2 : 3);
+  return {anchor, hasCount:anchor==='실사', base, baseDate, inn, out, stock, rate,
+    totalIn:totalInbound(code), planOut, left, rank,
+    soon:ahead.qty, soonDate:ahead.first, soonList:ahead.list, daysLeft,
+    eta:(daysLeft!=null&&daysLeft>0)?addDays(TODAY,Math.round(daysLeft)):null};
+}
+function nextMonthFirst(){
+  const t=d(TODAY), y=t.getFullYear(), m=t.getMonth()+1;
+  const nm=m+1>12?1:m+1, ny=m+1>12?y+1:y;
+  return `${ny}-${String(nm).padStart(2,'0')}-01`;
+}
+
+/* 재고 현황 — 급한 것이 맨 위로 오게, 한눈에 보이게.
+   ── 왜 '지금 재고'와 '입고 예정'을 따로 두나
+   두 값을 한 칸에 더해 놓으면, 입고가 잡힌 품목이 가장 여유로워 보인다.
+   그런데 정작 위험한 구간은 '입고가 들어오기 전까지'다.
+   (대리님 시트에서 매그놀리아 447이 예상재고 54로 떴지만, 실제로는 입고 전까지 4장이었다) */
+function renderStock(){
+  const rows=allCodes().map(c=>({c,s:stockOf(c)}))
+    .filter(x=>x.s.base||x.s.inn||x.s.out||x.s.planOut||x.s.soon);
+  rows.sort((a,b)=>{
+    if(a.s.rank!==b.s.rank) return a.s.rank-b.s.rank;      // 급한 것 먼저
+    return a.s.left-b.s.left;                              // 그 다음 적게 남은 것 먼저
+  });
+  const w=document.getElementById('stockTbl');
+  if(!w) return;
+  if(!rows.length){ w.innerHTML='<div class="empty">아직 입·출고 자료가 없습니다.</div>'; return; }
+
+  const n=[0,0,0,0]; rows.forEach(x=>n[x.s.rank]++);
+  const sum=document.getElementById('stockSum');
+  if(sum) sum.innerHTML=
+      (n[0]?`<span class="chip b">모자람 ${n[0]}종</span> `:'')
+    + (n[1]?`<span class="chip b">급함 ${n[1]}종</span> `:'')
+    + (n[2]?`<span class="chip w">주의 ${n[2]}종</span> `:'')
+    + (n[3]?`<span class="chip g">여유 ${n[3]}종</span>`:'')
+    + `<span class="mini" style="margin-left:8px">모두 ${rows.length}종 · 오늘 ${TODAY} 기준</span>`;
+
+  var _tc=document.getElementById("thCrit"); if(_tc) _tc.textContent=STOCK_CRIT;
+  var _tl=document.getElementById("thLow"); if(_tl) _tl.textContent=STOCK_LOW;
+  const LABEL=["모자람","급함","주의","여유"], CHIP=['b','b','w','g'];
+  w.innerHTML=`<table><thead><tr>
+    <th style="width:56px">상태</th><th>제품</th>
+    <th class="num">지금 재고</th><th class="num">예정 출고</th><th class="num">예상 남음</th>
+    <th class="num">입고 예정</th><th>예상 바닥</th></tr></thead><tbody>`+
+    rows.map(({c,s})=>{
+      const col=s.rank===0?'var(--bad)':s.rank===1?'var(--bad)':s.rank===2?'var(--warn)':'var(--txt)';
+      const lb=s.anchor==='실사'
+          ? `<span class="chip g">실사</span> ${s.baseDate}`
+        : s.anchor==='입고'
+          ? `<span class="chip n">입고</span> ${s.baseDate}` : '—';
+      // 입고가 예상 바닥보다 먼저 들어오면 그것으로 해소된다
+      const rescued = s.soon>0 && s.rank<=2 && (!s.eta || s.soonDate<=s.eta);
+      // 소진 속도가 아주 느리면 '몇 년 뒤'같은 헛날짜가 나온다. 그건 날짜로 못 박지 않는다.
+      const farOff = s.daysLeft!=null && s.daysLeft>90;
+      const etaCell = (s.eta && !farOff)
+          ? `${s.anchor==='입고'?'빠르면 ':''}${s.eta} <span class="mini">(${Math.round(s.daysLeft)}일)</span>`
+          : farOff ? `<span class="mini">한참 남음 <span title="지금 소진 속도라면 90일 넘게 버팁니다. 속도가 느려 날짜로 못 박습니다.">(90일+)</span></span>`
+          : (s.stock<=0?'<span class="chip b">바닥 · 실사 필요</span>':'<span class="mini">—</span>');
+      return `<tr>
+        <td><span class="chip ${CHIP[s.rank]}">${LABEL[s.rank]}</span></td>
+        <td>${nameOf(c)}<div class="mini">${c} · ${lb}</div></td>
+        <td class="num" style="font-weight:800;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥ ':''}${s.stock}</td>
+        <td class="num" style="color:var(--sub)">${s.planOut||'·'}</td>
+        <td class="num" style="font-weight:800;color:${col}">${s.left}</td>
+        <td class="num">${s.soon?`<b>+${s.soon}</b><div class="mini">${s.soonDate} 예정</div>`:'<span class="mini">—</span>'}</td>
+        <td>${etaCell}${rescued?`<div class="mini" style="color:#3f7d4e">${s.soonDate} 입고로 풀립니다</div>`:''}</td>
+      </tr>`;
+    }).join('')+`</tbody></table>`;
+}
+
+/* 입고 예정 한눈에 — 앞날 출고일로 적어둔 납품 기록을 모아 보여준다. */
+function renderAhead(){
+  const host=document.getElementById('aheadTbl'); if(!host) return;
+  const list=(ST.delivs||[]).filter(x=>x.ship>TODAY).sort((a,b)=>a.ship<b.ship?-1:1);
+  if(!list.length){
+    host.innerHTML=`<div class="empty">앞으로 들어올 입고가 아직 없습니다.
+      납품 기록에 <b>앞날 출고일</b>로 넣으시면 여기에 뜹니다.</div>`;
+    return;
+  }
+  host.innerHTML=`<table><thead><tr>
+    <th>들어오는 날</th><th>발주일</th><th class="num">리드타임</th><th>제품</th>
+    <th class="num">수량</th><th class="num">들어온 뒤 재고</th></tr></thead><tbody>`
+    + list.map(x=>{
+        const s=stockOf(x.code);
+        const days=daysBetween(TODAY,x.ship);
+        const lead=bizLead(x.ord,x.ship);
+        return `<tr>
+          <td>${x.ship} <span class="mini">(${days}일 뒤)</span></td>
+          <td class="mini">${x.ord||'—'}</td>
+          <td class="num">${lead!=null?lead+'일':'<span class="mini">—</span>'}</td>
+          <td>${nameOf(x.code)}<div class="mini">${x.code}</div></td>
+          <td class="num"><b>+${x.qty}</b></td>
+          <td class="num" style="color:var(--sub)">${s.left} → <b style="color:var(--txt)">${s.left+s.soon}</b></td>
+        </tr>`;
+      }).join('')
+    + `</tbody></table>`;
+}
+function renderCounts(){
+  const dInput=document.getElementById('countDate');
+  if(!dInput) return;
+  if(!dInput.value) dInput.value=nextMonthFirst();
+  const date=dInput.value;
+  const saved=ST.counts[date]||{};
+  document.getElementById('countTbl').innerHTML=`<table><thead><tr>
+    <th>제품</th><th class="num">현재 추정</th>
+    <th class="num">${date} 실사값</th></tr></thead><tbody>`+
+    allCodes().map(c=>{
+      const s=stockOf(c);
+      return `<tr><td>${nameOf(c)}<div class="mini">${c}</div></td>
+        <td class="num" style="color:var(--sub)">${s.stock}</td>
+        <td class="num"><input type="number" value="${saved[c]!=null?saved[c]:''}" placeholder="—"
+          style="width:92px;padding:5px 7px" onchange="setCount('${date}','${c}',this.value)"></td></tr>`;
+    }).join('')+`</tbody></table>`;
+}
+function setCount(date,code,v){
+  if(!date) return;
+  ST.counts[date]=ST.counts[date]||{};
+  const n=String(v).trim();
+  if(n==='') delete ST.counts[date][code]; else ST.counts[date][code]=Number(v)||0;
+  if(!Object.keys(ST.counts[date]).length) delete ST.counts[date];
+  save(); renderStock(); renderCounts();
+  toast(n===''?'실사값을 비웠습니다':`${nameOf(code)} 실사 ${n}`);
+}
+
+/* ========== 발주 단위(참조문서번호) ========== */
+function orders(){
+  const g={};
+  // 묶음 기준: 참조문서번호 > 오더날짜 > (없으면 그 줄 하나만)
+  ST.delivs.forEach((x,i)=>{
+    const k=x.ref||(x.ord?('오더 '+x.ord):('단건#'+i));
+    (g[k]=g[k]||{ref:k,items:[]}).items.push(x);
+  });
+  return Object.values(g).map(o=>{
+    const ships=o.items.map(i=>i.ship).sort();
+    const codes=[...new Set(o.items.map(i=>i.code))];
+    const qty=o.items.reduce((a,i)=>a+i.qty,0);
+    return{...o,first:ships[0],last:ships[ships.length-1],
+      split:o.items.length>1,codes,qty,
+      delay:daysBetween(ships[0],ships[ships.length-1])};
+  }).sort((a,b)=>d(b.first)-d(a.first));
+}
+/* 코드별 발주 시점 = 그 코드가 처음 출고된 날 (발주 묶음 기준) */
+function orderPointsFor(code){
+  const os=orders().filter(o=>o.codes.includes(code))
+    .sort((a,b)=>d(a.first)-d(b.first));
+  const conf=confirmedByDate(code);
+  const res=[];
+  for(let i=0;i<os.length;i++){
+    const o=os[i];
+    const qty=o.items.filter(x=>x.code===code).reduce((a,x)=>a+x.qty,0);
+    let accum=null;
+    if(i>0){
+      const from=os[i-1].first, to=o.first;
+      // 직전 발주일 이후 ~ 이번 발주일까지 확정 소요 누적
+      let sum=0,have=false;
+      Object.entries(conf).forEach(([dt,q])=>{
+        if(daysBetween(from,dt)>0 && daysBetween(dt,to)>0){sum+=q;have=true;}
+      });
+      accum=have?sum:null;
+    }
+    res.push({ref:o.ref,date:o.first,qty,split:o.split,delay:o.delay,accum,
+      gap:i>0?daysBetween(os[i-1].first,o.first):null});
+  }
+  return res;
+}
+function reorderPoint(code){
+  const pts=orderPointsFor(code).filter(p=>p.accum!=null);
+  if(!pts.length)return null;
+  const vals=pts.map(p=>p.accum);
+  const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+  const sd=Math.sqrt(vals.reduce((a,v)=>a+(v-avg)**2,0)/vals.length);
+  return{avg,sd,n:vals.length,vals};
+}
+/* 마지막 발주 이후 현재까지 누적 확정 */
+function currentAccum(code){
+  const os=orders().filter(o=>o.codes.includes(code)).sort((a,b)=>d(a.first)-d(b.first));
+  if(!os.length)return null;
+  const last=os[os.length-1].first;
+  const conf=confirmedByDate(code);
+  let sum=0,days=0;
+  Object.entries(conf).forEach(([dt,q])=>{ if(daysBetween(last,dt)>0){sum+=q;days++;} });
+  return{since:last,accum:sum,daysCovered:days,elapsed:daysBetween(last,TODAY)};
+}
+/* 코드별 우리 입고 합계(창고로 보낸 것 = ST.delivs) */
+function inByCode(){
+  const m={}; (ST.delivs||[]).forEach(x=>{ m[x.code]=(m[x.code]||0)+(x.qty||0); }); return m;
+}
+/* 코드별 창고 출고 — 확정(fixed)만 / 예정 따로 */
+function srmByCode(){
+  const fixed={}, plan={};
+  Object.keys(ST.srm||{}).forEach(day=>{
+    const st=srmState(day), tgt=(st==='fixed')?fixed:plan;
+    (ST.srm[day].rows||[]).forEach(r=>{ tgt[r.code]=(tgt[r.code]||0)+(r.qty||0); });
+  });
+  return {fixed,plan};
+}
+/* 확정 소요 평균 속도(장/일) — 스냅샷이 있는 날만 */
+function dailyRate(code){
+  const conf=confirmedByDate(code);
+  const ks=Object.keys(conf);
+  if(ks.length<1)return null;
+  const sum=ks.reduce((a,k)=>a+conf[k],0);
+  return sum/ks.length;
+}
+
+/* ========== 현황 ========== */
+
+/* ══════════════════════════════════════════════════════════════════
+   발주 리듬 — 발주와 발주 사이 간격으로 다음 발주 시점을 잡는다.
+   ── 왜 간격인가
+   원래 발주점은 '발주 사이에 쌓인 예시 소요'로 구한다. 그런데 예시 스냅샷이 없으면
+   그 값이 영영 안 나온다. 반면 간격은 납품 기록만 있으면 바로 나오고,
+   실제로 발주가 규칙적으로 오는 품목은 이쪽이 더 잘 맞는다.
+   둘 다 있으면 함께 보여주고, 없는 쪽은 없다고 적는다.
+   ══════════════════════════════════════════════════════════════════ */
+function orderRhythm(code){
+  // 앞날 입고 예정은 '발주'가 아니다. 이미 지난 것만 리듬으로 센다.
+  const pts=orderPointsFor(code).filter(p=>p.date<=TODAY);
+  if(!pts.length) return null;
+  const last=pts[pts.length-1];
+  const gaps=pts.map(p=>p.gap).filter(g=>g!=null&&g>0);
+  const avgGap=gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:null;
+  const sdGap=gaps.length>1
+    ? Math.sqrt(gaps.reduce((a,g)=>a+(g-avgGap)**2,0)/gaps.length) : 0;
+  const next=avgGap?addDays(last.date,Math.round(avgGap)):null;
+  const dleft=next?daysBetween(TODAY,next):null;
+  const rank = next==null ? 3 : (dleft<0 ? 0 : (dleft<=7 ? 1 : 2));
+  return {n:pts.length, date:last.date, qty:last.qty, ref:last.ref,
+          gaps, avgGap, sdGap, next, dleft, rank,
+          since:daysBetween(last.date,TODAY)};
+}
+
+/* 발주 시점 한눈에 — 품목을 하나씩 고르지 않고 전부 한 표에서 본다. */
+function renderOrderTable(){
+  const host=document.getElementById('rhythmTbl'); if(!host) return;
+  const rows=allCodes().map(c=>({c, r:orderRhythm(c), rp:reorderPoint(c), cur:currentAccum(c)}))
+                       .filter(x=>x.r);
+  if(!rows.length){
+    host.innerHTML='<div class="empty">납품 기록이 없어 발주 시점을 잡을 수 없습니다.</div>';
+    const s=document.getElementById('rhythmSum'); if(s) s.innerHTML='';
+    return;
+  }
+  rows.sort((a,b)=>{
+    if(a.r.rank!==b.r.rank) return a.r.rank-b.r.rank;
+    return (a.r.dleft==null?9999:a.r.dleft)-(b.r.dleft==null?9999:b.r.dleft);
+  });
+  const n=[0,0,0,0]; rows.forEach(x=>n[x.r.rank]++);
+  const sum=document.getElementById('rhythmSum');
+  if(sum) sum.innerHTML=
+      (n[0]?`<span class="chip b">발주 시점 지남 ${n[0]}종</span> `:'')
+    + (n[1]?`<span class="chip w">이번 주 ${n[1]}종</span> `:'')
+    + (n[2]?`<span class="chip g">여유 ${n[2]}종</span> `:'')
+    + (n[3]?`<span class="chip n">간격 모름 ${n[3]}종</span>`:'')
+    + `<span class="mini" style="margin-left:8px">발주 이력이 있는 ${rows.length}종 · 오늘 ${TODAY}</span>`;
+
+  const LABEL=['지남','이번 주','여유','모름'], CHIP=['b','w','g','n'];
+  host.innerHTML=`<table><thead><tr>
+    <th style="width:64px">상태</th><th>제품</th>
+    <th>마지막 발주</th><th class="num">발주량</th>
+    <th class="num">발주 간격</th><th>다음 발주 예상</th>
+    <th class="num">그 뒤 소요</th><th class="num">발주점</th></tr></thead><tbody>`+
+    rows.map(({c,r,rp,cur})=>{
+      const col=r.rank===0?'var(--bad)':r.rank===1?'var(--warn)':'var(--txt)';
+      const gapCell = r.avgGap
+        ? `${fmt(r.avgGap)}일${r.gaps.length>1&&r.sdGap>=1?`<div class="mini">±${fmt(r.sdGap)} · ${r.gaps.length}회</div>`:`<div class="mini">${r.gaps.length}회 관측</div>`}`
+        : `<span class="mini">발주 1회뿐</span>`;
+      const nextCell = r.next
+        ? `<b style="color:${col}">${r.next}</b><div class="mini">${r.dleft<0?`${-r.dleft}일 지남`:r.dleft===0?'오늘':`${r.dleft}일 뒤`}</div>`
+        : `<span class="mini">—</span>`;
+      return `<tr>
+        <td><span class="chip ${CHIP[r.rank]}">${LABEL[r.rank]}</span></td>
+        <td>${nameOf(c)}<div class="mini">${c}</div></td>
+        <td>${r.date}<div class="mini">${r.since}일 전 · 발주 ${r.n}회</div></td>
+        <td class="num">${r.qty}</td>
+        <td class="num">${gapCell}</td>
+        <td>${nextCell}</td>
+        <td class="num">${cur&&cur.daysCovered?`${fmt(cur.accum)}장<div class="mini">스냅샷 ${cur.daysCovered}일치</div>`:'<span class="mini">스냅샷 없음</span>'}</td>
+        <td class="num">${rp?`${fmt(rp.avg)}장<div class="mini">${rp.n}회 관측</div>`:'<span class="mini">모름</span>'}</td>
+      </tr>`;
+    }).join('')+`</tbody></table>`;
+}
+/* SRM을 어디까지 올렸는지 — 몰아서 올리다 보면 며칠부터인지 잊어버린다.
+   재고 추측은 '올린 만큼만' 반영되므로, 빠진 날이 있으면 재고가 실제보다 많아 보인다.
+   그래서 맨 위에서 먼저 알려준다. */
+function srmCoverage(){
+  const days=srmDays();
+  if(!days.length) return null;
+  const first=days[0], last=days[days.length-1];
+  const have=new Set(days);
+  // 빠진 날은 '올린 구간 안에서 건너뛴 날'만 센다.
+  // 마지막 날 이후는 아직 안 올린 것이라 sinceLast 로 따로 말한다(같은 말을 두 번 하지 않게).
+  const missing=[];
+  let cur=first, guard=0;
+  while(cur<last && guard<800){
+    if(isBizDay(cur) && !have.has(cur)) missing.push(cur);
+    cur=addDays(cur,1); guard++;
+  }
+  const stale=days.filter(d=>srmState(d)==='stale');
+  return {first, last, n:days.length, missing, stale, sinceLast:daysBetween(last,TODAY)};
+}
+function renderSrmCoverage(){
+  const host=document.getElementById('srmCov'); if(!host) return;
+  const c=srmCoverage();
+  if(!c){
+    host.innerHTML='<div class="hint">아직 창고 출고 자료가 없습니다 — <b>창고 출고(SRM)</b> 탭에서 판매오더 리스트를 올려주세요.<br>이걸 올려야 재고 추측이 움직입니다.</div>';
+    return;
+  }
+  const md=s=>s.slice(5).replace('-','/');
+  let html=`<div style="font-size:15px;font-weight:700;margin-bottom:6px">${c.first} ~ <span style="color:var(--accent)">${c.last}</span> <span class="mini" style="font-weight:400">· ${c.n}일치 올림</span></div>`;
+  const warns=[];
+  if(c.sinceLast>0)
+    warns.push(`<b>${c.last}</b> 이후 <b>${c.sinceLast}일</b> 자료가 없습니다. 그 뒤로 나간 물량은 아래 재고에 <b>안 빠져 있습니다</b> — 실제 재고는 더 적습니다.`);
+  if(c.missing.length)
+    warns.push(`중간에 빠진 영업일 <b>${c.missing.length}일</b>: ${c.missing.slice(0,12).map(md).join(', ')}${c.missing.length>12?` 외 ${c.missing.length-12}일`:''}`);
+  if(c.stale.length)
+    warns.push(`출고일이 지났는데 그 전에 뽑은 값만 있는 날 <b>${c.stale.length}일</b> — 다시 뽑아 넣으면 정확해집니다.`);
+  html += warns.length
+    ? `<div class="hint" style="color:var(--warn)">${warns.map(w=>'⚠ '+w).join('<br>')}</div>`
+    : `<div class="hint" style="color:var(--good)">✅ 빠진 날 없이 오늘까지 채워져 있습니다.</div>`;
+  host.innerHTML=html;
+}
+
+function renderNow(){
+  renderSrmCoverage();
+  renderSrmGrid('nowGrid','nowGridTitle');
+  // 전 품목 격자 — 모든 모델을 세로로. 이름은 사이즈(괄호)까지 안 자르고 그대로.
+  const IN=inByCode(), {fixed:OUTf, plan:OUTp}=srmByCode();
+  const codes=allCodes();   // 데이터 유무와 관계없이 전 모델
+  const at=document.getElementById('allTbl');
+  if(at) at.innerHTML=codes.length?`<table><thead><tr>
+    <th>코드</th><th>제품명</th>
+    <th class="num">우리 입고</th><th class="num">창고 출고<br><span class="mini">확정</span></th>
+    <th class="num">지금 재고<br><span class="mini">실사 기준</span></th><th class="num">출고 예정</th></tr></thead><tbody>`+
+    codes.map(c=>{
+      const inQ=IN[c]||0, outQ=OUTf[c]||0, planQ=OUTp[c]||0;
+      const st=stockOf(c), delta=st.stock;   // 재고 탭과 같은 값 — 두 화면이 다른 숫자를 말하면 안 된다
+      const deltaCol = (st.rank===0||st.rank===1)?'var(--bad)':st.rank===2?'var(--warn)':'var(--txt)';
+      return`<tr><td class="mini">${c}</td><td>${nameOf(c)}</td>
+        <td class="num">${inQ||'·'}</td>
+        <td class="num">${outQ||'·'}</td>
+        <td class="num" style="font-weight:700;color:${deltaCol}">${st.anchor!=='none'?delta:'·'}</td>
+        <td class="num" style="color:var(--sub)">${planQ||'·'}</td></tr>`;
+    }).join('')+`</tbody></table>`
+    :'<div class="empty">품목이 없습니다.</div>';
+
+  // 미납 발주 — 발주가 왔다는 건 창고가 비었다는 뜻이라, 맨 위에서 먼저 보이게 한다.
+  const openHost=document.getElementById('poOpen');
+  if(openHost){
+    const open=(typeof poWithRemain==='function'?poWithRemain():[]).filter(r=>r.remain>0);
+    if(!open.length){
+      openHost.innerHTML=(ST.pos&&ST.pos.length)
+        ? '<div class="hint">미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.</div>'
+        : '<div class="hint">아직 넣은 발주가 없습니다 — <b>납품 기록</b> 탭의 「📥 발주 받기」에 P/O 표를 붙여넣어 주세요.</div>';
+    }else{
+      const q=open.reduce((a,r)=>a+r.remain,0);
+      openHost.innerHTML=`<div style="margin-bottom:7px"><span class="chip w">미납 ${open.length}건 · ${q}장</span></div>`
+        +`<table><thead><tr><th>오더번호</th><th>발주일</th><th>제품</th><th class="num">미납</th><th>납품일</th></tr></thead><tbody>`
+        +open.map(r=>{
+          const late=r.due&&r.due<TODAY;
+          return `<tr><td class="mini">${r.ord}</td><td>${r.odate}</td><td>${nameOf(r.code)}<div class="mini">${r.code}</div></td>
+            <td class="num" style="font-weight:700;color:var(--bad)">${r.remain}</td>
+            <td${late?' style="color:var(--bad)"':''}>${r.due||'—'}${late?' <span class="mini">지남</span>':''}</td></tr>`;
+        }).join('')+`</tbody></table>`;
+    }
+  }
+
+  document.getElementById('nowMeta').textContent=
+    `스냅샷 ${ST.snaps.length}일치 · 납품 ${ST.delivs.length}건 · 발주 ${orders().length}건`;
+}
+
+/* ========== 스냅샷 목록 ========== */
+function renderSnaps(){
+  document.getElementById('snapCount').textContent=`${ST.snaps.length}일치`;
+  const nBridge=ST.snaps.filter(s=>s.from==='yesi').length;
+  document.getElementById('bridgeCount').textContent=
+    nBridge?`예시분석에서 받은 것 ${nBridge}일치 / 전체 ${ST.snaps.length}일치`:'아직 받아온 스냅샷이 없습니다';
+  const w=document.getElementById('snapTbl');
+  if(!ST.snaps.length){w.innerHTML=`<div class="empty">예시표를 매일 넣어주세요.<br>
+    <span class="mini">그날 칸이 확정 물량이라, 오늘 안 넣으면 오늘 소요는 영영 잡히지 않습니다.</span></div>`;return;}
+  const rev=[...ST.snaps].reverse();
+  w.innerHTML=`<table><thead><tr><th>뽑은 날짜</th><th>출처</th><th class="num">바스 품목</th>
+    <th class="num">그날 확정</th><th class="num">중복 제외</th><th></th></tr></thead><tbody>`+
+    rev.map(s=>{
+      const conf=s.rows.reduce((a,r)=>a+(r.daily[s.date]||0),0);
+      return`<tr><td>${s.date}${s.date===TODAY?' <span class="chip g">오늘</span>':''}</td>
+        <td>${s.from==='yesi'?'<span class="mini">예시분석</span>':'<span class="mini">직접 넣음</span>'}</td>
+        <td class="num">${s.rows.length}</td><td class="num">${fmt(conf)}장</td>
+        <td class="num">${s.excluded!=null?s.excluded:'<span class="mini">미첨부</span>'}</td>
+        <td><button class="ghost" onclick="delSnap('${s.id}')" style="padding:4px 9px;font-size:12px">삭제</button></td></tr>`;
+    }).join('')+`</tbody></table>`;
+}
+function delSnap(id){if(!confirm('이 스냅샷을 삭제할까요?'))return;
+  ST.snaps=ST.snaps.filter(s=>s.id!==id);save();refresh();toast('삭제됨');}
+
+/* ========== 납품 ========== */
+function renderDelivs(){
+  const os=orders();
+  const ow=document.getElementById('orderTbl');
+  // 중복 의심: 같은 코드·출고일·수량이 2건 이상이면 같은 출고를 두 번 넣었을 가능성
+  const dkey=x=>`${x.code}|${x.ship}|${x.qty}`;
+  const dcnt={}; ST.delivs.forEach(x=>{ dcnt[dkey(x)]=(dcnt[dkey(x)]||0)+1; });
+  const dupKinds=Object.values(dcnt).filter(c=>c>1).length;
+  const dupWarn=dupKinds
+    ? `<div class="alert bad" style="margin-bottom:10px">같은 제품·출고일·수량이 두 번 이상 들어간 <b>중복 의심 ${dupKinds}종</b>이 있습니다.
+        해당 발주를 눌러 펼친 뒤, 잘못 들어간 <b>빨간 줄</b>을 삭제하세요.</div>`
+    : '';
+  ow.innerHTML=os.length? dupWarn+`<table><thead><tr><th>발주 묶음</th><th>첫 출고</th>
+    <th>품목</th><th class="num">총 수량</th><th>출고 방식</th></tr></thead><tbody>`+
+    os.map((o,gi)=>{
+      const groupDup=o.items.some(it=>dcnt[dkey(it)]>1);
+      const lines=o.items.slice().sort((a,b)=>d(a.ship)-d(b.ship)).map(it=>{
+        const i=ST.delivs.indexOf(it), isDup=dcnt[dkey(it)]>1;
+        return `<tr${isDup?' style="background:#fdeceb"':''}>
+          <td>${it.ship}</td><td class="mini">${it.code}</td><td>${nameOf(it.code)}</td>
+          <td class="num">${it.qty}</td>
+          <td><input value="${it.ref||''}" placeholder="참조문서번호"
+            style="width:104px;padding:3px 6px;font-size:12px;border:1px solid var(--line);border-radius:6px"
+            onchange="setDelivRef(${i},this.value)"></td>
+          <td><button class="ghost" onclick="delDelivAt(${i})" style="padding:3px 8px;font-size:12px">삭제</button></td></tr>`;
+      }).join('');
+      return `<tr onclick="toggleOrder(${gi})" style="cursor:pointer">
+        <td><span class="mini" id="ord-arw-${gi}">▸</span> ${o.ref}</td><td>${o.first}</td>
+        <td class="mini">${o.codes.map(c=>c).join(', ')}</td>
+        <td class="num">${o.qty}</td>
+        <td>${o.split?`<span class="chip w">분할 ${o.items.length}회 · ${o.delay}일</span>`:'<span class="chip g">당일 전량</span>'}${groupDup?' <span class="chip b">중복 의심</span>':''}</td>
+      </tr>
+      <tr id="ord-detail-${gi}" style="display:none"><td colspan="5" style="background:var(--panel2);padding:6px 10px 6px 24px">
+        <table style="font-size:12px"><thead><tr><th>출고일</th><th>코드</th><th>제품명</th>
+          <th class="num">수량</th><th>참조문서</th><th></th></tr></thead><tbody>${lines}</tbody></table></td></tr>`;
+    }).join('')+`</tbody></table>`
+    :'<div class="empty">납품 기록이 없습니다.</div>';
+
+  document.getElementById('delivCount').textContent=`${ST.delivs.length}건`;
+  const dw=document.getElementById('delivTbl');
+  const sorted=[...ST.delivs].sort((a,b)=>d(b.ship)-d(a.ship));
+  dw.innerHTML=sorted.length?`<table><thead><tr><th>발주일</th><th>출고일</th><th class="num">리드타임<br><span class="mini">영업일</span></th><th>참조문서</th>
+    <th>코드</th><th>제품명</th><th class="num">수량</th><th></th></tr></thead><tbody>`+
+    sorted.map(x=>{ const i=ST.delivs.indexOf(x);
+      const lead=bizLead(x.ord,x.ship);
+      return `<tr><td class="mini">${x.ord||"<span style=\"color:var(--sub)\">—</span>"}</td><td>${x.ship}</td>
+      <td class="num">${lead!=null?`<b>${lead}일</b>`:"<span class=\"mini\">—</span>"}</td>
+      <td><input value="${x.ref||''}" placeholder="참조문서번호"
+        title="P/O번호(참조문서번호)를 넣으면 같은 번호끼리 발주 묶음으로 정리됩니다"
+        style="width:112px;padding:4px 6px;font-size:12px;border:1px solid var(--line);border-radius:6px"
+        onchange="setDelivRef(${i}, this.value)"></td>
+      <td>${x.code}</td><td>${nameOf(x.code)}</td><td class="num">${x.qty}</td>
+      <td><button class="ghost" onclick="delDelivAt(${i})" style="padding:4px 9px;font-size:12px">삭제</button></td></tr>`;
+    }).join('')
+    +`</tbody></table>`:'<div class="empty">없습니다.</div>';
+}
+// 모델명(부분) 또는 코드로 제품코드 찾기
+function codeHits(v){
+  v=String(v||'').trim(); if(!v) return [];
+  const codes=allCodes();
+  if(codes.includes(v)) return [v];                  // 코드를 그대로 넣은 경우
+  const q=v.toLowerCase();
+  const hits=codes.filter(c=>c.toLowerCase()===q||String(nameOf(c)||'').toLowerCase().includes(q));
+  const exact=hits.find(c=>String(nameOf(c)||'').toLowerCase()===q);
+  return exact?[exact]:hits;
+}
+function resolveCode(v){ return codeHits(v)[0]||''; }
+// 입력하는 동안 "무슨 제품으로 잡혔는지" 바로 보여주기
+function onCodeInput(){
+  const el=document.getElementById('dCodeHint'); if(!el) return;
+  const raw=(document.getElementById('dCode')||{}).value||'';
+  if(!raw.trim()){ el.textContent=''; return; }
+  const hits=codeHits(raw), c=hits[0];
+  if(!c){ el.textContent='⚠ 해당 제품을 못 찾았어요 (모델명 일부나 코드를 입력하세요)'; el.style.color='#c2410c'; return; }
+  if(hits.length>1){
+    el.textContent=`→ ${c} · ${nameOf(c)}  ⚠ 후보가 ${hits.length}개입니다 — 목록에서 골라주세요`;
+    el.style.color='#c2410c'; return;
+  }
+  el.textContent=`→ ${c} · ${nameOf(c)}`; el.style.color='#3f7d4e';
+}
+/* ── 붙여넣기 일괄 추가 (우리 업체 출고내역 = 창고 입고) ──
+   한 줄 형식: No 순번 [자재코드] 자재명 납품처 저장소 [수량] EA [단가] … [납품일 YYYYMMDD]
+   자재명에 공백·쉼표·괄호가 있어서, 코드·EA·8자리날짜를 기준점으로 잡아 뽑는다. */
+function parsePasteLine(line){
+  const t=line.trim(); if(!t) return null;
+  // 코드 · 자재명 · (납품처 저장소) · 수량 · EA · 단가 · … · 납품일
+  const m=t.match(/([A-Z]{2,}\d{4,})\s+(.+?)\s+\d{3,6}\s+\d{3,6}\s+(\d+)\s+EA\b\s+([\d,]+).*?\b(20\d{6})\b/i);
+  if(!m) return null;
+  return {code:m[1].trim(), name:m[2].trim(), qty:Number(m[3])||0,
+    price:Number(String(m[4]).replace(/,/g,''))||0,
+    ship:`${m[5].slice(0,4)}-${m[5].slice(4,6)}-${m[5].slice(6,8)}`};
+}
+function parsePaste(text){
+  const out=[],bad=[];
+  (text||'').split(/\r?\n/).forEach(line=>{
+    if(!line.trim())return;
+    const r=parsePasteLine(line);
+    if(r&&r.code&&r.qty&&r.ship) out.push(r); else bad.push(line.trim());
+  });
+  return {out,bad};
+}
+function renderPastePreview(){
+  const box=document.getElementById('pastePreview');
+  const {out,bad}=parsePaste(document.getElementById('pasteBox').value);
+  if(!out.length && !bad.length){ box.innerHTML=''; document.getElementById('pasteInfo').textContent=''; return; }
+  document.getElementById('pasteInfo').textContent=`읽음 ${out.length}건${bad.length?` · 못 읽음 ${bad.length}줄`:''}`;
+  let html=`<table><thead><tr><th>납품일</th><th>코드</th><th>제품명</th><th class="num">수량</th><th class="num">단가</th></tr></thead><tbody>`
+    + out.map(r=>`<tr><td>${r.ship}</td><td>${r.code}</td><td>${r.name}</td><td class="num">${r.qty}</td><td class="num">${won(r.price)}</td></tr>`).join('')
+    + `</tbody></table>`;
+  if(bad.length) html+=`<div class="hint" style="color:var(--bad);margin-top:6px">못 읽은 줄: ${bad.map(b=>`<div>${b.slice(0,60)}</div>`).join('')}</div>`;
+  box.innerHTML=html;
+}
+function pasteAdd(){
+  const {out,bad}=parsePaste(document.getElementById('pasteBox').value);
+  if(!out.length){ toast('읽을 수 있는 줄이 없습니다'); return; }
+  // 같은 (코드+납품일+수량)이 이미 있으면 건너뛴다 — 두 번 붙여넣어도 안 부풀게
+  const key=x=>`${x.code}|${x.ship}|${x.qty}`;
+  const have=new Set(ST.delivs.map(key));
+  let add=0,skip=0;
+  out.forEach(r=>{
+    if(have.has(key(r))){ skip++; return; }
+    have.add(key(r));
+    ST.delivs.push({no:'',ref:'',ship:r.ship,ord:'',code:r.code,qty:r.qty,price:r.price,src:'paste'});
+    if(!ST.names[r.code]) ST.names[r.code]=r.name;   // 이름 없으면 채움
+    if(r.price) ST.prices[r.code]=r.price;           // 단가는 최신값으로
+    add++;
+  });
+  save();
+  document.getElementById('pasteBox').value='';
+  document.getElementById('pastePreview').innerHTML='';
+  document.getElementById('pasteInfo').textContent='';
+  refresh();
+  toast(`창고 입고 ${add}건 추가${skip?` · 중복 ${skip} 건너뜀`:''}${bad.length?` · 못 읽음 ${bad.length}`:''}`);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   발주(P/O) 받기 — 납품 전에도 넣어두는 곳.
+   ── 왜 따로 두나
+   지금까지 '발주'는 납품 기록을 참조문서번호로 묶어 되짚은 것이었다.
+   그래서 납품하기 전 발주는 도구에 존재 자체가 없었다.
+   그런데 발주야말로 '창고 물량이 떨어졌다'는 가장 빠른 신호다.
+   붙여넣기 형식은 납품 쪽과 같다(P/O구매오더상세 표) — parsePasteLine 을 그대로 쓴다.
+   ══════════════════════════════════════════════════════════════════ */
+function poParse(text){
+  const out=[],bad=[];
+  (text||'').split(/\r?\n/).forEach(line=>{
+    if(!line.trim())return;
+    const r=parsePasteLine(line);
+    if(r&&r.code&&r.qty) out.push(r); else bad.push(line.trim());
+  });
+  return {out,bad};
+}
+function renderPoPreview(){
+  const box=document.getElementById('poPreview'); if(!box) return;
+  const {out,bad}=poParse(document.getElementById('poBox').value);
+  const info=document.getElementById('poInfo');
+  if(!out.length && !bad.length){ box.innerHTML=''; if(info) info.textContent=''; return; }
+  if(info) info.textContent=`읽음 ${out.length}건${bad.length?` · 못 읽음 ${bad.length}줄`:''}`;
+  let html=`<table><thead><tr><th>코드</th><th>제품명</th><th class="num">수량</th><th class="num">단가</th><th>납품일</th><th>단가 변동</th></tr></thead><tbody>`
+    + out.map(r=>{
+        const old=ST.prices[r.code];
+        const chg=(old&&r.price&&old!==r.price)
+          ? `<span style="color:var(--warn)">${won(old)} → <b>${won(r.price)}</b></span>` : '<span class="mini">—</span>';
+        return `<tr><td class="mini">${r.code}</td><td>${r.name}</td><td class="num">${r.qty}</td><td class="num">${won(r.price)}</td><td>${r.ship||'—'}</td><td>${chg}</td></tr>`;
+      }).join('') + `</tbody></table>`;
+  if(bad.length) html+=`<div class="hint" style="color:var(--bad);margin-top:6px">못 읽은 줄: ${bad.map(b=>`<div>${b.slice(0,60)}</div>`).join('')}</div>`;
+  box.innerHTML=html;
+}
+function poAdd(){
+  const ord=(document.getElementById('poOrd').value||'').trim();
+  const odate=(document.getElementById('poDate').value||'').trim();
+  if(!ord){ toast('오더번호를 넣어주세요'); return; }
+  if(!odate){ toast('발주일자를 넣어주세요'); return; }
+  const {out,bad}=poParse(document.getElementById('poBox').value);
+  if(!out.length){ toast('읽을 수 있는 줄이 없습니다'); return; }
+  const key=x=>`${ord}|${x.code}|${x.qty}`;
+  const have=new Set((ST.pos||[]).map(p=>`${p.ord}|${p.code}|${p.qty}`));
+  let add=0,skip=0,priceChg=0;
+  out.forEach(r=>{
+    if(have.has(key(r))){ skip++; return; }
+    have.add(key(r));
+    ST.pos.push({ord, code:r.code, qty:r.qty, price:r.price||0, odate, due:r.ship||'', at:new Date().toISOString()});
+    if(!ST.names[r.code]) ST.names[r.code]=r.name;
+    if(r.price){ if(ST.prices[r.code] && ST.prices[r.code]!==r.price) priceChg++; ST.prices[r.code]=r.price; }
+    add++;
+  });
+  save();
+  document.getElementById('poBox').value='';
+  document.getElementById('poOrd').value='';
+  document.getElementById('poPreview').innerHTML='';
+  document.getElementById('poInfo').textContent='';
+  refresh();
+  toast(`발주 ${add}건 넣었습니다${skip?` · 중복 ${skip} 건너뜀`:''}${priceChg?` · 단가 바뀐 품목 ${priceChg}`:''}`);
+}
+/* 미납 잔량 — 코드별로 발주(오래된 것부터)에 납품분을 채워 넣는다(선입선출).
+   ── 반드시 지켜야 하는 것: 발주일보다 먼저 나간 납품은 그 발주 몫이 아니다.
+   이 제약이 없으면 지난달 납품분이 이번 발주에 붙어 미납이 실제보다 적게 나온다.
+   (실측: 6/5 납품 30장이 8/24 발주에 붙어 미납이 50 → 20으로 잘못 나왔다)
+   참조문서번호가 그 오더와 같은 납품은 날짜와 관계없이 그 오더에 먼저 붙인다. */
+function poWithRemain(){
+  const pos=(ST.pos||[]).slice().sort((a,b)=>String(a.odate).localeCompare(String(b.odate)));
+  const byCode={};
+  pos.forEach(p=>{ (byCode[p.code]=byCode[p.code]||[]).push({...p, filled:0}); });
+  Object.keys(byCode).forEach(code=>{
+    const list=byCode[code];
+    const dels=(ST.delivs||[]).filter(d=>d.code===code)
+      .slice().sort((a,b)=>String(a.ship||'').localeCompare(String(b.ship||'')));
+    const used=new Set();
+    // 1) 참조문서번호가 맞는 납품 — 그 오더 것이 확실하다
+    dels.forEach((d,i)=>{
+      if(!d.ref) return;
+      const hit=list.find(p=>p.ord===d.ref);
+      if(hit){ hit.filled+=(d.qty||0); used.add(i); }
+    });
+    // 2) 나머지는 '발주일 이후에 나간 것'만, 이른 발주부터 채운다
+    dels.forEach((d,i)=>{
+      if(used.has(i)) return;
+      let q=d.qty||0;
+      for(const p of list){
+        if(q<=0) break;
+        if(d.ship && p.odate && d.ship < p.odate) continue;   // 발주 전에 나간 건 이 발주 몫이 아니다
+        const need=Math.max(0,(p.qty||0)-p.filled);
+        if(need<=0) continue;
+        const use=Math.min(need,q); p.filled+=use; q-=use;
+      }
+    });
+  });
+  return Object.values(byCode).flat()
+    .map(p=>({...p, remain:Math.max(0,(p.qty||0)-p.filled)}))
+    .sort((a,b)=>String(b.odate).localeCompare(String(a.odate)));
+}
+function poDel(ord,code,qty){
+  if(!confirm(`${ord} · ${nameOf(code)} ${qty}장 발주를 지울까요?`)) return;
+  ST.pos=(ST.pos||[]).filter(p=>!(p.ord===ord&&p.code===code&&p.qty===qty));
+  save(); refresh(); toast('발주를 지웠습니다');
+}
+function renderPos(){
+  const host=document.getElementById('poTbl'); if(!host) return;
+  const rows=poWithRemain();
+  const cnt=document.getElementById('poCount');
+  const openN=rows.filter(r=>r.remain>0).length;
+  const openQ=rows.filter(r=>r.remain>0).reduce((a,r)=>a+r.remain,0);
+  if(cnt) cnt.textContent = rows.length ? `${rows.length}건 · 미납 ${openN}건 ${openQ}장` : '';
+  if(!rows.length){ host.innerHTML='<div class="empty">아직 넣은 발주가 없습니다. 위에 P/O 표를 붙여넣어 주세요.</div>'; return; }
+  host.innerHTML=`<table><thead><tr>
+      <th>상태</th><th>오더번호</th><th>발주일</th><th>제품</th>
+      <th class="num">발주</th><th class="num">납품</th><th class="num">미납</th><th>납품일</th><th></th>
+    </tr></thead><tbody>`+
+    rows.map(r=>{
+      const done=r.remain<=0;
+      const late=!done && r.due && r.due<TODAY;
+      const chip = done?'<span class="chip g">납품완료</span>'
+                 : late?'<span class="chip b">납기 지남</span>'
+                 : '<span class="chip w">미납</span>';
+      return `<tr${done?' style="opacity:.55"':''}>
+        <td>${chip}</td>
+        <td class="mini">${r.ord}</td>
+        <td>${r.odate}</td>
+        <td>${nameOf(r.code)}<div class="mini">${r.code}</div></td>
+        <td class="num">${r.qty}</td>
+        <td class="num">${r.filled||'·'}</td>
+        <td class="num" style="font-weight:700;color:${done?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
+        <td>${r.due||'<span class="mini">—</span>'}</td>
+        <td><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
+      </tr>`;
+    }).join('')+`</tbody></table>`;
+}
+
+// 납품 기록 전체 비우기 — 손으로 박아둔 기본값(SEED)을 실제 출고내역으로 갈아끼울 때.
+function clearDelivs(){
+  const n=ST.delivs.length;
+  if(!n){ toast('지울 납품 기록이 없습니다'); return; }
+  if(!confirm(`납품(창고 입고) 기록 ${n}건을 모두 지울까요?\n\n실제 출고내역을 붙여넣기로 새로 채우시려는 것이면 [확인].\n예시·SRM 자료는 그대로 남습니다.`)) return;
+  ST.delivs=[]; save(); refresh(); toast(`납품 기록 ${n}건을 지웠습니다`);
+}
+
+function addDeliv(){
+  const ord=document.getElementById('dOrd').value;
+  const ship=document.getElementById('dShip').value;
+  const ref=document.getElementById('dRef').value.trim();
+  const code=resolveCode(document.getElementById('dCode').value);
+  const qty=Number(document.getElementById('dQty').value);
+  if(!code){toast('제품을 못 찾았어요 — 모델명 일부나 코드를 정확히 입력하세요');return;}
+  if(!ship||!qty){toast('출고날짜·수량은 필수입니다');return;}
+  ST.delivs.push({no:'',ref,ship,ord,code,qty});save();
+  document.getElementById('dQty').value='';
+  refresh();toast(`납품 추가: ${code} ${qty}장`);
+}
+// 줄 번호로 삭제 — 같은 코드·같은 날짜가 여러 건이어도 한 건만 지워집니다
+function delDelivAt(i){
+  if(i<0||i>=ST.delivs.length)return;
+  if(!confirm('이 납품 기록을 삭제할까요?'))return;
+  ST.delivs.splice(i,1);
+  save();refresh();toast('삭제됨');
+}
+// 참조문서번호를 나중에 채워 넣기 — 붙여넣기로 들어온 건은 ref가 비어 있어 발주로 안 묶인다.
+// 여기서 번호를 넣으면 orders()가 그 번호로 다시 묶어 '발주 단위'가 정리된다.
+function setDelivRef(i,v){
+  if(i<0||i>=ST.delivs.length)return;
+  const ref=String(v||'').trim();
+  if((ST.delivs[i].ref||'')===ref)return;   // 안 바뀌었으면 조용히
+  ST.delivs[i].ref=ref;
+  save();refresh();
+  toast(ref?`참조문서 ${ref} 저장`:'참조문서를 비웠습니다');
+}
+// 발주 묶음 줄을 눌러 그 안의 개별 납품 건을 펼치고 접는다
+function toggleOrder(gi){
+  const el=document.getElementById('ord-detail-'+gi);
+  const ar=document.getElementById('ord-arw-'+gi);
+  if(!el) return;
+  const open=el.style.display==='none';
+  el.style.display=open?'':'none';
+  if(ar) ar.textContent=open?'▾':'▸';
+}
+function exportDeliv(){
+  const head='오더날짜,출고날짜,참조문서,코드,제품명,수량';
+  const rows=[...ST.delivs].sort((a,b)=>d(a.ship)-d(b.ship))
+    .map(x=>[x.ord||'',x.ship,x.ref||'',x.code,nameOf(x.code),x.qty].join(','));
+  const blob=new Blob(['\ufeff'+[head,...rows].join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`바스_납품내역_${TODAY}.csv`;a.click();toast('CSV 저장');
+}
+
+/* ========== 적중률 ==========
+   스냅샷 A(date=dA)가 미래일 dT를 예측한 값 vs 스냅샷 B(date=dT)의 dT 칸(확정) */
+function hitPairs(){
+  const byDate={};
+  ST.snaps.forEach(s=>byDate[s.date]=s);
+  const out=[];
+  ST.snaps.forEach(pred=>{
+    ST.snaps.forEach(act=>{
+      const lead=daysBetween(pred.date,act.date);
+      if(lead<=0)return;
+      act.rows.forEach(ar=>{
+        const pr=pred.rows.find(x=>x.code===ar.code);
+        const predicted=pr?(pr.daily[act.date]||0):0;
+        const actual=ar.daily[act.date]||0;
+        if(predicted===0&&actual===0)return;
+        out.push({lead,target:act.date,from:pred.date,code:ar.code,predicted,actual});
+      });
+    });
+  });
+  return out;
+}
+function renderHit(){
+  const pairs=hitPairs();
+  const S=document.getElementById('hitStats');
+  if(!pairs.length){
+    S.innerHTML='<div class="empty" style="grid-column:1/-1">스냅샷이 2일치 이상 쌓이면 적중률이 계산됩니다.</div>';
+    document.getElementById('leadTbl').innerHTML='';
+    document.getElementById('hitTbl').innerHTML='';
+    document.getElementById('hitNote').innerHTML='';
+    return;
+  }
+  const tp=pairs.reduce((a,p)=>a+p.predicted,0);
+  const ta=pairs.reduce((a,p)=>a+p.actual,0);
+  const exact=pairs.filter(p=>p.predicted===p.actual).length;
+  const mae=pairs.reduce((a,p)=>a+Math.abs(p.predicted-p.actual),0)/pairs.length;
+  const bias=(tp-ta);
+  S.innerHTML=[
+    ['대조 건수',pairs.length+'건',''],
+    ['정확 일치',fmt(exact/pairs.length*100)+'%',`${exact}/${pairs.length}`],
+    ['평균 오차',fmt(mae)+'장','건당 절대오차'],
+    ['예측 합계',fmt(tp)+'장',''],
+    ['실제 합계',fmt(ta)+'장',''],
+    ['편향',(bias>=0?'+':'')+fmt(bias)+'장',bias>0?'예시가 과다 예측':bias<0?'예시가 과소 예측':'중립']
+  ].map(([k,v,n])=>`<div class="stat"><div class="k">${k}</div><div class="v sm">${v}</div>
+    ${n?`<div class="note">${n}</div>`:''}</div>`).join('');
+
+  document.getElementById('hitNote').innerHTML = Math.abs(bias)/Math.max(1,ta)>0.2
+    ? `<div class="alert warn">예시가 실제보다 ${bias>0?'많이':'적게'} 잡히는 경향입니다(${fmt(Math.abs(bias)/Math.max(1,ta)*100)}%). 발주점 계산에 이 편향이 그대로 들어갑니다.</div>`
+    : `<div class="alert ok">예측과 실제가 대체로 맞습니다. 예시를 신뢰해도 좋습니다.</div>`;
+
+  // 선행일수별
+  const byLead={};
+  pairs.forEach(p=>{(byLead[p.lead]=byLead[p.lead]||[]).push(p);});
+  const leads=Object.keys(byLead).map(Number).sort((a,b)=>a-b);
+  document.getElementById('leadTbl').innerHTML=`<table><thead><tr>
+    <th class="num">선행일수</th><th class="num">건수</th><th class="num">정확일치</th>
+    <th class="num">평균오차</th><th class="num">예측합</th><th class="num">실제합</th></tr></thead><tbody>`+
+    leads.map(L=>{
+      const ps=byLead[L];
+      const ex=ps.filter(p=>p.predicted===p.actual).length;
+      const m=ps.reduce((a,p)=>a+Math.abs(p.predicted-p.actual),0)/ps.length;
+      return`<tr><td class="num"><b>${L}일 전</b></td><td class="num">${ps.length}</td>
+        <td class="num">${fmt(ex/ps.length*100)}%</td><td class="num">${fmt(m)}</td>
+        <td class="num">${fmt(ps.reduce((a,p)=>a+p.predicted,0))}</td>
+        <td class="num">${fmt(ps.reduce((a,p)=>a+p.actual,0))}</td></tr>`;
+    }).join('')+`</tbody></table>`;
+
+  // 일자별 대조 (가장 최근 예측 기준)
+  const best={};
+  pairs.forEach(p=>{
+    const k=p.target+'|'+p.code;
+    if(!best[k]||p.lead<best[k].lead)best[k]=p;
+  });
+  const rows=Object.values(best).sort((a,b)=>d(b.target)-d(a.target)).slice(0,80);
+  document.getElementById('hitTbl').innerHTML=`<table><thead><tr>
+    <th>대상일</th><th>코드</th><th>제품명</th><th class="num">예측</th>
+    <th class="num">확정</th><th class="num">차이</th><th class="num">선행</th></tr></thead><tbody>`+
+    rows.map(p=>{
+      const df=p.actual-p.predicted;
+      return`<tr class="${df!==0?'mismatch':''}"><td>${p.target}</td><td>${p.code}</td>
+        <td>${nameOf(p.code)}</td>
+        <td class="num">${p.predicted}</td><td class="num"><b>${p.actual}</b></td>
+        <td class="num ${df>0?'diff-pos':df<0?'diff-neg':''}">${df>0?'+':''}${df||'—'}</td>
+        <td class="num mini">${p.lead}일</td></tr>`;
+    }).join('')+`</tbody></table>`;
+}
+
+/* ========== 월 마감 ========== */
+function renderClose(){
+  const mo=document.getElementById('closeMonth').value||ym(TODAY);
+  document.getElementById('closeTitle').innerHTML=
+    `마감표 <span class="muted">${mo} · 납품일 기준</span>`;
+  const inMonth=ST.delivs.filter(x=>ym(x.ship)===mo);
+  const g={};
+  inMonth.forEach(x=>{ g[x.code]=(g[x.code]||0)+x.qty; });
+  const codes=Object.keys(g).sort();
+  const w=document.getElementById('closeTbl');
+  if(!codes.length){w.innerHTML=`<div class="empty">${mo}에 납품 기록이 없습니다.</div>`;return;}
+  let tQty=0,tRet=0,tAmt=0;
+  const body=codes.map(c=>{
+    const qty=g[c];
+    const ret=Number((ST.returns[mo]||{})[c]||0);
+    const close=qty-ret;
+    const price=Number(ST.prices[c]||0);
+    const amt=close*price;
+    tQty+=qty;tRet+=ret;tAmt+=amt;
+    return`<tr>
+      <td>${c}</td><td>${nameOf(c)}</td>
+      <td class="num">${price?won(price):'<span class="chip b">단가 없음</span>'}</td>
+      <td>KRW</td>
+      <td class="num">${qty}</td>
+      <td class="num"><input type="number" value="${ret}" style="width:64px;padding:4px 6px"
+        onchange="setReturn('${mo}','${c}',this.value)"></td>
+      <td class="num"><b>${close}</b></td><td>EA</td>
+      <td class="num">${price?won(amt):'—'}</td><td>KRW</td>
+    </tr>`;
+  }).join('');
+  w.innerHTML=`<table><thead><tr>
+    <th>자재</th><th>자재내역</th><th class="num">단가</th><th>통화</th>
+    <th class="num">Σ 납품량</th><th class="num">Σ 반품량</th><th class="num">Σ 마감수량</th>
+    <th>OUn</th><th class="num">Σ 마감금액</th><th>통화</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr style="background:#fffbe6;font-weight:700">
+      <td colspan="4" class="num">합계</td>
+      <td class="num">${tQty}</td><td class="num">${tRet}</td><td class="num">${tQty-tRet}</td>
+      <td>EA</td><td class="num">${won(tAmt)}</td><td>KRW</td></tr></tfoot></table>`;
+}
+function setReturn(mo,code,v){
+  ST.returns[mo]=ST.returns[mo]||{};
+  ST.returns[mo][code]=Number(v)||0;save();renderClose();
+}
+function copyClose(){
+  const mo=document.getElementById('closeMonth').value||ym(TODAY);
+  const inMonth=ST.delivs.filter(x=>ym(x.ship)===mo);
+  const g={};inMonth.forEach(x=>g[x.code]=(g[x.code]||0)+x.qty);
+  const codes=Object.keys(g).sort();
+  if(!codes.length){toast('해당 월 자료가 없습니다');return;}
+  let t=`[바스 ${mo} 마감]\n자재\t자재내역\t단가\t납품량\t반품량\t마감수량\t마감금액\n`;
+  let tq=0,tr=0,ta=0;
+  codes.forEach(c=>{
+    const q=g[c],r=Number((ST.returns[mo]||{})[c]||0),cl=q-r,p=Number(ST.prices[c]||0);
+    tq+=q;tr+=r;ta+=cl*p;
+    t+=`${c}\t${nameOf(c)}\t${p}\t${q}\t${r}\t${cl}\t${cl*p}\n`;
+  });
+  t+=`\t\t\t${tq}\t${tr}\t${tq-tr}\t${ta}\n`;
+  navigator.clipboard.writeText(t).then(()=>toast('마감표를 복사했습니다'),()=>toast('복사 실패'));
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   한샘 마감내역 대조
+   ── 왜 필요한가
+   한샘이 보내오는 마감내역은 '입고기간' 기준이고, 우리 기록은 '출고일' 기준이다.
+   대개는 같은 달에 떨어지지만, 월 끝자락에 나간 물량이 다음 달 입고로 넘어가면
+   그만큼 어긋난다. 그래서 차이가 나면 월 경계 출고 건을 함께 보여준다.
+   ── 무엇을 맞추나
+   코드별 마감수량 · 단가 · 금액. 저쪽에만 있는 코드, 우리에게만 있는 코드도 함께 짚는다.
+   ══════════════════════════════════════════════════════════════════ */
+
+// 붙여넣은 표 한 줄에서 자재코드를 찾아 읽는다. 머리글·합계줄은 코드가 없어 그냥 지나간다.
+function parseCloseSheet(text){
+  const rows={}; let bad=0, lines=0;
+  String(text||'').split(/\r?\n/).forEach(line=>{
+    if(!line.trim()) return;
+    lines++;
+    let cells=line.split('\t').map(s=>s.trim());
+    if(cells.length<3) cells=line.trim().split(/\s{2,}/).map(s=>s.trim());  // 탭이 아니라 공백으로 붙은 경우
+    const ci=cells.findIndex(c=>/^[A-Za-z]{2,4}\d{5,}$/.test(c));
+    if(ci<0) return;                                   // 자재코드가 없는 줄 = 머리글·합계줄
+    const code=cells[ci].toUpperCase();
+    const name=String(cells[ci+1]||'').replace(/\s+/g,' ').trim();
+    const nums=cells.slice(ci+2).map(c=>c.replace(/[,\s]/g,''))
+                    .filter(c=>/^-?\d+(?:\.\d+)?$/.test(c)).map(Number);
+    if(nums.length<2){ bad++; return; }
+    // SAP 표 차례: 단가 · (통화) · 납품량 · 반품량 · 마감수량 · (OUn) · 마감금액 · (통화)
+    const price=nums[0], amt=nums[nums.length-1];
+    let deliv, ret, close;
+    if(nums.length>=5){ deliv=nums[1]; ret=nums[2]; close=nums[3]; }
+    else { close=nums[nums.length-2]; deliv=close; ret=0; }
+    // 금액으로 되짚어 확인한다. 칸이 밀려 읽혔으면 금액 쪽을 믿는다.
+    if(price>0 && amt>0 && close*price!==amt && amt%price===0){
+      close=amt/price; if(nums.length<5) deliv=close;
+    }
+    const p=rows[code]||(rows[code]={name:'',price:0,deliv:0,ret:0,close:0,amt:0});
+    if(name && !p.name) p.name=name;
+    p.price=price; p.deliv+=deliv; p.ret+=ret; p.close+=close; p.amt+=amt;
+  });
+  return {rows, bad, lines};
+}
+
+/* 어긋난 코드의 원인 후보 — 월 경계에 걸친 우리 출고 건을 짚어준다.
+   우리가 더 많으면  → 이번 달 끝자락에 나간 물량이 다음 달 입고로 밀렸을 수 있고,
+   우리가 더 적으면  → 지난 달 끝자락에 나간 물량이 이번 달 입고로 잡혔을 수 있다. */
+function edgeHits(code, mo, gap){
+  const first   =mo+'-01';
+  const last    =addDays(ym(addDays(first,32))+'-01',-1);   // 그 달 마지막 날
+  const prevLast=addDays(first,-1);                          // 지난 달 마지막 날
+  const pick=(from,to)=>ST.delivs.filter(x=>x.code===code&&x.ship>=from&&x.ship<=to)
+                                 .sort((a,b)=>a.ship<b.ship?-1:1);
+  const out=[];
+  if(gap>=0){
+    const t=pick(addDays(last,-4),last);
+    if(t.length) out.push({why:'이번 달 끝자락 출고 — 다음 달 입고로 넘어갔을 수 있습니다', list:t});
+  }
+  if(gap<=0){
+    const p=pick(addDays(prevLast,-4),prevLast);
+    if(p.length) out.push({why:'지난 달 끝자락 출고 — 이번 달 입고로 잡혔을 수 있습니다', list:p});
+  }
+  return out;
+}
+
+// 우리 기록의 그 달 코드별 집계 {코드:{deliv, ret, close}}
+function ourClose(mo){
+  const g={};
+  ST.delivs.filter(x=>ym(x.ship)===mo).forEach(x=>{
+    const p=g[x.code]||(g[x.code]={deliv:0,ret:0,close:0});
+    p.deliv+=x.qty;
+  });
+  Object.keys(g).forEach(c=>{
+    g[c].ret=Number((ST.returns[mo]||{})[c]||0);
+    g[c].close=g[c].deliv-g[c].ret;
+  });
+  return g;
+}
+
+function closeCmpTake(){
+  const mo=document.getElementById('closeMonth').value||ym(TODAY);
+  const {rows,bad,lines}=parseCloseSheet(document.getElementById('closePaste').value);
+  const n=Object.keys(rows).length;
+  if(!n){
+    document.getElementById('closeCmpInfo').textContent =
+      lines ? '자재코드가 있는 줄을 못 찾았습니다. 표를 통째로 긁어 붙여넣어 주세요.' : '붙여넣은 내용이 없습니다.';
+    toast('읽을 수 있는 줄이 없습니다'); return;
+  }
+  ST.close=ST.close||{};
+  ST.close[mo]={at:TODAY, rows};
+  Object.keys(rows).forEach(c=>{ if(!ST.names[c]&&rows[c].name) ST.names[c]=rows[c].name; });
+  save();
+  document.getElementById('closePaste').value='';
+  renderCloseCmp();
+  toast(`${mo} 마감내역 ${n}종을 읽었습니다${bad?` · 못 읽은 줄 ${bad}`:''}`);
+}
+
+function closeCmpClear(){
+  const mo=document.getElementById('closeMonth').value||ym(TODAY);
+  if(!(ST.close||{})[mo]){ toast('지울 대조 자료가 없습니다'); return; }
+  if(!confirm(`${mo} 한샘 마감내역을 지울까요?\n우리 납품 기록은 그대로 남습니다.`)) return;
+  delete ST.close[mo]; save(); renderCloseCmp(); toast('지웠습니다');
+}
+
+// 한샘 단가로 우리 단가를 맞춘다. 다른 것만 바꾼다.
+function closeAdoptPrices(){
+  const mo=document.getElementById('closeMonth').value||ym(TODAY);
+  const snap=(ST.close||{})[mo];
+  if(!snap){ toast('먼저 마감내역을 붙여넣어 주세요'); return; }
+  const diff=Object.keys(snap.rows).filter(c=>snap.rows[c].price>0 && Number(ST.prices[c]||0)!==snap.rows[c].price);
+  if(!diff.length){ toast('단가는 모두 같습니다'); return; }
+  const list=diff.map(c=>`  ${c} ${won(ST.prices[c]||0)} → ${won(snap.rows[c].price)}`).join('\n');
+  if(!confirm(`아래 ${diff.length}종의 단가를 한샘 마감내역 값으로 바꿉니다.\n\n${list}`)) return;
+  diff.forEach(c=>{ ST.prices[c]=snap.rows[c].price; });
+  save(); refresh(); toast(`단가 ${diff.length}종을 맞췄습니다`);
+}
+
+function renderCloseCmp(){
+  const mo  =document.getElementById('closeMonth').value||ym(TODAY);
+  const host=document.getElementById('closeCmpTbl');
+  const info=document.getElementById('closeCmpInfo');
+  if(!host) return;
+  const snap=(ST.close||{})[mo];
+  if(!snap){
+    host.innerHTML=`<div class="empty">${mo} 한샘 마감내역이 아직 없습니다. 위 칸에 붙여넣고 «대조하기»를 눌러주세요.</div>`;
+    info.textContent=''; return;
+  }
+  const them=snap.rows, us=ourClose(mo);
+  const codes=[...new Set([...Object.keys(them),...Object.keys(us)])].sort();
+  let tT=0,tU=0,tAmtT=0,tAmtU=0,same=0;
+  const body=codes.map(c=>{
+    const t=them[c], u=us[c];
+    const tq=t?t.close:0, uq=u?u.close:0, gap=uq-tq;
+    const tp=t?t.price:0, up=Number(ST.prices[c]||0);
+    const tAmt=t?t.amt:0, uAmt=uq*up;
+    tT+=tq; tU+=uq; tAmtT+=tAmt; tAmtU+=uAmt;
+    let judge, cls='';
+    if(!t)            { judge='한샘 마감내역에 없음'; cls='b'; }
+    else if(!u)       { judge='우리 기록에 없음';     cls='b'; }
+    else if(gap!==0)  { judge=`수량 ${gap>0?'+':''}${gap} EA`; cls='b'; }
+    else if(tp&&up&&tp!==up){ judge='단가 다름'; cls='b'; }
+    else              { judge='일치'; same++; }
+    const edge=(gap!==0||!t||!u) ? edgeHits(c,mo,gap) : [];
+    const edgeHtml=edge.map(g=>
+      `<div class="mini" style="color:#c2410c;margin-top:3px">${g.why}<br>`
+      + g.list.map(x=>`${x.ship} ${x.qty}EA`).join(' · ') + `</div>`).join('');
+    return `<tr>
+      <td>${c}<div class="mini">${nameOf(c)}</div>${edgeHtml}</td>
+      <td class="num">${t?tq:'—'}</td>
+      <td class="num"><b>${u?uq:'—'}</b></td>
+      <td class="num" style="${gap?'color:#c2410c;font-weight:800':''}">${gap?(gap>0?'+':'')+gap:'—'}</td>
+      <td class="num">${tp?won(tp):'—'}</td>
+      <td class="num">${up?won(up):'—'}</td>
+      <td class="num">${tAmt?won(tAmt):'—'}</td>
+      <td class="num">${up&&u?won(uAmt):'—'}</td>
+      <td>${cls?`<span class="chip ${cls}">${judge}</span>`:judge}</td>
+    </tr>`;
+  }).join('');
+  const gapQ=tU-tT, gapA=tAmtU-tAmtT;
+  info.innerHTML=`${snap.at} 받음 · ${codes.length}종 중 <b>${same}종 일치</b>`
+    + (gapQ?` · <span style="color:#c2410c">수량 차 ${gapQ>0?'+':''}${gapQ} EA</span>`:' · 수량 전부 맞음');
+  host.innerHTML=`<table><thead><tr>
+    <th>자재</th><th class="num">한샘 마감</th><th class="num">우리 마감</th><th class="num">차이</th>
+    <th class="num">한샘 단가</th><th class="num">우리 단가</th>
+    <th class="num">한샘 금액</th><th class="num">우리 금액</th><th>판정</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr style="background:#fffbe6;font-weight:700">
+      <td>합계</td><td class="num">${tT}</td><td class="num">${tU}</td>
+      <td class="num" style="${gapQ?'color:#c2410c':''}">${gapQ?(gapQ>0?'+':'')+gapQ:'—'}</td>
+      <td></td><td></td>
+      <td class="num">${won(tAmtT)}</td><td class="num">${won(tAmtU)}</td>
+      <td>${gapA?`<span style="color:#c2410c">금액 차 ${won(gapA)}</span>`:'금액도 맞음'}</td>
+    </tr></tfoot></table>`;
+}
+function renderPrices(){
+  const codes=allCodes();
+  document.getElementById('priceTbl').innerHTML=`<table><thead><tr>
+    <th>코드</th><th>제품명</th><th class="num">단가(원)</th></tr></thead><tbody>`+
+    codes.map(c=>`<tr><td>${c}</td><td>${nameOf(c)}</td>
+      <td class="num"><input type="number" value="${ST.prices[c]||''}" placeholder="미입력"
+        style="width:100px;padding:5px 7px" onchange="setPrice('${c}',this.value)"></td></tr>`).join('')
+    +`</tbody></table>`;
+}
+function setPrice(c,v){ST.prices[c]=Number(v)||0;save();renderClose();toast(`${c} 단가 저장`);}
+
+/* ========== 공통 ========== */
+function fillSelects(){
+  const codes=allCodes();
+  // 제품 입력은 datalist — 코드/모델명 아무거나 검색해서 고를 수 있음
+  const opts=codes.map(c=>`<option value="${c}">${nameOf(c)}</option>`).join('');
+  const dl=document.getElementById('dCodeList');
+  if(dl) dl.innerHTML=opts;
+  const sl=document.getElementById('sCodeList');   // 창고 출고 수기 입력용
+  if(sl) sl.innerHTML=opts;
+}
+// 창고 출고 수기 입력칸 — 치는 동안 무슨 제품으로 잡혔는지 바로 보여준다
+function onSrmCodeInput(){
+  const el=document.getElementById('sCodeHint'); if(!el) return;
+  const raw=(document.getElementById('sCode')||{}).value||'';
+  if(!raw.trim()){ el.textContent=''; return; }
+  const hits=codeHits(raw), c=hits[0];
+  if(!c){ el.textContent='⚠ 해당 제품을 못 찾았어요 (모델명 일부나 코드를 입력하세요)'; el.style.color='#c2410c'; return; }
+  if(hits.length>1){
+    el.textContent=`→ ${c} · ${nameOf(c)}  ⚠ 후보가 ${hits.length}개입니다 — 목록에서 골라주세요`;
+    el.style.color='#c2410c'; return;
+  }
+  el.textContent=`→ ${c} · ${nameOf(c)}`; el.style.color='#3f7d4e';
+}
+function refresh(){fillSelects();renderNow();renderPos();renderOrderTable();renderSnaps();renderDelivs();renderHit();renderClose();renderCloseCmp();renderPrices();renderSrm();renderStock();renderAhead();renderCounts();}
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('page-'+t.dataset.p).classList.add('active');
+  refresh();
+});
+setupDrop('dzDream','fileDream','dream','dreamInfo');
+setupDrop('dzYbnd','fileYbnd','ybnd','ybndInfo');
+
+// SRM 드롭존 — 예시표와 달리 파일을 여러 개 한꺼번에 받는다
+(function(){
+  const z=document.getElementById('dzSrm'), f=document.getElementById('fileSrm');
+  z.onclick=()=>f.click();
+  f.onchange=e=>{ const fs=Array.from(e.target.files||[]); if(fs.length) srmTakeFiles(fs); e.target.value=''; };
+  ['dragover','dragenter'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.add('over');}));
+  ['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.remove('over');}));
+  z.addEventListener('drop',e=>{
+    const fs=Array.from(e.dataTransfer.files||[]).filter(x=>/\.(xlsx|xlsm|xls|csv)$/i.test(x.name));
+    if(fs.length) srmTakeFiles(fs); else toast('엑셀(또는 CSV) 파일만 넣어주세요');
+  });
+  document.getElementById('srmAsof').value=TODAY;
+  document.getElementById('btnSrmClear').onclick=srmClearAll;
+  document.getElementById('btnSrmExport').onclick=srmExport;
+  document.getElementById('srmPrev').onclick=()=>srmShiftMonth(-1);
+  document.getElementById('srmNext').onclick=()=>srmShiftMonth(1);
+  // 수기 입력
+  document.getElementById('sOutDate').value=TODAY;
+  document.getElementById('btnSrmAdd').onclick=srmAddManual;
+  document.getElementById('sCode').addEventListener('input',onSrmCodeInput);
+  ['sCode','sQty'].forEach(id=>document.getElementById(id)
+    .addEventListener('keydown',e=>{ if(e.key==='Enter') srmAddManual(); }));
+})();
+document.getElementById('btnSaveSnap').onclick=saveSnap;
+document.getElementById('snapDate').onchange=()=>{PEND={dream:null,ybnd:null};
+  document.getElementById('dreamInfo').textContent='아직 없음';
+  document.getElementById('ybndInfo').textContent='아직 없음';
+  document.getElementById('snapPreview').textContent='날짜가 바뀌었습니다. 파일을 다시 넣어주세요.';};
+document.getElementById('btnAddDeliv').onclick=addDeliv;
+document.getElementById('dCode').addEventListener('input',onCodeInput);
+document.getElementById('dCode').addEventListener('change',onCodeInput);
+document.getElementById('btnExportDeliv').onclick=exportDeliv;
+document.getElementById('btnPasteAdd').onclick=pasteAdd;
+document.getElementById('pasteBox').addEventListener('input',renderPastePreview);
+document.getElementById('btnPoAdd').onclick=poAdd;
+document.getElementById('poBox').addEventListener('input',renderPoPreview);
+(function(){ const p=document.getElementById('poDate'); if(p&&!p.value) p.value=TODAY; })();
+document.getElementById('btnClearDeliv').onclick=clearDelivs;
+document.getElementById('closeMonth').onchange=()=>{renderClose();renderCloseCmp();};
+document.getElementById('btnCloseCmp').onclick=closeCmpTake;
+document.getElementById('btnClosePrice').onclick=closeAdoptPrices;
+document.getElementById('btnCloseCmpClear').onclick=closeCmpClear;
+document.getElementById('countDate').onchange=renderCounts;
+document.getElementById('btnCopyClose').onclick=copyClose;
+document.getElementById('btnEditPrice').onclick=()=>{
+  const c=document.getElementById('priceCard');
+  c.style.display=c.style.display==='none'?'':'none';
+};
+
+document.getElementById('snapDate').value=TODAY;
+document.getElementById('dShip').value=TODAY;
+document.getElementById('closeMonth').value=ym(TODAY);
+refresh();
+</script>
+</body>
+</html>
