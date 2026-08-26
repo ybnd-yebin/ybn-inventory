@@ -2514,7 +2514,7 @@ const OD_GLASS_CATALOG = {
 function odFillVendors(){
   const vs=document.getElementById('od-vendor'); if(!vs) return;
   vs.innerHTML=Object.keys(OD_GLASS_CATALOG).map(n=>`<option>${n}</option>`).join('');
-  const dt=document.getElementById('od-date'); if(dt && !dt.value) dt.value=new Date().toISOString().slice(0,10);
+  const dt=document.getElementById('od-date'); if(dt && !dt.value) dt.value=ymd(new Date());
   odVendorChanged();
 }
 function odVendorChanged(){
@@ -2552,7 +2552,7 @@ function odCollect(){
   return {
     vendor:document.getElementById('od-vendor').value,
     cat:'유리', type:p.type||'', thick:p.thick||'', title:p.title||'유리 발주',
-    date:document.getElementById('od-date').value||new Date().toISOString().slice(0,10),
+    date:document.getElementById('od-date').value||ymd(new Date()),
     due:(document.getElementById('od-due').value||'').trim(),
     bigo, client:(document.getElementById('od-client').value||'').trim(),
     items
@@ -2692,7 +2692,7 @@ function odExportOrders(){
   if(!log.length){ alert('내보낼 발주 기록이 없습니다.'); return; }
   const blob=new Blob([JSON.stringify({orderLog:log},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download=`비규격발주기록_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.json`;
+  a.download=`비규격발주기록_${ymd(new Date()).replace(/-/g,'')}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   alert('📤 발주기록을 JSON으로 내보냈습니다(백업). ※ 현재 index의 JSON 복원은 발주를 안 받으므로, index 반영은 별도 작업이 필요합니다.');
 }
