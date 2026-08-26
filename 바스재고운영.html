@@ -121,21 +121,17 @@ tr.mismatch td{background:#fdeceb}
     <div class="tbl-wrap" id="poOpen"></div>
   </div>
   <div class="card">
-    <h2>📦 지금 창고 재고 <span class="muted">추측값 — 실사값에서 입고를 더하고 창고 출고를 뺀 것</span></h2>
+    <h2>📦 지금 창고 재고 <span class="muted">월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고</span></h2>
     <div id="stockSum" style="margin:10px 0 4px"></div>
     <div class="tbl-wrap" id="stockTbl" style="margin-top:8px"></div>
     <div class="hint" style="margin-top:10px">
-      <b>지금 재고</b>는 앞으로 들어올 입고를 뺀, 오늘 창고에 있는 양입니다.
-      <b>예상 남음</b> = 지금 재고 − 예정 출고.<br>
-      <b>입고 예정</b>은 일부러 따로 두었습니다. 두 값을 더해 한 칸에 적으면 입고가 잡힌 품목이 가장 여유로워 보이는데,
-      정작 위험한 구간은 <b>그 입고가 들어오기 전까지</b>이기 때문입니다.<br>
-      상태는 예상 남음 기준입니다 —
-      <span class="chip b">모자람</span> 마이너스 ·
-      <span class="chip b">급함</span> <span id="thCrit">5</span>장 이하 ·
-      <span class="chip w">주의</span> <span id="thLow">10</span>장 이하이거나 7일 안에 바닥 ·
-      <span class="chip g">여유</span> 그 밖.<br>
-      기준 재고가 <span class="chip g">실사</span>면 실제로 센 값, <span class="chip n">입고</span>면 실사 전이라
-      마지막 입고 배치로 잡은 <b>하한 추정</b>(값 앞의 <b>≥</b>)입니다.
+      <b>월말 실사</b>는 재고 업체가 세어 알려준 값입니다. 여기가 출발점입니다.
+      실사가 아직 없으면 마지막 입고분으로 잡은 <b>하한</b>(<b>≥</b>)을 씁니다.<br>
+      <b>그 뒤 입고</b>는 실사 이후 우리가 창고로 보낸 합계이고, 아래 작은 글씨가 <b>가장 최근 입고</b>입니다.<br>
+      <b>창고 출고</b>는 SRM으로 올린 것만 셉니다 — 위 「올린 범위」에 빠진 날이 있으면 그만큼 덜 빠져
+      <b>예상 재고가 실제보다 많아 보입니다</b>.<br>
+      색은 예상 재고 기준입니다 — 빨강 <span id="thCrit">5</span>장 이하(또는 마이너스) ·
+      주황 <span id="thLow">10</span>장 이하나 7일 안에 바닥 · 초록 그 밖.
     </div>
   </div>
 
@@ -151,8 +147,11 @@ tr.mismatch td{background:#fdeceb}
     <div class="tbl-wrap" id="nowGrid"></div>
   </div>
 
-  <div class="card">
-    <h2>발주 시점 한눈에 <span class="muted">발주 간격으로 다음 발주를 잡습니다</span></h2>
+  <details class="card" style="padding:0">
+    <summary style="padding:16px 18px;cursor:pointer;font-size:15px;font-weight:700;list-style:none">
+      📈 발주 시점 예상 <span class="muted" style="font-weight:500">발주 간격으로 다음 발주를 잡아 봅니다 · 눌러서 펼치기</span>
+    </summary>
+    <div style="padding:0 18px 16px">
     <div id="rhythmSum" style="margin:10px 0 4px"></div>
     <div class="tbl-wrap" id="rhythmTbl"></div>
     <div class="hint" style="margin-top:10px">
@@ -161,7 +160,8 @@ tr.mismatch td{background:#fdeceb}
       <b>발주점</b>은 원래 방식으로, 발주와 발주 사이에 쌓인 <b>예시 소요</b>입니다.
       예시 스냅샷을 매일 쌓으면 값이 생깁니다. 없으면 「모름」으로 두고 간격만 씁니다.
     </div>
-  </div>
+    </div>
+  </details>
 </section>
 
 <!-- 실사·입고예정 (재고 추측의 기준점을 넣는 곳) -->
@@ -1118,6 +1118,24 @@ function nextMonthFirst(){
    두 값을 한 칸에 더해 놓으면, 입고가 잡힌 품목이 가장 여유로워 보인다.
    그런데 정작 위험한 구간은 '입고가 들어오기 전까지'다.
    (대리님 시트에서 매그놀리아 447이 예상재고 54로 떴지만, 실제로는 입고 전까지 4장이었다) */
+/* 실사 이후 마지막으로 들어간 입고 — 언제 얼마나 넣었는지 */
+function lastInSince(code, after){
+  let best=null;
+  (ST.delivs||[]).forEach(x=>{
+    if(x.code!==code || x.ship>TODAY) return;
+    if(after && !(x.ship>after)) return;
+    if(!best || x.ship>best.date) best={date:x.ship, qty:0};
+  });
+  if(best) best.qty=inboundOn(code,best.date);
+  return best;
+}
+/* 창고 출고를 센 구간 — 실사 다음날 ~ 마지막으로 올린 날 */
+function outRange(after){
+  const days=srmDays().filter(d=>srmState(d)==='fixed' && (!after || d>after));
+  if(!days.length) return null;
+  return {from:days[0], to:days[days.length-1], n:days.length};
+}
+
 function renderStock(){
   const rows=allCodes().map(c=>({c,s:stockOf(c)}))
     .filter(x=>x.s.base||x.s.inn||x.s.out||x.s.planOut||x.s.soon);
@@ -1140,33 +1158,50 @@ function renderStock(){
 
   var _tc=document.getElementById("thCrit"); if(_tc) _tc.textContent=STOCK_CRIT;
   var _tl=document.getElementById("thLow"); if(_tl) _tl.textContent=STOCK_LOW;
-  const LABEL=["모자람","급함","주의","여유"], CHIP=['b','b','w','g'];
+  /* 표를 '식' 그대로 읽히게 만든다 — 월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고.
+     궁금한 건 그 네 숫자뿐이라, 나머지(예정 출고·바닥 날짜)는 작은 글씨로 밀어 둔다. */
   w.innerHTML=`<table><thead><tr>
-    <th style="width:56px">상태</th><th>제품</th>
-    <th class="num">지금 재고</th><th class="num">예정 출고</th><th class="num">예상 남음</th>
-    <th class="num">입고 예정</th><th>예상 바닥</th></tr></thead><tbody>`+
+    <th>제품</th>
+    <th class="num" style="width:110px">월말 실사</th>
+    <th class="num" style="width:36px"></th>
+    <th class="num" style="width:120px">그 뒤 입고</th>
+    <th class="num" style="width:36px"></th>
+    <th class="num" style="width:120px">창고 출고</th>
+    <th class="num" style="width:36px"></th>
+    <th class="num" style="width:110px">예상 재고</th>
+    </tr></thead><tbody>`+
     rows.map(({c,s})=>{
-      const col=s.rank===0?'var(--bad)':s.rank===1?'var(--bad)':s.rank===2?'var(--warn)':'var(--txt)';
-      const lb=s.anchor==='실사'
-          ? `<span class="chip g">실사</span> ${s.baseDate}`
+      const col=s.rank<=1?'var(--bad)':s.rank===2?'var(--warn)':'var(--good)';
+      const lastIn=lastInSince(c, s.baseDate);
+      const rng=outRange(s.baseDate);
+      const op=(t)=>`<td class="num" style="color:var(--sub);font-size:15px;font-weight:700">${t}</td>`;
+      // 기준: 실사가 있으면 그 날짜, 없으면 마지막 입고로 잡은 하한
+      const baseCell = s.anchor==='실사'
+        ? `<b style="font-size:17px">${s.base}</b><div class="mini">${s.baseDate}</div>`
         : s.anchor==='입고'
-          ? `<span class="chip n">입고</span> ${s.baseDate}` : '—';
-      // 입고가 예상 바닥보다 먼저 들어오면 그것으로 해소된다
-      const rescued = s.soon>0 && s.rank<=2 && (!s.eta || s.soonDate<=s.eta);
-      // 소진 속도가 아주 느리면 '몇 년 뒤'같은 헛날짜가 나온다. 그건 날짜로 못 박지 않는다.
-      const farOff = s.daysLeft!=null && s.daysLeft>90;
-      const etaCell = (s.eta && !farOff)
-          ? `${s.anchor==='입고'?'빠르면 ':''}${s.eta} <span class="mini">(${Math.round(s.daysLeft)}일)</span>`
-          : farOff ? `<span class="mini">한참 남음 <span title="지금 소진 속도라면 90일 넘게 버팁니다. 속도가 느려 날짜로 못 박습니다.">(90일+)</span></span>`
-          : (s.stock<=0?'<span class="chip b">바닥 · 실사 필요</span>':'<span class="mini">—</span>');
+          ? `<b style="font-size:17px">≥ ${s.base}</b><div class="mini" style="color:var(--warn)">실사 없음 · ${s.baseDate} 입고분</div>`
+          : `<span class="mini" style="color:var(--warn)">실사 없음</span>`;
+      const inCell = s.inn
+        ? `<b style="font-size:17px">${s.inn}</b><div class="mini">${lastIn?`최근 ${lastIn.date} ${lastIn.qty}장`:''}</div>`
+        : `<span class="mini">없음</span>`;
+      const outCell = s.out
+        ? `<b style="font-size:17px">${s.out}</b><div class="mini">${rng?`${rng.from.slice(5)}~${rng.to.slice(5)} · ${rng.n}일`:''}</div>`
+        : `<span class="mini">없음</span>`;
+      // 곁가지는 예상 재고 밑에 작게
+      const side=[];
+      if(s.planOut) side.push(`예정 출고 −${s.planOut} → ${s.left}`);
+      if(s.soon) side.push(`${s.soonDate} +${s.soon} 입고 예정`);
+      if(s.eta && s.daysLeft!=null && s.daysLeft<=90) side.push(`${s.eta}쯤 바닥`);
       return `<tr>
-        <td><span class="chip ${CHIP[s.rank]}">${LABEL[s.rank]}</span></td>
-        <td>${nameOf(c)}<div class="mini">${c} · ${lb}</div></td>
-        <td class="num" style="font-weight:800;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥ ':''}${s.stock}</td>
-        <td class="num" style="color:var(--sub)">${s.planOut||'·'}</td>
-        <td class="num" style="font-weight:800;color:${col}">${s.left}</td>
-        <td class="num">${s.soon?`<b>+${s.soon}</b><div class="mini">${s.soonDate} 예정</div>`:'<span class="mini">—</span>'}</td>
-        <td>${etaCell}${rescued?`<div class="mini" style="color:#3f7d4e">${s.soonDate} 입고로 풀립니다</div>`:''}</td>
+        <td>${nameOf(c)}<div class="mini">${c}</div></td>
+        <td class="num">${baseCell}</td>
+        ${op('＋')}
+        <td class="num">${inCell}</td>
+        ${op('－')}
+        <td class="num">${outCell}</td>
+        ${op('＝')}
+        <td class="num"><b style="font-size:21px;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥':''}${s.stock}</b>
+          ${side.length?`<div class="mini">${side.join('<br>')}</div>`:''}</td>
       </tr>`;
     }).join('')+`</tbody></table>`;
 }
