@@ -1596,8 +1596,12 @@ function _frameTxt(c){
 }
 function _glassTxt(c){ return c.glass.map(gl=>`${gl.gw}×${gl.gh}${gl.n>1?'×'+gl.n:''}`).join(' / '); }
 let checkOpen=true, checkDateFilter='all';
+let chkOpenDates=new Set();   // 손으로 펼쳐 둔 '지난 발주' 날짜
 function setCheckDate(d){ checkDateFilter=d; renderCheck(); }
 function toggleCheckOpen(){ checkOpen=!checkOpen; renderCheck(); }
+function chkToggleDate(d){ if(chkOpenDates.has(d)) chkOpenDates.delete(d); else chkOpenDates.add(d); renderCheck(); }
+function chkOpenAllPast(){ (window.__chkPastDates||[]).forEach(d=>chkOpenDates.add(d)); renderCheck(); }
+function chkCloseAllPast(){ chkOpenDates.clear(); renderCheck(); }
 /* 확인·수정 미리보기의 날짜 기준 = 발주일(구매오더 발행일). 납품요청일 아님. (2026-07-21 확정)
    납품서에 발주일이 안 찍혀 있으면 납품요청일에서 리드타임만큼 앞당겨 추정한다
    — generate()가 시트 머리글의 발주일을 채울 때 쓰는 방식과 같게 맞췄다. */
@@ -1611,7 +1615,12 @@ function renderCheck(){
   saveRows();   // 행이 바뀌는 길은 전부 여기로 모인다 — 보관도 여기 한 곳에서만
   const area=document.getElementById('checkArea'); if(!area) return;
   if(!ROWS.length){ area.innerHTML=''; return; }
-  const dates=[...new Set(ROWS.map(chkOrderDate))].sort();
+  // 최신 발주가 위로 (내림차순). 날짜 없는 '(미지정)'은 항상 맨 아래.
+  const dates=[...new Set(ROWS.map(chkOrderDate))].sort((a,b)=>{
+    if(a==='(미지정)') return 1;
+    if(b==='(미지정)') return -1;
+    return String(b).localeCompare(String(a));
+  });
   if(checkDateFilter!=='all' && !dates.includes(checkDateFilter)) checkDateFilter='all';
   const on=ROWS.filter(r=>r.include!==false && r.code).length;
 
@@ -1627,10 +1636,43 @@ function renderCheck(){
   }).join('');
 
   const shownDates = checkDateFilter==='all' ? dates : [checkDateFilter];
-  let sections='';
-  shownDates.forEach(d=>{
+
+  /* 지난 발주는 접어서 아래로, 진행 중인 것만 위에 펼쳐 둔다.
+     '지났다'의 기준은 납품요청일. 그 날짜의 요청일이 전부 오늘보다 이르면 끝난 것으로 본다.
+     요청일이 없으면 발주일로 판단한다. 전부 지난 경우엔 화면이 비어 보이지 않게
+     가장 최신 하루는 펼쳐 둔다. 접힌 날짜도 제목을 누르면 열린다. */
+  const _today=ymd(new Date());
+  const isDone=d=>{
+    if(d==='(미지정)') return true;
+    const reqs=ROWS.filter(r=>r.code && chkOrderDate(r)===d).map(r=>r.req).filter(Boolean);
+    return reqs.length ? reqs.every(x=>x<_today) : String(d)<_today;
+  };
+  let liveDates=shownDates.filter(d=>!isDone(d));
+  if(!liveDates.length && shownDates.length) liveDates=[shownDates[0]];
+  const liveSet=new Set(liveDates);
+  const isOpen=d=>liveSet.has(d)||chkOpenDates.has(d);
+  const openDates=shownDates.filter(isOpen);
+  const pastDates=shownDates.filter(d=>!isOpen(d));
+  window.__chkPastDates=shownDates.filter(d=>!liveSet.has(d));   // 지난 발주 전체(펼침 여부 무관)
+
+  const sectionOf=(d,open)=>{
     const rows=ROWS.map((r,i)=>({r,i})).filter(x=>chkOrderDate(x.r)===d && x.r.code);
-    if(!rows.length) return;
+    if(!rows.length) return '';
+    const dcnt=rows.reduce((a,x)=>a+(x.r.qty||1),0);
+    const reqs=[...new Set(rows.map(x=>x.r.req).filter(Boolean))].sort();
+    const reqTxt=reqs.length?` · 납품요청 ${reqs.map(fmtDate).join(', ')}`:'';
+    const dAllOn=rows.every(x=>x.r.include!==false);
+    const onCnt=rows.filter(x=>x.r.include!==false).length;
+    const hd=`<div class="ckd-hd" style="display:flex;align-items:center;gap:8px${open?'':';opacity:.62'}">
+        <button onclick="chkToggleDate('${d}')" title="${open?'접기':'펼치기'}" style="border:none;background:none;cursor:pointer;font-size:12px;color:#6b7280;padding:0 2px">${open?'▼':'▶'}</button>
+        <span style="cursor:pointer" onclick="chkToggleDate('${d}')">📅 발주 ${d==='(미지정)'?'미지정':fmtDate(d)} <span style="color:#9ca3af;font-weight:400">· ${rows.length}품목 / ${dcnt}장${esc(reqTxt)}</span>${open?'':` <span style="font-size:10px;color:#9ca3af">(선택 ${onCnt}건)</span>`}</span>
+        ${open?`<button class="ck-date-toggle" style="margin-left:auto;font-size:11px;padding:3px 11px;border:1px solid #cbd0d8;border-radius:12px;background:#fff;color:#374151;cursor:pointer;font-weight:700;white-space:nowrap" onclick="chkDateAll('${d}',${dAllOn?'false':'true'})">${dAllOn?'⬜ 이 날짜 해제':'✅ 이 날짜 선택'}</button>`:''}
+      </div>`;
+    if(!open) return hd;
+    return hd + sectionBody(rows);
+  };
+
+  const sectionBody=rows=>{
     let body='';
     rows.forEach(({r,i})=>{
       const c=calc(r); const inc=r.include!==false;
@@ -1650,19 +1692,24 @@ function renderCheck(){
         <td class="ck-note">${esc(c.note||'')}</td>
       </tr>`;
     });
-    const dcnt=rows.reduce((a,x)=>a+(x.r.qty||1),0);
-    // 발주일 하나가 여러 납품요청일로 갈라질 수 있어, 어느 시트로 가는지 같이 적어준다
-    const reqs=[...new Set(rows.map(x=>x.r.req).filter(Boolean))].sort();
-    const reqTxt=reqs.length?` · 납품요청 ${reqs.map(fmtDate).join(', ')}`:'';
-    const dAllOn=rows.every(x=>x.r.include!==false);   // 이 날짜 행이 전부 켜져 있나
-    sections+=`<div class="ckd-hd" style="display:flex;align-items:center;gap:8px">
-        <span>📅 발주 ${d==='(미지정)'?'미지정':fmtDate(d)} <span style="color:#9ca3af;font-weight:400">· ${rows.length}품목 / ${dcnt}장${esc(reqTxt)}</span></span>
-        <button class="ck-date-toggle" style="margin-left:auto;font-size:11px;padding:3px 11px;border:1px solid #cbd0d8;border-radius:12px;background:#fff;color:#374151;cursor:pointer;font-weight:700;white-space:nowrap" onclick="chkDateAll('${d}',${dAllOn?'false':'true'})">${dAllOn?'⬜ 이 날짜 해제':'✅ 이 날짜 선택'}</button>
-      </div>
-      <div class="check-wrap"><table class="check-tbl">
+    return `<div class="check-wrap"><table class="check-tbl">
         <thead><tr><th>✓</th><th>약어</th><th>타입</th><th>프레임</th><th class="glass-h">유리</th><th>색상</th><th title="구형 유로700 = 유리 −4×−4">구형</th><th>수량</th><th>특이사항</th></tr></thead>
         <tbody>${body}</tbody></table></div>`;
-  });
+  };
+
+  let sections=openDates.map(d=>sectionOf(d,true)).join('');
+  if(pastDates.length){
+    const pcnt=pastDates.reduce((a,d)=>a+ROWS.filter(r=>r.code && chkOrderDate(r)===d).length,0);
+    const openedN=(window.__chkPastDates||[]).filter(d=>chkOpenDates.has(d)).length;
+    sections+=`<div style="display:flex;align-items:center;gap:8px;margin:16px 0 6px">
+        <span style="flex:1;height:1px;background:#e5e7eb"></span>
+        <span style="font-size:11px;color:#9ca3af;white-space:nowrap">지난 발주 ${pastDates.length}일치 · ${pcnt}품목</span>
+        <button class="ck-toggle" style="font-size:11px" onclick="chkOpenAllPast()">▼ 모두 펼치기</button>
+        ${openedN?`<button class="ck-toggle" style="font-size:11px" onclick="chkCloseAllPast()">▲ 모두 접기</button>`:''}
+        <span style="flex:1;height:1px;background:#e5e7eb"></span>
+      </div>`;
+    sections+=pastDates.map(d=>sectionOf(d,false)).join('');
+  }
   const bulkbar=`<div class="ck-bulkbar" style="display:flex;gap:6px;align-items:center;margin:6px 0 2px">
     <button class="ck-toggle" onclick="chkAllShown(true)">✅ 전체 선택</button>
     <button class="ck-toggle" onclick="chkAllShown(false)">⬜ 전체 해제</button>
