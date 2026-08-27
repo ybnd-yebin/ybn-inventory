@@ -13312,18 +13312,50 @@ function syncBriefModeToggle(){
   const cur=(typeof delivViewMode!=='undefined' && delivViewMode==='req')?'req':'order';
   host.querySelectorAll('.f-btn').forEach(b=>b.classList.toggle('on', b.getAttribute('data-bmode')===cur));
 }
-// 브리핑 렌더링 (날짜 input 기준, 기본 오늘)
+/* 자료가 있는 가장 최근 날짜(오늘 이하). 브리핑 첫 화면이 비어 보이지 않게 하려는 것.
+   삭제된 납품서(묘비)는 빼고 본다. */
+function latestBriefDate(mode){
+  const key = d => mode==='req' ? (d.delivReqDate||d.orderDate) : (d.orderDate||d.delivReqDate);
+  const td=todayStr();
+  let best='';
+  (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
+    if(!d) return;
+    if(d.id && typeof delivDeleted!=='undefined' && delivDeleted[d.id]) return;
+    const k=key(d);
+    if(!k || k>td) return;
+    if(k>best) best=k;
+  });
+  return best;
+}
+function briefGoto(ymd){
+  const el=document.getElementById('brief-date');
+  if(el){ el.value=ymd; renderBrief(); }
+}
+// 브리핑 렌더링 (날짜 input 기준)
 function renderBrief(){
   syncBriefModeToggle();
   const host=document.getElementById('brief-host');
   const dateEl=document.getElementById('brief-date');
   if(!host||!dateEl) return;
-  if(!dateEl.value) dateEl.value=todayStr();
-  const ymd=dateEl.value;
   const _mode = (typeof delivViewMode!=='undefined' && delivViewMode==='req') ? 'req' : 'order';
   const _modeKor = _mode==='req' ? '납품요청일' : '발주일';
+  /* 날짜를 아직 안 고른 첫 화면: 오늘 자료가 있으면 오늘, 없으면 자료가 있는 가장 최근 날.
+     아침 일찍 열면 오늘 발주가 아직 안 들어와 빈 카드만 보이던 것을 막습니다. */
+  if(!dateEl.value){
+    const td=todayStr();
+    dateEl.value = buildDelivBrief(td,_mode) ? td : (latestBriefDate(_mode)||td);
+  }
+  const ymd=dateEl.value;
   const b=buildDelivBrief(ymd, _mode);
-  if(!b){ host.innerHTML=`<div style="font-size:11px;color:var(--tx3)">이 날짜에 ${_modeKor} 기준 납품서가 없어요.</div>`; return; }
+  if(!b){
+    const alt=latestBriefDate(_mode);
+    host.innerHTML=`<div style="font-size:11px;color:var(--tx3)">이 날짜에 ${_modeKor} 기준 납품서가 없어요.`
+      + (alt&&alt!==ymd
+          ? ` <button onclick="briefGoto('${alt}')" style="margin-left:6px;padding:3px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">가장 최근 ${alt} 보기</button>`
+          : '')
+      + `</div>`;
+    return;
+  }
   const esc=b.text.replace(/</g,'&lt;');
   host.innerHTML=`
     <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -13342,7 +13374,7 @@ function renderBrief(){
     </div>
     <pre style="white-space:pre-wrap;font-family:'Noto Sans KR',monospace;font-size:12px;line-height:1.7;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:12px;margin:0;color:var(--tx1);overflow-x:auto">${esc}</pre>
     <button onclick="copyBrief()" style="width:100%;margin-top:8px;padding:11px;background:#FEE500;border:none;border-radius:8px;color:#3C1E1E;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">💬 카톡용 텍스트 복사</button>
-    <div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">${b.docs}건 납품서 합산 · ${_modeKor} 기준</div>`;
+    <div style="font-size:10px;color:var(--tx3);margin-top:6px;text-align:center">${b.docs}건 납품서 합산 · ${_modeKor} 기준${ymd!==todayStr()?` · <b style="color:var(--acc2)">오늘 아님(${ymd})</b>`:''}</div>`;
   window._lastBriefText=b.text;
 }
 function copyBrief(){
