@@ -299,8 +299,9 @@ tr.mismatch td{background:#fdeceb}
       미납이 얼마인지, 발주가 얼마나 자주 오는지 보입니다.<br>
       <b>P/O구매오더상세</b> 화면의 표를 그대로 복사해 붙여넣고, 위쪽 <b>오더번호·발주일자</b>만 채우면 됩니다.</div>
     <div class="row" style="margin-top:10px">
-      <div><label class="fld">오더번호</label><input id="poOrd" placeholder="5100653156" style="width:130px" autocomplete="off"></div>
-      <div><label class="fld">발주일자</label><input type="date" id="poDate"></div>
+      <div><label class="fld">오더번호 <span style="color:var(--bad)">＊꼭 입력</span></label>
+        <input id="poOrd" placeholder="예: 5100653156" style="width:150px" autocomplete="off"></div>
+      <div><label class="fld">발주일자 <span style="color:var(--bad)">＊</span></label><input type="date" id="poDate"></div>
     </div>
     <textarea id="poBox" rows="4" placeholder="P/O 표를 여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  51,062  2,553,100  20260825"
       style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
@@ -313,16 +314,18 @@ tr.mismatch td{background:#fdeceb}
 
   <div class="card">
     <h2>발주 현황 <span class="muted" id="poCount"></span></h2>
-    <div class="hint">미납 잔량은 <b>발주일이 이른 것부터</b> 납품분을 채워 계산합니다(선입선출).
-      참조문서번호가 적힌 납품은 그 오더에 먼저 붙습니다.</div>
+    <div class="hint"><b>물건을 보내셨으면 여기 줄에서 바로 넣으세요.</b>
+      수량은 미납분이 미리 채워져 있으니, 실제로 보낸 만큼으로 고치고 <b>[납품함]</b>만 누르시면 됩니다.
+      아래 「납품 추가」로 내려가 다시 칠 필요 없습니다.<br>
+      <span class="mini">미납 잔량은 발주일이 이른 것부터 채웁니다(선입선출). 여기서 넣은 납품은 오더번호로 그 발주에 정확히 붙습니다.</span></div>
     <div class="tbl-wrap" id="poTbl"></div>
   </div>
 
   <div class="card" id="delivAddCard">
-    <h2>② 납품 추가 <span class="muted">우리가 실제로 창고에 보낸 것 — 발주 줄의 [납품 넣기]를 누르면 여기가 채워집니다</span></h2>
+    <h2>납품 직접 넣기 <span class="muted">발주에 없는 것만 — 보통은 위 발주 줄의 [납품함]을 쓰세요</span></h2>
     <div class="hint" style="margin-bottom:8px">
-      <b>발주 받기</b>는 한샘이 <u>우리한테 넣은 주문</u>이고, <b>납품 추가</b>는 우리가 <u>실제로 보낸 물량</u>입니다.
-      둘의 차이가 <b>미납</b>으로 남습니다 — 50개 발주에 44개만 보냈다면 수량을 <b>44</b>로 넣으시면 미납 6으로 잡힙니다.
+      발주를 안 거치고 나간 물량(샘플·긴급분 등)만 여기에 손으로 넣습니다.
+      <b>발주로 들어온 건은 위 「발주 현황」 줄에서 넣는 게 빠르고, 오더번호도 자동으로 붙습니다.</b>
     </div>
     <div class="row">
       <div><label class="fld">발주일 <span class="muted">(한샘 발주 뜬 날)</span></label><input type="date" id="dOrd"></div>
@@ -336,7 +339,12 @@ tr.mismatch td{background:#fdeceb}
   </div>
 
   <div class="card">
-    <h2>붙여넣기로 여러 건 추가 <span class="muted">우리 업체 출고내역(=창고 입고) 복사 → 붙여넣기</span></h2>
+    <h2>납품 여러 건 붙여넣기 <span class="muted">이미 보낸 것을 몰아서 기록할 때</span></h2>
+    <div class="hint" style="color:var(--warn);margin-bottom:6px">
+      ⚠ 위 <b>① 발주 받기</b>와 붙여넣는 표는 같지만 <b>들어가는 곳이 다릅니다</b> —
+      여기에 넣으면 <b>이미 납품한 것</b>으로 기록됩니다(오더번호는 안 붙습니다).
+      아직 안 보낸 발주라면 <b>① 발주 받기</b>에 넣으세요.
+    </div>
     <div class="hint">SRM 구매오더 상세의 표를 <b>그대로 복사</b>해 아래에 붙여넣으세요.
       한 줄에 한 건입니다. <b>자재코드·수량·단가·납품일</b>을 알아서 뽑습니다(자재명에 공백·쉼표가 있어도 됩니다).<br>
       순서: No · 순번 · <b>자재코드</b> · 자재명 · 납품처 · 저장소 · <b>수량</b> · 단위 · <b>단가</b> · … · <b>납품일(YYYYMMDD)</b></div>
@@ -1728,8 +1736,16 @@ function renderPoPreview(){
 function poAdd(){
   const ord=(document.getElementById('poOrd').value||'').trim();
   const odate=(document.getElementById('poDate').value||'').trim();
-  if(!ord){ toast('오더번호를 넣어주세요'); return; }
-  if(!odate){ toast('발주일자를 넣어주세요'); return; }
+  /* 빠뜨린 칸은 토스트만으로는 놓치기 쉽다(안내문이 실제 값처럼 보인다).
+     빨간 테두리로 어느 칸인지 짚어 주고 커서를 옮긴다. */
+  const flag=(id,msg)=>{
+    const el=document.getElementById(id);
+    if(el){ el.style.borderColor='var(--bad)'; el.style.background='#fdeceb'; el.focus();
+      setTimeout(()=>{ el.style.borderColor=''; el.style.background=''; }, 2500); }
+    toast(msg);
+  };
+  if(!ord){ flag('poOrd','오더번호를 넣어주세요 (회색 글씨는 예시입니다)'); return; }
+  if(!odate){ flag('poDate','발주일자를 넣어주세요'); return; }
   const {out,bad}=poParse(document.getElementById('poBox').value);
   if(!out.length){ toast('읽을 수 있는 줄이 없습니다'); return; }
   const key=x=>`${ord}|${x.code}|${x.qty}`;
@@ -1840,25 +1856,24 @@ function poWithRemain(){
    오더번호(참조문서번호)가 자동으로 들어가므로, 그 납품이 이 발주에 정확히 붙는다.
    수량은 미납분을 기본으로 넣되 고칠 수 있다 — 50개 발주에 44개만 보냈으면
    44로 고쳐 넣으면 미납 6으로 남는다. */
-function poFillDeliv(ord, code){
+/* 발주 줄에서 그 자리에 바로 납품 처리한다. 아래 폼으로 내려가 같은 내용을 다시 칠 이유가 없다.
+   줄에 [출고일][수량][납품함] 만 두고, 수량은 미납분을 미리 채워 둔다.
+   50개 발주에 44개만 보냈으면 44로 고쳐 누르면 미납 6이 남는다.
+   참조문서번호(오더번호)는 자동으로 붙어서 그 발주에 정확히 맞물린다. */
+function poShip(ord, code){
   const r=poWithRemain().find(x=>x.ord===ord && x.code===code);
   if(!r){ toast('발주를 찾지 못했어요'); return; }
-  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
-  set('dOrd', r.odate);          // 발주일(한샘 발주 뜬 날)
-  set('dShip', TODAY);           // 출고일 — 오늘 보낸 것으로 두고, 다르면 고치면 된다
-  set('dCode', code);
-  set('dQty', r.remain||r.qty);
-  set('dRef', ord);
-  if(typeof onCodeInput==='function') onCodeInput();
-  const box=document.getElementById('delivAddCard');
-  if(box){
-    box.scrollIntoView({behavior:'smooth', block:'center'});
-    box.style.transition='box-shadow .25s';
-    box.style.boxShadow='0 0 0 3px var(--accent)';
-    setTimeout(()=>{ box.style.boxShadow=''; }, 1600);
-  }
-  const q=document.getElementById('dQty'); if(q){ q.focus(); q.select&&q.select(); }
-  toast(`납품 추가 칸에 채웠습니다 — 실제로 보낸 수량으로 고친 뒤 [추가]`);
+  const id=s=>document.getElementById(s+ord+'-'+code);
+  const qEl=id('poq-'), dEl=id('pod-');
+  const q=parseInt(qEl&&qEl.value)||0;
+  const ship=(dEl&&dEl.value)||TODAY;
+  if(q<=0){ toast('보낸 수량을 넣어주세요'); if(qEl) qEl.focus(); return; }
+  if(q>r.remain && !confirm(`미납은 ${r.remain}장인데 ${q}장을 넣으려고 합니다. 계속할까요?`)) return;
+  ST.delivs.push({no:'', ref:ord, ship, ord:'', code, qty:q, price:ST.prices[code]||0, src:'po'});
+  save(); refresh();
+  const left=Math.max(0, r.remain-q);
+  toast(left ? `${nameOf(code)} ${q}장 넣었습니다 · 미납 ${left}장 남음`
+             : `${nameOf(code)} ${q}장 넣었습니다 · 납품완료`);
 }
 function poDel(ord,code,qty){
   if(!confirm(`${ord} · ${nameOf(code)} ${qty}장 발주를 지울까요?`)) return;
@@ -1876,7 +1891,8 @@ function renderPos(){
   host.innerHTML=`<table><thead><tr>
       <th>상태</th><th>오더번호</th><th>발주일</th><th>제품</th>
       <th class="num">발주</th><th class="num" title="발주가 들어온 날, 창고에 얼마나 남아 있었는지">발주 시점 재고</th>
-      <th class="num">납품</th><th class="num">미납</th><th>납품일</th><th></th>
+      <th class="num">납품</th><th class="num">미납</th><th>납기</th>
+      <th style="min-width:210px">보낸 것 넣기</th><th></th>
     </tr></thead><tbody>`+
     rows.map(r=>{
       const done=r.remain<=0;
@@ -1894,9 +1910,14 @@ function renderPos(){
         <td class="num">${r.filled||'·'}</td>
         <td class="num" style="font-weight:700;color:${done?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
         <td>${r.due||'<span class="mini">—</span>'}</td>
-        <td style="white-space:nowrap">
-          ${done?'':`<button class="primary" style="padding:4px 10px;font-size:11px" onclick="poFillDeliv('${r.ord}','${r.code}')">납품 넣기</button>`}
-          <button class="ghost" style="padding:3px 8px;font-size:11px" onclick="poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
+        <td style="white-space:nowrap">${done
+          ? '<span class="mini">—</span>'
+          : `<input type="date" id="pod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날"
+                 style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
+             <input type="number" id="poq-${r.ord}-${r.code}" value="${r.remain}" title="실제로 보낸 수량"
+                 style="width:58px;padding:4px;text-align:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
+             <button class="primary" style="padding:4px 10px;font-size:11px" onclick="poShip('${r.ord}','${r.code}')">납품함</button>`}</td>
+        <td><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
       </tr>`;
     }).join('')+`</tbody></table>`;
 }
