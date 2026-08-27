@@ -13331,6 +13331,35 @@ function briefGoto(ymd){
   const el=document.getElementById('brief-date');
   if(el){ el.value=ymd; renderBrief(); }
 }
+function briefSwitchMode(mode, ymd){
+  if(typeof delivViewMode!=='undefined') delivViewMode=(mode==='req'?'req':'order');
+  const el=document.getElementById('brief-date');
+  if(el && ymd) el.value=ymd;
+  if(typeof renderDelivery==='function') renderDelivery(); else renderBrief();
+}
+/* 그 날짜에 자료가 없을 때 '왜 없는지'를 그 자리에서 보여주기 위한 것.
+   날짜별 건수를 세어, 고른 날 앞뒤로 가까운 날을 몇 개 집어 준다.
+   (납품서가 예상과 다른 날짜로 저장돼 있으면 여기서 바로 드러난다) */
+function briefDateCounts(mode){
+  const key = d => mode==='req' ? (d.delivReqDate||d.orderDate) : (d.orderDate||d.delivReqDate);
+  const cnt={};
+  (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
+    if(!d) return;
+    if(d.id && typeof delivDeleted!=='undefined' && delivDeleted[d.id]) return;
+    const k=key(d); if(!k) return;
+    cnt[k]=(cnt[k]||0)+1;
+  });
+  return cnt;
+}
+function briefNearby(ymd, mode, n){
+  const cnt=briefDateCounts(mode);
+  const keys=Object.keys(cnt).sort();
+  if(!keys.length) return [];
+  // 고른 날에서 가까운 순으로 고른다
+  const dist=k=>Math.abs((new Date(k+'T00:00:00')-new Date(ymd+'T00:00:00'))/86400000);
+  return keys.slice().sort((a,b)=>dist(a)-dist(b)).slice(0, n||5)
+             .sort().map(k=>({date:k, n:cnt[k]}));
+}
 // 브리핑 렌더링 (날짜 input 기준)
 function renderBrief(){
   syncBriefModeToggle();
@@ -13348,12 +13377,25 @@ function renderBrief(){
   const ymd=dateEl.value;
   const b=buildDelivBrief(ymd, _mode);
   if(!b){
-    const alt=latestBriefDate(_mode);
-    host.innerHTML=`<div style="font-size:11px;color:var(--tx3)">이 날짜에 ${_modeKor} 기준 납품서가 없어요.`
-      + (alt&&alt!==ymd
-          ? ` <button onclick="briefGoto('${alt}')" style="margin-left:6px;padding:3px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">가장 최근 ${alt} 보기</button>`
-          : '')
-      + `</div>`;
+    /* 왜 없는지를 그 자리에서 알려준다. 그냥 '없어요'만 뜨면 원인을 찾을 길이 없다.
+       ① 반대 기준(발주일↔납품요청일)으로는 있는지  ② 가까운 날짜에 몇 건씩 있는지 */
+    const _other = _mode==='req' ? 'order' : 'req';
+    const _otherKor = _mode==='req' ? '발주일' : '납품요청일';
+    const ob = buildDelivBrief(ymd, _other);
+    const near = briefNearby(ymd, _mode, 5);
+    const btn=(label,onclick,accent)=>`<button onclick="${onclick}" style="margin:3px 4px 0 0;padding:3px 9px;background:${accent?'var(--acc)':'var(--s2)'};border:1px solid var(--b2);border-radius:7px;color:${accent?'#fff':'var(--acc)'};font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${label}</button>`;
+    let msg=`<div style="font-size:11.5px;color:var(--tx2);line-height:1.8">`
+      + `<b>${ymd}</b> 에 <b>${_modeKor}</b> 기준 납품서가 없습니다.`;
+    if(ob){
+      msg+=`<br><span style="color:var(--acc2)">같은 날짜에 <b>${_otherKor}</b> 기준으로는 ${ob.docs}건 있습니다.</span><br>`
+         + btn(`${_otherKor} 기준으로 보기`, `briefSwitchMode('${_other}','${ymd}')`, true);
+    }
+    if(near.length){
+      msg+=`<br><span style="color:var(--tx3)">${_modeKor} 기준으로 자료가 있는 가까운 날:</span><br>`
+         + near.map(x=>btn(`${x.date} (${x.n}건)`, `briefGoto('${x.date}')`)).join('');
+    }
+    if(!ob && !near.length) msg+=`<br><span style="color:var(--tx3)">올라온 납품서가 아직 없습니다. 납품서 탭에서 PDF를 올려주세요.</span>`;
+    host.innerHTML=msg+`</div>`;
     return;
   }
   const esc=b.text.replace(/</g,'&lt;');
