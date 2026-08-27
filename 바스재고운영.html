@@ -294,7 +294,7 @@ tr.mismatch td{background:#fdeceb}
 <!-- 납품 기록 -->
 <section class="page" id="page-deliv">
   <div class="card" style="border-color:var(--warn)">
-    <h2>📥 발주 받기 <span class="muted">한샘이 넣은 발주 — 아직 납품 안 한 것도 여기 넣습니다</span></h2>
+    <h2>① 발주 받기 <span class="muted">한샘이 우리한테 넣은 주문 — 아직 납품 안 한 것도 여기 넣습니다</span></h2>
     <div class="hint">발주가 왔다는 건 <b>창고 물량이 떨어졌다</b>는 뜻입니다. 납품하기 전에 먼저 넣어두면
       미납이 얼마인지, 발주가 얼마나 자주 오는지 보입니다.<br>
       <b>P/O구매오더상세</b> 화면의 표를 그대로 복사해 붙여넣고, 위쪽 <b>오더번호·발주일자</b>만 채우면 됩니다.</div>
@@ -318,8 +318,12 @@ tr.mismatch td{background:#fdeceb}
     <div class="tbl-wrap" id="poTbl"></div>
   </div>
 
-  <div class="card">
-    <h2>납품 추가 <span class="muted">모델명으로 검색하면 제품코드가 자동으로 잡힙니다</span></h2>
+  <div class="card" id="delivAddCard">
+    <h2>② 납품 추가 <span class="muted">우리가 실제로 창고에 보낸 것 — 발주 줄의 [납품 넣기]를 누르면 여기가 채워집니다</span></h2>
+    <div class="hint" style="margin-bottom:8px">
+      <b>발주 받기</b>는 한샘이 <u>우리한테 넣은 주문</u>이고, <b>납품 추가</b>는 우리가 <u>실제로 보낸 물량</u>입니다.
+      둘의 차이가 <b>미납</b>으로 남습니다 — 50개 발주에 44개만 보냈다면 수량을 <b>44</b>로 넣으시면 미납 6으로 잡힙니다.
+    </div>
     <div class="row">
       <div><label class="fld">발주일 <span class="muted">(한샘 발주 뜬 날)</span></label><input type="date" id="dOrd"></div>
       <div><label class="fld">출고일 <span class="muted">(창고 들어간 날)</span></label><input type="date" id="dShip"></div>
@@ -1831,6 +1835,31 @@ function poWithRemain(){
     .map(p=>({...p, remain:Math.max(0,(p.qty||0)-p.filled)}))
     .sort((a,b)=>String(b.odate).localeCompare(String(a.odate)));
 }
+/* 발주 → 납품으로 이어주기.
+   발주 줄의 [납품 넣기]를 누르면 아래 「납품 추가」 칸에 그 발주 내용을 채워 준다.
+   오더번호(참조문서번호)가 자동으로 들어가므로, 그 납품이 이 발주에 정확히 붙는다.
+   수량은 미납분을 기본으로 넣되 고칠 수 있다 — 50개 발주에 44개만 보냈으면
+   44로 고쳐 넣으면 미납 6으로 남는다. */
+function poFillDeliv(ord, code){
+  const r=poWithRemain().find(x=>x.ord===ord && x.code===code);
+  if(!r){ toast('발주를 찾지 못했어요'); return; }
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
+  set('dOrd', r.odate);          // 발주일(한샘 발주 뜬 날)
+  set('dShip', TODAY);           // 출고일 — 오늘 보낸 것으로 두고, 다르면 고치면 된다
+  set('dCode', code);
+  set('dQty', r.remain||r.qty);
+  set('dRef', ord);
+  if(typeof onCodeInput==='function') onCodeInput();
+  const box=document.getElementById('delivAddCard');
+  if(box){
+    box.scrollIntoView({behavior:'smooth', block:'center'});
+    box.style.transition='box-shadow .25s';
+    box.style.boxShadow='0 0 0 3px var(--accent)';
+    setTimeout(()=>{ box.style.boxShadow=''; }, 1600);
+  }
+  const q=document.getElementById('dQty'); if(q){ q.focus(); q.select&&q.select(); }
+  toast(`납품 추가 칸에 채웠습니다 — 실제로 보낸 수량으로 고친 뒤 [추가]`);
+}
 function poDel(ord,code,qty){
   if(!confirm(`${ord} · ${nameOf(code)} ${qty}장 발주를 지울까요?`)) return;
   ST.pos=(ST.pos||[]).filter(p=>!(p.ord===ord&&p.code===code&&p.qty===qty));
@@ -1865,7 +1894,9 @@ function renderPos(){
         <td class="num">${r.filled||'·'}</td>
         <td class="num" style="font-weight:700;color:${done?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
         <td>${r.due||'<span class="mini">—</span>'}</td>
-        <td><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
+        <td style="white-space:nowrap">
+          ${done?'':`<button class="primary" style="padding:4px 10px;font-size:11px" onclick="poFillDeliv('${r.ord}','${r.code}')">납품 넣기</button>`}
+          <button class="ghost" style="padding:3px 8px;font-size:11px" onclick="poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
       </tr>`;
     }).join('')+`</tbody></table>`;
 }
