@@ -13292,11 +13292,19 @@ function delivDestGroup(dest){
   if(d.includes('오이')) return '오이도';
   return '그레이박스';
 }
-// 브리핑 카드의 발주일/납품요청일 토글 → 목록 필터(delivViewMode)와 동기화
+/* 브리핑 기준. 'order'=발주일 · 'req'=납품요청일 — 둘 다 납품서에 적힌 날짜다. */
+let briefMode='order';
+function briefKeyOf(mode){
+  return mode==='req' ? (d=>d.delivReqDate||d.orderDate)
+                      : (d=>d.orderDate||d.delivReqDate);
+}
+const BRIEF_KOR={order:'발주일', req:'납품요청일'};
+// 브리핑 카드의 기준 토글 → 아래 납품서 목록(delivViewMode)과 동기화
 function setBriefMode(mode, btn){
-  if(typeof delivViewMode!=='undefined') delivViewMode = (mode==='req'?'req':'order');
+  briefMode = (mode==='req') ? 'req' : 'order';
   const host=document.getElementById('brief-mode-toggle');
-  if(host) host.querySelectorAll('.f-btn').forEach(b=>b.classList.toggle('on', b.getAttribute('data-bmode')===mode));
+  if(host) host.querySelectorAll('.f-btn').forEach(b=>b.classList.toggle('on', b.getAttribute('data-bmode')===briefMode));
+  if(typeof delivViewMode!=='undefined') delivViewMode = briefMode;
   // 목록 토글 버튼도 같이 갱신 + 목록 재렌더 (renderDelivery 안에서 renderBrief도 호출됨)
   if(typeof renderDelivery==='function') renderDelivery();
   else renderBrief();
@@ -13309,13 +13317,15 @@ function onBriefDateChange(){
 function syncBriefModeToggle(){
   const host=document.getElementById('brief-mode-toggle');
   if(!host) return;
-  const cur=(typeof delivViewMode!=='undefined' && delivViewMode==='req')?'req':'order';
-  host.querySelectorAll('.f-btn').forEach(b=>b.classList.toggle('on', b.getAttribute('data-bmode')===cur));
+  // 목록에서 기준을 바꾼 경우 브리핑도 따라간다
+  if(typeof delivViewMode!=='undefined')
+    briefMode = (delivViewMode==='req') ? 'req' : 'order';
+  host.querySelectorAll('.f-btn').forEach(b=>b.classList.toggle('on', b.getAttribute('data-bmode')===briefMode));
 }
 /* 자료가 있는 가장 최근 날짜(오늘 이하). 브리핑 첫 화면이 비어 보이지 않게 하려는 것.
    삭제된 납품서(묘비)는 빼고 본다. */
 function latestBriefDate(mode){
-  const key = d => mode==='req' ? (d.delivReqDate||d.orderDate) : (d.orderDate||d.delivReqDate);
+  const key = briefKeyOf(mode);
   const td=todayStr();
   let best='';
   (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
@@ -13332,16 +13342,15 @@ function briefGoto(ymd){
   if(el){ el.value=ymd; renderBrief(); }
 }
 function briefSwitchMode(mode, ymd){
-  if(typeof delivViewMode!=='undefined') delivViewMode=(mode==='req'?'req':'order');
   const el=document.getElementById('brief-date');
   if(el && ymd) el.value=ymd;
-  if(typeof renderDelivery==='function') renderDelivery(); else renderBrief();
+  setBriefMode(mode);
 }
 /* 그 날짜에 자료가 없을 때 '왜 없는지'를 그 자리에서 보여주기 위한 것.
    날짜별 건수를 세어, 고른 날 앞뒤로 가까운 날을 몇 개 집어 준다.
    (납품서가 예상과 다른 날짜로 저장돼 있으면 여기서 바로 드러난다) */
 function briefDateCounts(mode){
-  const key = d => mode==='req' ? (d.delivReqDate||d.orderDate) : (d.orderDate||d.delivReqDate);
+  const key = briefKeyOf(mode);
   const cnt={};
   (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
     if(!d) return;
@@ -13366,8 +13375,8 @@ function renderBrief(){
   const host=document.getElementById('brief-host');
   const dateEl=document.getElementById('brief-date');
   if(!host||!dateEl) return;
-  const _mode = (typeof delivViewMode!=='undefined' && delivViewMode==='req') ? 'req' : 'order';
-  const _modeKor = _mode==='req' ? '납품요청일' : '발주일';
+  const _mode = briefMode;
+  const _modeKor = BRIEF_KOR[_mode]||'발주일';
   /* 날짜를 아직 안 고른 첫 화면: 오늘 자료가 있으면 오늘, 없으면 자료가 있는 가장 최근 날.
      아침 일찍 열면 오늘 발주가 아직 안 들어와 빈 카드만 보이던 것을 막습니다. */
   if(!dateEl.value){
@@ -13431,7 +13440,7 @@ function copyBrief(){
 }
 
 function buildDelivBrief(ymd, mode){
-  mode = mode || 'order'; // 'order'=발주일, 'req'=납품요청일
+  mode = mode || 'order'; // 'order'=발주일, 'req'=납품요청일 — 둘 다 납품서에 적힌 날짜다
   const _bkey = d => mode==='req' ? (d.delivReqDate||d.orderDate) : (d.orderDate||d.delivReqDate);
   const docs=delivLog.filter(d=>_bkey(d)===ymd);
   if(!docs.length) return null;
