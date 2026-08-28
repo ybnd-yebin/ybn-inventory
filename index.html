@@ -11029,31 +11029,30 @@ function odFindModel(val){
   }
   return null;
 }
-/* 인쇄실 재고표와 '같은 숫자'를 발주 화면에도 보여줍니다.
-   값을 새로 계산하지 않고 soonapAgg·soonapCtx·soonapMetrics를 그대로 부릅니다.
-   코드가 여럿이면(같은 유리를 여러 한샘코드가 씀) 합산합니다. */
-function odUseAvg(codes, agg, ctx){
-  if(!codes || !codes.length) return null;
-  if(typeof soonapMetrics!=='function' || typeof SOONAP_CODE_SET==='undefined') return null;
-  let avg=0, month=0, week=0, hit=0;
-  for(const c of codes){
-    if(!SOONAP_CODE_SET.has(c)) continue;
-    const rec=agg.norm[c];
-    const m=soonapMetrics(c, rec?rec.evs:[], ctx);
-    avg+=m.avg||0; month+=m.month||0; week+=m.week||0; hit++;
-  }
-  if(!hit) return null;
-  return {avg:Math.round(avg*10)/10, month, week};
+/* 인쇄실 재고 화면에 뜨는 '월평균 51.0장'을 발주 화면에서도 그대로 보여줍니다.
+   ── 왜 rollingShipStats 인가
+   그 화면(renderStockList)이 쓰는 함수가 이것이고, 기준이 '유리 사이즈'라
+   발주줄의 가로×세로와 바로 맞물립니다. 값을 새로 계산하지 않습니다.
+   (전에는 수납유리 코드 기준 soonapMetrics 를 붙였는데, 기준이 달라 대부분 빈칸이었습니다) */
+function odUseAvg(w, h){
+  const W=parseInt(w)||0, H=parseInt(h)||0;
+  if(!W || !H || typeof rollingShipStats!=='function') return null;
+  const roll=rollingShipStats(W, H, 6);
+  if(roll && roll.total>0)
+    return {avg:Math.round(roll.monthlyAvg*10)/10, total:roll.total,
+            months:roll.activeMonths, solid:!!roll.hasEnoughData, src:'live'};
+  // 납품서 실데이터가 없으면 과거 분석값(SIZE_GROUPS)으로 폴백 — 인쇄실 화면과 같은 순서
+  const sg=(typeof SIZE_GROUPS!=='undefined') ? SIZE_GROUPS.find(g=>g.w===W && g.h===H) : null;
+  if(sg && sg.avg_monthly) return {avg:Math.round(sg.avg_monthly*10)/10, solid:false, src:'hist'};
+  return null;
 }
-function odUseBadge(ln, agg, ctx){
-  let codes=ln.codes;
-  if(!codes || !codes.length){                 // 손으로 친 줄 — 모델명이 정확히 맞을 때만 되짚습니다
-    const m=odFindModel(ln.pname);
-    codes = (m && m.codes) ? m.codes : null;
-  }
-  const u=codes ? odUseAvg(codes, agg, ctx) : null;
+function odUseBadge(ln){
+  const u=odUseAvg(ln.w, ln.h);
   if(!u) return '';   // 근거 없으면 비웁니다. 0장으로 보이면 '안 나가는 품목'으로 오해됩니다.
-  return `<div style="font-size:10px;color:var(--tx2);margin-top:5px">📊 월평균 <b style="color:var(--acc)">${u.avg}</b>장 · 이번달 ${u.month}장 · 이번주 ${u.week}장 <span style="color:var(--tx3)">(인쇄실 재고표와 같은 기준)</span></div>`;
+  const sub = u.src==='hist'
+    ? '<span style="color:var(--tx3)">과거 분석값</span>'
+    : `<span style="color:var(--tx3)">최근 6개월 ${u.total}장${u.solid?'':' · 표본 적음'}</span>`;
+  return `<div style="font-size:10.5px;color:var(--tx2);margin-top:5px">📊 <b>${ln.w}×${ln.h}</b> 월평균 <b style="color:var(--acc);font-size:13px">${u.avg}</b>장 · ${sub}</div>`;
 }
 
 function renderOdLines(){
@@ -11079,10 +11078,8 @@ function renderOdLines(){
   }
   const host=document.getElementById('od-lines');
   const qtyOnly=!!(p&&p.qtyOnly);
-  // 월평균 근거는 줄마다가 아니라 여기서 한 번만 계산합니다 (soonapAgg가 납품서 전체를 돕니다).
-  let _agg=null, _ctx=null;
-  try{ if(typeof soonapAgg==='function' && typeof soonapCtx==='function'){ _agg=soonapAgg(); _ctx=soonapCtx(); } }catch(e){ _agg=null; }
-  const useBadge = ln => (_agg&&_ctx&&typeof odUseBadge==='function') ? odUseBadge(ln,_agg,_ctx) : '';
+  // 사이즈만 있으면 월평균이 나옵니다(인쇄실 화면과 같은 rollingShipStats).
+  const useBadge = ln => { try{ return (typeof odUseBadge==='function') ? odUseBadge(ln) : ''; }catch(e){ return ''; } };
   host.innerHTML=odLines.map((ln,i)=>{
     if(qtyOnly){
       return `
@@ -11100,9 +11097,9 @@ function renderOdLines(){
           <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto 1fr auto 56px;gap:5px;align-items:center">
-          <input type="number" inputmode="numeric" value="${ln.w}" placeholder="가로" oninput="odLines[${i}].w=this.value;odUpdateCount()" class="inp" style="margin:0;padding:8px 6px;text-align:center;font-size:13px">
+          <input type="number" inputmode="numeric" value="${ln.w}" placeholder="가로" oninput="odLines[${i}].w=this.value;odUpdateCount()" onchange="renderOdLines()" class="inp" style="margin:0;padding:8px 6px;text-align:center;font-size:13px">
           <span style="color:var(--tx3)">×</span>
-          <input type="number" inputmode="numeric" value="${ln.h}" placeholder="세로" oninput="odLines[${i}].h=this.value;odUpdateCount()" class="inp" style="margin:0;padding:8px 6px;text-align:center;font-size:13px">
+          <input type="number" inputmode="numeric" value="${ln.h}" placeholder="세로" oninput="odLines[${i}].h=this.value;odUpdateCount()" onchange="renderOdLines()" class="inp" style="margin:0;padding:8px 6px;text-align:center;font-size:13px">
           <span style="color:var(--tx3);font-size:11px">수량</span>
           <input type="number" inputmode="numeric" value="${ln.qty}" oninput="odLines[${i}].qty=this.value;odUpdateCount()" class="inp" style="margin:0;padding:8px 4px;text-align:center;font-size:13px">
         </div>
@@ -11112,9 +11109,9 @@ function renderOdLines(){
     return `
       <div style="margin-bottom:6px">
       <div style="display:grid;grid-template-columns:1fr auto 1fr auto 56px auto;gap:5px;align-items:center">
-        <input type="number" inputmode="numeric" value="${ln.w}" placeholder="가로" oninput="odLines[${i}].w=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 6px;text-align:center;font-size:13px">
+        <input type="number" inputmode="numeric" value="${ln.w}" placeholder="가로" oninput="odLines[${i}].w=this.value;odUpdateCount()" onchange="renderOdLines()" class="inp" style="margin:0;padding:9px 6px;text-align:center;font-size:13px">
         <span style="color:var(--tx3)">×</span>
-        <input type="number" inputmode="numeric" value="${ln.h}" placeholder="세로" oninput="odLines[${i}].h=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 6px;text-align:center;font-size:13px">
+        <input type="number" inputmode="numeric" value="${ln.h}" placeholder="세로" oninput="odLines[${i}].h=this.value;odUpdateCount()" onchange="renderOdLines()" class="inp" style="margin:0;padding:9px 6px;text-align:center;font-size:13px">
         <span style="color:var(--tx3);font-size:11px">수량</span>
         <input type="number" inputmode="numeric" value="${ln.qty}" oninput="odLines[${i}].qty=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 4px;text-align:center;font-size:13px">
         <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
