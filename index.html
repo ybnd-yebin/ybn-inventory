@@ -3398,7 +3398,18 @@ function saveAll(){
 // ── TIME ──
 function updateHdr(){
   const now=new Date();
-  document.getElementById('hdr-now').textContent=now.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'})+' '+now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+  /* 지금 보고 있는 앱 파일이 언제 것인지 같이 적는다.
+     고쳤는데도 화면이 그대로일 때, 새로고침이 안 된 건지 진짜 안 고쳐진 건지
+     여기만 보면 바로 갈린다. document.lastModified 는 브라우저가 파일에서 읽어 준다. */
+  let stamp='';
+  try{
+    const lm=new Date(document.lastModified);
+    if(!isNaN(lm.getTime()))
+      stamp=' · 앱파일 '+lm.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'})
+            +' '+lm.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){}
+  document.getElementById('hdr-now').textContent=
+    now.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'})+' '+now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+stamp;
   const el=document.getElementById('home-date');
   if(el) el.textContent=now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
 }
@@ -11046,13 +11057,29 @@ function odUseAvg(w, h){
   if(sg && sg.avg_monthly) return {avg:Math.round(sg.avg_monthly*10)/10, solid:false, src:'hist'};
   return null;
 }
+/* 사이즈가 채워진 줄에는 '항상' 한 줄을 띄웁니다.
+   숫자가 나오면 숫자를, 안 나오면 왜 안 나오는지를 적습니다.
+   조용히 비워두면 기능이 없는 건지 값이 없는 건지 알 수가 없습니다. */
 function odUseBadge(ln){
-  const u=odUseAvg(ln.w, ln.h);
-  if(!u) return '';   // 근거 없으면 비웁니다. 0장으로 보이면 '안 나가는 품목'으로 오해됩니다.
+  const W=parseInt(ln.w)||0, H=parseInt(ln.h)||0;
+  const wrap=t=>`<div style="font-size:10.5px;color:var(--tx2);margin-top:5px">${t}</div>`;
+  if(!W || !H) return '';                      // 규격을 아직 안 넣은 줄은 조용히 둡니다
+  if(typeof rollingShipStats!=='function')
+    return wrap(`📊 <b>${W}×${H}</b> <span style="color:var(--acc4)">월평균 계산기를 못 찾았습니다</span>`);
+  let u=null, err='';
+  try{ u=odUseAvg(W,H); }
+  catch(e){ err=e.message; console.warn('[발주 월평균]', W+'x'+H, e); }
+  if(err) return wrap(`📊 <b>${W}×${H}</b> <span style="color:var(--acc4)">월평균 계산 오류 — ${esc?esc(err):err}</span>`);
+  if(!u){
+    const n=(typeof delivLog!=='undefined')?delivLog.length:0;
+    return wrap(`📊 <b>${W}×${H}</b> <span style="color:var(--tx3)">`
+      + (n ? `최근 6개월 납품 기록 없음 (납품서 ${n}건 중 이 사이즈 없음)` : '납품서가 없어 계산할 수 없습니다')
+      + `</span>`);
+  }
   const sub = u.src==='hist'
     ? '<span style="color:var(--tx3)">과거 분석값</span>'
     : `<span style="color:var(--tx3)">최근 6개월 ${u.total}장${u.solid?'':' · 표본 적음'}</span>`;
-  return `<div style="font-size:10.5px;color:var(--tx2);margin-top:5px">📊 <b>${ln.w}×${ln.h}</b> 월평균 <b style="color:var(--acc);font-size:13px">${u.avg}</b>장 · ${sub}</div>`;
+  return wrap(`📊 <b>${W}×${H}</b> 월평균 <b style="color:var(--acc);font-size:13px">${u.avg}</b>장 · ${sub}`);
 }
 
 function renderOdLines(){
@@ -11079,7 +11106,14 @@ function renderOdLines(){
   const host=document.getElementById('od-lines');
   const qtyOnly=!!(p&&p.qtyOnly);
   // 사이즈만 있으면 월평균이 나옵니다(인쇄실 화면과 같은 rollingShipStats).
-  const useBadge = ln => { try{ return (typeof odUseBadge==='function') ? odUseBadge(ln) : ''; }catch(e){ return ''; } };
+  // 오류를 조용히 삼키지 않습니다 — 안 뜨는 이유를 줄 밑에 그대로 적습니다.
+  const useBadge = ln => {
+    try{ return (typeof odUseBadge==='function') ? odUseBadge(ln) : ''; }
+    catch(e){
+      console.warn('[발주 월평균] 배지 실패', ln, e);
+      return `<div style="font-size:10.5px;color:var(--acc4);margin-top:5px">📊 월평균 표시 실패 — ${e.message}</div>`;
+    }
+  };
   host.innerHTML=odLines.map((ln,i)=>{
     if(qtyOnly){
       return `
