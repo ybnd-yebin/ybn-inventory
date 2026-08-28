@@ -674,6 +674,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <span id="stock-period-range" style="color:var(--tx3)">계산 중…</span>
       <span style="margin-left:auto;color:var(--tx3)">🟢 최근 6개월=납품서 실데이터 · 회색=과거 분석 폴백</span>
     </div>
+    <div id="inkcut-card" style="margin:2px 0 12px"></div>
     <div id="stock-list"></div>
     <!-- 비규격 섹션 (사이즈 매핑 안 된 모델들) -->
     <div id="stock-misc-section" style="margin-top:20px"></div>
@@ -3057,28 +3058,132 @@ function normModelName(s){
 
 // 이벤트 → 현재 재고 계산
 // 가장 최근 'count' 이후의 모든 in/print/out/adjust/defect를 누적
-function calcStockFromEvents(key){
-  const evs = (stockEvents[key] || []).slice().sort((a,b)=>String(a.at).localeCompare(String(b.at)));
-  let lastCountIdx = -1;
-  let baseQty = 0;
-  for(let i=evs.length-1; i>=0; i--){
-    if(evs[i].type === 'count'){
-      lastCountIdx = i;
-      baseQty = parseInt(evs[i].qty)||0;
-      break;
-    }
+/* ══════════════════════════════════════════════════════════════════
+   1액형 전환 — 2026-08-18부터 1액형으로 인쇄한다.
+   그 전에 2액형으로 인쇄해 둔 유리는 쓸 수 없다.
+
+   지우지 않는다. '선을 긋고' 그 뒤부터 다시 센다.
+   이력은 그대로 남으므로 못 쓰는 수량·손해를 나중에 따질 수 있고,
+   스위치를 끄면 예전처럼 전부 합산으로 즉시 돌아간다.
+
+   · 인쇄유리만 해당 — 키가 '사이즈_색상'(445x729_WC)인 것.
+   · 원유리(445x729)는 인쇄 전이라 잉크와 무관하므로 건드리지 않는다.
+   · 전환일 당일(8/18)은 새 재고에 포함한다.
+   ══════════════════════════════════════════════════════════════════ */
+const LS_INKCUT='ybn-inkcut-v1';
+let inkCut=(function(){
+  try{ return Object.assign({on:false, date:'2026-08-18'}, JSON.parse(localStorage.getItem(LS_INKCUT))||{}); }
+  catch(e){ return {on:false, date:'2026-08-18'}; }
+})();
+function inkCutSave(){ try{ localStorage.setItem(LS_INKCUT, JSON.stringify(inkCut)); }catch(e){} }
+// 인쇄유리 키인가(사이즈_색상). 원유리 키(사이즈만)는 해당 없음.
+function isPrintedKey(key){ return /^\d+x\d+_[A-Za-z]+$/.test(String(key||'')); }
+function inkCutFor(key){ return (inkCut.on && inkCut.date && isPrintedKey(key)) ? inkCut.date : null; }
+/* 이벤트가 '며칠 것'인지 — 로컬 날짜로 읽는다.
+   at 은 ...T00:00:00.000Z 처럼 UTC로 적힌 것도 있고 손으로 찍은 현재시각도 있다.
+   UTC 문자열을 그대로 자르면 한국에서 오전 9시 이전 기록이 전날로 밀린다(CLAUDE.md 3-1). */
+function _evDay(e){ try{ return _ymdLocal(new Date(e.at)); }catch(x){ return String(e.at||'').slice(0,10); } }
+// 이벤트 묶음 → 수량. 마지막 실사(count)를 기준점으로 잡고 그 뒤만 누적한다.
+function _sumEvents(evs){
+  let lastCountIdx=-1, baseQty=0;
+  for(let i=evs.length-1;i>=0;i--){
+    if(evs[i].type==='count'){ lastCountIdx=i; baseQty=parseInt(evs[i].qty)||0; break; }
   }
-  // count가 없으면 모든 in/out 누계
-  let q = baseQty;
-  const startIdx = lastCountIdx === -1 ? 0 : lastCountIdx + 1;
-  for(let i=startIdx; i<evs.length; i++){
-    const e = evs[i];
-    const v = parseInt(e.qty)||0;
-    if(e.type === 'in') q += v;
-    else if(e.type === 'print' || e.type === 'out' || e.type === 'defect') q -= v;
-    else if(e.type === 'adjust') q += v; // adjust는 부호 포함된 값
+  let q=baseQty;
+  for(let i=(lastCountIdx===-1?0:lastCountIdx+1); i<evs.length; i++){
+    const e=evs[i], v=parseInt(e.qty)||0;
+    if(e.type==='in') q+=v;
+    else if(e.type==='print'||e.type==='out'||e.type==='defect') q-=v;
+    else if(e.type==='adjust') q+=v;   // adjust는 부호 포함된 값
   }
   return q;
+}
+/* 못 쓰는 재고 전체 — 인쇄유리 키를 훑어 전환일 직전 잔량을 모은다.
+   색상별 합계와 사이즈별 내역을 같이 돌려준다(수량 파악·손해 산정용). */
+function deadStockAll(){
+  const rows=[], byColor={};
+  Object.keys(stockEvents||{}).forEach(key=>{
+    if(!isPrintedKey(key)) return;
+    const q=deadStockOf(key);
+    if(q<=0) return;                       // 0이나 마이너스는 못 쓰는 재고가 아니다
+    const m=key.match(/^(\d+)x(\d+)_(.+)$/);
+    const color=m?m[3]:'?';
+    rows.push({key, w:+m[1], h:+m[2], color, qty:q});
+    byColor[color]=(byColor[color]||0)+q;
+  });
+  rows.sort((a,b)=>b.qty-a.qty);
+  return {rows, byColor, total:rows.reduce((s,r)=>s+r.qty,0)};
+}
+function inkCutToggle(){
+  const d=deadStockAll();
+  if(!inkCut.on){
+    if(!confirm(`${inkCut.date}부터 다시 셉니다.\n그 전에 인쇄해 둔 ${d.total}장은 재고에서 빠지고 '못 쓰는 재고'로 따로 모입니다.\n\n지워지는 것은 없고, 스위치를 끄면 그대로 돌아옵니다. 켤까요?`)) return;
+  }
+  inkCut.on=!inkCut.on; inkCutSave();
+  if(typeof refreshAll==='function') refreshAll();
+  renderInkCut();
+  if(typeof renderStockList==='function') renderStockList();
+  showToast(inkCut.on?`✅ ${inkCut.date}부터 다시 셉니다`:'전환을 껐습니다 — 예전처럼 전부 합산합니다');
+}
+function inkCutSetDate(v){
+  if(!v) return;
+  inkCut.date=v; inkCutSave();
+  renderInkCut();
+  if(typeof renderStockList==='function') renderStockList();
+  showToast(`기준일을 ${v}로 바꿨습니다`);
+}
+let inkCutOpen=false;
+function inkCutToggleList(){ inkCutOpen=!inkCutOpen; renderInkCut(); }
+function renderInkCut(){
+  const host=document.getElementById('inkcut-card'); if(!host) return;
+  const d=deadStockAll();
+  const kor={WC:'웜코튼', ETP:'에토프'};
+  const chips=Object.keys(d.byColor).sort().map(c=>
+    `<span style="display:inline-block;padding:2px 9px;border-radius:20px;background:var(--s3);font-size:11px;font-weight:700;margin-right:5px">${kor[c]||c} ${d.byColor[c]}장</span>`).join('');
+  const detail = inkCutOpen && d.rows.length
+    ? `<div class="tbl-wrap" style="max-height:260px;margin-top:8px"><table><thead><tr>
+         <th>사이즈</th><th>색상</th><th class="num">못 쓰는 수량</th></tr></thead><tbody>`
+      + d.rows.map(r=>`<tr><td style="font-family:'JetBrains Mono',monospace">${r.w}×${r.h}</td>
+          <td>${kor[r.color]||r.color}</td>
+          <td class="num" style="font-weight:700;color:var(--acc4)">${r.qty}</td></tr>`).join('')
+      + `</tbody></table></div>` : '';
+  host.innerHTML=`
+    <div style="background:${inkCut.on?'rgba(255,107,53,.10)':'var(--s1)'};border:1px solid ${inkCut.on?'#ff6b35':'var(--b1)'};border-radius:10px;padding:11px 13px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:12.5px;font-weight:800">🖨 1액형 전환</span>
+        <span style="font-size:11px;color:var(--tx2)">이 날짜부터 다시 셉니다</span>
+        <input type="date" value="${inkCut.date}" onchange="inkCutSetDate(this.value)"
+          style="padding:4px 7px;font-size:11px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif">
+        <button onclick="inkCutToggle()" style="margin-left:auto;padding:5px 13px;border:none;border-radius:8px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;background:${inkCut.on?'#ff6b35':'var(--s3)'};color:${inkCut.on?'#fff':'var(--tx2)'}">${inkCut.on?'켜짐 — 끄기':'꺼짐 — 켜기'}</button>
+      </div>
+      <div style="font-size:11px;color:var(--tx2);line-height:1.7;margin-top:7px">
+        ${inkCut.on
+          ? `전환일 <b>이전에 인쇄한 유리는 재고에서 빠져</b> 있습니다. 원유리는 그대로입니다.`
+          : `지금은 예전처럼 <b>전부 합산</b>해서 셉니다. 켜면 전환일부터만 셉니다.`}
+        ${d.total?`<br>못 쓰는 재고 <b style="color:var(--acc4);font-size:13px">${d.total}장</b> ${chips}
+           <button onclick="inkCutToggleList()" style="padding:2px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--acc);font-size:10.5px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${inkCutOpen?'▲ 접기':`▼ 사이즈별 ${d.rows.length}종`}</button>`
+          :`<br><span style="color:var(--tx3)">전환일 이전 인쇄 재고가 잡히지 않았습니다.</span>`}
+        <br><span style="color:var(--tx3)">지워지는 것은 없습니다 — 스위치를 끄면 그대로 돌아옵니다.</span>
+      </div>
+      ${detail}
+    </div>`;
+}
+
+// 전환일 '직전'까지의 잔량 = 못 쓰는 재고 (스위치와 무관하게 늘 계산된다)
+function deadStockOf(key){
+  if(!inkCut.date || !isPrintedKey(key)) return 0;
+  const evs=(stockEvents[key]||[]).slice()
+    .filter(e=>_evDay(e) < inkCut.date)
+    .sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  return evs.length ? _sumEvents(evs) : 0;
+}
+
+function calcStockFromEvents(key){
+  let evs = (stockEvents[key] || []).slice().sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  // 1액형 전환이 켜져 있으면 인쇄유리는 전환일부터만 센다(그 전 것은 못 쓰는 재고).
+  const cut = inkCutFor(key);
+  if(cut) evs = evs.filter(e=>_evDay(e) >= cut);
+  return _sumEvents(evs);
 }
 
 // 원유리 이벤트 (사이즈만)
@@ -4368,6 +4473,7 @@ function actGoToSize(key){
 
 function setStockFilter(f,btn){stockFilter=f;document.querySelectorAll('#sp-stocklist .f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStockList();}
 function renderStockList(){
+  try{ renderInkCut(); }catch(e){ console.warn('[1액형 전환]', e); }
   let q=(document.getElementById('stock-search')?.value||'').toLowerCase().trim();
   const qNorm = q.replace(/[×x*\s]/g,'');
   const qDigits = q.replace(/[^0-9]/g,'');
