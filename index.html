@@ -7251,6 +7251,8 @@ function asmDoubleMerges(){
 
 let asmReconOpen=false;
 function asmReconToggle(){ asmReconOpen=!asmReconOpen; renderAsmRecon(); }
+let asmDmOpen=false;
+function asmDmToggle(){ asmDmOpen=!asmDmOpen; renderAsmRecon(); }
 
 function renderAsmRecon(){
   const host=document.getElementById('asm-recon'); if(!host) return;
@@ -7277,10 +7279,32 @@ function renderAsmRecon(){
   // 어긋난 까닭이 '합치기 두 번'이면 짚어 줍니다
   const dm=asmDoubleMerges();
   const dmSum=dm.reduce((s,h)=>s+Math.max(0,h.extra),0);
+  const dmList = !(asmDmOpen && dm.length) ? '' : `
+    <div style="margin-top:7px;border-top:1px dashed var(--b2);padding-top:7px">
+      ${dm.map(h=>`
+        <div style="font-size:10.5px;color:var(--tx2);padding:3px 0;line-height:1.5">
+          · <b style="color:var(--tx1)">${asmItemName(h.to)}</b>
+          <span style="color:var(--tx3)">에</span>
+          <b>${asmItemName(h.from)}</b>
+          <span style="color:var(--tx3)">의 유리를</span> ${h.times}번 옮김
+          <span style="color:#f85149;font-weight:700">(+${h.extra}장 더 잡힘)</span>
+        </div>`).join('')}
+      <div style="font-size:10px;color:var(--tx3);margin-top:5px">
+        확인하실 곳 — 위 굵은 글씨(받은 쪽) 품목의 <b>[📜 이력 보기 / 삭제]</b>를 열면
+        “같은 유리로 합침”이 같은 곳에서 두 줄 있습니다. 나중 줄이 더 잡힌 것입니다.
+      </div>
+    </div>`;
+
   const dmLine = dm.length
     ? `<div style="font-size:11px;color:var(--tx2);margin-top:6px;background:var(--s2);border-radius:7px;padding:7px 9px;line-height:1.5">
-         🔎 <b>같은 유리를 두 번 옮겨 담은 기록이 ${dm.length}건</b> 있습니다 — 그만큼(<b style="color:#f85149">${dmSum}장</b>) 재고가 실제보다 많게 잡혀 있습니다.<br>
-         <span style="color:var(--tx3)">합치기는 한 번만 돌아야 하는데, 동기화가 옛 값을 되살린 뒤 다시 돌면 이렇게 됩니다.</span>
+         <div style="display:flex;align-items:flex-start;gap:8px">
+           <div style="flex:1">
+             🔎 <b>같은 유리를 두 번 옮겨 담은 기록이 ${dm.length}건</b> 있습니다 — 그만큼(<b style="color:#f85149">${dmSum}장</b>) 재고가 실제보다 많게 잡혀 있습니다.<br>
+             <span style="color:var(--tx3)">합치기는 한 번만 돌아야 하는데, 동기화가 옛 값을 되살린 뒤 다시 돌면 이렇게 됩니다.</span>
+           </div>
+           <button onclick="asmDmToggle()" style="flex:none;padding:3px 9px;background:var(--s1);border:1px solid var(--b2);border-radius:6px;color:var(--acc);font-size:10.5px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${asmDmOpen?'▲ 접기':'▼ 어느 것인지'}</button>
+         </div>
+         ${dmList}
        </div>`
     : '';
 
