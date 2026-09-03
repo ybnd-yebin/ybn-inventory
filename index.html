@@ -6212,6 +6212,8 @@ function applyCartItem(c, td, dl){
         const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='assembly'&&i.reason===c.defectReason&&i.short===shortName);
         if(ex){ ex.qty+=c.qty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
         else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:c.qty,type:'defect',loc:'assembly',reason:c.defectReason,eventIds:[ev1.id],...actorTag()});
+        // 조립실 유리에서도 뺍니다 (인쇄실 장부만 깎으면 조립실 숫자가 틀어집니다)
+        if(typeof asmOnDefectSize==='function') asmOnDefectSize(w, h, color, c.qty, workAtIso, c.defectReason);
       }
     } else {
       setSzStock(w,hk,color,s.raw-c.qty,s.printed+c.qty);
@@ -6220,6 +6222,8 @@ function applyCartItem(c, td, dl){
       const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='work'&&i.short===shortName);
       if(ex){ ex.qty+=c.qty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id, ev2.id]); Object.assign(ex, actorTag()); }
       else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:c.qty,type:'work',eventIds:[ev1.id, ev2.id],...actorTag()});
+      // 인쇄실 → 조립실 자동 입고 (사이즈로 고른 경우 — 이 줄이 없어 그동안 안 넘어갔습니다)
+      if(typeof asmOnPrintSize==='function') asmOnPrintSize(w, h, color, c.qty, workAtIso);
     }
   } else if(c.code){
     const s=getStock(c.code);
@@ -6305,6 +6309,7 @@ function _confirmWork_legacy(){
         const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='defect'&&i.loc==='assembly'&&i.reason===wDefectReason&&i.short===shortName);
         if(ex){ ex.qty+=wQty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id]); }
         else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'defect',loc:'assembly',reason:wDefectReason,eventIds:[ev1.id],...actorTag()});
+        if(typeof asmOnDefectSize==='function') asmOnDefectSize(w, h, color, wQty, workAtIso, wDefectReason);
         showToast(`🚫 조립실 불량 ${wQty}장 (${shortName} ${colorLabel})`);
       }
     } else {
@@ -6315,6 +6320,7 @@ function _confirmWork_legacy(){
       const ex=dl.items.find(i=>i.sizeKey===itemKey&&i.color===color&&i.type==='work'&&i.short===shortName);
       if(ex){ ex.qty+=wQty; ex.eventIds=(ex.eventIds||[]).concat([ev1.id, ev2.id]); Object.assign(ex, actorTag()); }
       else dl.items.push({sizeKey:itemKey,short:shortName,color,qty:wQty,type:'work',eventIds:[ev1.id, ev2.id],...actorTag()});
+      if(typeof asmOnPrintSize==='function') asmOnPrintSize(w, h, color, wQty, workAtIso);
       showToast(`✓ ${shortName} ${colorLabel} ${wQty}장`);
     }
   } else if(wSelCode){
@@ -7780,6 +7786,43 @@ function asmOnPrint(code, qty){
   const e=euroItemFromCode(String(code||'').trim());
   if(!e) return false; // EURO700 정규격 아님 → 무시
   asmApply(e.id, {type:'print_in', qty:parseInt(qty)||0, memo:'인쇄실 인쇄분 자동입고', source:'print'});
+  return true;
+}
+
+/* ── 사이즈로 고른 경우의 인쇄실→조립실 연결 ─────────────────
+   작업일지 인쇄실은 코드가 아니라 사이즈로 고릅니다. 그래서 위 asmOnPrint(코드 기준)이
+   한 번도 불리지 않았고, 찍은 유리가 조립실로 넘어가지 않았습니다.
+   유리는 사이즈+색상이 정하므로 그 기준으로 조립실 묶음을 찾습니다.
+   좌우(L/R)는 유리가 같으므로 세로는 숫자만 씁니다(693L → 693). */
+let _asmBySizeMap=null;
+function asmItemBySize(w, h, color){
+  if(!_asmBySizeMap){
+    _asmBySizeMap={};
+    if(typeof HANSAEM_CATALOG!=='undefined'){
+      for(const code in HANSAEM_CATALOG){
+        const e=euroItemFromCode(code);
+        if(!e || !e.gw || !e.gh) continue;             // 비규격·베일은 여기서 걸러집니다
+        const k=`${e.gw}x${e.gh}_${e.color||''}`;
+        if(!_asmBySizeMap[k]) _asmBySizeMap[k]=asmGlassId(e.id);
+      }
+    }
+  }
+  const W=parseInt(w,10), H=parseInt(h,10);
+  if(!W || !H) return null;
+  return _asmBySizeMap[`${W}x${H}_${color||''}`] || null;
+}
+// 인쇄분 입고 (+)
+function asmOnPrintSize(w, h, color, qty, atIso){
+  const id=asmItemBySize(w, h, color);
+  if(!id) return false;                                // 조립실 대상이 아닌 규격 → 그냥 넘어갑니다
+  asmApply(id, {type:'print_in', qty:parseInt(qty)||0, at:atIso, memo:'인쇄실 인쇄분 자동입고', source:'print'});
+  return true;
+}
+// 작업일지에서 적은 조립실 불량 (−) — 이것도 이어야 조립실 숫자가 틀어지지 않습니다
+function asmOnDefectSize(w, h, color, qty, atIso, reason){
+  const id=asmItemBySize(w, h, color);
+  if(!id) return false;
+  asmApply(id, {type:'defect', qty:parseInt(qty)||0, at:atIso, memo:`작업일지 조립실 불량${reason?' ('+reason+')':''}`, source:'worklog'});
   return true;
 }
 
