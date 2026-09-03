@@ -6896,6 +6896,19 @@ function asmCanonMap(){
 function asmGlassId(itemId){ try{ return asmCanonMap()[itemId]||itemId; }catch(e){ return itemId; } }
 
 function asmFind(itemId){ return assemblyStock.find(a=>a.id===itemId); }
+/* ── 이 품목이 쓰는 유리가 몇 장인지 ──────────────────────────
+   유리는 사이즈+색상이 같으면 한 곳(묶음 대표)에 모아 둡니다. 넣을 때는 대표에 넣으면서
+   화면은 품목 자기 숫자를 읽고 있었습니다. 그래서 같은 유리를 쓰는 '(공용)' 품목이
+   늘 0장으로 보이고 '유리 몇 장 부족'이라고 나왔습니다. 넣는 곳과 읽는 곳을 맞춥니다. */
+function asmGlassOf(itemId){
+  const g=asmFind(asmGlassId(itemId));
+  return g ? (g.glass||0) : 0;
+}
+// 이 유리를 같이 쓰는 다른 품목들 (화면에 '함께 씀'을 알려줄 때)
+function asmGlassMates(itemId){
+  const rep=asmGlassId(itemId);
+  return (assemblyStock||[]).map(a=>a.id).filter(id=>id!==itemId && asmGlassId(id)===rep);
+}
 function asmGet(itemId){
   let a=asmFind(itemId);
   if(!a){
@@ -7103,7 +7116,7 @@ function asmVisibleItems(needMap){
 
 function asmItemCard(it, needMap){
   const a=asmFind(it.id);
-  const glass=a?a.glass:0;
+  const glass=asmGlassOf(it.id);      // 묶음(공용) 기준으로 읽습니다
   const done=a?a.done:0;
   const need=needMap[it.id]||0;
   const short=Math.max(0, need-done);
@@ -7606,7 +7619,7 @@ function asmQuickSearch(){
     const inputs=cols.map(c=>{
       const it=r.cols[c];
       const a=asmFind(it.id);
-      const cur=a?(isGlass?a.glass:a.done):0;
+      const cur=isGlass ? asmGlassOf(it.id) : (a?a.done:0);   // 유리는 묶음(공용) 기준
       const lbl=c==='-'?'수량':(ASM_COLOR_LABEL[c]||c);
       return `<div style="flex:1;min-width:110px">
         <div style="font-size:10px;color:var(--tx2);margin-bottom:3px">${lbl} <span style="color:var(--tx3)">현재 ${cur}</span></div>
@@ -7734,15 +7747,22 @@ function asmOpenGlassIn(itemId){
   renderAssembly();
 }
 function asmOpenGlassCount(itemId){
-  const a=asmGet(itemId);
-  const g=prompt(`🔢 ${asmItemName(itemId)}\n조립실 유리 실측값 (현재 ${a.glass}장):`, String(a.glass));
+  asmGet(itemId);
+  const have=asmGlassOf(itemId);                       // 묶음(공용) 기준
+  const mates=asmGlassMates(itemId);
+  /* 실측은 묶음 전체를 덮어씁니다. 예전에는 공용 품목에서 '현재 0장'으로 물어놓고
+     실제로는 대표에 쌓인 수량을 지웠습니다. 함께 쓰는 품목을 먼저 알려 줍니다. */
+  const warn = mates.length
+    ? `\n※ 이 유리는 아래와 함께 씁니다. 실측하면 다 같이 바뀝니다.\n   · ${mates.map(id=>asmItemName(id)).join('\n   · ')}\n`
+    : '';
+  const g=prompt(`🔢 ${asmItemName(itemId)}\n조립실 유리 실측값 (현재 ${have}장):${warn}`, String(have));
   if(g===null) return;
   const gv=parseInt(g); if(isNaN(gv)){ alert('숫자를 입력하세요'); return; }
   asmApply(itemId,{type:'glass_count', absGlass:gv, memo:'유리 실측'});
   renderAssembly();
 }
 function asmOpenAssemble(itemId){
-  const a=asmGet(itemId); const have=a.glass;
+  const a=asmGet(itemId); const have=asmGlassOf(itemId);   // 묶음(공용) 기준
   const need=asmNeedMap()[itemId]||0;
   const rec = need>0 ? Math.max(0, need-a.done) : have; // 권장량(납품 부족분)
   const msg=`🔧 ${asmItemName(itemId)}\n조립 수량 (유리 ${have}장 보유${need>0?` · 권장 ${rec}개`:''}):\n※ 권장보다 많이 찍어도 됩니다`;
@@ -7762,7 +7782,7 @@ function asmOpenDoneCount(itemId){
   renderAssembly();
 }
 function asmOpenDefect(itemId){
-  const a=asmFind(itemId); const have=a?a.glass:0;
+  const have=asmGlassOf(itemId);                          // 묶음(공용) 기준
   const n=prompt(`⚠️ ${asmItemName(itemId)}\n불량으로 뺄 유리 수량 (현재 ${have}장):`, '1');
   if(n===null) return;
   const q=parseInt(n); if(isNaN(q)||q<=0){ alert('숫자를 입력하세요'); return; }
