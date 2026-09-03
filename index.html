@@ -3076,7 +3076,8 @@ let inkCut=(function(){
   try{ return Object.assign({on:false, date:'2026-08-18'}, JSON.parse(localStorage.getItem(LS_INKCUT))||{}); }
   catch(e){ return {on:false, date:'2026-08-18'}; }
 })();
-function inkCutSave(){ try{ localStorage.setItem(LS_INKCUT, JSON.stringify(inkCut)); }catch(e){} }
+// 고친 시각을 함께 남깁니다 — 기기끼리 어느 쪽이 최신인지 가릴 때 씁니다
+function inkCutSave(){ inkCut.at=new Date().toISOString(); try{ localStorage.setItem(LS_INKCUT, JSON.stringify(inkCut)); }catch(e){} }
 // 인쇄유리 키인가(사이즈_색상). 원유리 키(사이즈만)는 해당 없음.
 function isPrintedKey(key){ return /^\d+x\d+_[A-Za-z]+$/.test(String(key||'')); }
 function inkCutFor(key){ return (inkCut.on && inkCut.date && isPrintedKey(key)) ? inkCut.date : null; }
@@ -8051,6 +8052,10 @@ function metaForSync(){
   put('vendorBreaks',  typeof vendorBreaks!=='undefined'  ? vendorBreaks  : undefined);
   put('wlTombs',       typeof wlTombs!=='undefined'       ? wlTombs       : undefined);
   put('delivUnmatched',typeof delivUnmatched!=='undefined'? delivUnmatched: undefined);
+  /* 설정 두 가지도 함께 보냅니다. 이게 빠져 있어서, 한 기기에서 1액형 전환을 켜도
+     다른 기기는 끈 채로 남아 같은 앱이 서로 다른 재고를 보여줄 수 있었습니다. */
+  put('inkCut',        typeof inkCut!=='undefined'        ? inkCut        : undefined);
+  put('odAuto',        typeof odAuto!=='undefined'        ? odAuto        : undefined);
   let s='';
   try{ s=JSON.stringify(ext); }catch(e){ s=''; }
   const out=Object.assign({}, meta);
@@ -8184,6 +8189,17 @@ function applyMergedFromSheet(data){
     if(!soonap.active) soonap.active={};
     if(!soonap.base) soonap.base={};   // 월 격자 원재고 — 옛 스냅샷엔 없으니 채워둔다
     saveSoonap();
+  }
+  /* 설정 두 가지 — 나중에 고친 쪽을 따릅니다.
+     시각이 없는 옛 자료는 로컬을 지킵니다(모르는 값으로 덮어쓰지 않기 위해서). */
+  const _newer=(r,l)=>{ if(!r||typeof r!=='object') return false; if(!l||!l.at) return !!r.at; return String(r.at||'')>String(l.at||''); };
+  if(data.inkCut!==undefined && typeof inkCut!=='undefined' && _newer(data.inkCut, inkCut)){
+    inkCut=Object.assign({on:false,date:'2026-08-18'}, data.inkCut);
+    try{ localStorage.setItem(LS_INKCUT, JSON.stringify(inkCut)); }catch(e){}
+  }
+  if(data.odAuto!==undefined && typeof odAuto!=='undefined' && _newer(data.odAuto, odAuto)){
+    odAuto=Object.assign({on:false,fallbackDays:3}, data.odAuto);
+    try{ localStorage.setItem(LS_OD_AUTO, JSON.stringify(odAuto)); }catch(e){}
   }
   // 스냅샷 값: 받은 쪽 채택 (서버가 이미 병합본을 보내줌)
   if(data.stock!==undefined) stock=data.stock;
@@ -12613,7 +12629,7 @@ let odAuto=(function(){
   try{ return Object.assign({on:false, fallbackDays:3}, JSON.parse(localStorage.getItem(LS_OD_AUTO))||{}); }
   catch(e){ return {on:false, fallbackDays:3}; }
 })();
-function odAutoSave(){ try{ localStorage.setItem(LS_OD_AUTO, JSON.stringify(odAuto)); }catch(e){} }
+function odAutoSave(){ odAuto.at=new Date().toISOString(); try{ localStorage.setItem(LS_OD_AUTO, JSON.stringify(odAuto)); }catch(e){} }
 
 // 납기 텍스트 → 날짜(YYYY-MM-DD). '8/28' '8-28' '2026-08-28'만 읽고 '긴급' 등은 null.
 function odDueToDate(due, orderDate){
