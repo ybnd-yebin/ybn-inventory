@@ -447,6 +447,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       style="flex:1;padding:12px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;color:var(--tx3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px">
       🔧 조립실
     </button>
+    <button class="wl-room-btn" id="wroom-out" onclick="setWlRoom('out',this)"
+      style="flex:1;padding:12px;background:none;border:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;color:var(--tx3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px">
+      📦 외주
+    </button>
   </div>
 
   <!-- 인쇄실 패널 -->
@@ -501,6 +505,56 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div class="card">
       <div class="card-ttl">📋 오늘 조립실 기록</div>
       <div id="wl-assembly-list"></div>
+    </div>
+  </div>
+
+  <!-- 외주 패널 (외주처가 인쇄해서 들여오는 유리) -->
+  <div id="wl-panel-out" style="display:none;padding:12px 14px">
+    <div class="info-note" style="margin-bottom:12px">
+      📦 <b>외주처가 인쇄해 들여온 유리</b>를 받는 곳입니다. 원유리는 외주처가 대므로 <b>우리 원유리는 줄지 않습니다</b>.<br>
+      들어온 만큼 <b>인쇄유리와 조립실</b>에 더해집니다. 우리가 찍은 것과는 따로 기록되어 인쇄량에 섞이지 않습니다.
+    </div>
+
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <span class="lbl">외주처</span>
+          <input class="inp" id="out-vendor" value="현성유리" style="margin-bottom:0" list="out-vendor-list" autocomplete="off">
+          <datalist id="out-vendor-list"><option value="현성유리"></option></datalist>
+        </div>
+        <div>
+          <span class="lbl">입고 날짜</span>
+          <input class="inp" type="date" id="out-date" style="margin-bottom:0">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <span class="lbl">색상</span>
+          <div style="display:flex;gap:6px">
+            <button class="q-btn out-color-btn" id="outc-ETP" onclick="setOutColor('ETP',this)" style="flex:1;padding:9px;font-size:12px;font-weight:700">🟠 에토프</button>
+            <button class="q-btn out-color-btn" id="outc-WC" onclick="setOutColor('WC',this)" style="flex:1;padding:9px;font-size:12px;font-weight:700">🔵 웜코튼</button>
+          </div>
+        </div>
+        <div>
+          <span class="lbl">사이즈 찾기</span>
+          <input class="inp" id="out-search" oninput="renderOutSizes()" placeholder="예: 495 · 495x761 · B 5091" style="margin-bottom:0">
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-ttl">
+        <span>📥 들어온 수량 넣기 <span style="font-size:10px;color:var(--tx3);font-weight:400">많이 나가는 사이즈 순</span></span>
+        <button onclick="outClearQtys()" style="padding:3px 10px;background:none;border:1px solid var(--b2);border-radius:12px;color:var(--tx2);font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">비우기</button>
+      </div>
+      <div id="out-size-list" style="max-height:420px;overflow-y:auto"></div>
+      <div id="out-summary" style="font-size:12px;font-weight:800;color:var(--acc3);text-align:center;padding:10px 0 4px"></div>
+      <button class="act-btn green" onclick="outSubmit()">📦 외주 입고 올리기</button>
+    </div>
+
+    <div class="card">
+      <div class="card-ttl">📋 외주로 들어온 기록 <span style="font-size:10px;color:var(--tx3);font-weight:400">최근 30건</span></div>
+      <div id="out-recent-list"></div>
     </div>
   </div>
 
@@ -1919,7 +1973,7 @@ function rollingShipStats(w, h, months){
   };
 }
 
-function findModel(key){
+function findModel(key, name){
   if(!key) return null;
   const k = String(key);
   // 1) code 또는 id로 직접 매칭
@@ -1935,6 +1989,48 @@ function findModel(key){
       found = MODELS.find(m=>m.short===sh);
       if(found) return found;
     }
+  }
+  /* 4) 품목명 끝의 모델 표기로 찾기 (2026-09-04)
+     위 세 경로가 끊기는 이유:
+       ① MODELS의 code 는 내부번호(M0001) — 한샘 품목코드(ME1BU0223)와 절대 안 맞음
+       ② codes 배열은 166개 중 32개만 있음
+       ③ CODE_MODEL_MAP 의 short 에는 좌우(L/R)가 빠져 있음
+          지도 "HD B 4091" vs MODELS "HD B 4091 L"/"R" → 글자가 안 맞아 실패
+     품목명 끝은 MODELS.short 과 글자까지 같으므로("… HD B 4091 R") 꼬리로 찾는다.
+     ★ 반드시 unmatchedIsTarget 게이트를 통과한 것만 볼 것.
+       베일(Euro700 Veil BRZ …)도 꼬리가 똑같아서, 게이트 없이 붙이면
+       인쇄유리가 아닌 베일이 재고를 깎는다. (실측: 새로 걸리는 116건 중 65건이 베일)
+     가장 긴 꼬리를 고른다 — 짧은 short 이 긴 short 의 일부인 경우를 피하기 위함. */
+  if(name){
+    try{
+      if(typeof unmatchedIsTarget === 'function' && unmatchedIsTarget(name, k)){
+        const n = String(name).trim();
+        let best = null, bestLen = -1;
+        for(const m of MODELS){
+          if(!m.short) continue;
+          /* 롱도어(TH·TCP1D)는 이 경로로 잡지 않습니다 (2026-09-04).
+             유리가 상·하 2장으로 갈리는데 MODELS 에는 상부 치수만 들어 있습니다.
+             (HD TH 45233 → MODELS 445×1475 / 실제 총길이는 2200대)
+             이름으로 이어붙이면 상부만 조용히 깎이고 하부는 빠집니다.
+             상·하를 어떻게 등록할지 정할 때까지 '확인 필요'에 남겨 사람이 보게 둡니다. */
+          if(/\b(TH|TCP1D)\b/.test(m.short)) continue;
+          if(n.endsWith(m.short) && m.short.length > bestLen){ best = m; bestLen = m.short.length; }
+        }
+        if(best) return best;
+        /* 좌우(L/R)가 납품서에만 빠진 경우 (2026-09-04)
+           MODELS 는 "OB WTARG 60141 L"/"R" 로 좌우를 나눠 갖고 있는데,
+           납품서 품목명은 "… OB WTARG 60141" 까지만 적혀 옵니다. 글자가 안 맞아 위에서 놓칩니다.
+           사이즈는 이미 등록돼 있습니다(592×1410) — 인쇄실 화면에는 그래서 보입니다.
+           ★ 좌우 사이즈가 같을 때만 씁니다. 전수 조사 결과 L/R 짝 18개 모두 같은 사이즈였지만,
+             앞으로 다른 짝이 생길 수 있으므로 매번 확인하고, 다르면 손대지 않고 넘깁니다. */
+        const lr = MODELS.filter(m=>m.short && /\s[LR]$/.test(m.short)
+                                 && n.endsWith(m.short.replace(/\s[LR]$/,'')));
+        if(lr.length){
+          const sizes = new Set(lr.map(m=>m.glass_w+'x'+m.glass_h));
+          if(sizes.size === 1) return lr[0];
+        }
+      }
+    }catch(e){ /* 게이트가 아직 준비 전이면 조용히 넘어간다 — 예전과 같게 동작 */ }
   }
   return null;
 }
@@ -7866,7 +7962,9 @@ function asmOpenHistory(itemId){
     body.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:24px">아직 입력 이력이 없어요</div>';
   } else {
     body.innerHTML=evs.map(ev=>{
-      const lbl=ASM_EV_LABEL[ev.type]||ev.type;
+      // 외주로 들어온 것은 같은 자리(print_in)에 들어가지만 우리가 찍은 게 아닙니다.
+      // 이력에서 '인쇄 자동입고'로 보이면 우리 인쇄분으로 오해합니다.
+      const lbl=(ev.source==='outsource') ? '📦 외주 입고' : (ASM_EV_LABEL[ev.type]||ev.type);
       const d=ev.delta||0;
       const sign=d>0?`+${d}`:`${d}`;
       const which = (ev.type==='ship'||ev.type==='done_count') ? '완제품'
@@ -10101,14 +10199,231 @@ function setWlRoom(room, btn){
     b.style.borderBottomColor='transparent';
     b.style.background='none';
   });
-  btn.style.color = room==='print'?'var(--acc3)':'var(--acc4)';
-  btn.style.borderBottomColor = room==='print'?'var(--acc3)':'var(--acc4)';
+  const tone = room==='print' ? 'var(--acc3)' : (room==='assembly' ? 'var(--acc4)' : 'var(--etp)');
+  if(btn){ btn.style.color = tone; btn.style.borderBottomColor = tone; }
 
-  document.getElementById('wl-panel-print').style.display = room==='print'?'block':'none';
-  document.getElementById('wl-panel-assembly').style.display = room==='assembly'?'block':'none';
+  const show=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display = on?'block':'none'; };
+  show('wl-panel-print',    room==='print');
+  show('wl-panel-assembly', room==='assembly');
+  show('wl-panel-out',      room==='out');
 
   if(room==='print') renderWlPrint();
-  else renderWlAssembly();
+  else if(room==='assembly') renderWlAssembly();
+  else renderWlOut();
+}
+
+/* ══════════════════════════════════════════════════
+   📦 외주 입고 — 외주처가 인쇄해서 들여오는 유리 (2026-09-04)
+
+   우리가 찍는 것과 다른 점은 딱 하나, 원유리를 안 쓴다는 것입니다.
+   외주처가 유리까지 대므로 우리 원유리(raw)는 건드리지 않고,
+   인쇄유리(printed)와 조립실만 늘립니다.
+
+   ★ 작업일지(workLog)에는 넣지 않습니다.
+     workLog 의 type==='work' 는 '우리가 찍은 양'을 세는 데 쓰여서,
+     외주분을 섞으면 인쇄량·일평균·잉크 소요가 전부 부풀려집니다.
+     장부(stockEvents)에 source:'outsource' 로 남기므로 기록은 그대로 남고,
+     필요할 때 우리 인쇄분과 갈라서 볼 수 있습니다.
+
+   ★ 장부와 조립실을 묶음번호로 잇습니다.
+     stockEvents 는 doc, 조립실은 cause 에 같은 번호를 넣습니다.
+     되돌릴 때 이 번호로 양쪽을 함께 걷어냅니다. 한쪽만 지우면 숫자가 어긋납니다.
+   ══════════════════════════════════════════════════ */
+let outColor = 'ETP';
+let outQtys  = {};        // {"495x761": 12}
+
+function setOutColor(c, btn){
+  outColor = c;
+  document.querySelectorAll('.out-color-btn').forEach(b=>{
+    b.style.background=''; b.style.color=''; b.style.borderColor='';
+  });
+  if(btn){
+    const tone = c==='ETP' ? 'var(--etp)' : 'var(--acc)';
+    btn.style.background=tone; btn.style.color='#fff'; btn.style.borderColor=tone;
+  }
+  renderOutSizes(); renderOutRecent();
+}
+
+/* 받을 수 있는 사이즈 목록 — 인쇄실 화면과 같은 표(SIZE_GROUPS)를 씁니다.
+   좌·우(L/R)는 유리가 같으므로 한 줄로 모읍니다. 나눠두면 같은 유리를 두 번 넣게 됩니다. */
+function outSizeRows(){
+  const seen=new Map();
+  (typeof SIZE_GROUPS!=='undefined'?SIZE_GROUPS:[]).forEach(sg=>{
+    const h = sg.hnum || parseInt(sg.h,10);
+    if(!sg.w || !h) return;
+    const key = sg.w+'x'+h;
+    if(!seen.has(key)) seen.set(key,{w:sg.w, h, key, label:sg.w+' × '+h, models:[], total:0});
+    const r=seen.get(key);
+    (sg.models||[]).forEach(m=>{ const b=String(m).replace(/\s[LR]$/,''); if(!r.models.includes(b)) r.models.push(b); });
+    r.total += (sg.total_6m||0);
+  });
+  return [...seen.values()].sort((a,b)=> (b.total-a.total) || (a.w-b.w) || (a.h-b.h));
+}
+
+function renderOutSizes(){
+  const host=document.getElementById('out-size-list'); if(!host) return;
+  const q=(document.getElementById('out-search')?.value||'').toLowerCase().trim();
+  const qNorm=q.replace(/[×x*\s]/g,'');
+  let rows=outSizeRows();
+  if(q){
+    rows=rows.filter(r=>{
+      if(r.key.replace(/x/g,'').includes(qNorm)) return true;
+      if(String(r.w).includes(qNorm) || String(r.h).includes(qNorm)) return true;
+      return r.models.some(m=>m.toLowerCase().includes(q));
+    });
+  }
+  if(!rows.length){ host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:18px">찾는 사이즈가 없습니다</div>'; renderOutSummary(); return; }
+  const dot = outColor==='ETP' ? 'var(--etp)' : 'var(--acc)';
+  host.innerHTML = rows.slice(0,80).map(r=>{
+    const cur=(typeof getSzStockView==='function')
+      ? (getSzStockView(r.w,r.h,outColor).printed||0)
+      : (getSzStock(r.w,r.h,outColor).printed||0);
+    const val=outQtys[r.key]||'';
+    const tags=r.models.slice(0,3).map(m=>`<span style="font-size:9px;color:var(--tx3);background:var(--s2);padding:1px 5px;border-radius:3px">${brEsc(m)}</span>`).join(' ');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--b1)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace">${r.label}</div>
+        <div style="margin-top:2px;display:flex;gap:3px;flex-wrap:wrap">${tags}</div>
+      </div>
+      <div style="flex-shrink:0;text-align:right;font-size:10px;color:var(--tx3);line-height:1.4">
+        지금<br><b style="font-size:12px;color:${dot};font-family:'JetBrains Mono',monospace">${cur}</b>
+      </div>
+      <input type="number" min="0" inputmode="numeric" value="${val}" data-key="${r.key}"
+        oninput="outSetQty('${r.key}', this.value)" placeholder="0"
+        style="flex-shrink:0;width:64px;padding:8px;font-size:13px;font-weight:700;text-align:center;border:1px solid var(--b2);border-radius:7px;background:var(--s2);color:var(--tx1);font-family:'JetBrains Mono',monospace">
+    </div>`;
+  }).join('') + (rows.length>80?`<div style="font-size:10px;color:var(--tx3);text-align:center;padding:8px">외 ${rows.length-80}종 — 검색으로 좁혀주세요</div>`:'');
+  renderOutSummary();
+}
+
+function outSetQty(key, v){
+  const n=parseInt(v,10);
+  if(!n || n<=0) delete outQtys[key]; else outQtys[key]=n;
+  renderOutSummary();
+}
+function outClearQtys(){ outQtys={}; renderOutSizes(); }
+function renderOutSummary(){
+  const el=document.getElementById('out-summary'); if(!el) return;
+  const ks=Object.keys(outQtys);
+  const tot=ks.reduce((s,k)=>s+(outQtys[k]||0),0);
+  el.textContent = ks.length ? `${ks.length}개 사이즈 · 모두 ${tot}장` : '수량을 넣으면 여기 합계가 보입니다';
+}
+
+function outSubmit(){
+  const vendor=(document.getElementById('out-vendor')?.value||'').trim()||'외주';
+  const date=(document.getElementById('out-date')?.value||'')||todayStr();
+  const rows=Object.entries(outQtys).filter(([k,v])=>(parseInt(v,10)||0)>0);
+  if(!rows.length){ showToast('넣은 수량이 없습니다'); return; }
+  const tot=rows.reduce((s,[,v])=>s+(parseInt(v,10)||0),0);
+  const cLbl = outColor==='ETP'?'에토프':'웜코튼';
+  if(!confirm(`${vendor} · ${date}\n${cLbl} ${rows.length}개 사이즈 ${tot}장을 외주 입고로 올립니다.\n\n우리 원유리는 줄지 않습니다. 계속할까요?`)) return;
+
+  /* 입고 시각은 한국 오전 9시(UTC 00시)로 찍습니다.
+     같은 날 인쇄작업(한국 23시)·출고보다 앞서야 그날 안에서 순서가 맞습니다. */
+  const atIso=`${date}T00:00:00.000Z`;
+  const batch='외주-'+Date.now().toString(36);
+
+  rows.forEach(([key,v])=>{
+    const [w,h]=key.split('x').map(Number);
+    const qty=parseInt(v,10)||0;
+    // 옛 재고 숫자 — 원유리(raw)는 그대로 두고 인쇄유리만 올립니다
+    const s=getSzStock(w,h,outColor);
+    setSzStock(w,h,outColor, s.raw, s.printed+qty);
+    // 장부
+    addStockEvent(`${w}x${h}_${outColor}`, {at:atIso, type:'in', qty,
+      note:`외주입고 ${vendor}`, source:'outsource', doc:batch});
+    // 조립실 — 인쇄분과 같은 자리에 들어가되 source/cause 로 갈립니다
+    if(typeof asmItemBySize==='function' && typeof asmApply==='function'){
+      const id=asmItemBySize(w,h,outColor);
+      if(id) asmApply(id, {type:'print_in', qty, at:atIso,
+        memo:`외주입고 ${vendor}`, source:'outsource', cause:batch});
+    }
+  });
+
+  outQtys={};
+  meta.lastStock=new Date().toISOString();
+  saveAll();
+  renderOutSizes(); renderOutRecent();
+  if(typeof renderStockList==='function') renderStockList();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`📦 ${vendor} ${cLbl} ${tot}장 입고`);
+}
+
+// 외주로 들어온 기록 모으기 (장부에서 source==='outsource' 만)
+function outRecentEvents(){
+  const out=[];
+  Object.keys(stockEvents||{}).forEach(key=>{
+    const m=key.match(/^(\d+)x(\d+)_(WC|ETP)$/); if(!m) return;
+    (stockEvents[key]||[]).forEach(ev=>{
+      if(ev.source==='outsource') out.push({key, w:+m[1], h:+m[2], color:m[3], ev});
+    });
+  });
+  return out.sort((a,b)=>String(b.ev.at).localeCompare(String(a.ev.at))).slice(0,30);
+}
+
+function renderOutRecent(){
+  const host=document.getElementById('out-recent-list'); if(!host) return;
+  const rows=outRecentEvents();
+  if(!rows.length){ host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:14px">아직 외주로 들어온 기록이 없습니다</div>'; return; }
+  host.innerHTML=rows.map(r=>{
+    const day=(typeof _evDay==='function')?_evDay(r.ev):String(r.ev.at||'').slice(0,10);
+    const dot=r.color==='ETP'?'var(--etp)':'var(--acc)';
+    const cl=r.color==='ETP'?'에토프':'웜코튼';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--b1)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;font-weight:700;font-family:'JetBrains Mono',monospace">${r.w} × ${r.h}
+          <span style="font-size:10px;font-weight:700;color:${dot};font-family:'Noto Sans KR',sans-serif">${cl}</span></div>
+        <div style="font-size:10px;color:var(--tx3)">${day} · ${brEsc(r.ev.note||'')}</div>
+      </div>
+      <div style="flex-shrink:0;font-size:14px;font-weight:800;color:${dot};font-family:'JetBrains Mono',monospace">+${r.ev.qty}</div>
+      <button onclick="outUndo('${r.key}','${r.ev.id}')" style="flex-shrink:0;padding:5px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:#f85149;font-size:10.5px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">되돌리기</button>
+    </div>`;
+  }).join('');
+}
+
+/* 되돌리기 — 장부·옛 재고·조립실을 함께 걷어냅니다.
+   한쪽만 지우면 숫자가 어긋납니다(납품 되돌리기에서 겪었던 것과 같은 함정). */
+function outUndo(key, evId){
+  const list=stockEvents[key]||[];
+  const ev=list.find(e=>e.id===evId);
+  if(!ev){ showToast('기록을 찾을 수 없습니다'); return; }
+  const m=key.match(/^(\d+)x(\d+)_(WC|ETP)$/); if(!m) return;
+  const w=+m[1], h=+m[2], color=m[3], qty=ev.qty||0;
+  if(!confirm(`${w} × ${h} ${qty}장을 되돌립니다.\n장부와 조립실에서 함께 빠집니다. 계속할까요?`)) return;
+
+  deleteStockEvent(key, evId);
+  const s=getSzStock(w,h,color);
+  setSzStock(w,h,color, s.raw, Math.max(0, s.printed-qty));
+
+  // 같은 묶음번호(cause)로 들어간 조립실 기록도 함께 걷어냅니다
+  if(ev.doc && typeof asmItemBySize==='function'){
+    const id=asmItemBySize(w,h,color);
+    const a=(typeof asmFind==='function')?asmFind(id):null;
+    if(a && a.events){
+      const i=a.events.findIndex(e=>e.cause===ev.doc && e.source==='outsource');
+      if(i>=0){
+        if(typeof asmReverseImpact==='function') asmReverseImpact(a, a.events[i]);
+        a.events.splice(i,1);
+        a.updatedAt=new Date().toISOString();
+        if(typeof saveAssembly==='function') saveAssembly();
+      }
+    }
+  }
+  meta.lastStock=new Date().toISOString();
+  saveAll();
+  renderOutSizes(); renderOutRecent();
+  if(typeof renderStockList==='function') renderStockList();
+  if(typeof renderAssembly==='function') renderAssembly();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`↩ ${qty}장 되돌렸습니다`);
+}
+
+function renderWlOut(){
+  const d=document.getElementById('out-date');
+  if(d && !d.value) d.value=todayStr();
+  const btn=document.getElementById('outc-'+outColor);
+  if(btn) setOutColor(outColor, btn); else { renderOutSizes(); renderOutRecent(); }
 }
 
 // ── 인쇄실 패널 렌더 ──
@@ -14247,9 +14562,15 @@ function delivDeductStock(d, opt){
   }
   let ok=0, skip=0;
   d.items.forEach(it=>{
-    const m=(typeof findModel==='function')?findModel(it.code):null;
+    const m=(typeof findModel==='function')?findModel(it.code, it.name):null;
     if(m && m.glass_w && m.glass_h){
-      const color=it.color||m.color||'WC';
+      /* 색상은 납품서(카탈로그) 값만 씁니다 — m.color 로 흘리지 않습니다 (2026-09-04).
+         MODELS.color 는 같은 모델에 WC/ETP 가 섞이는데 한쪽만 적혀 있어 못 믿습니다.
+         실측: 납품 품목의 색과 MODELS.color 가 어긋나는 코드가 59개, 그것도 양방향입니다.
+         (예: OB BD2R 12091 M 은 MODELS 엔 ETP 인데 실제 품목은 W/Cotton)
+         지금 차감 대상 1,075품목 중 색이 비어 있는 건 7건뿐이고 전부 WC 라
+         이 변경으로 달라지는 건 없고, 앞으로 엉뚱한 색이 깎이는 것만 막힙니다. */
+      const color=it.color||'WC';
       const s=getSzStock(m.glass_w,m.glass_h,color);
       setSzStock(m.glass_w,m.glass_h,color,s.raw,s.printed-it.qty,{allowNeg:true});
       // 유리는 조립할 때 쓰이므로 소모 날짜는 발주일로 찍습니다(2026-07-31).
@@ -14298,9 +14619,11 @@ function delivAutoDeduct(){
 function delivUndoDeduct(d){
   if(!d||!d.deducted) return;
   d.items.forEach(it=>{
-    const m=(typeof findModel==='function')?findModel(it.code):null;
+    // 차감(delivDeductStock)과 반드시 같은 기준으로 찾아야 합니다.
+    // 한쪽만 이름 경로를 쓰면 되돌릴 때 못 찾아 숫자가 어긋납니다.
+    const m=(typeof findModel==='function')?findModel(it.code, it.name):null;
     if(m && m.glass_w && m.glass_h){
-      const color=it.color||m.color||'WC';
+      const color=it.color||'WC';
       const s=getSzStock(m.glass_w,m.glass_h,color);
       setSzStock(m.glass_w,m.glass_h,color,s.raw,s.printed+it.qty,{allowNeg:true});
     }
@@ -14481,7 +14804,14 @@ function unmatchedIsTarget(name, code){ return !UNMATCHED_SKIP.has(unmatchedKind
 function unmatchedPrune(){
   if(typeof delivUnmatched==='undefined' || !Array.isArray(delivUnmatched)) return 0;
   const before=delivUnmatched.length;
-  delivUnmatched=delivUnmatched.filter(u=>unmatchedIsTarget(u.name, u.code));
+  delivUnmatched=delivUnmatched.filter(u=>{
+    if(!unmatchedIsTarget(u.name, u.code)) return false;   // 차감 대상이 아닌 것
+    /* 이제 사이즈를 찾을 수 있게 된 것도 뺍니다 (2026-09-04).
+       품목명 경로가 붙어 예전에 '사이즈 없음'으로 쌓였던 것들이 풀립니다. */
+    const m=(typeof findModel==='function')?findModel(u.code, u.name):null;
+    if(m && m.glass_w && m.glass_h) return false;
+    return true;
+  });
   const gone=before-delivUnmatched.length;
   if(gone && typeof saveUnmatched==='function') saveUnmatched();
   return gone;
@@ -14515,7 +14845,11 @@ function renderDelivUnmatched(){
 function delivShouldQty(d){
   let q=0;
   (d&&d.items||[]).forEach(it=>{
-    const m=(typeof findModel==='function')?findModel(it.code):null;
+    /* 반드시 delivDeductStock 과 같은 기준으로 세야 합니다 (2026-09-04).
+       한쪽만 이름 경로를 쓰면, 새 기준으로 제대로 빠진 납품서를
+       '있어야 할 양보다 많이 빠졌다'고 오해해서 중복으로 잡습니다.
+       그러면 정리하기가 방금 고친 차감을 도로 걷어냅니다. */
+    const m=(typeof findModel==='function')?findModel(it.code, it.name):null;
     if(m && m.glass_w && m.glass_h) q+=(it.qty||0);
   });
   return q;

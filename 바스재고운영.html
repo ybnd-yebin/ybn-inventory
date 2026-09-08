@@ -130,8 +130,13 @@ tr.mismatch td{background:#fdeceb}
       <b>그 뒤 입고</b>는 실사 이후 우리가 창고로 보낸 합계이고, 아래 작은 글씨가 <b>가장 최근 입고</b>입니다.<br>
       <b>창고 출고</b>는 SRM으로 올린 것만 셉니다 — 위 「올린 범위」에 빠진 날이 있으면 그만큼 덜 빠져
       <b>예상 재고가 실제보다 많아 보입니다</b>.<br>
-      색은 예상 재고 기준입니다 — 빨강 <span id="thCrit">5</span>장 이하(또는 마이너스) ·
-      주황 <span id="thLow">10</span>장 이하나 7일 안에 바닥 · 초록 그 밖.
+      <b>한 달에 몇 장씩 나가는지</b>는 <b>실사끼리 견줘</b> 냅니다
+      <span class="mini">(앞 실사 ＋ 그 사이 입고 － 뒤 실사)</span>. 여기에는 SRM이 들어가지 않습니다 —
+      바스는 창고재고운영이라 판매오더가 나가는 물량의 일부만 보여주기 때문입니다
+      <span class="mini">(8월 실측 59%)</span>. 실사가 하나뿐인 품목만 SRM으로 재고, 그때는 그렇게 적어 둡니다.<br>
+      색은 <b>며칠 버티나</b>로 봅니다 — 빨강 <span id="thCrit">14</span>일 안에 바닥(또는 마이너스) ·
+      주황 <span id="thLow">30</span>일 안에 바닥 · 초록 그 밖.
+      <span class="mini">소진 속도를 모르는 품목(실사가 하나뿐)만 장수로 봅니다 — 5장·10장.</span>
     </div>
   </div>
 
@@ -182,6 +187,22 @@ tr.mismatch td{background:#fdeceb}
         이 날짜의 실제 재고를 넣으면, 그 뒤 입고·출고로 추정을 이어갑니다.</div>
     </div>
     <div class="tbl-wrap" id="countTbl" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <h2>자료 내보내기 · 되살리기 <span class="muted">지금까지 올린 것을 파일 하나로</span></h2>
+    <div class="hint">
+      이 앱의 자료는 <b>이 브라우저 안에만</b> 있습니다. 브라우저 저장 자료를 비우거나 컴퓨터를 바꾸면 <b>그동안 올린 창고 출고·납품 기록이 사라집니다</b>.
+      가끔 <b>내보내기</b>를 눌러 파일로 빼 두시면 안심입니다.<br>
+      내보낸 파일에는 <b>지금 추정하고 있는 재고</b>도 함께 적힙니다. 그래서 이 파일 하나만 있으면 다른 사람도 우리 값을 그대로 볼 수 있습니다.<br>
+      <b>되살리기</b>는 지금 화면의 자료를 <b>파일 내용으로 통째 바꿉니다</b>. 바꾸기 전 상태는 자동으로 한 번 더 내려받아 두므로 되돌릴 수 있습니다.
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="btnBackupOut">📤 내보내기</button>
+      <button class="ghost" id="btnBackupIn">📥 되살리기</button>
+      <input type="file" id="backupFile" accept=".json,application/json" style="display:none">
+    </div>
+    <div class="mini" id="backupInfo" style="margin-top:10px"></div>
   </div>
 </section>
 
@@ -434,9 +455,19 @@ tr.mismatch td{background:#fdeceb}
 <script>
 const SEED_PRICES={"BB1000108":34590,"BB1000109":34590,"BB1000114":45000,"BB1000115":45000,"BB1000169":39630,"BB1000173":47280,"BB1000244":80000};
 const SEED_DELIVS=[{"no":"733195560","ref":"5100635470","req":"2026-05-28","ship":"2026-06-01","code":"BB1000108","qty":10},{"no":"733196080","ref":"5100634720","req":"2026-05-26","ship":"2026-06-02","code":"BB1000169","qty":49},{"no":"733196862","ref":"5100635470","req":"2026-05-28","ship":"2026-06-05","code":"BB1000108","qty":30},{"no":"733196863","ref":"5100634720","req":"2026-05-26","ship":"2026-06-05","code":"BB1000109","qty":30},{"no":"733197071","ref":"5100636676","req":"2026-06-04","ship":"2026-06-05","code":"BB1000173","qty":30},{"no":"733204440","ref":"5100639654","req":"2026-06-18","ship":"2026-06-18","code":"BB1000114","qty":40},{"no":"733205722","ref":"5100640188","req":"2026-06-22","ship":"2026-06-22","code":"BB1000115","qty":40},{"no":"733210229","ref":"5100641145","req":"2026-06-25","ship":"2026-06-29","code":"BB1000244","qty":20},{"no":"733215585","ref":"5100643754","req":"2026-07-08","ship":"2026-07-08","code":"BB1000108","qty":40},{"no":"733216103","ref":"5100644024","req":"2026-07-09","ship":"2026-07-09","code":"BB1000169","qty":50},{"no":"","ref":"","req":"","ship":"2026-08-20","code":"BB1000242","qty":50}];
-const SEED_NAMES={"BB1000108":"EURO5 베일화이트 하부장 새틴WH 도어 320 L","BB1000109":"EURO5 베일화이트 하부장 새틴WH 도어 320 R","BB1000111":"EURO5 베일화이트 상부장 새틴WH 도어 400 L","BB1000112":"EURO5 베일화이트 상부장 새틴WH 도어 400 R","BB1000114":"EURO5 베일화이트 새틴WH 상부장 도어 300 L","BB1000115":"EURO5 베일화이트 새틴WH 상부장 도어 300 R","BB1000169":"거울 여닫이장 450*500 도어 (448*498)","BB1000171":"거울 여닫이장 400*800 도어 (398*798)","BB1000173":"거울 여닫이장 450*800 도어 (448*798)","BB1000187":"EURO3 LED 삼면경 도어(388*798)","BB1000238":"거울 여닫이장 그레이 DOOR (397*498)","BB1000240":"거울 여닫이장 매그놀리아 DOOR (397*498)","BB1000242":"거울 여닫이장 매그놀리아 DOOR (447*498)","BB1000244":"거울 여닫이장 그레이 DOOR SET (298*798, 2ea)","SFY062044":"상부장 브론즈 도어(296*600,2개입)"};
-/* 7/31 마감 재고 — 대리님 재고운영 시트의 「재고」칸 (지방출고 반영 뒤 실재고) */
-const SEED_COUNTS={"2026-07-31":{"BB1000108":31,"BB1000109":28,"BB1000111":14,"BB1000112":9,"BB1000114":39,"BB1000115":40,"BB1000169":42,"BB1000171":54,"BB1000173":26,"BB1000187":29,"BB1000238":26,"BB1000240":36,"BB1000242":11,"BB1000244":27}};
+const SEED_NAMES={"BB1000108":"EURO5 베일화이트 하부장 새틴WH 도어 320 L","BB1000109":"EURO5 베일화이트 하부장 새틴WH 도어 320 R","BB1000111":"EURO5 베일화이트 상부장 새틴WH 도어 400 L","BB1000112":"EURO5 베일화이트 상부장 새틴WH 도어 400 R","BB1000114":"EURO5 베일화이트 새틴WH 상부장 도어 300 L","BB1000115":"EURO5 베일화이트 새틴WH 상부장 도어 300 R","BB1000169":"거울 여닫이장 450*500 도어 (448*498)","BB1000171":"거울 여닫이장 400*800 도어 (398*798)","BB1000173":"거울 여닫이장 450*800 도어 (448*798)","BB1000187":"EURO3 LED 삼면경 도어(388*798)","BB1000238":"거울 여닫이장 그레이 DOOR (397*498)","BB1000240":"거울 여닫이장 매그놀리아 DOOR (397*498)","BB1000242":"거울 여닫이장 매그놀리아 DOOR (447*498)","BB1000244":"거울 여닫이장 그레이 DOOR SET (298*798, 2ea)","SFY062044":"상부장 브론즈 도어(296*600,2개입)","SFY062060":"키큰장 브론즈 도어(396*897)","SJM061001":"거울 AL 프레임(브라운,600*800)"};
+/* 월말 마감 재고 — 재고 업체가 보내온 「건재 재고내역」의 실재고.
+   그 시트는 「재고」와 「지방 출고」를 따로 주고, 머리글에 `재고 − 지방출고 = 실재고수량` 이라고 적혀 있다.
+   여기에는 그 뺄셈을 끝낸 실재고를 넣는다. (8/31은 BB1000240만 해당 — 재고 47 − 지방출고 2 = 45)
+
+   ⚠ BB1000240은 두 달치가 서로 어긋난다. 7/21에 50장을 보냈고 7월 말까지 7장만 나갔으니
+   7/31에 43장 이상이어야 하는데 실사는 36이었고, 8월엔 입고 없이 6장만 나갔는데 45로 늘었다.
+   7/21 입고분 일부가 7월 실사 때 안 잡혔다가 8월에 잡힌 것으로 보인다 —
+   우리 기록의 날짜는 '보낸 날'이지 '창고 선반에 올라간 날'이 아니다. 월말에 걸치면 한 달 밀린다. */
+const SEED_COUNTS={
+  "2026-07-31":{"BB1000108":31,"BB1000109":28,"BB1000111":14,"BB1000112":9,"BB1000114":39,"BB1000115":40,"BB1000169":42,"BB1000171":54,"BB1000173":26,"BB1000187":29,"BB1000238":26,"BB1000240":36,"BB1000242":11,"BB1000244":27},
+  "2026-08-31":{"BB1000108":12,"BB1000109":9,"BB1000111":13,"BB1000112":7,"BB1000114":32,"BB1000115":32,"BB1000169":17,"BB1000171":44,"BB1000173":53,"BB1000187":25,"BB1000238":20,"BB1000240":45,"BB1000242":47,"BB1000244":49,"SFY062044":8,"SFY062060":1,"SJM061001":2}
+};
 </script>
 <script>
 /* ========== 저장 ========== */
@@ -1000,14 +1031,23 @@ async function srmTakeFiles(files){
     toast('엑셀 읽기 도구를 못 불러왔습니다'); return;
   }
   const asof=document.getElementById('srmAsof').value||TODAY;
-  let rows=[], ok=0, bad=0; const whys=[];
+  /* 여러 파일을 한꺼번에 넣을 때, 같은 출고일이 두 파일에 들어 있으면
+     예전에는 두 벌이 그대로 쌓였습니다(8/26이 7줄 → 14줄로 부풀었던 일).
+     날짜별로 담아 두어 나중 파일이 앞 파일을 갈아끼우게 합니다 —
+     파일 하나씩 넣을 때의 규칙과 같아집니다. */
+  const pick={}, dup=new Set();
+  let ok=0, bad=0; const whys=[];
   for(const f of files){
     try{
       const r=srmParse(await f.arrayBuffer());
-      if(r.rows.length){ rows=rows.concat(r.rows); ok++; }
-      else { bad++; whys.push(`${f.name} — ${r.why}`); }
+      if(!r.rows.length){ bad++; whys.push(`${f.name} — ${r.why}`); continue; }
+      const g={};
+      r.rows.forEach(x=>{ (g[x.ship]=g[x.ship]||[]).push(x); });
+      Object.keys(g).forEach(day=>{ if(pick[day]) dup.add(day); pick[day]=g[day]; });
+      ok++;
     }catch(e){ console.warn(f.name,e); bad++; whys.push(`${f.name} — 읽다가 막혔습니다: ${e.message}`); }
   }
+  const rows=Object.keys(pick).sort().reduce((a,day)=>a.concat(pick[day]),[]);
   if(!rows.length){
     info.innerHTML='읽을 수 있는 판매오더 리스트가 없었습니다.<br>'
       + whys.map(w=>`<span style="color:#c2410c">· ${w.replace(/</g,'&lt;')}</span>`).join('<br>');
@@ -1017,6 +1057,7 @@ async function srmTakeFiles(files){
   document.getElementById('srmInfo').textContent =
     `파일 ${ok}개 · ${res.days}일치 ${res.qty}EA (새로 ${res.added}일 · 갱신 ${res.replaced}일)`
     + (res.kept?` · 손입력 지키느라 건너뜀 ${res.kept}일`:'')
+    + (dup.size?` · 같은 날이 여러 파일에 있어 마지막 것만 썼습니다 (${[...dup].sort().join(', ')})`:'')
     + (bad?` · 못 읽음 ${bad}개`:'');
   toast(res.days?`${res.days}일치를 넣었습니다`:'건너뛰었습니다');
   renderSrm();
@@ -1094,7 +1135,12 @@ function inboundOn(code,date){
 }
 function totalInbound(code){ return inSince(code,null); }   // 4월 이후 누적 입고(참고용)
 
-/* 재고 경보 문턱 — 예상 남음이 이 아래로 떨어지면 알린다. 여기만 고치면 전체가 바뀐다. */
+/* 재고 경보 문턱 — 여기만 고치면 전체가 바뀐다.
+   남은 '장수'가 아니라 '며칠 버티나'로 본다.
+   장수로만 보면 거꾸로 뜬다 — 112는 7장이지만 3개월 반치라 안 급하고,
+   108은 12장이지만 3주치라 지금 발주해야 한다.
+   소진 속도를 모르는 품목(실사가 하나뿐)만 옛 장수 기준으로 본다. */
+const DAYS_CRIT=14, DAYS_LOW=30;
 const STOCK_CRIT=5, STOCK_LOW=10;
 
 /* 아직 안 들어온 입고 — 납품 기록에 앞날로 적어둔 것.
@@ -1105,6 +1151,39 @@ function inboundAhead(code){
                             .sort((a,b)=>a.ship<b.ship?-1:1);
   return {qty:list.reduce((a,x)=>a+(x.qty||0),0), first:list[0]?list[0].ship:null, list};
 }
+/* ========== 소진 속도 ==========
+   바스는 창고재고운영이라 얼마나 나가는지 창고만 안다. 판매오더(SRM)는 그 일부만 보여준다 —
+   8월 실측으로 실제 소진 160장 중 94장(59%)만 잡혔다.
+   그래서 SRM으로 속도를 재면 41% 느리게 나오고, 바닥나는 날이 늦게 잡혀 발주가 늦는다.
+
+   실사가 둘 이상이면 '실사 사이에 실제로 줄어든 양'으로 잰다. 여기엔 SRM이 한 글자도 안 들어간다.
+     소진 = 앞 실사 + 그 사이 우리 입고 − 뒤 실사
+   실사가 하나뿐인 동안에만 SRM으로 재고, 그때는 화면에 '덜 잡힐 수 있음'을 적는다. */
+function countDatesFor(code){
+  return Object.keys(ST.counts||{})
+    .filter(dt=>{ const q=(ST.counts[dt]||{})[code]; return q!=null && q!==''; })
+    .sort();
+}
+// 앞 실사 다음날 ~ 뒤 실사 당일까지 우리가 창고로 넣은 양
+function inBetween(code,from,to){
+  return (ST.delivs||[]).reduce((a,x)=>
+    a+((x.code===code && x.ship>from && x.ship<=to)?(x.qty||0):0),0);
+}
+function burnRate(code){
+  const ds=countDatesFor(code).filter(dt=>dt<=TODAY);
+  const segs=[];
+  for(let i=1;i<ds.length;i++){
+    const a=ds[i-1], b=ds[i];
+    const days=daysBetween(a,b); if(days<=0) continue;
+    const used=(Number(ST.counts[a][code])||0)+inBetween(code,a,b)-(Number(ST.counts[b][code])||0);
+    segs.push({from:a,to:b,days,used});
+  }
+  if(!segs.length) return null;
+  const days=segs.reduce((s,x)=>s+x.days,0);
+  const used=segs.reduce((s,x)=>s+x.used,0);
+  return {rate:used/days, used, days, segs, from:ds[0], to:ds[ds.length-1]};
+}
+
 /* 기준점 우선순위: 실사값 > 마지막 입고 배치 > 없음
    · 실사값이 있으면 그 값을 믿는다 (그 뒤 입고는 더하고 출고는 뺀다).
    · 실사 전에는, "새 입고 = 직전 재고 바닥" 규칙에 따라 마지막 입고 배치만 남은 것으로 본다. */
@@ -1120,15 +1199,25 @@ function stockOf(code){
   const inn=inSince(code,baseDate), out=outFixedSince(code,baseDate);
   const stock=base+inn-out;                       // 지금 재고 (앞으로 들어올 입고는 뺀 값)
   const days=baseDate?Math.max(1,daysBetween(baseDate,TODAY)):0;
-  const rate=days?out/days:0;
+  // 속도는 실사끼리 견준 값을 먼저 쓴다. 없을 때만 SRM으로 (그때는 덜 잡힌다는 걸 알고 본다).
+  const burn=burnRate(code);
+  const rate=burn?burn.rate:(days?out/days:0);
+  const rateSrc=burn?'실사':'SRM';
+  const monthly=rate*30;
   const daysLeft=(rate>0)?stock/rate:null;
   const planOut=outPlanSince(code,baseDate);
   const ahead=inboundAhead(code);
   const left=stock-planOut;                       // 예상 남음 = 대리님 시트의 '예상재고'
   // 급함/주의 판정은 '입고 전' 값으로 본다. 입고를 미리 더하면 가장 급한 품목이 가장 여유로워 보인다.
-  const rank = (stock<0||left<0) ? 0 : (left<=STOCK_CRIT ? 1
-             : (left<=STOCK_LOW || (daysLeft!=null&&daysLeft<=7)) ? 2 : 3);
+  // 소진 속도를 아직 모르는 품목(실사가 하나뿐)은 '급함(빨강)'까지 올리지 않는다.
+  // 근거가 장수뿐이라, 1~2장짜리 느린 품목이 진짜 급한 것들 위로 올라가 가려버린다.
+  // 다음 달 실사가 들어오면 속도가 생겨 제자리를 찾는다.
+  const rank = (stock<0||left<0) ? 0
+    : (daysLeft!=null
+        ? (daysLeft<=DAYS_CRIT ? 1 : daysLeft<=DAYS_LOW ? 2 : 3)
+        : (left<=STOCK_LOW ? 2 : 3));
   return {anchor, hasCount:anchor==='실사', base, baseDate, inn, out, stock, rate,
+    rateSrc, monthly, burn,
     totalIn:totalInbound(code), planOut, left, rank,
     soon:ahead.qty, soonDate:ahead.first, soonList:ahead.list, daysLeft,
     eta:(daysLeft!=null&&daysLeft>0)?addDays(TODAY,Math.round(daysLeft)):null};
@@ -1167,7 +1256,12 @@ function renderStock(){
     .filter(x=>x.s.base||x.s.inn||x.s.out||x.s.planOut||x.s.soon);
   rows.sort((a,b)=>{
     if(a.s.rank!==b.s.rank) return a.s.rank-b.s.rank;      // 급한 것 먼저
-    return a.s.left-b.s.left;                              // 그 다음 적게 남은 것 먼저
+    // 같은 등급 안에서는 '먼저 바닥나는 것' 먼저. 속도를 모르는 품목은 뒤로 보낸다.
+    const ad=a.s.daysLeft, bd=b.s.daysLeft;
+    if(ad!=null && bd!=null) return ad-bd;
+    if(ad!=null) return -1;
+    if(bd!=null) return 1;
+    return a.s.left-b.s.left;                              // 둘 다 모르면 적게 남은 것 먼저
   });
   const w=document.getElementById('stockTbl');
   if(!w) return;
@@ -1182,8 +1276,8 @@ function renderStock(){
     + (n[3]?`<span class="chip g">여유 ${n[3]}종</span>`:'')
     + `<span class="mini" style="margin-left:8px">모두 ${rows.length}종 · 오늘 ${TODAY} 기준</span>`;
 
-  var _tc=document.getElementById("thCrit"); if(_tc) _tc.textContent=STOCK_CRIT;
-  var _tl=document.getElementById("thLow"); if(_tl) _tl.textContent=STOCK_LOW;
+  var _tc=document.getElementById("thCrit"); if(_tc) _tc.textContent=DAYS_CRIT;
+  var _tl=document.getElementById("thLow"); if(_tl) _tl.textContent=DAYS_LOW;
   /* 표를 '식' 그대로 읽히게 만든다 — 월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고.
      궁금한 건 그 네 숫자뿐이라, 나머지(예정 출고·바닥 날짜)는 작은 글씨로 밀어 둔다. */
   w.innerHTML=`<table><thead><tr>
@@ -1223,7 +1317,17 @@ function renderStock(){
       }
       if(s.planOut) side.push(`예정 출고 −${s.planOut} → ${s.left}`);
       if(s.soon) side.push(`${s.soonDate} +${s.soon} 입고 예정`);
-      if(s.eta && s.daysLeft!=null && s.daysLeft<=90) side.push(`${s.eta}쯤 바닥`);
+      // 소진 속도 — 실사끼리 견준 값이 있으면 그것으로, 없으면 SRM(덜 잡힘)이라고 밝힌다
+      if(s.monthly>0){
+        const src = s.rateSrc==='실사'
+          ? `<span class="mini">실사 기준</span>`
+          : `<span class="mini" style="color:var(--warn)">SRM 기준 · 덜 잡힐 수 있음</span>`;
+        side.push(`한 달 <b>${fmt(s.monthly)}장</b>씩 나감 ${src}`);
+      } else if(s.burn && s.burn.used<0){
+        side.push(`<span style="color:var(--warn)">실사끼리 안 맞습니다`
+          +` <span class="mini">(${s.burn.from}→${s.burn.to} 사이 ${-s.burn.used}장 늘었습니다)</span></span>`);
+      }
+      if(s.eta && s.daysLeft!=null && s.daysLeft<=180) side.push(`<b>${s.eta}쯤 바닥</b>`);
       return `<tr>
         <td>${nameOf(c)}<div class="mini">${c}</div></td>
         <td class="num">${baseCell}</td>
@@ -1762,6 +1866,10 @@ function poAdd(){
   save();
   document.getElementById('poBox').value='';
   document.getElementById('poOrd').value='';
+  /* 발주일자도 함께 오늘로 되돌린다. 예전에는 지난 값을 그대로 들고 있어서,
+     다음 발주를 넣을 때 날짜를 안 바꾸면 조용히 지난 날로 들어갔다.
+     오더번호는 비워지는데 날짜만 남아 있으니 더 눈치채기 어려웠다. */
+  document.getElementById('poDate').value=TODAY;
   document.getElementById('poPreview').innerHTML='';
   document.getElementById('poInfo').textContent='';
   refresh();
@@ -1875,6 +1983,15 @@ function poShip(ord, code){
   toast(left ? `${nameOf(code)} ${q}장 넣었습니다 · 미납 ${left}장 남음`
              : `${nameOf(code)} ${q}장 넣었습니다 · 납품완료`);
 }
+/* 발주일 고치기 — 붙여넣을 때 위 칸이 지난 값을 들고 있어 엉뚱한 날로 들어가기 쉽다.
+   발주일은 '발주 시점 재고'와 '몇 장쯤에서 발주가 오는가'의 기준이라, 여기서 바로 고칠 수 있어야 한다. */
+function poSetDate(ord,code,v){
+  const day=(v||'').trim(); if(!day) return;
+  let n=0;
+  (ST.pos||[]).forEach(p=>{ if(p.ord===ord && p.code===code){ p.odate=day; n++; } });
+  if(!n){ toast('발주를 찾지 못했습니다'); return; }
+  save(); refresh(); toast(`${nameOf(code)} 발주일을 ${day}로 고쳤습니다`);
+}
 function poDel(ord,code,qty){
   if(!confirm(`${ord} · ${nameOf(code)} ${qty}장 발주를 지울까요?`)) return;
   ST.pos=(ST.pos||[]).filter(p=>!(p.ord===ord&&p.code===code&&p.qty===qty));
@@ -1903,7 +2020,9 @@ function renderPos(){
       return `<tr${done?' style="opacity:.55"':''}>
         <td>${chip}</td>
         <td class="mini">${r.ord}</td>
-        <td>${r.odate}</td>
+        <td><input type="date" value="${r.odate||''}" title="발주가 들어온 날 — 고치면 바로 저장됩니다"
+             onchange="poSetDate('${r.ord}','${r.code}',this.value)"
+             style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)"></td>
         <td>${nameOf(r.code)}<div class="mini">${r.code}</div></td>
         <td class="num">${r.qty}</td>
         <td class="num">${atOrderCell(r.code, r.odate)}</td>
@@ -1985,6 +2104,76 @@ function exportDeliv(){
   const blob=new Blob(['\ufeff'+[head,...rows].join('\n')],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`바스_납품내역_${TODAY}.csv`;a.click();toast('CSV 저장');
+}
+
+/* ========== 자료 내보내기 · 되살리기 ==========
+   이 앱의 자료는 브라우저 저장소(localStorage) 안에만 있다. 저장소를 비우면
+   그대로 사라지므로 파일 하나로 통째 빼 두고, 필요하면 그대로 되돌린다.
+   원자료(state)만이 아니라 그때의 추정값(estimate)도 함께 적는다 —
+   파일만 열어봐도 "그날 우리가 재고를 얼마로 보고 있었는지"가 남게 하려는 것. */
+const BACKUP_TAG='바스재고운영-백업';
+
+function backupPayload(){
+  const est={};
+  allCodes().forEach(c=>{
+    const s=stockOf(c);
+    est[c]={ 제품명:nameOf(c), 기준:s.anchor, 기준일:s.baseDate, 기준값:s.base,
+             그뒤입고:s.inn, 창고출고:s.out, 추정재고:s.stock,
+             예정출고:s.planOut, 예상남음:s.left,
+             입고예정:s.soon, 입고예정일:s.soonDate };
+  });
+  return { tag:BACKUP_TAG, ver:1, savedAt:new Date().toISOString(), today:TODAY,
+           state:ST, estimate:est };
+}
+function backupDownload(prefix){
+  const blob=new Blob([JSON.stringify(backupPayload(),null,2)],
+                      {type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
+  a.download=`${prefix}_${TODAY}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function backupOut(){
+  backupDownload('바스재고_백업');
+  toast('백업 파일을 저장했습니다');
+}
+function backupIn(file){
+  const fr=new FileReader();
+  fr.onload=()=>{
+    let j;
+    try{ j=JSON.parse(fr.result); }
+    catch(e){ alert('파일을 읽지 못했습니다.\n「내보내기」로 만든 .json 파일이 맞는지 확인해 주세요.'); return; }
+    const s=j&&j.state;
+    if(!s || typeof s!=='object' || !('delivs' in s) || !('srm' in s)){
+      alert('이 앱의 백업 파일이 아닌 것 같습니다.\n아무것도 바꾸지 않았습니다.'); return; }
+    const when=(j.savedAt||'').slice(0,10)||'날짜 모름';
+    const n={ srm:Object.keys(s.srm||{}).length, deliv:(s.delivs||[]).length,
+              po:(s.pos||[]).length, cnt:Object.keys(s.counts||{}).length };
+    if(!confirm(
+      `${when} 에 내보낸 파일입니다.\n\n`
+      +`· 창고 출고 ${n.srm}일치\n· 납품 ${n.deliv}건\n· 발주 ${n.po}건\n· 실사 ${n.cnt}회\n\n`
+      +`지금 이 화면의 자료를 위 내용으로 통째 바꿉니다.\n`
+      +`바꾸기 전 상태는 파일로 한 번 내려받아 둡니다.\n\n되살리시겠습니까?`)) return;
+    backupDownload('바스재고_되살리기전');   // 되돌릴 수 있게 먼저 빼 둔다
+    ST={ snaps:s.snaps||[], delivs:s.delivs||SEED_DELIVS.slice(),
+         prices:Object.assign({},SEED_PRICES,s.prices||{}),
+         returns:s.returns||{}, names:Object.assign({},SEED_NAMES,s.names||{}),
+         pos:s.pos||[], srm:s.srm||{}, close:s.close||{},
+         counts:Object.assign({},SEED_COUNTS,s.counts||{}) };
+    save(); refresh(); toast('되살렸습니다');
+  };
+  fr.onerror=()=>alert('파일을 여는 데 실패했습니다.');
+  fr.readAsText(file,'utf-8');
+}
+function renderBackup(){
+  const el=document.getElementById('backupInfo'); if(!el) return;
+  const days=srmDays();
+  const span=days.length?` <span class="mini">(${days[0]} ~ ${days[days.length-1]})</span>`:'';
+  el.innerHTML=`지금 이 앱이 들고 있는 것 — 창고 출고 <b>${days.length}</b>일치${span}`
+    +` · 납품 <b>${(ST.delivs||[]).length}</b>건`
+    +` · 발주 <b>${(ST.pos||[]).length}</b>건`
+    +` · 실사 <b>${Object.keys(ST.counts||{}).length}</b>회`
+    +` · 품목 <b>${allCodes().length}</b>개`;
 }
 
 /* ========== 적중률 ==========
@@ -2340,7 +2529,7 @@ function onSrmCodeInput(){
   }
   el.textContent=`→ ${c} · ${nameOf(c)}`; el.style.color='#3f7d4e';
 }
-function refresh(){fillSelects();renderNow();renderPos();renderOrderTable();renderSnaps();renderDelivs();renderHit();renderClose();renderCloseCmp();renderPrices();renderSrm();renderStock();renderAhead();renderCounts();}
+function refresh(){fillSelects();renderNow();renderPos();renderOrderTable();renderSnaps();renderDelivs();renderHit();renderClose();renderCloseCmp();renderPrices();renderSrm();renderStock();renderAhead();renderCounts();renderBackup();}
 
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -2395,6 +2584,12 @@ document.getElementById('btnCloseCmp').onclick=closeCmpTake;
 document.getElementById('btnClosePrice').onclick=closeAdoptPrices;
 document.getElementById('btnCloseCmpClear').onclick=closeCmpClear;
 document.getElementById('countDate').onchange=renderCounts;
+document.getElementById('btnBackupOut').onclick=backupOut;
+document.getElementById('btnBackupIn').onclick=()=>document.getElementById('backupFile').click();
+document.getElementById('backupFile').onchange=function(){
+  if(this.files&&this.files[0]) backupIn(this.files[0]);
+  this.value='';   // 같은 파일을 다시 골라도 열리게
+};
 document.getElementById('btnCopyClose').onclick=copyClose;
 document.getElementById('btnEditPrice').onclick=()=>{
   const c=document.getElementById('priceCard');

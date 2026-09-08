@@ -52,6 +52,11 @@
     cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit;
   }
   nav.tabs button.active{color:var(--ink);border-bottom-color:var(--warn)}
+  /* 가끔 보는 탭들 — 기본은 접혀 있고 「⋯ 더보기」로 편다 */
+  nav.tabs button.tab-extra{display:none}
+  nav.tabs.show-extra button.tab-extra{display:inline-block}
+  nav.tabs.show-extra button.tab-more{color:var(--ink)}
+  nav.tabs button.tab-more{color:var(--soft);font-weight:400}
   .panel{display:none}.panel.active{display:block}
 
   .drop{
@@ -182,6 +187,20 @@
   .legend span{display:inline-flex;align-items:center;gap:5px}
   .legend i{width:13px;height:13px;border-radius:3px;display:inline-block;border:1px solid #ddd}
   .board-asof{font-size:12px;color:var(--soft);margin:4px 0 12px}
+  /* 검산 — 화면 숫자가 원본 엑셀에서 어떻게 나왔는지 되짚는 줄 */
+  .recon{margin:0 0 12px;border:1px solid #cfe3d4;background:#f4faf5;border-radius:8px;font-size:12px}
+  .recon-bad{border-color:#f0c9c5;background:#fdf4f3}
+  .recon>summary{cursor:pointer;padding:8px 12px;font-weight:600;color:#2f6b41;list-style:none}
+  .recon-bad>summary{color:#b5322d}
+  .recon>summary::-webkit-details-marker{display:none}
+  .recon>summary::before{content:'▸ ';font-weight:400}
+  .recon[open]>summary::before{content:'▾ '}
+  .recon-body{padding:0 12px 12px}
+  .recon-tbl{width:100%;border-collapse:collapse;font-size:12px}
+  .recon-tbl td{padding:4px 6px;border-bottom:1px solid rgba(0,0,0,.06)}
+  .recon-sum td{font-weight:600;background:rgba(0,0,0,.03)}
+  .recon-ok td{color:#2f6b41;background:#e8f5ec}
+  .recon-err td{color:#b5322d;background:#fdeceb}
   .chipbar{display:flex;gap:6px;align-items:center;margin:6px 0 14px;flex-wrap:wrap}
   .chip{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:6px 15px;font-size:13px;font-weight:600;color:var(--soft);cursor:pointer;font-family:inherit}
   .chip.active{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -228,7 +247,7 @@
     <summary>📌 다음 할 일 메모 — 남은 결정 1개 + 다음 층 3개 (눌러서 펼치기)</summary>
     <div class="memo-body">
       <p class="memo-block"><strong>🤔 먼저 정할 것 — 바스 행의 '오더발행일'을 어쩔까</strong><br>
-         3일 대비표는 <u>오더발행일</u> 기준이고, 그건 <code>출고일 − (리드타임−1)영업일</code>로 역산한 값임.<br>
+         발주 예상은 <u>오더발행일</u> 기준이고, 그건 <code>출고일 − (리드타임−1)영업일</code>로 역산한 값임.<br>
          그런데 <b>바스는 리드타임이 무의미함.</b> 출고일을 우리가 임의로 정하고,
          납품서를 열어야 납품요청일이 찍히기 때문(바스 대화방에서 확인).<br>
          지금은 바스 행에도 리드타임이 돌아가서 오더예상일이 계산되고 있음 → <b>그 숫자는 의미 없음.</b><br>
@@ -245,7 +264,7 @@
          · <b>벤더 구분 + 중복 제거</b> — 드림 예시에 와이비 품목 41개가 섞여 들어옴.
            규칙: <u>와이비 전량 + 드림 중 와이비에 없는 코드만.</u> (데이터·백업 탭에 현황·토글)<br>
          · <b>바스 분류</b> — 바스 = 드림에 있고 와이비에 없는 코드. 접두사 하드코딩 안 함.<br>
-         · 3일 대비표가 스냅샷 하나만 보던 버그, 리드타임 3종 수정(3·3·5일), 7/17 제헌절 추가.<br>
+         · 발주 예상이 스냅샷 하나만 보던 버그, 리드타임 3종 수정(3·3·5일), 7/17 제헌절 추가.<br>
          · <b>(7/15) 정오더 6,672건 실측 반영</b> — 5/1 근로자의날 추가(5/6은 영업일),
            유리장식 비규격 6일 분기 신설, <code>(비)</code> 접두 비규격 판정 추가,
            주말당김 함수가 공휴일 무시하던 버그 수정(7/18토→7/17 제헌절로 증발).</p>
@@ -277,17 +296,22 @@
     </div>
   </details>
 
+  <!-- 탭 이름은 '무엇을 담았나'가 아니라 '무엇을 하러 오나'로 짓는다.
+       「스냅샷」은 만든 쪽 말이라 쓰는 사람에게 안 읽혔다 (정답표 캡쳐로 오해되기도 했다).
+       매일 쓰는 둘을 앞에 두고, 아직 자료가 덜 쌓여 말을 못 하는 화면은 「⋯ 더보기」 뒤로 접는다.
+       지운 게 아니라 접은 것 — 더보기를 누르면 그대로 나온다. -->
   <nav class="tabs">
-    <button class="active" data-tab="board">3일 대비표</button>
-    <button data-tab="month">출고집계</button>
-    <button data-tab="warn">조기경보</button>
-    <button data-tab="hit">헛스윙 분석</button>
-    <button data-tab="match">납품서 대조</button>
-    <button data-tab="snap">스냅샷 입력</button>
-    <button data-tab="data">데이터·백업</button>
+    <button data-tab="snap">예시 파일 넣기</button>
+    <button class="active" data-tab="board">발주 예상</button>
+    <button data-tab="month">2주 물량</button>
+    <button class="tab-more" id="btnMoreTabs" title="가끔 보는 화면들">⋯ 더보기</button>
+    <button data-tab="warn" class="tab-extra">조기경보</button>
+    <button data-tab="hit" class="tab-extra">헛스윙 분석</button>
+    <button data-tab="match" class="tab-extra">납품서 대조</button>
+    <button data-tab="data" class="tab-extra">데이터·백업</button>
   </nav>
 
-  <!-- ── 3일 대비표 ───────────────────────────── -->
+  <!-- ── 발주 예상 ───────────────────────────── -->
   <section class="panel active" id="panel-board">
     <div class="filterbar">
       <label class="tag">볼 오더발행일 고르기 (오늘부터 · 지난 건은 접어둠)</label>
@@ -386,7 +410,7 @@
   <!-- ── 스냅샷 입력 ───────────────────────────── -->
   <section class="panel" id="panel-match">
     <div class="chipbar" id="matchModeChips" style="margin-bottom:14px">
-      <button class="chip active" data-mode="forecast">📅 발주 예상 (직원 예고편)</button>
+      <button class="chip active" data-mode="forecast">📅 발주일 기준 대조 (직원 예고편)</button>
       <button class="chip" data-mode="basacc">🔵 바스 당일확정 누적</button>
       <button class="chip" data-mode="reconcile">📋 예시 vs 실물 대조</button>
     </div>
@@ -673,7 +697,7 @@ function vendorLabel(v){ return {YBND:'와이비앤디', DREAM:'드림하이텍'
 //      '와이비에 없으면 바스'라는 규칙이라야 새 코드 체계가 생겨도 스스로 적응한다.
 //      (드림 예시에 섞여 들어온 와이비 품목 41개는 여기서 자동으로 걸러진다)
 function isBas(row, ybCodes){
-  if(row.vkey!=='DREAM') return false;
+  if((row.src||'')!=='DREAM') return false;   // 판정은 파일 출처로 (벤더 칸은 못 믿는다)
   return !ybCodes.has(row.code);
 }
 
@@ -781,6 +805,13 @@ function load(){
   // 저장된 스냅샷의 리드타임을 현재 규칙으로 다시 계산한다.
   //   → 리드타임을 고쳐도 예시를 다시 올릴 필요가 없다.
   LEAD_FIXED_ON_LOAD = recomputeLeadSnaps(s);
+  // 예전에 저장된 스냅샷에는 행마다 src가 없다. 파일명에서 채워 넣는다.
+  // (출처 판정을 벤더 칸에서 파일명으로 옮기면서 생긴 이관 처리)
+  for(const snap of s){
+    const src = snap.src || filenameSrc(snap.fname);
+    snap.src = src;
+    for(const row of (snap.rows||[])) if(!row.src) row.src = src;
+  }
   return s;
 }
 function save(s){ localStorage.setItem(LS_KEY, JSON.stringify(s)); syncBasBridge(s); }
@@ -828,7 +859,12 @@ function asofFromFilename(fn){
 }
 
 // ── parse one workbook ──────────────────────────
-function parseSheet(aoa, asofISO, isOido){
+// src = 'YBND' | 'OIDO' | 'DREAM' — 파일 이름으로 정한 출처.
+//   ⚠ 벤더 칸(엑셀 col9)으로 출처를 가리면 안 된다. 2026-09-04 예시에서
+//     세 파일(와이비·오이도·드림)이 모두 벤더를 「주식회사 와이비앤디」로 적어 보냈다.
+//     그래서 벤더 기준 판정은 조용히 전부 'YBND'가 되고, 드림 중복 제거와
+//     바스 판정이 통째로 죽는다. 출처는 반드시 파일명(filenameSrc)으로 정한다.
+function parseSheet(aoa, asofISO, isOido, src){
   const dateRow = aoa[1]||[];
   const dateCols = [];
   // 첫 날짜 컬럼(COL.dateStart) = asof(파일 뽑은 날). 이후 +1일씩 순서대로.
@@ -875,7 +911,7 @@ function parseSheet(aoa, asofISO, isOido){
       }
     }
     const total = Number(ar[COL.total]||0);
-    rows.push({code,name,vendor,vkey,oido:!!isOido,lead,nonstd:isNonStd(name),byDate,byOrder,total});
+    rows.push({code,name,vendor,vkey,src:src||'',oido:!!isOido,lead,nonstd:isNonStd(name),byDate,byOrder,total});
   }
   return rows;
 }
@@ -907,7 +943,7 @@ function ingest(files){
         const loadedAt = fnInfo?`${asofISO} ${fnInfo.ts}`:`${asofISO} 00:00:00`;
         const isOido = filenameIsOido(file.name);
         const src = filenameSrc(file.name);
-        const rows = parseSheet(aoa, asofISO, isOido);
+        const rows = parseSheet(aoa, asofISO, isOido, src);
         // 같은 조회일이라도 출처(오이도/드림/와이비)가 다르면 다른 스냅샷이다.
         //  예전엔 asof+loadedAt만 봐서, 파일명에 시각이 없으면 세 파일이 같은 키가 되어
         //  서로 덮어써 하나만 남았다. 이제 출처(src)로도 구분한다.
@@ -943,22 +979,25 @@ function ingest(files){
 let DEDUPE_VENDOR = true;   // 데이터·백업 탭에서 끌 수 있게
 
 // 와이비앤디 예시에 존재하는 코드 집합 (스냅샷 전체 기준)
+// ⚠ 판정 기준은 '벤더 칸'이 아니라 '와이비앤디 파일'이다 (parseSheet 위 주석 참고).
 function ybndCodeSet(){
   const s = new Set();
   for(const snap of SNAPS){
-    for(const row of snap.rows){
-      if(row.vkey==='YBND') s.add(row.code);
-    }
+    if(snapSrc(snap)!=='YBND') continue;
+    for(const row of snap.rows) s.add(row.code);
   }
   return s;
 }
+function snapSrc(snap){ return snap.src || filenameSrc(snap.fname); }
 // 집계에 쓸 행만 통과시킨다. 이 함수를 거치지 않고 SNAPS.rows를 직접 돌지 말 것.
+//  ⚠ 드림 파일의 '와이비에도 있는 코드' 행은 절대 쓰면 안 된다.
+//     2026-09-04 예시에서 확인: 드림 파일 238행 중 236행이 와이비와 완전히 동일하고,
+//     다른 2행(글래스도어 CAIB13894·13895)은 「드림 = 와이비 + 오이도」 합산본이었다.
+//     이 합산본을 그대로 쓰면 오이도 물량이 오이도 탭에서 한 번 더 세어져 이중계상된다.
 function effectiveRows(snap, ybCodes){
   if(!DEDUPE_VENDOR) return snap.rows;
-  return snap.rows.filter(row=>{
-    if(row.vkey!=='DREAM') return true;      // 와이비·미상은 그대로
-    return !ybCodes.has(row.code);           // 드림은 와이비에 없는 코드만
-  });
+  if(snapSrc(snap)!=='DREAM') return snap.rows;   // 와이비·오이도 파일은 그대로
+  return snap.rows.filter(row=>!ybCodes.has(row.code));  // 드림은 와이비에 없는 코드만
 }
 
 // ── build trajectory index ──────────────────────────
@@ -972,7 +1011,7 @@ function buildTrajectories(){
   for(const snap of SNAPS){
     for(const row of effectiveRows(snap, ybCodes)){
       for(const [shipDate,qty] of Object.entries(row.byDate)){
-        const key = row.code+'|'+(row.oido?'O':'G')+'|'+shipDate;
+        const key = prodKey(row)+'|'+shipDate;
         if(!map.has(key)) map.set(key,[]);
         map.get(key).push({asof:snap.asof, qty, shipDate});
         meta.set(key,{name:row.name,oido:!!row.oido,vkey:row.vkey,cat:category(row,ybCodes),code:row.code,shipDate,nonstd:row.nonstd});
@@ -983,13 +1022,114 @@ function buildTrajectories(){
   return {map, meta};
 }
 
-// ── 3일 대비표 ──────────────────────────
+// ── 발주 예상 ──────────────────────────
 function latestSnapForShipdate(shipDate){
   // most recent snapshot (by loadedAt) that contains data for this shipDate window
   let best=null;
   for(const s of SNAPS){ if(!best||s.loadedAt>best.loadedAt) best=s; }
   return best;
 }
+/* ══════════════════════════════════════════════════════════════════
+   제품 키 — 반드시 코드＋제품명＋창고.
+     · 코드만 쓰면 같은 코드의 다른 사이즈가 한 줄로 뭉개진다.
+       2026-09-04 예시: 238행이 고유코드 167개 → 71행이 사라진다.
+       (CAIB13942는 2행, ME1WUX004는 한 코드에 제품명이 14개)
+     · 창고(oido)를 빼면 안 된다. 글래스도어는 오이도와 그레이박스의
+       제품코드가 완전히 같아서, 나중에 읽은 파일이 앞 창고 물량을 덮어쓴다.
+   ══════════════════════════════════════════════════════════════════ */
+function prodKey(row){ return row.code+'|'+row.name+'|'+(row.oido?'O':'G'); }
+
+/* ══════════════════════════════════════════════════════════════════
+   권위 스냅샷 — "최신 스냅샷은 자기가 덮는 구간 안에서 유일한 진실이다"
+
+   예전에는 모든 스냅샷을 합집합으로 쌓고, 키가 겹칠 때만 최신 값으로
+   덮어썼다. 그래서 이번 예시에서 사라진 (제품·창고·출고일) 조합은
+   덮어쓸 상대가 없어 옛 값이 영구히 남았다(유령 물량).
+
+   이제는 출처(와이비/오이도/드림)별로 가장 최신 스냅샷을 찾고,
+   그 스냅샷이 덮는 출고일 범위(엑셀 날짜열 첫날~마지막날) 안에서는
+   그 스냅샷만 반영한다. 범위 밖(과거·먼 미래)은 옛 값을 그대로 둔다.
+   ══════════════════════════════════════════════════════════════════ */
+const SNAP_SPAN_DAYS = COL.dateEnd - COL.dateStart;   // 날짜열 개수-1 (첫날=asof)
+function snapWindow(snap){ return [snap.asof, addDays(snap.asof, SNAP_SPAN_DAYS)]; }
+function authoritativeSnaps(){
+  const m = new Map();   // src -> {snap, win}
+  for(const s of SNAPS){
+    const src = snapSrc(s);
+    const prev = m.get(src);
+    if(!prev || s.loadedAt > prev.snap.loadedAt) m.set(src, {snap:s, win:snapWindow(s)});
+  }
+  return m;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   검산 — 화면 숫자가 원본 엑셀에서 어떻게 나왔는지 되짚는다.
+
+   정답표를 눈으로 대조하지 않아도 되게 하려는 것이다.
+   기준이 되는 '원본'은 어떤 규칙도 거치지 않은 값이다 —
+   각 출처의 최신 파일에서 날짜열을 그대로 더한 수. 여기서 출발해
+   빼는 것들을 하나씩 적어 내려가면 화면 숫자가 나와야 한다.
+
+     원본(와이비＋오이도＋드림 날짜열 그대로)
+       − 드림 중복분 (와이비에도 있는 코드 → 합산본이라 버림)
+       = 써야 할 양
+     이 값이 화면 합계와 같아야 한다. 다르면 어딘가 새거나 두 번 세는 것이다.
+
+   ⚠ 이 함수는 effectiveRows·buildLatestByShip을 쓰지 않는다.
+      검산하려는 대상이 그 규칙들이므로, 같은 길을 다시 걸으면 뜻이 없다.
+   ══════════════════════════════════════════════════════════════════ */
+function reconcile(bounds, cat){
+  const inRange = d => !bounds || (d>=bounds[0] && d<=bounds[1]);
+  const ybCodes = ybndCodeSet();
+  const auth = authoritativeSnaps();
+  const files=[]; let rawQty=0, dropQty=0, dropRows=0;
+  for(const [src,a] of auth){
+    let qty=0, rows=0;
+    for(const row of a.snap.rows){
+      // 화면이 한 분류만 보고 있으면 원본도 같은 분류만 센다 (같은 것끼리 견줘야 뜻이 있다)
+      if(cat && cat!=='ALL' && category(row, ybCodes)!==cat) continue;
+      let q=0;
+      for(const [d,n] of Object.entries(row.byDate||{})) if(inRange(d)) q+=n;
+      if(q>0) rows++;
+      qty+=q;
+      // 드림 파일에서 와이비에도 있는 코드는 버려야 할 몫
+      if(src==='DREAM' && ybCodes.has(row.code)){ dropQty+=q; if(q>0) dropRows++; }
+    }
+    rawQty+=qty;
+    files.push({src, fname:a.snap.fname, asof:a.snap.asof, rows, qty});
+  }
+  return {files, rawQty, dropQty, dropRows, should: rawQty-dropQty};
+}
+const SRC_LABEL={YBND:'와이비앤디(그레이박스)', OIDO:'오이도', DREAM:'드림하이텍'};
+function reconcileHTML(bounds, screenQty, cat){
+  const r = reconcile(bounds, cat);
+  if(!r.files.length) return '';
+  const diff = r.should - screenQty;
+  const ok = diff===0;
+  const rowsHtml = r.files.map(f=>
+    `<tr><td>${SRC_LABEL[f.src]||f.src}<div class="mini" style="opacity:.6">${f.asof} 조회</div></td>
+     <td style="text-align:right">${f.rows}행</td><td style="text-align:right">${f.qty}장</td></tr>`).join('');
+  return `<details class="recon${ok?'':' recon-bad'}">
+    <summary>${ok
+      ? `✅ 검산 맞음 — 원본에서 써야 할 <b>${r.should}장</b>이 그대로 올라왔습니다`
+      : `⚠️ 검산 안 맞음 — 써야 할 ${r.should}장, 화면 ${screenQty}장 · <b>${Math.abs(diff)}장 ${diff>0?'모자랍니다':'더 많습니다'}</b>`}</summary>
+    <div class="recon-body">
+      <table class="recon-tbl"><tbody>
+        ${rowsHtml}
+        <tr class="recon-sum"><td>원본 합계 <span class="mini">(날짜열 그대로)</span></td><td></td><td style="text-align:right">${r.rawQty}장</td></tr>
+        <tr><td>− 드림 중복분 <span class="mini">(와이비에도 있는 코드 · 합산본이라 버림)</span></td>
+            <td style="text-align:right">${r.dropRows}행</td><td style="text-align:right">−${r.dropQty}장</td></tr>
+        <tr class="recon-sum"><td>= 써야 할 양</td><td></td><td style="text-align:right">${r.should}장</td></tr>
+        <tr class="recon-sum"><td>화면에 뜬 양</td><td></td><td style="text-align:right">${screenQty}장</td></tr>
+        <tr class="${ok?'recon-ok':'recon-err'}"><td><b>차이</b></td><td></td><td style="text-align:right"><b>${diff}장</b></td></tr>
+      </tbody></table>
+      <div class="mini" style="margin-top:8px;line-height:1.7">
+        ${ok ? '원본 엑셀의 숫자가 하나도 새지 않고 그대로 화면에 올라왔습니다. 정답표와 따로 대조하지 않으셔도 됩니다.'
+             : '어딘가에서 물량이 새거나 두 번 세어지고 있습니다. 분류를 <b>전체</b>로 두고 다시 보시고, 그래도 남으면 알려주세요.'}
+      </div>
+    </div></details>`;
+}
+
 // ── 출고일별 최신 수량 집계 (각 제품·출고일마다 가장 늦게 조회한 스냅샷 값) ──
 function buildLatestByShip(){
   // key = code|oido|shipDate -> {name, code, oido, lead, qty, asof, loadedAt}
@@ -997,14 +1137,22 @@ function buildLatestByShip(){
   //    code만으로 키를 잡으면 나중에 로드된 파일이 앞의 창고 물량을 통째로 덮어쓴다.
   const latest = new Map();
   const ybCodes = ybndCodeSet();
+  const auth = authoritativeSnaps();
   for(const snap of SNAPS){
+    const src = snapSrc(snap);
+    const a = auth.get(src);
+    const isAuth = a && a.snap === snap;
+    const win = a ? a.win : null;
     for(const row of effectiveRows(snap, ybCodes)){
       for(const [shipDate,qty] of Object.entries(row.byDate||{})){
-        const key = row.code+'|'+(row.oido?'O':'G')+'|'+shipDate;
+        // ★ 권위 구간: 그 출처의 최신 스냅샷이 덮는 출고일 범위 안에서는
+        //   최신 스냅샷만 말한다. 거기에 없는 조합은 '0'이지 '옛날 값'이 아니다.
+        if(!isAuth && win && shipDate>=win[0] && shipDate<=win[1]) continue;
+        const key = prodKey(row)+'|'+shipDate;
         const prev = latest.get(key);
         if(!prev || snap.loadedAt > prev.loadedAt){
-          latest.set(key, {name:row.name, code:row.code, oido:!!row.oido, vkey:row.vkey, lead:row.lead,
-                           shipDate, qty, asof:snap.asof, loadedAt:snap.loadedAt});
+          latest.set(key, {name:row.name, code:row.code, oido:!!row.oido, vkey:row.vkey, src:row.src||src,
+                           lead:row.lead, shipDate, qty, asof:snap.asof, loadedAt:snap.loadedAt});
         }
       }
     }
@@ -1034,7 +1182,7 @@ function monthRangeBounds(){
 
 function renderMonth(){
   const body=document.getElementById('monthBody');
-  if(SNAPS.length===0){ body.innerHTML=emptyMsg('아직 스냅샷이 없어요','스냅샷 입력 탭에서 출고예시 엑셀을 넣으면 출고일 기준 한 달 집계가 떠요.'); return; }
+  if(SNAPS.length===0){ body.innerHTML=emptyMsg('아직 스냅샷이 없어요','「예시 파일 넣기」 탭에서 출고예시 엑셀을 넣으면 출고일 기준 한 달 집계가 떠요.'); return; }
   const latest = buildLatestByShip();
   const bounds = monthRangeBounds();
   // rows aggregated by product, columns = ship dates
@@ -1046,7 +1194,7 @@ function renderMonth(){
     const cat = category(v, ybCodes);
     if(MONTH_CAT!=='ALL' && cat!==MONTH_CAT) continue;
     if(bounds && (v.shipDate<bounds[0] || v.shipDate>bounds[1])) continue;
-    const pkey = v.code+'|'+(v.oido?'O':'G');
+    const pkey = prodKey(v);   // 코드+제품명+창고 — 같은 코드 다른 사이즈를 뭉개지 않는다
     if(!prodMap.has(pkey)) prodMap.set(pkey,{name:v.name,oido:v.oido,bas:cat==='BAS',lead:v.lead,byShip:{}});
     prodMap.get(pkey).byShip[v.shipDate]=v.qty;
     shipSet.add(v.shipDate);
@@ -1074,6 +1222,7 @@ function renderMonth(){
   const grand=shipTotals.reduce((a,c)=>a+c,0);
 
   let html=`<div class="board-asof">출고일 기준 · 분류: <strong>${catLabel(MONTH_CAT)}</strong> · 각 칸은 최신 조회값 · 총 ${grand}장</div>`;
+  html+=reconcileHTML(bounds, grand, MONTH_CAT);
   html+=`<div class="board-scroll"><table class="board"><thead>
     <tr><th class="pname" style="text-align:center">제품</th>
     ${ships.map(s=>`<th class="dcol">${fmtShort(s)}<br><span style="font-weight:400;color:var(--soft)">${dowOf(s)}</span></th>`).join('')}
@@ -1137,7 +1286,7 @@ function renderDatePicker(allShipDates){
 
 function renderBoard(){
   const body=document.getElementById('boardBody');
-  if(SNAPS.length===0){ body.innerHTML=emptyMsg('아직 스냅샷이 없어요','스냅샷 입력 탭에서 출고예시 엑셀을 넣으면 출고일을 골라 대비표를 볼 수 있어요.'); document.getElementById('shipDatePicker').innerHTML=''; return; }
+  if(SNAPS.length===0){ body.innerHTML=emptyMsg('아직 스냅샷이 없어요','「예시 파일 넣기」 탭에서 출고예시 엑셀을 넣으면 출고일을 골라 대비표를 볼 수 있어요.'); document.getElementById('shipDatePicker').innerHTML=''; return; }
 
   // ── 기준 스냅샷 고르기 ────────────────────────────────
   // 오이도와 그레이박스는 파일이 따로 올라온다(파일명 '(오이도)'로 구분).
@@ -1156,12 +1305,12 @@ function renderBoard(){
   //  → 오이도 / 비오이도-와이비 / 드림(바스) 각각 최신을 뽑아 합친다.
   //  (드림 파일에 섞인 와이비 품목은 effectiveRows가 이미 걸러줌 → 중복 없음)
   //  파일명에 '드림'이 있거나, 안에 드림하이텍(바스) 품목이 있으면 드림 파일로 본다(둘 중 하나만 맞아도 OK)
-  const isDreamSnap = s => /드림/.test(s.fname||'') || (s.rows||[]).some(r=>r.vkey==='DREAM' && !ybCodes.has(r.code));
+  const isDreamSnap = s => /드림/.test(s.fname||'') || snapSrc(s)==='DREAM';
   const snapO     = pickLatest(SNAPS.filter(s=>s.oido));
   const snapDream = pickLatest(SNAPS.filter(s=>!s.oido && isDreamSnap(s)));
   const snapGray  = pickLatest(SNAPS.filter(s=>!s.oido && !isDreamSnap(s)));
   const picked = [snapO, snapGray, snapDream].filter(Boolean);
-  if(!picked.length){ body.innerHTML=emptyMsg('아직 스냅샷이 없어요','스냅샷 입력 탭에서 출고예시 엑셀을 넣어주세요.'); return; }
+  if(!picked.length){ body.innerHTML=emptyMsg('아직 스냅샷이 없어요','「예시 파일 넣기」 탭에서 출고예시 엑셀을 넣어주세요.'); return; }
   // 화면 상단 표기용: 가장 최근에 불러온 것
   const snap = picked.reduce((a,b)=>(!a||b.loadedAt>a.loadedAt)?b:a, null);
   const allRows = picked.flatMap(s=>effectiveRows(s, ybCodes));
@@ -1246,7 +1395,7 @@ function renderBoard(){
 // ── EARLY WARNING ──────────────────────────
 function renderWarn(){
   const body = document.getElementById('warnBody');
-  if(SNAPS.length===0){ body.innerHTML = emptyMsg('아직 스냅샷이 없어요','스냅샷 입력 탭에서 오늘 출고예시 엑셀을 넣어주세요.'); return; }
+  if(SNAPS.length===0){ body.innerHTML = emptyMsg('아직 스냅샷이 없어요','「예시 파일 넣기」 탭에서 오늘 출고예시 엑셀을 넣어주세요.'); return; }
   const horizon = parseInt(document.getElementById('warnHorizon').value,10);
   const grp = document.getElementById('warnGroup').value;
   const today = isoToday();
@@ -1709,7 +1858,7 @@ function renderMatch(){
     // 구형(AS전용, 사하라 등)은 실물 쪽에서 AS 납품서를 뺐으므로
     //   예시 쪽도 같이 빼야 짝이 맞는다. 안 빼면 전부 가짜 헛스윙으로 뜬다.
     if(isGuhyeongAS(v.name)){ guhyeongSkipped++; continue; }
-    const isBasRow = (v.vkey==='DREAM') && !ybCodes.has(v.code);
+    const isBasRow = isBas(v, ybCodes);   // 파일 출처 기준 (벤더 칸은 못 믿는다)
     const lead = leadDays(v.name, isBasRow, v.code);
     const predShip = shipFromOrderDate(orderDate, lead);
     const effShip = v.oido ? pullWeekendToPrevBusinessDay(predShip) : predShip;
@@ -1845,7 +1994,7 @@ function renderForecast(){
   const body = document.getElementById('fcBody');
   const sumEl = document.getElementById('fcSummary');
   if(SNAPS.length===0){
-    body.innerHTML = emptyMsg('아직 예시가 없어요','스냅샷 입력 탭에서 오늘 출고예시 엑셀을 먼저 넣어주세요.');
+    body.innerHTML = emptyMsg('아직 예시가 없어요','「예시 파일 넣기」 탭에서 오늘 출고예시 엑셀을 먼저 넣어주세요.');
     sumEl.innerHTML=''; return;
   }
   if(!FC_ORDERDATE){ body.innerHTML=emptyMsg('발주일을 골라주세요',''); return; }
@@ -1879,7 +2028,7 @@ function renderForecast(){
   const ybCodesFc = ybndCodeSet();
   for(const v of latest.values()){
     // 바스 판정 = 드림 벤더 + 와이비 코드셋에 없는 코드 (접두사 하드코딩 안 함)
-    const isBasRow = (v.vkey==='DREAM') && !ybCodesFc.has(v.code);
+    const isBasRow = isBas(v, ybCodesFc);  // 파일 출처 기준 (벤더 칸은 못 믿는다)
     const lead = leadDays(v.name, isBasRow, v.code);
     const predShip = shipFromOrderDate(orderDate, lead);
     // 오이도 주말 출고분 금요일 당김 반영
@@ -1966,7 +2115,7 @@ function renderBasAcc(){
   const body = document.getElementById('basAccBody');
   const sumEl = document.getElementById('basAccSummary');
   if(SNAPS.length===0){
-    body.innerHTML = emptyMsg('아직 예시가 없어요','스냅샷 입력 탭에서 바스(드림하이텍) 예시 엑셀을 넣어주세요.');
+    body.innerHTML = emptyMsg('아직 예시가 없어요','「예시 파일 넣기」 탭에서 바스(드림하이텍) 예시 엑셀을 넣어주세요.');
     sumEl.innerHTML=''; return;
   }
   const ybCodes = ybndCodeSet();
@@ -2092,7 +2241,11 @@ function switchMatchMode(mode){
   else { buildMatchShipPicker(); renderMatch(); }
 }
 
-document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{
+// 「⋯ 더보기」는 탭이 아니라 접힘을 여닫는 단추다. 화면을 바꾸지 않는다.
+document.getElementById('btnMoreTabs').onclick=()=>{
+  document.querySelector('nav.tabs').classList.toggle('show-extra');
+};
+document.querySelectorAll('nav.tabs button[data-tab]').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav.tabs button').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
@@ -2181,27 +2334,33 @@ function renderVendorStats(){
   if(!el) return;
   if(SNAPS.length===0){ el.innerHTML='<span class="tag">스냅샷이 없어요.</span>'; return; }
   const ybCodes = ybndCodeSet();
-  const cnt={YBND:0, DREAM:0, '':0};
-  const dupCodes=new Set();
+  // 세는 기준은 '파일 출처'다. 벤더 칸으로 세면 안 된다 —
+  // 2026-09-04 예시처럼 드림 파일이 자기를 「주식회사 와이비앤디」로 적어 보내면
+  // 드림 0행 · 중복 0개로 뜨면서, 실제로는 걸러지고 있는데 안 걸러지는 것처럼 보인다.
+  const cnt={YBND:0, DREAM:0, OIDO:0, '':0};
+  const dupCodes=new Set(); let dupRows=0;
   for(const snap of SNAPS){
+    const src = snapSrc(snap);
     for(const r of snap.rows){
-      cnt[r.vkey||'']++;
-      if(r.vkey==='DREAM' && ybCodes.has(r.code)) dupCodes.add(r.code);
+      cnt[src]++;
+      if(src==='DREAM' && ybCodes.has(r.code)){ dupCodes.add(r.code); dupRows++; }
     }
   }
   const noVendor = cnt[''];
   el.innerHTML = `
     <table class="board" style="width:auto;font-size:12px">
       <tbody>
-        <tr><td style="text-align:left">와이비앤디 <span class="tag">${VENDOR_YBND}</span></td>
+        <tr><td style="text-align:left">와이비앤디 파일 <span class="tag">그레이박스</span></td>
             <td class="q">${cnt.YBND}행</td><td style="text-align:left"><span class="tag">기준(전량 채택)</span></td></tr>
-        <tr><td style="text-align:left">드림하이텍 <span class="tag">${VENDOR_DREAM}</span></td>
+        <tr><td style="text-align:left">오이도 파일</td>
+            <td class="q">${cnt.OIDO}행</td><td style="text-align:left"><span class="tag">전량 채택</span></td></tr>
+        <tr><td style="text-align:left">드림 파일 <span class="tag">바스</span></td>
             <td class="q">${cnt.DREAM}행</td><td style="text-align:left"><span class="tag">와이비에 없는 코드만 채택</span></td></tr>
-        ${noVendor?`<tr><td style="text-align:left">벤더 미상</td><td class="q">${noVendor}행</td>
-            <td style="text-align:left"><span class="tag" style="color:#a33">벤더 컬럼(9번째)을 못 읽었어요</span></td></tr>`:''}
+        ${noVendor?`<tr><td style="text-align:left">출처 미상</td><td class="q">${noVendor}행</td>
+            <td style="text-align:left"><span class="tag" style="color:#a33">파일 이름으로 출처를 못 가렸어요</span></td></tr>`:''}
         <tr style="border-top:2px solid var(--ink)">
-            <td style="text-align:left;font-weight:700">중복으로 제외되는 코드</td>
-            <td class="q" style="font-weight:700">${dupCodes.size}개</td>
+            <td style="text-align:left;font-weight:700">중복으로 제외되는 것</td>
+            <td class="q" style="font-weight:700">${dupRows}행 <span class="tag">코드 ${dupCodes.size}개</span></td>
             <td style="text-align:left"><span class="tag">${DEDUPE_VENDOR?'현재 제외 중':'⚠️ 지금 두 번 세는 중'}</span></td></tr>
       </tbody>
     </table>
@@ -2227,7 +2386,7 @@ document.getElementById('exportCsv').onclick=()=>{
   let rows=[['조회일','조회시각','제품코드','제품명','분류','벤더','중복제외','오이도','리드타임','출고일','오더예상일','수량']];
   for(const s of SNAPS) for(const r of s.rows) for(const [d,q] of Object.entries(r.byDate)){
     const orderDay=subBusinessDays(d,(r.lead||5)-1);
-    const dropped = (r.vkey==='DREAM' && ybCodes.has(r.code)) ? 'Y' : '';
+    const dropped = ((r.src||snapSrc(s))==='DREAM' && ybCodes.has(r.code)) ? 'Y' : '';
     rows.push([s.asof,s.loadedAt,r.code,r.name,catLabel(category(r,ybCodes)),
                vendorLabel(r.vkey),dropped,r.oido?'Y':'',r.lead||'',d,orderDay,q]);
   }
