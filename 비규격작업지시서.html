@@ -18,6 +18,13 @@
   .top h1 span{color:var(--blue)}
   .top .sub{font-size:12px;color:#6b7280;margin-top:2px}
 
+  /* 딸린 파일이 안 붙었을 때 뜨는 띠. 빨강=필수라 잠금, 노랑=선택이라 경고만. */
+  .parts-alert{border-radius:12px;padding:14px 16px;margin-bottom:14px;font-size:13px;line-height:1.7}
+  .parts-alert.stop{background:#fdecea;border:2px solid #d92d2d;color:#7d1a1a}
+  .parts-alert.warn{background:#fff7e6;border:1px solid #e0a800;color:#7a5c00}
+  .parts-alert b{font-weight:800}
+  .parts-alert .pa-ttl{font-size:14px;font-weight:800;margin-bottom:5px}
+  .parts-alert code{background:rgba(0,0,0,.06);padding:1px 5px;border-radius:4px;font-size:12px}
   .uploader{display:block;position:relative;overflow:hidden;background:#fff;border:2px dashed #c7ccd4;border-radius:14px;padding:24px 20px;text-align:center;cursor:pointer;transition:.15s;margin-bottom:14px}
   .uploader:hover{border-color:var(--blue);background:#eef4fd}
   .uploader .ic{font-size:28px;margin-bottom:6px}
@@ -253,6 +260,7 @@
     /* 캐드 양식: 안내 문구가 첫 장을 통째로 먹어 빈 페이지가 나오던 것(PDF 1쪽)을 막는다.
        각 A4 장은 한 페이지에 하나씩, 쪼개지지 않게. */
     .cad-note{display:none!important}
+    .parts-alert{display:none!important}
     .cad-page{margin:0!important;box-shadow:none!important;break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always}
     .cad-page:last-child{break-after:auto;page-break-after:auto}
     .hpm-box{border:1.5px solid #7a3fb0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -289,6 +297,10 @@
 </head>
 <body>
 <div class="wrap">
+  <!-- 딸린 파일이 안 붙었을 때 알리는 자리. 평소에는 안 보입니다(checkParts 가 켭니다).
+       반쪽짜리 작업지시서가 인쇄되어 현장에 나가는 것이 제일 위험하므로, 필수 파일이
+       빠지면 여기에 크게 알리고 [생성] 단추를 잠급니다. -->
+  <div id="partsAlert" class="parts-alert" style="display:none"></div>
   <div class="top">
     <div>
       <h1>🛠️ 비규격 <span>작업지시서</span></h1>
@@ -3855,7 +3867,12 @@ const COLOR_SEED=[
 const LS_SEEDED='nonspec-usercolors-seeded-v1';
 function initColorSettings(){
   loadUserColors();
-  if(!localStorage.getItem(LS_SEEDED)){
+  /* 저장함 읽기를 감쌉니다. 브라우저가 저장함을 막으면(사생활 보호 창, 사이트 자료 차단 등)
+     여기서 오류가 나 **화면 스크립트가 통째로 멈춥니다** — 그러면 뒤쪽에 선언된 값들이
+     아예 안 만들어져 아무 말 없이 반쪽짜리 화면이 남습니다. 실제로 겪었습니다.
+     못 읽으면 '아직 시드 안 넣음'으로 보고 그냥 지나갑니다. */
+  let seeded=null; try{ seeded = localStorage.getItem(LS_SEEDED); }catch(e){}
+  if(!seeded){
     // 첫 실행: 시드 주입 (이미 있는 키워드는 중복 안 넣음)
     COLOR_SEED.forEach(s=>{
       if(!USER_COLORS.some(u=>u.pattern.toLowerCase()===s.pattern.toLowerCase()))
@@ -3897,6 +3914,72 @@ function resetUserColors(){
   try{ localStorage.setItem(LS_SEEDED,'1'); }catch(e){}
   renderUserColors();
 }
+
+/* ════════════════════════════════════════════════════════════════
+   딸린 파일 붙음 검사 (그물)
+
+   왜 필요한가: 예전에 `ybn-data.js` 가 안 붙어도 **아무 말 없이** 넘어가,
+   모델 주의사항만 조용히 비어 나온 사고가 있었습니다(CLAUDE.md 9번).
+   파일을 나눌수록 이 사고가 늘어납니다. 그래서 나누기 **전에** 그물을 칩니다.
+
+   두 갈래로 봅니다.
+     · 필수 — 없으면 결과가 틀립니다. **크게 알리고 [생성] 단추를 잠급니다.**
+              반쪽짜리 작업지시서가 인쇄되어 현장에 나가는 게 제일 위험합니다.
+     · 선택 — 없어도 대부분 돌아갑니다. 노란 띠로 알리기만 합니다.
+
+   각 딸린 파일은 끝에서 `window.__YBN_PARTS['이름'] = {v:판, ...}` 을 남깁니다.
+   여기 적힌 판(v)과 다르면 **낡은 파일이 캐시에 남은 것**이므로 그것도 알립니다.
+   ※ 파일을 새로 나눌 때마다 아래 PARTS_NEED 에 한 줄 더하십시오.
+   ════════════════════════════════════════════════════════════════ */
+const PARTS_NEED = [
+  // 이름     판  파일                     필수?   없으면 무엇이 안 되나
+  {k:'data', v:1, file:'ybn-data.js',      must:false, lost:'모델 주의사항·조립 정보가 비어 나옵니다'}
+];
+/* 반드시 있어야 하는 값들(아직 나누지 않아 이 파일 안에 있는 것 포함).
+   나누고 나면 파일이 안 붙었을 때 여기서 걸립니다.
+   ⚠ `window.RULES` 로 보면 안 됩니다 — 최상위 `const` 는 `window` 에 안 올라갑니다.
+      그래서 `typeof` 로 봅니다(없는 이름에 typeof 를 써도 오류가 안 납니다). */
+const PARTS_GLOBALS = [
+  {n:'RULES',          has:()=>typeof RULES!=='undefined',          lost:'코드별 계산 규칙이 없어 치수가 안 나옵니다'},
+  {n:'SPLIT',          has:()=>typeof SPLIT!=='undefined',          lost:'합적(마이다) 분할표가 없습니다'},
+  {n:'DOOR_ALIAS',     has:()=>typeof DOOR_ALIAS!=='undefined',     lost:'도면 별칭이 없어 BC1A·BC1B 등이 제 도면을 못 찾습니다'},
+  {n:'DOOR_LIB',       has:()=>typeof DOOR_LIB!=='undefined',       lost:'캐드 도면 라이브러리가 없어 도면이 안 나옵니다'},
+  {n:'SUBDOOR_SHEETS', has:()=>typeof SUBDOOR_SHEETS!=='undefined', lost:'수납도어 도면 11장이 없습니다'}
+];
+function checkParts(){
+  const box=document.getElementById('partsAlert'); if(!box) return true;
+  const P = window.__YBN_PARTS || {};
+  const stop=[], warn=[];
+  PARTS_NEED.forEach(p=>{
+    const got=P[p.k];
+    if(!got)            (p.must?stop:warn).push(`<code>${p.file}</code> 가 안 붙었습니다 — ${p.lost}`);
+    else if(got.v!==p.v)(p.must?stop:warn).push(`<code>${p.file}</code> 가 <b>낡은 판</b>입니다(${got.v} → ${p.v} 이라야 함) — 새로고침(Ctrl+F5)`);
+  });
+  PARTS_GLOBALS.forEach(g=>{
+    let ok=false; try{ ok=g.has(); }catch(e){ ok=false; }
+    if(!ok) stop.push(`<code>${g.n}</code> 를 못 찾았습니다 — ${g.lost}`);
+  });
+  if(!stop.length && !warn.length){ box.style.display='none'; return true; }
+  const bad = stop.length>0;
+  box.className = 'parts-alert ' + (bad?'stop':'warn');
+  box.style.display = 'block';
+  box.innerHTML =
+    `<div class="pa-ttl">${bad?'🚫 딸린 파일이 빠졌습니다 — 생성을 멈췄습니다':'⚠ 딸린 파일 하나가 안 붙었습니다'}</div>`
+    + (stop.concat(warn)).map(s=>'· '+s).join('<br>')
+    + (bad ? '<br><br><b>이대로 뽑으면 치수가 틀린 작업지시서가 나갑니다.</b> '
+           + '새로고침(Ctrl+F5)해 보시고, 그래도 그러면 알려주십시오.'
+           : '');
+  if(bad){
+    ['cadGenBtn','genBtn','cadPrevBtn','subdoorBtn'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el){ el.disabled=true; el.style.opacity='.4'; el.title='딸린 파일이 빠져 잠갔습니다'; }
+    });
+  }
+  return !bad;
+}
+/* ⚠ checkParts() 는 여기서 부르지 않습니다. **이 파일 맨 끝**에서 부릅니다.
+   `SUBDOOR_SHEETS` 처럼 뒤쪽(3900행대)에 선언된 값이 있어서, 여기서 부르면
+   아직 선언 전이라 '없다'고 헛경보가 납니다. (실제로 겪었습니다) */
 
 // 초기화: 모델 드롭다운 채우기 + Enter키 처리
 initColorSettings();
@@ -4119,6 +4202,36 @@ function subdoorGenerate(){
 }
 
 // ═══ 수납도어 캐드 양식 끝 ═══
+</script>
+
+<!-- ────────────────────────────────────────────────────────────────
+     딸린 파일 검사 — **일부러 따로 떨어뜨린 덩어리**입니다.
+
+     두 가지를 잡습니다.
+       ① 딸린 js 파일이 안 붙은 것
+       ② 위 화면 스크립트가 중간에 멈춘 것
+     ②가 이 덩어리를 따로 둔 이유입니다. 같은 덩어리 안에 두면 스크립트가
+     죽을 때 검사도 같이 죽어 **아무 말 없이 반쪽짜리 화면**이 남습니다.
+     (실제로 겪었습니다 — 스크립트가 중간에 멈추자 검사가 아예 안 돌았습니다)
+
+     맨 끝인 이유: SUBDOOR_SHEETS 처럼 뒤쪽에 선언된 값이 있어, 앞에서 부르면
+     아직 선언 전이라 '없다'고 헛경보가 납니다.
+     ──────────────────────────────────────────────────────────────── -->
+<script>
+try{
+  if(typeof checkParts === 'function'){ checkParts(); }
+  else {
+    // checkParts 조차 없다 = 화면 스크립트가 아주 이른 곳에서 멈춘 것
+    var b=document.getElementById('partsAlert');
+    if(b){ b.className='parts-alert stop'; b.style.display='block';
+      b.innerHTML='<div class="pa-ttl">🚫 화면이 다 안 열렸습니다</div>'
+        +'화면 스크립트가 중간에 멈췄습니다. <b>이 상태로는 작업지시서를 뽑지 마십시오.</b><br>'
+        +'새로고침(Ctrl+F5)해 보시고, 그래도 그러면 알려주십시오.'; }
+  }
+}catch(e){
+  // 검사가 앱을 망가뜨리면 안 된다 — 여기서 삼키고 콘솔에만 남긴다
+  try{ console.error('딸린 파일 검사 자체가 실패했습니다:', e); }catch(_){}
+}
 </script>
 </body>
 </html>

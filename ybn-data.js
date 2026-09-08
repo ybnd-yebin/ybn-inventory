@@ -272,3 +272,13 @@ function bomOf(shortName){
   while(PFX.test(s)) s = s.replace(PFX, '');
   return MODEL_BOM[s] || null;
 }
+
+/* ── 붙음 표식 ────────────────────────────────────────────────
+   이 파일이 실제로 읽혔는지 화면 쪽에서 확인하려고 남기는 표식입니다.
+   예전에 이 파일이 안 붙어도 아무 말 없이 넘어가, 모델 주의사항만 조용히
+   비어 나오는 사고가 있었습니다(CLAUDE.md 9번). 표식을 보고 알립니다.
+   ※ 파일 이름을 바꾸면 화면 쪽 <script src=...> 도 같이 바꿔야 합니다. */
+(function(){
+  var P = (window.__YBN_PARTS = window.__YBN_PARTS || {});
+  P['data'] = { v:1, file:'ybn-data.js', models:(typeof MODELS!=='undefined'?MODELS.length:0) };
+})();
