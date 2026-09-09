@@ -2633,7 +2633,9 @@ function cadSheetSVG(header, banner){
   s+=`<line x1="8.75" y1="${top(215.10).toFixed(2)}" x2="201.25" y2="${top(215.10).toFixed(2)}" stroke="#000" stroke-width="${sw}"/>`;
   // 제품명 띠 텍스트 — 가로중앙 105. 계열명만(수량은 블록 수량줄에). 문구는 호출부가 정규화해 넘김.
   const bandTop = (top(227.60)+top(215.10))/2 - 3.0;
-  s+=T(105, bandTop, 6.0, esc(banner&&banner.text?banner.text:'EO700 신형(OB)'), {anchor:'middle', bold:true});
+  // 그룹이 앞 장에서 이어질 때는 머리글에 (계속)을 붙인다 (2026-09-09)
+  const bandTxt=(banner&&banner.text?banner.text:'EO700 신형(OB)') + (banner&&banner.cont?' (계속)':'');
+  s+=T(105, bandTop, 6.0, esc(bandTxt), {anchor:'middle', bold:true});
   s+=`</svg>`;
   return s;
 }
@@ -2869,73 +2871,132 @@ function cadBlockH(b, lh){ return Math.max(cadDoorSpan(b, lh), cadTextH(b.rows, 
         **뒤에서 들어가는 블록을 끌어와 자리를 메운다.** 코드 순서보다 낭비를 줄이는 쪽을 택한다.
      ③ 상한은 그대로 — 높이 206.35mm, 서로 다른 코드 MAX_DRAWINGS개. */
 const CAD_BANNER_H=13;   // 한 페이지 안 타입(HD/OB) 전환 헤더 밴드 높이(mm)
+/* ════════════════════════════════════════════════════════════════
+   페이지 나누기 — 그룹(계열)을 되도록 온전히 한 장에 (2026-09-09 전면 개정)
+
+   ── 예전 방식과 무엇이 다른가
+     예전에는 남은 자리에 뒤 블록을 끌어와 채우는 **그리디**였습니다. 그래서 어차피
+     3장이 나올 물량인데도 그룹이 장을 두 번이나 걸쳐 `[HD+OB] [OB+500] [500]` 처럼
+     나왔습니다. 보기에 나쁘고, 현장에서 계열별로 뜯어 나눠 주기도 어렵습니다.
+     이제는 **전수 탐색(DP)** 으로 가장 좋은 배치를 고릅니다.
+
+   ── 무엇이 좋은 배치인가 (앞선 것부터 차례로 봅니다)
+     1순위  총 장수가 적을 것
+     2순위  장수가 같다면 **그룹이 장을 걸치는 횟수**가 적을 것
+     3순위  그래도 같다면 장마다 **고르게** 찰 것
+     한 줄로: **그룹을 합쳐야 장수가 줄어들 때만 합칩니다. 안 줄면 그룹 경계에서 끊습니다.**
+     그 결과 마지막 장이 절반 넘게 비어도 정상입니다 — 억지로 채우지 않습니다.
+
+   ── 셋째 잣대를 '빈자리 제곱합'으로 두는 이유
+     장수가 정해지면 빈자리 총합도 정해집니다. 그래서 **빈자리를 제곱해 더하면**
+     한 장에 몰린 배치보다 고르게 퍼진 배치가 작은 값을 냅니다(고를수록 작음).
+     이 값은 뒤쪽 결과와 따로 더할 수 있어 DP가 **정확한 최적**을 냅니다.
+     분산을 그대로 쓰면 평균이 전체에 얽혀 있어 DP로 쪼갤 수 없습니다.
+
+   ── 지키는 것
+     · 블록(모델)은 **쪼개지 않습니다.** 그룹을 나눌 때도 블록 경계에서만 자릅니다.
+     · 한 장에 서로 다른 도면 4개까지(CAD_LAYOUT.MAX_DRAWINGS) — 예전 상한 그대로.
+     · 한 장 안에서 그룹이 바뀌면 중간 머리띠(CAD_BANNER_H)를 넣습니다 — 높이에 포함합니다.
+     · 그룹이 다음 장으로 이어지면 그 장 머리글에 **(계속)** 을 붙입니다.
+     · **블록 하나가 한 장보다 크면** 그 블록만 단독으로 두고, 그래도 안 들어가면
+       마지막 수단으로 행을 나눕니다(안 나누면 내용이 박스 밖으로 잘려 나갑니다).
+   ════════════════════════════════════════════════════════════════ */
+const PAGE_CONTENT_HEIGHT = CAD_LAYOUT.AREA_H;   // 배치영역 높이(mm) — 사양서 1.1
+const PREFER_GROUP_PAGES  = true;                // false면 예전처럼 꽉 채우기(그룹 걸침 무시)
+
+/* 블록 한 개가 차지하는 높이(mm). 도면과 글자 중 **큰 쪽** + 블록 사이 여백.
+   렌더러(cadBlockSVG)의 height와 같은 식이어야 배치와 그림이 어긋나지 않습니다. */
+function cadPackBlockHeight(b, lh){
+  const body  = b.rows.filter(r=>r.k!=='code');
+  const doorH = cadDoorSpan(b, lh);
+  return { body, doorH, h: Math.max(doorH, cadTextH(body, lh)) + CAD_BLOCK_GAP };
+}
+
 function cadSplitToPages(blocks){
-  const AREA=206.35, lh=6.6, GAP=CAD_BLOCK_GAP, MAXD=CAD_LAYOUT.MAX_DRAWINGS;
-  const pages=[]; let cur=[], used=0, codes=new Set(), pageBanner=null;
-  const push=()=>{ if(cur.length){ pages.push(cur); cur=[]; used=0; codes=new Set(); pageBanner=null; } };
-  // 코드줄은 렌더러가 b.code로 따로 그린다 → 본문 행만 넘긴다
-  const items=blocks.map(b=>{
-    // 도면 세로는 cadDoorSpan 하나로 본다(렌더와 같은 값)
-    const body=b.rows.filter(r=>r.k!=='code'), doorH=cadDoorSpan(b, lh);
-    return {b, body, doorH, h:Math.max(doorH, cadTextH(body,lh))+GAP};
-  });
-  // 지금 장에 들어가나? 들어가면 필요한 밴드 높이(0 또는 CAD_BANNER_H), 안 들어가면 -1
-  const bandFor=it => (cur.length && it.b.banner!==pageBanner) ? CAD_BANNER_H : 0;
-  const fitBand=it=>{
-    if(!codes.has(it.b.code) && codes.size>=MAXD) return -1;
-    const band=bandFor(it);
-    return (used+band+it.h<=AREA) ? band : -1;
-  };
-  const place=(it, band)=>{
-    cur.push({...it.b, rowsSlice:it.body, isCont:false, hasDrawing:true});
-    pageBanner=it.b.banner; codes.add(it.b.code); used+=band+it.h;
-  };
-  // 한 장보다 큰 블록만 나눈다 — 되도록 색상 묶음 경계에서 끊어 한 색이 두 장에 걸치지 않게
-  const cutAt=(rows, avail)=>{
-    let n=rows.length;
-    while(n>0 && cadTextH(rows.slice(0,n), lh) > avail) n--;
-    if(n>=rows.length) return rows.length;
-    if(n<=1) return n;
-    for(let k=n;k>=Math.ceil(n*0.7);k--){
-      if(rows[k] && rows[k].k==='color' && rows.slice(0,k).some(r=>r.k!=='color')) return k;
+  const lh=6.6, AREA=PAGE_CONTENT_HEIGHT, MAXD=CAD_LAYOUT.MAX_DRAWINGS;
+  const items = blocks.map(b=>{ const m=cadPackBlockHeight(b,lh); return {b, body:m.body, doorH:m.doorH, h:m.h}; });
+  const n = items.length;
+  if(!n) return [];
+
+  /* items[i..j-1] 을 한 장에 담았을 때 — 쓴 높이와 서로 다른 도면 수 */
+  const metrics=(i,j)=>{
+    let used=0, prev=null; const codes=new Set();
+    for(let k=i;k<j;k++){
+      const it=items[k];
+      if(prev!==null && it.b.banner!==prev) used+=CAD_BANNER_H;   // 장 안에서 그룹이 바뀌면 머리띠
+      used+=it.h; prev=it.b.banner; codes.add(it.b.code);
     }
-    while(n>1 && rows[n-1] && rows[n-1].k==='color') n--;
-    return n;
+    return {used, codes:codes.size};
   };
-  const rest=items.slice();
-  while(rest.length){
-    const it=rest[0];
-    if(it.h>AREA){                    // ① 예외 — 한 장보다 큰 블록. 새 장에서 시작해 나눈다
-      push();
+
+  /* DP — 뒤에서부터 채운다. best[i] = i번째 블록부터 끝까지의 가장 좋은 배치 */
+  const best=new Array(n+1);
+  best[n]={pages:0, splits:0, slack:0, cut:n};
+  const better=(a,b)=>{
+    if(a.pages!==b.pages) return a.pages<b.pages;                       // 1순위
+    if(PREFER_GROUP_PAGES && a.splits!==b.splits) return a.splits<b.splits;  // 2순위
+    return a.slack < b.slack - 1e-9;                                    // 3순위
+  };
+  for(let i=n-1;i>=0;i--){
+    let bst=null;
+    for(let j=i+1;j<=n;j++){
+      const m=metrics(i,j);
+      // 블록 하나만 담는 경우는 아무리 커도 받는다(단독 페이지). 둘 이상은 상한을 지킨다.
+      if(j>i+1 && (m.used>AREA || m.codes>MAXD)) break;   // 높이·도면수는 j가 늘면 커지기만 한다
+      const nxt=best[j];
+      // 그룹 걸침 = 이 장의 마지막 블록과 다음 장 첫 블록이 같은 그룹인가
+      const split = (j<n && items[j-1].b.banner===items[j].b.banner) ? 1 : 0;
+      const empty = Math.max(0, 1 - m.used/AREA);
+      const cand={pages:1+nxt.pages, splits:split+nxt.splits, slack:empty*empty+nxt.slack, cut:j};
+      /* 값이 모두 같으면 **블록을 더 많이 담은 쪽**(j가 큰 쪽)을 고릅니다 — 앞 장부터 채워야
+         보기 좋습니다. j를 작은 것부터 보므로, 뒤 후보가 '더 나쁘지 않으면' 갈아탑니다.
+         (안 그러면 A 3블록이 [A][AA]로 나옵니다. [AA][A]가 낫습니다) */
+      if(bst===null || !better(bst,cand)) bst=cand;
+    }
+    best[i]=bst;
+  }
+
+  /* 한 장보다 큰 블록만 행을 나눈다 — 되도록 색상 묶음 경계에서 끊어 한 색이 두 장에 안 걸치게 */
+  const cutAt=(rows, avail)=>{
+    let k=rows.length;
+    while(k>0 && cadTextH(rows.slice(0,k), lh) > avail) k--;
+    if(k>=rows.length) return rows.length;
+    if(k<=1) return k;
+    for(let q=k;q>=Math.ceil(k*0.7);q--){
+      if(rows[q] && rows[q].k==='color' && rows.slice(0,q).some(r=>r.k!=='color')) return q;
+    }
+    while(k>1 && rows[k-1] && rows[k-1].k==='color') k--;
+    return k;
+  };
+
+  /* DP가 고른 자리대로 실제 페이지를 만든다 */
+  const pages=[];
+  let i=0;
+  while(i<n){
+    const j=best[i].cut;
+    if(j===i+1 && items[i].h>AREA){
+      // 단독 페이지로도 안 들어가는 블록 — 마지막 수단으로 행을 나눈다
+      const it=items[i];
       let idx=0, first=true;
       while(idx<it.body.length){
         const left=it.body.slice(idx);
-        const avail=AREA-used-GAP;
-        const n=Math.max(1, cutAt(left, first ? avail-Math.max(0, it.doorH-cadTextH(left,lh)) : avail));
-        const slice=left.slice(0,n);
-        cur.push({...it.b, rowsSlice:slice, isCont:!first, hasDrawing:first});
-        pageBanner=it.b.banner; codes.add(it.b.code);
-        used += (first?Math.max(it.doorH, cadTextH(slice,lh)):cadTextH(slice,lh)) + GAP;
-        idx+=n; first=false;
-        if(idx<it.body.length) push();
+        const avail=AREA-CAD_BLOCK_GAP;
+        const cnt=Math.max(1, cutAt(left, first ? avail-Math.max(0, it.doorH-cadTextH(left,lh)) : avail));
+        pages.push([{...it.b, rowsSlice:left.slice(0,cnt), isCont:!first, hasDrawing:first}]);
+        idx+=cnt; first=false;
       }
-      rest.shift(); continue;
+    }else{
+      pages.push(items.slice(i,j).map(it=>({...it.b, rowsSlice:it.body, isCont:false, hasDrawing:true})));
     }
-    const band=fitBand(it);
-    if(band>=0){ place(it, band); rest.shift(); continue; }
-    /* ② 지금 블록은 안 들어감 → 뒤에서 들어가는 걸 끌어와 남은 자리를 메운다.
-         단 **계열(띠)을 건너뛰어 끌어오지는 않는다.** 예전에는 EURO500 블록을 앞으로
-         당겨 오는 바람에 700 → 500 → 다시 700 순서로 섞여 나왔다(2026-09-07 지적).
-         같은 계열 안에서만 자리를 메우면, 계열 순서(HD → OB → EURO500)가 그대로 유지된다. */
-    let k=-1;
-    for(let i=1;i<rest.length;i++){
-      if(rest[i].b.banner !== it.b.banner) break;      // 다른 계열이 나오면 거기서 멈춘다
-      if(rest[i].h<=AREA && fitBand(rest[i])>=0){ k=i; break; }
-    }
-    if(k>=0){ place(rest[k], fitBand(rest[k])); rest.splice(k,1); continue; }
-    push();                            // 아무것도 못 넣음 → 다음 장으로
+    i=j;
   }
-  push();
+
+  /* 그룹이 앞 장에서 이어지면 그 장 머리글에 (계속)을 붙이라고 표시해 둔다.
+     블록 자체의 (계속)(isCont)과는 다른 것이다 — 그건 한 블록이 잘렸을 때만 쓴다. */
+  for(let p=1;p<pages.length;p++){
+    const prevLast=pages[p-1][pages[p-1].length-1], curFirst=pages[p][0];
+    if(prevLast && curFirst && prevLast.banner===curFirst.banner) curFirst.groupCont=true;
+  }
   return pages;
 }
 /* 도어 SVG를 A4 안에 중첩(nested svg)으로 위치·크기 지정해 삽입.
@@ -3311,7 +3372,9 @@ function cadGenerate(){
     });
     const pages=cadSplitToPages(blocks);
     pages.forEach(pageBlocks=>{
-      const banner={text:(pageBlocks[0]?pageBlocks[0].banner:'EURO700 OB 도어'), cont:!!(pageBlocks[0]&&pageBlocks[0].isCont)};
+      // cont = 그룹이 앞 장에서 이어짐(groupCont) 또는 블록 자체가 잘려 이어짐(isCont)
+      const b0=pageBlocks[0];
+      const banner={text:(b0?b0.banner:'EURO700 OB 도어'), cont:!!(b0&&(b0.groupCont||b0.isCont))};
       html+=`<div class="cad-page">${cadPageSVG(header, banner, pageBlocks)}</div>`;
     });
   });
