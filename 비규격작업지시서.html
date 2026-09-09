@@ -1083,7 +1083,9 @@ function libDoorDimTextOnLine(doc){
     //   TH처럼 좌·우 양쪽에 치수가 있는 도면에서, 왼쪽 숫자가 오른쪽 칸으로 건너가 겹치던 것을 막는다.
     if(Math.abs(lx-tx) > fs*3) return;
     const str0=t.textContent.trim(), tw0=_dimTextW(str0, fs);
-    cands.push({t, tx, ty, fs, lx, tw0, room:hit.b.y1-hit.b.y0, ny:(hit.b.y0+hit.b.y1)/2});
+    // ny0 = 그 치수칸의 세로 한가운데(원래 자리). 눕혀 넣을 때는 서로 밀지 않고 이 자리를 그대로 씁니다.
+    const mid=(hit.b.y0+hit.b.y1)/2;
+    cands.push({t, tx, ty, fs, lx, tw0, room:hit.b.y1-hit.b.y0, ny:mid, ny0:mid});
   });
   /* ── 2단계: **치수열 단위로** 안/밖을 정한다 ──────────────────
      한 열 안에서 어떤 건 선 옆, 어떤 건 바깥에 놓이면 WT처럼 들쭉날쭉해 보인다(2026-09-07 지적).
@@ -1142,18 +1144,39 @@ function libDoorDimTextOnLine(doc){
   const RGAP = 0.18, LGAP = 0.30;                       // 글자크기 배수
   const fsMax = Math.max(...cands.map(c=>c.fs));
   const colL = outLx - fsMax*LGAP;
-  cands.forEach(({t, tx, ty, fs, lx, tw0, ny, side})=>{
+  cands.forEach(({t, tx, ty, fs, lx, tw0, ny, ny0, side})=>{
     const right = (side !== 'L');
-    const nx = right ? lx + fsMax*RGAP : colL;
-    const by = ny + fs*0.36;                            // 숫자 세로 가운데를 치수 가운데에 맞춘다
-    t.setAttribute('x', nx.toFixed(2)); t.setAttribute('y', by.toFixed(2));
-    t.setAttribute('text-anchor', right ? 'start' : 'end');
-    t.removeAttribute('transform');
+    let nx, by, cxNew, cyNew;
+    if(CAD_DIM_ROTATE){
+      /* 눕혀서 안쪽에 넣기 (사용자 확정 2026-09-09 — 12-4의 '눕히지 않는다'를 뒤집음).
+         숫자를 90° 눕혀 **치수선 안쪽**(도어 쪽)에 붙입니다. 바깥으로 뻗지 않아
+         도면이 옆으로 넓어지지 않고, 오른쪽 글자 자리를 안 먹습니다.
+         눕히면 글자가 세로로 서므로 **서로 밀어낼 일이 거의 없습니다** — 그래서
+         2단계에서 밀어 둔 ny 말고 **제 치수칸 한가운데(ny0)** 를 그대로 씁니다.
+         rotate(-90)이라 아래에서 위로 읽힙니다(캐드와 같은 방향).
+         눕힌 글자의 몸통은 기준점의 **왼쪽**으로 퍼지므로,
+           오른쪽 치수줄 → 선에서 왼쪽으로 조금 (안쪽)
+           왼쪽 치수줄  → 선에서 오른쪽으로 글자높이만큼 띄워 (역시 안쪽) */
+      const GAP = fsMax*0.28;
+      nx = right ? (lx - GAP) : (lx + GAP + fs*0.75);
+      by = ny0;
+      t.setAttribute('x', nx.toFixed(2)); t.setAttribute('y', by.toFixed(2));
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('transform', `rotate(-90 ${nx.toFixed(2)} ${by.toFixed(2)})`);
+      cxNew = nx - fs*0.30;                             // 눕힌 글자의 눈에 보이는 가운데
+      cyNew = by;
+    }else{
+      nx = right ? lx + fsMax*RGAP : colL;
+      by = ny + fs*0.36;                                // 숫자 세로 가운데를 치수 가운데에 맞춘다
+      t.setAttribute('x', nx.toFixed(2)); t.setAttribute('y', by.toFixed(2));
+      t.setAttribute('text-anchor', right ? 'start' : 'end');
+      t.removeAttribute('transform');
+      cxNew = right ? nx + tw0/2 : nx - tw0/2;
+      cyNew = ny;
+    }
     t.removeAttribute('paint-order'); t.removeAttribute('stroke');
     t.removeAttribute('stroke-width'); t.removeAttribute('stroke-linejoin');
     // 그 숫자를 감싸던 빨간 강조원도 같은 만큼 옮긴다.
-    // 글자를 왼쪽(또는 오른쪽) 끝 기준으로 붙였으므로, 원은 글자의 **가운데**로 맞춘다.
-    const cxNew = right ? nx + tw0/2 : nx - tw0/2;
     const dx = cxNew - tx;
     reds.forEach(e=>{
       const cx=+e.getAttribute('cx'), cy=+e.getAttribute('cy');
@@ -1164,14 +1187,24 @@ function libDoorDimTextOnLine(doc){
       const rr=+e.getAttribute('r') || Math.max(+e.getAttribute('rx')||0, +e.getAttribute('ry')||0);
       if(!rr || Math.hypot(cx-tx, cy-ty) > rr) return;
       e.setAttribute('cx',(cx+dx).toFixed(2));
-      e.setAttribute('cy',ny.toFixed(2));            // 눕힌 글자의 세로 가운데에 맞춘다
+      e.setAttribute('cy',cyNew.toFixed(2));         // 글자의 세로 가운데에 맞춘다
+      /* 눕혀 안쪽에 넣으면 캐드 원본의 강조원(반지름 100 남짓)이 너무 커서 도면 밖으로
+         크게 튀어나갑니다. 그만큼 배치 칸이 늘어나 **도어가 작게** 그려졌습니다.
+         (11-9의 "빨간 동그라미가 잘림"도 같은 뿌리입니다)
+         눕힌 글자를 감쌀 만큼으로 줄입니다. */
+      if(CAD_DIM_ROTATE){
+        const rHug = tw0*0.62 + fs*0.45;
+        if(e.tagName==='circle'){ if(rr>rHug) e.setAttribute('r', rHug.toFixed(2)); }
+        else { e.setAttribute('rx',(fs*0.85).toFixed(2)); e.setAttribute('ry',rHug.toFixed(2)); }
+      }
     });
     // 앱이 계산한 변환값(data-var)에는 빨간 강조원을 여기서 그린다 — 자리가 확정된 뒤라야 맞는다
     if(t.getAttribute('data-var')){
       const el=doc.createElementNS('http://www.w3.org/2000/svg','ellipse');
-      el.setAttribute('cx',cxNew.toFixed(2)); el.setAttribute('cy',ny.toFixed(2));
-      el.setAttribute('rx',(tw0*0.62+fs*0.35).toFixed(2));         // 바로 쓴 글자라 가로로 긴 타원
-      el.setAttribute('ry',(fs*0.75).toFixed(2));
+      el.setAttribute('cx',cxNew.toFixed(2)); el.setAttribute('cy',cyNew.toFixed(2));
+      // 눕힌 글자는 세로로 길다 — 타원도 눕혀 준다
+      el.setAttribute('rx',(CAD_DIM_ROTATE ? fs*0.75 : tw0*0.62+fs*0.35).toFixed(2));
+      el.setAttribute('ry',(CAD_DIM_ROTATE ? tw0*0.62+fs*0.35 : fs*0.75).toFixed(2));
       el.setAttribute('fill','none'); el.setAttribute('stroke','#e00000');
       el.setAttribute('stroke-width',(doc.querySelector('g[stroke-width]')?.getAttribute('stroke-width'))||'1.9');
       doc.documentElement.appendChild(el);
@@ -1224,6 +1257,12 @@ function libDoorFixSeriesDims(r, c, doc){
 
    지금 초록 주석이 있는 도면: BD3U(OB·HD) · WTARG · BTARG.
    뒤 둘은 RULES 에 없어 화면에 안 나옵니다(11-2). 실제로 보이는 건 BD3U 뿐입니다. */
+/* 치수 숫자를 눕혀 안쪽에 넣을지 (사용자 확정 2026-09-09).
+   true  = 90° 눕혀 치수선 안쪽(도어 쪽)에 붙임 — 도면이 옆으로 안 넓어짐
+   false = 예전처럼 바로 써서 치수줄 바깥에 세움
+   ⚠ 이 값은 **CLAUDE.md 12-4의 '치수 숫자는 눕히지 않는다'를 뒤집은 것**입니다.
+      되돌리려면 false 로만 바꾸면 됩니다. */
+const CAD_DIM_ROTATE = true;
 const CAD_NOTE_GREEN = '#00a000';   // 주석 글자 · 보링 표시
 const CAD_LEAD_TEAL  = '#00a0a0';   // 지시선 · 보링 십자표
 function libDoorDropGreenNotes(doc){
