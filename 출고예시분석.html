@@ -2078,12 +2078,14 @@ function buildMatchRows(orderDate){
    색은 빨강(헛스윙)·주황(미예고) 둘뿐이다. 나머지는 무채색.
    색이 늘어나는 순간 어느 것이 급한지 안 보인다.
    ══════════════════════════════════════════════════════════════════ */
-/* 이름은 둘 다 '예시'를 축으로 잡는다 — 반대 방향이라는 것이 이름만으로 보이게.
-   「헛스윙」은 야구 비유라 무엇에 대한 헛스윙인지가 이름에 없어 와닿지 않았다.
-     헛예시  = 예시에 떴는데 발주가 안 옴 (만들어 두면 재고로 남는다)
-     예시 밖 = 예시에 없던 발주가 옴 (급하게 만들어야 한다)
+/* 이름은 '어느 쪽에서 빠졌나'를 그대로 적는다. 외울 것이 없어야 한다.
+     납품서에 없음 = 예시엔 떴는데 발주가 안 옴 (만들어 두면 재고로 남는다)
+     예시에 없음   = 납품서엔 왔는데 예시엔 없었음 (급하게 만들어야 한다)
+   둘 다 `～에 없음` 꼴이라 반대 방향이라는 것이 이름만으로 보인다.
+   「헛스윙」은 야구 비유라 무엇에 대한 헛스윙인지가 이름에 없어 와닿지 않았고,
+   「헛예시」도 여전히 한 번 더 생각해야 했다(사용자 지적 2026-09-09).
    ※ 「예고」라는 말은 쓰지 않는다 — 앱 부제가 "예시는 예고가 아니라 후보다"라 말이 부딪힌다. */
-const MATCH_LABEL = {exact:'일치', swing:'헛예시', unforecast:'예시 밖',
+const MATCH_LABEL = {exact:'일치', swing:'납품서에 없음', unforecast:'예시에 없음',
                      early:'조기발주', diff:'수량차이', resize:'사이즈변경 의심', as:'AS 출고'};
 const MATCH_TONE  = {swing:'red', unforecast:'orange'};   // 색 있는 건 이 둘뿐
 
@@ -2139,11 +2141,11 @@ function trendHTML(){
   const max=Math.max(...days.map(d=>t[d].rate),1);
   const bars=days.map(d=>{
     const v=t[d].rate, h=Math.max(3,Math.round(v/max*30));
-    return `<i class="${v>=15?'hot':''}" style="height:${h}px" title="${d} · 미예고율 ${v}% (${t[d].un}/${t[d].real})"></i>`;
+    return `<i class="${v>=15?'hot':''}" style="height:${h}px" title="${d} · 예시에 없음 ${v}% (${t[d].un}/${t[d].real})"></i>`;
   }).join('');
   const first=t[days[0]].rate, last=t[days[days.length-1]].rate;
   return `<div style="margin-top:10px">
-    <div class="tag">최근 ${days.length}일 미예고율 — ${days[0]} ${first}% → ${days[days.length-1]} ${last}%</div>
+    <div class="tag">최근 ${days.length}일 「예시에 없음」 비율 — ${days[0]} ${first}% → ${days[days.length-1]} ${last}%</div>
     <div class="m-trend">${bars}</div></div>`;
 }
 
@@ -2181,8 +2183,8 @@ function renderMatch(){
     <div class="m-head">
       <span class="m-date">${fmtShort(MATCH_ORDER)}(${dowOf(MATCH_ORDER)})</span>
       <span class="m-kv">실물 <b>${M.realQty}</b> / 예시 <b>${M.yesiQty}</b></span>
-      <span class="m-kv m-warn">예시 밖 비율 <b>${rate}%</b></span>
-      <span class="m-kv m-warn">헛예시 <b>${M.T.swing}</b></span>
+      <span class="m-kv m-warn">예시에 없음 <b>${M.T.unforecast}</b> (${rate}%)</span>
+      <span class="m-kv m-warn">납품서에 없음 <b>${M.T.swing}</b></span>
       ${M.T.as?`<span class="m-kv m-note">AS 출고 ${M.T.as}</span>`:''}
       <span class="m-kv" style="margin-left:auto">AS 참조 ${M.asQty} · 바스 제외 ${M.basQty}</span>
     </div>
@@ -2193,13 +2195,15 @@ function renderMatch(){
           <span><b class="hi">이 발주일보다 앞서 뽑은 예시가 없습니다.</b>
           ${fmtShort(MATCH_ORDER)} 이전 날짜의 출고예시를 「예시 파일 넣기」에 넣으시면 대조가 됩니다.</span></div>`}
     ${(M.T.swing||M.T.unforecast) ? `<div class="m-mix">
-      ${M.T.swing?`<span><b>헛예시 ${M.T.swing}</b> — 비규격 ${M.NS.swingNon} · <b class="hi">정규격 ${M.NS.swingStd}</b></span>`:''}
-      ${M.T.unforecast?`<span><b>예시 밖 ${M.T.unforecast}</b> — 비규격 ${M.NS.unNon} · <b class="hi">정규격 ${M.NS.unStd}</b></span>`:''}
+      ${M.T.swing?`<span><b>납품서에 없음 ${M.T.swing}</b> — 비규격 ${M.NS.swingNon} · <b class="hi">정규격 ${M.NS.swingStd}</b></span>`:''}
+      ${M.T.unforecast?`<span><b>예시에 없음 ${M.T.unforecast}</b> — 비규격 ${M.NS.unNon} · <b class="hi">정규격 ${M.NS.unStd}</b></span>`:''}
       <span class="tag">비규격은 치수가 매번 달라 예시가 흔들립니다. <b>정규격 쪽이 클수록 나쁜 신호</b>입니다.</span>
     </div>` : ''}
     <div class="tag" style="margin-top:6px">
-      예시 밖 비율 = 예시 밖 ${M.T.unforecast} ÷ 실물(정오더) ${M.realQty}.
-      AS(54*)는 실물로 세지 않되, 예시가 AS로 나갔으면 헛예시에서 뺍니다.
+      <b>납품서에 없음</b> = 예시엔 떴는데 발주가 안 옴 → 만들어 두면 재고로 남습니다.
+      <b>예시에 없음</b> = 예고 없이 발주가 옴 → 급하게 만들어야 했던 물량입니다.
+      비율 ${rate}% = 예시에 없음 ${M.T.unforecast} ÷ 실물(정오더) ${M.realQty}.<br>
+      AS(54*)는 실물로 세지 않되, 예시가 AS로 나갔으면 「납품서에 없음」에서 뺍니다.
       바스는 한샘 납품서에 안 나와 대조 대상이 아닙니다.
       ${M.asQty?`<br>AS ${M.asQty}장 중 예시에 있던 것 <b>${M.asInYesi}장</b> — 이 값이 계속 낮으면 AS 역참조는 없어도 됩니다.`:''}
     </div>
