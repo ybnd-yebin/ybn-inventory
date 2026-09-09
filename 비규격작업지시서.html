@@ -1263,6 +1263,12 @@ function libDoorFixSeriesDims(r, c, doc){
    ⚠ 이 값은 **CLAUDE.md 12-4의 '치수 숫자는 눕히지 않는다'를 뒤집은 것**입니다.
       되돌리려면 false 로만 바꾸면 됩니다. */
 const CAD_DIM_ROTATE = true;
+/* 색상을 **줄 대신 오른쪽 꺾쇠**로 표시할지 (사용자 확정 2026-09-09).
+   true  = `● 에토프` 줄을 없애고, 그 색의 줄들을 오른쪽 꺾쇠로 묶어 이름을 적음
+           → 색마다 한 줄씩 벌고, 비어 있던 오른쪽 자리를 씀
+   false = 예전처럼 색상 줄을 따로 한 줄 씀
+   되돌리려면 false 로만 바꾸면 됩니다. */
+const CAD_COLOR_AS_BRACKET = true;
 const CAD_NOTE_GREEN = '#00a000';   // 주석 글자 · 보링 표시
 const CAD_LEAD_TEAL  = '#00a0a0';   // 지시선 · 보링 십자표
 function libDoorDropGreenNotes(doc){
@@ -2838,7 +2844,10 @@ function cadTextH(rows, lh){
   // setmark 는 줄이 아니라 옆에 그리는 꺾쇠다 — 높이를 먹지 않는다(쪽 나누기가 어긋나지 않게)
   const rs=(rows||[]).filter(r=>r.k!=='code' && r.k!=='setmark');
   const colorGaps=rs.filter(r=>r.k==='color').length;
-  return (1+rs.length)*lh + colorGaps*lh*0.5;
+  /* 색상을 꺾쇠로 옮기면 색상 줄도 높이를 안 먹는다 — 색마다 한 줄씩 번다.
+     색 사이 숨 돌릴 틈(0.5줄)은 그대로 둔다. */
+  const lines = CAD_COLOR_AS_BRACKET ? rs.filter(r=>r.k!=='color').length : rs.length;
+  return (1+lines)*lh + colorGaps*lh*0.5;
 }
 /* 코드별 도면 세로 미세 조정(mm) — 양수면 아래로, 음수면 위로.
    아래 '짧은 쪽 가운데 맞추기'로 대부분 정리되고, 그래도 눈에 걸리는 코드만 여기서 손본다.
@@ -2988,7 +2997,27 @@ function cadBlockSVG(b, xL, yTop){
   let ty = yTop + dropText, s='', box='';
   ty+=lh; s+=`<text x="${txX}" y="${ty.toFixed(2)}" font-family="${F}" font-size="7.5" font-weight="700" fill="#1560c0">${esc(b.code)}${b.type==='HD'?' (HD)':''}${b.isCont?' (계속)':''}</text>`;
   let hpmTop=null;                                   // 베일(HPM) 색상 묶음의 시작 y — 박스 치려고 기억
-  let segTop=null, segW=0;                           // 합적 조각 줄의 시작 y와 가장 긴 글자 너비 — 세트 꺾쇠용
+  let segTop=null;                                   // 합적 조각 줄의 시작 y — 세트 꺾쇠용
+  let colTop=null, colName='';                       // 색상 묶음의 시작 y와 이름 — 색상 꺾쇠용
+  /* 꺾쇠 자리는 **블록 안에서 한 번만** 잡는다 — 줄마다 재면 꺾쇠가 들쭉날쭉해진다.
+     가장 긴 글자줄 오른쪽에 세트 꺾쇠, 그 바깥에 색상 꺾쇠를 세운다. */
+  const rowW = r => String(r.text||'').length*5.6*0.55;
+  const maxRowW = rows.filter(r=>r.k==='frame'||r.k==='glass').reduce((m,r)=>Math.max(m,rowW(r)), 0);
+  const hasSetMark = rows.some(r=>r.k==='setmark');
+  const BX_SET = txX+4+maxRowW+3;                    // 세트 꺾쇠 x
+  const BX_COL = BX_SET + (hasSetMark ? 15 : 0);     // 색상 꺾쇠 x (세트 꺾쇠 바깥)
+  const closeColor=()=>{                             // 색상 묶음이 끝나면 오른쪽에 꺾쇠를 세운다
+    if(colTop==null || !CAD_COLOR_AS_BRACKET) { colTop=null; return; }
+    const y0=colTop-lh*0.75, y1=ty+lh*0.20, cy=(y0+y1)/2;
+    const c=cadColorDot(colName);
+    const isH=(typeof isHPMColor==='function') && isHPMColor(colName);
+    s+=`<path d="M${(BX_COL-1.8).toFixed(2)} ${y0.toFixed(2)} H${BX_COL.toFixed(2)} V${y1.toFixed(2)} H${(BX_COL-1.8).toFixed(2)}"`
+     + ` fill="none" stroke="${isH?'#7a3fb0':c.line}" stroke-width="0.5"/>`
+     + `<circle cx="${(BX_COL+3.6).toFixed(2)}" cy="${(cy-1.9).toFixed(2)}" r="2.2" fill="${c.fill}" stroke="${c.line}" stroke-width="0.4"/>`
+     + `<text x="${(BX_COL+7.2).toFixed(2)}" y="${cy.toFixed(2)}" font-family="${F}" font-size="6"`
+     + ` font-weight="700" fill="${isH?'#7a3fb0':c.text}">${esc(colName)}</text>`;
+    colTop=null;
+  };
   const closeHpm=()=>{                               // 베일 묶음이 끝나면 보라 박스로 두른다
     if(hpmTop==null) return;
     box+=`<rect x="${(txX-2).toFixed(2)}" y="${(hpmTop-lh*0.85).toFixed(2)}" width="${(88).toFixed(2)}" height="${(ty-hpmTop+lh*1.1).toFixed(2)}" rx="1.6" fill="none" stroke="#7a3fb0" stroke-width="0.5"/>`;
@@ -2998,18 +3027,31 @@ function cadBlockSVG(b, xL, yTop){
     if(row.k==='color'){
       // 색상 동그라미는 **실제 제품 색**으로 칠한다(에토프=오렌지 톤, 웜코튼=흰 바탕 등).
       // 색은 작업지시서 색상칸과 같은 표(COLOR_CHIP)를 쓴다 — 두 곳이 어긋나지 않게.
-      closeHpm();
+      closeHpm(); closeColor();
+      const isH=(typeof isHPMColor==='function') && isHPMColor(row.text);
+      if(CAD_COLOR_AS_BRACKET){
+        /* 색상 줄을 없애고 **오른쪽 꺾쇠**로 옮깁니다 (사용자 요청 2026-09-09).
+           색마다 한 줄을 벌고, 비어 있던 오른쪽 자리를 씁니다.
+           여기서는 자리만 기억해 두고, 그 색의 줄이 다 끝난 뒤 closeColor()가 그립니다. */
+        ty+=lh*0.5;                       // 색 사이 숨 돌릴 틈만 둔다(줄은 안 쓴다)
+        colTop=ty+lh; colName=row.text;   // 다음 줄이 놓일 자리가 묶음의 첫 줄
+        if(isH) hpmTop=ty+lh;
+        return;
+      }
       ty+=lh*0.5+lh;
+      // 색상 동그라미는 **실제 제품 색**으로 칠한다(에토프=오렌지 톤, 웜코튼=흰 바탕 등).
+      // 색은 작업지시서 색상칸과 같은 표(COLOR_CHIP)를 쓴다 — 두 곳이 어긋나지 않게.
       const c=cadColorDot(row.text);
       s+=`<circle cx="${(txX+2.4).toFixed(2)}" cy="${(ty-2.1).toFixed(2)}" r="2.4" fill="${c.fill}" stroke="${c.line}" stroke-width="0.4"/>`;
       // 베일(HPM) 색상은 인쇄유리가 아니라 원장관리 대상 → **보라 박스**로만 가른다.
       //   'HPM' 글자는 박스만으로 충분해 뺐다(2026-09-07 지적).
-      const isH=(typeof isHPMColor==='function') && isHPMColor(row.text);
       s+=`<text x="${(txX+7.2).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="6.3" font-weight="700" fill="${isH?'#7a3fb0':c.text}">${esc(row.text)}</text>`;
       if(isH) hpmTop=ty;
       return;
     }
-    ty+=lh;
+    /* ⚠ setmark 는 **ty 를 올리기 전에** 처리합니다.
+       예전에 ty+=lh 뒤에 두었더니 줄 하나만큼 높이를 먹었는데, cadTextH 에서는 빼고 있어
+       계산과 실제가 어긋났습니다(내용이 박스 아래선을 넘을 수 있었습니다). */
     if(row.k==='setmark'){
       /* 세트 꺾쇠 — 줄이 아니라 **옆에 그리는 표시**입니다(사용자 요청 2026-09-09).
          바로 앞의 합적 조각 줄들을 세로로 묶고 몇 벌인지 적습니다.
@@ -3020,7 +3062,7 @@ function cadBlockSVG(b, xL, yTop){
          ty 를 올리지 않습니다 — 줄을 차지하지 않으므로 cadTextH 에서도 뺍니다. */
       if(segTop!=null){
         const y0=segTop-lh*0.75, y1=ty+lh*0.20;
-        const bx=txX+4+segW+3;
+        const bx=BX_SET;
         s+=`<path d="M${(bx-1.8).toFixed(2)} ${y0.toFixed(2)} H${bx.toFixed(2)} V${y1.toFixed(2)} H${(bx-1.8).toFixed(2)}"`
          + ` fill="none" stroke="#1560c0" stroke-width="0.45"/>`
          + `<text x="${(bx+1.6).toFixed(2)}" y="${((y0+y1)/2+1.9).toFixed(2)}" font-family="${F}" font-size="5.2"`
@@ -3028,14 +3070,14 @@ function cadBlockSVG(b, xL, yTop){
       }
       return;                       // ty 를 올리지 않는다
     }
+    ty+=lh;                         // 여기서부터 진짜 한 줄을 쓴다
     if(row.k==='frame') s+=`<text x="${(txX+4)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#000">${esc(row.text)}</text>`;
     else if(row.k==='glass') s+=`<text x="${(txX+4)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#d00000">${esc(row.text)}</text>`;
-    // 합적 조각 줄이 시작한 자리와 가장 긴 글자 너비를 기억해 둔다(꺾쇠를 그리려고)
-    if(row.seg){ if(segTop==null) segTop=ty;
-                 segW=Math.max(segW, String(row.text).length*5.6*0.55); }
+    // 합적 조각 줄이 시작한 자리를 기억해 둔다(세트 꺾쇠를 그리려고)
+    if(row.seg){ if(segTop==null) segTop=ty; }
     else segTop=null;
   });
-  closeHpm();
+  closeHpm(); closeColor();
   const height=Math.max(span+dropDoor, textH+dropText);   // 쪽 나누기(cadBlockH)와 같은 값
   return {svg:door+box+s, height};
 }
