@@ -1092,9 +1092,14 @@ function prodKey(row){ return row.code+'|'+row.name+'|'+(row.oido?'O':'G'); }
    ══════════════════════════════════════════════════════════════════ */
 const SNAP_SPAN_DAYS = COL.dateEnd - COL.dateStart;   // 날짜열 개수-1 (첫날=asof)
 function snapWindow(snap){ return [snap.asof, addDays(snap.asof, SNAP_SPAN_DAYS)]; }
-function authoritativeSnaps(){
+/* before 를 주면 '그 날보다 앞서 뽑은' 예시 중 가장 최신만 고른다.
+   대조에서 쓴다 — 발주 당일 예시에는 그날 발주가 이미 들어 있어, 그걸로 그날 발주를
+   맞추면 100%가 나오지만 아무것도 알 수 없다(제가 쓴 답을 베껴 놓고 채점하는 꼴).
+   '발주가 오기 전에 미리 알 수 있었나'를 보려면 전날까지의 예시로 맞춰야 한다. */
+function authoritativeSnaps(before){
   const m = new Map();   // src -> {snap, win}
   for(const s of SNAPS){
+    if(before && s.asof >= before) continue;
     const src = snapSrc(s);
     const prev = m.get(src);
     if(!prev || s.loadedAt > prev.snap.loadedAt) m.set(src, {snap:s, win:snapWindow(s)});
@@ -1202,15 +1207,16 @@ function reconcileHTML(bounds, ships, shipTotals, cat){
 }
 
 // ── 출고일별 최신 수량 집계 (각 제품·출고일마다 가장 늦게 조회한 스냅샷 값) ──
-function buildLatestByShip(){
+function buildLatestByShip(before){
   // key = code|oido|shipDate -> {name, code, oido, lead, qty, asof, loadedAt}
   //  ★ 글래스도어는 오이도/그레이박스의 제품코드가 완전히 동일하다.
   //    code만으로 키를 잡으면 나중에 로드된 파일이 앞의 창고 물량을 통째로 덮어쓴다.
   const latest = new Map();
   const ybCodes = ybndCodeSet();
-  const auth = authoritativeSnaps();
+  const auth = authoritativeSnaps(before);
   for(const snap of SNAPS){
     const src = snapSrc(snap);
+    if(before && snap.asof >= before) continue;   // 발주일 당일/이후 예시는 대조에서 쓰지 않는다
     const a = auth.get(src);
     const isAuth = a && a.snap === snap;
     const win = a ? a.win : null;
@@ -1949,8 +1955,12 @@ function buildMatchRows(orderDate){
       if(as){ asQty+=it.qty; asLines++; } else realQty+=it.qty;
     }
   }
-  // ── 예시: 이 발주일에 뜰 것 (바스·구형 제외)
-  const latest = buildLatestByShip();
+  /* ── 예시: 이 발주일에 뜰 것 (바스·구형 제외)
+     기준은 '발주일 전날까지' 뽑은 예시다. 발주 당일 예시에는 그날 발주가 이미
+     들어 있어 100%가 나오는데, 그건 맞힌 게 아니라 답을 베낀 것이다. */
+  const latest = buildLatestByShip(orderDate);
+  const baseSnaps = authoritativeSnaps(orderDate);
+  const baseAsof = [...baseSnaps.values()].map(a=>a.snap.asof).sort().pop() || null;
   const yesi = new Map();
   let yesiQty=0, basQty=0, guhyeongSkipped=0;
   for(const v of latest.values()){
@@ -2035,7 +2045,7 @@ function buildMatchRows(orderDate){
   let asInYesi=0;
   const yesiCodes = new Set(); for(const [,v] of yesi) yesiCodes.add(v.code+'|'+v.dest);
   for(const [,v] of asRef) if(yesiCodes.has(v.code+'|'+v.dest)) asInYesi += v.qty;
-  return {rows, T, NS, realQty, asQty, asLines, yesiQty, basQty, guhyeongSkipped,
+  return {rows, T, NS, baseAsof, realQty, asQty, asLines, yesiQty, basQty, guhyeongSkipped,
           asInYesi, unforecastRate: realQty? (T.unforecast/realQty*100) : 0};
 }
 
@@ -2145,6 +2155,12 @@ function renderMatch(){
       ${M.T.as?`<span class="m-kv m-note">AS 출고 ${M.T.as}</span>`:''}
       <span class="m-kv" style="margin-left:auto">AS 참조 ${M.asQty} · 바스 제외 ${M.basQty}</span>
     </div>
+    ${M.baseAsof
+      ? `<div class="tag" style="margin-top:6px">기준 예시 <b>${M.baseAsof}</b> — 발주일 전날까지 뽑은 것으로 맞춥니다.
+          발주 당일 예시에는 그날 발주가 이미 들어 있어, 그걸로 맞추면 100%가 나오지만 아무것도 알 수 없습니다.</div>`
+      : `<div class="m-mix" style="border-color:#f0cba8;background:#fdf6f0">
+          <span><b class="hi">이 발주일보다 앞서 뽑은 예시가 없습니다.</b>
+          ${fmtShort(MATCH_ORDER)} 이전 날짜의 출고예시를 「예시 파일 넣기」에 넣으시면 대조가 됩니다.</span></div>`}
     ${(M.T.swing||M.T.unforecast) ? `<div class="m-mix">
       ${M.T.swing?`<span><b>헛예시 ${M.T.swing}</b> — 비규격 ${M.NS.swingNon} · <b class="hi">정규격 ${M.NS.swingStd}</b></span>`:''}
       ${M.T.unforecast?`<span><b>예시 밖 ${M.T.unforecast}</b> — 비규격 ${M.NS.unNon} · <b class="hi">정규격 ${M.NS.unStd}</b></span>`:''}
