@@ -2683,6 +2683,28 @@ function frameLinesOf(c){
   if(same) return [`${c.fw} × ${c.frameSegs[0].fh}`];
   return c.frameSegs.map(s=>`${s.fw}×${s.fh} ×${s.n||1}`);
 }
+/* 합적(마이다) 블록의 줄 — **조각마다 완성치수와 재단치수를 짝지어** 놓습니다
+   (사용자 확정 2026-09-09). 조각별로 몇 장인지도 그 줄에 붙입니다.
+
+     395×188 = 2EA      ← 완성(검정)
+     395×185            ← 재단(빨강)
+     395×380 = 1EA
+     395×377
+
+   같은 크기 조각은 하나로 묶어 셉니다 — BD2R 은 380 이 상·하 두 장이라
+   `770×380 = 2EA` 한 줄로 나옵니다(두 줄로 겹쳐 적지 않습니다). */
+function setSegLinesOf(c){
+  if(!c || !c.frameSegs) return null;
+  const gs=c.glass||[], out=[], seen={};
+  c.frameSegs.forEach((s,i)=>{
+    const g=gs[i];
+    const key=`${s.fw}×${s.fh}|${g?g.gw+'×'+g.gh:''}`;
+    if(seen[key]!=null){ out[seen[key]].n += (s.n||1); return; }
+    seen[key]=out.length;
+    out.push({frame:`${s.fw}×${s.fh}`, glass:g?`${g.gw}×${g.gh}`:'', n:(s.n||1)});
+  });
+  return out;
+}
 /* 재단치수(유리)도 같은 방식으로 줄바꿈. */
 function glassLinesOf(c){
   const gs=c.glass||[];
@@ -2707,13 +2729,14 @@ function cadBlockRows(list){
       const frameTxt=frameLines.join('¶'), glassTxt=glassLines.join('¶');   // 묶는 열쇠로만 씀
       const isSet=!!c.frameSegs;
       const setSheets=setSheetsOf(c);                   // 한 SET 장수 (BD3U 3장 · BD2R 2장)
+      const segLines=setSegLinesOf(c);                  // 합적이면 조각별 완성·재단 짝
       // 좌우 짝 합적(W2HBT) — 한 장을 반으로 갈라 L 1장 + R 1장을 만든다. calc가 side:true로 표시한다.
       const isSide=!!(c.frameSegs && c.frameSegs[0] && c.frameSegs[0].side);
       // 좌우를 나눠 세는 코드 — 같은 사이즈라도 L·R을 합치지 않고 따로 센다.
       //   여기 코드를 더하면 그 코드도 좌우로 갈린다. (사용자 요청 2026-09-04: WHBT)
       const side=LR_SPLIT_CODES.has(r.code) ? String(r.lr||'').trim().toUpperCase() : '';
       const key=frameTxt+'|'+glassTxt;
-      if(!agg[key]) agg[key]={frameLines, glassLines, isSet, isSide, setSheets, qty:0, lr:{L:0,R:0,'':0}};
+      if(!agg[key]) agg[key]={frameLines, glassLines, segLines, isSet, isSide, setSheets, qty:0, lr:{L:0,R:0,'':0}};
       agg[key].qty+=(r.qty||1);
       agg[key].lr[(side==='L'||side==='R')?side:''] += (r.qty||1);
     });
@@ -2728,12 +2751,23 @@ function cadBlockRows(list){
 
       }
       else              qt=`${a.qty}EA`;
-      // 완성치수는 줄마다 한 행. 수량은 **마지막 줄 뒤에** 붙입니다.
-      a.frameLines.forEach((ln,i)=>{
-        const last = i===a.frameLines.length-1;
-        rows.push({k:'frame', text: last ? `${ln} = ${qt}` : ln});
-      });
-      a.glassLines.forEach(ln=>rows.push({k:'glass', text:ln}));  // EURO500은 유리가 없어 줄이 안 생긴다
+      if(a.isSet && a.segLines && a.segLines.length){
+        /* 합적(마이다) — 조각마다 완성치수와 재단치수를 **짝지어** 놓습니다.
+           조각별 장수는 `그 조각의 개수 × SET 수` 입니다. (사용자 확정 2026-09-09)
+           SET 이 몇 벌인지는 오른쪽 세로 꺾쇠로 알립니다(setMark). */
+        a.segLines.forEach(s=>{
+          rows.push({k:'frame', text:`${s.frame} = ${s.n*a.qty}EA`, seg:true});
+          if(s.glass) rows.push({k:'glass', text:s.glass, seg:true});
+        });
+        if(a.qty>1) rows.push({k:'setmark', text:`${a.qty}SET`, span:a.segLines.length});
+      }else{
+        // 완성치수는 줄마다 한 행. 수량은 **마지막 줄 뒤에** 붙입니다.
+        a.frameLines.forEach((ln,i)=>{
+          const last = i===a.frameLines.length-1;
+          rows.push({k:'frame', text: last ? `${ln} = ${qt}` : ln});
+        });
+        a.glassLines.forEach(ln=>rows.push({k:'glass', text:ln}));  // EURO500은 유리가 없어 줄이 안 생긴다
+      }
     });
   });
   return rows;
@@ -2801,7 +2835,8 @@ function cadDoorSize(b){
 //   ※ 옛 cadBlockH는 이 여백을 빼먹어서, 색상이 2개인 블록(에토프+웜코튼)이
 //     계산보다 실제로 커져 내용 박스 아래선을 넘었다(9쪽 지적).
 function cadTextH(rows, lh){
-  const rs=(rows||[]).filter(r=>r.k!=='code');
+  // setmark 는 줄이 아니라 옆에 그리는 꺾쇠다 — 높이를 먹지 않는다(쪽 나누기가 어긋나지 않게)
+  const rs=(rows||[]).filter(r=>r.k!=='code' && r.k!=='setmark');
   const colorGaps=rs.filter(r=>r.k==='color').length;
   return (1+rs.length)*lh + colorGaps*lh*0.5;
 }
@@ -2953,6 +2988,7 @@ function cadBlockSVG(b, xL, yTop){
   let ty = yTop + dropText, s='', box='';
   ty+=lh; s+=`<text x="${txX}" y="${ty.toFixed(2)}" font-family="${F}" font-size="7.5" font-weight="700" fill="#1560c0">${esc(b.code)}${b.type==='HD'?' (HD)':''}${b.isCont?' (계속)':''}</text>`;
   let hpmTop=null;                                   // 베일(HPM) 색상 묶음의 시작 y — 박스 치려고 기억
+  let segTop=null, segW=0;                           // 합적 조각 줄의 시작 y와 가장 긴 글자 너비 — 세트 꺾쇠용
   const closeHpm=()=>{                               // 베일 묶음이 끝나면 보라 박스로 두른다
     if(hpmTop==null) return;
     box+=`<rect x="${(txX-2).toFixed(2)}" y="${(hpmTop-lh*0.85).toFixed(2)}" width="${(88).toFixed(2)}" height="${(ty-hpmTop+lh*1.1).toFixed(2)}" rx="1.6" fill="none" stroke="#7a3fb0" stroke-width="0.5"/>`;
@@ -2974,8 +3010,30 @@ function cadBlockSVG(b, xL, yTop){
       return;
     }
     ty+=lh;
+    if(row.k==='setmark'){
+      /* 세트 꺾쇠 — 줄이 아니라 **옆에 그리는 표시**입니다(사용자 요청 2026-09-09).
+         바로 앞의 합적 조각 줄들을 세로로 묶고 몇 벌인지 적습니다.
+           395×188 = 2EA  ┐
+           395×185        │ 2SET
+           395×380 = 1EA  │
+           395×377        ┘
+         ty 를 올리지 않습니다 — 줄을 차지하지 않으므로 cadTextH 에서도 뺍니다. */
+      if(segTop!=null){
+        const y0=segTop-lh*0.75, y1=ty+lh*0.20;
+        const bx=txX+4+segW+3;
+        s+=`<path d="M${(bx-1.8).toFixed(2)} ${y0.toFixed(2)} H${bx.toFixed(2)} V${y1.toFixed(2)} H${(bx-1.8).toFixed(2)}"`
+         + ` fill="none" stroke="#1560c0" stroke-width="0.45"/>`
+         + `<text x="${(bx+1.6).toFixed(2)}" y="${((y0+y1)/2+1.9).toFixed(2)}" font-family="${F}" font-size="5.2"`
+         + ` font-weight="700" fill="#1560c0">${esc(row.text)}</text>`;
+      }
+      return;                       // ty 를 올리지 않는다
+    }
     if(row.k==='frame') s+=`<text x="${(txX+4)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#000">${esc(row.text)}</text>`;
     else if(row.k==='glass') s+=`<text x="${(txX+4)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#d00000">${esc(row.text)}</text>`;
+    // 합적 조각 줄이 시작한 자리와 가장 긴 글자 너비를 기억해 둔다(꺾쇠를 그리려고)
+    if(row.seg){ if(segTop==null) segTop=ty;
+                 segW=Math.max(segW, String(row.text).length*5.6*0.55); }
+    else segTop=null;
   });
   closeHpm();
   const height=Math.max(span+dropDoor, textH+dropText);   // 쪽 나누기(cadBlockH)와 같은 값
