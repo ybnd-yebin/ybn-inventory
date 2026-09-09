@@ -2655,9 +2655,9 @@ const LR_SPLIT_CODES = new Set(['WHBT','B']);
 function frameTextOf(c){
   if(c.frameSegs){
     const same=c.frameSegs.every(s=>s.fh===c.frameSegs[0].fh);
-    return same ? `${c.fw} × ${c.frameSegs[0].fh}` : c.frameSegs.map(s=>`${s.fw}×${s.fh}`).join(' / ');
+    return same ? `${c.fw}×${c.frameSegs[0].fh}` : c.frameSegs.map(s=>`${s.fw}×${s.fh}`).join(' / ');
   }
-  return `${c.fw} × ${c.fh}`;
+  return `${c.fw}×${c.fh}`;
 }
 
 /* 합적(마이다) 한 SET에 실제로 몇 장 들어가는가 — **조각마다 개수가 다릅니다.**
@@ -2684,9 +2684,9 @@ function glassPerSet(c){
 /* 완성치수를 **줄바꿈으로** 나눈 목록 (사용자 요청 2026-09-09 — 슬래시로 잇지 말 것).
    조각 세로가 서로 다르면 조각마다 한 줄로 적고, 몇 개인지도 함께 적습니다. */
 function frameLinesOf(c){
-  if(!c.frameSegs) return [`${c.fw} × ${c.fh}`];
+  if(!c.frameSegs) return [`${c.fw}×${c.fh}`];
   const same=c.frameSegs.every(s=>s.fh===c.frameSegs[0].fh);
-  if(same) return [`${c.fw} × ${c.frameSegs[0].fh}`];
+  if(same) return [`${c.fw}×${c.frameSegs[0].fh}`];
   return c.frameSegs.map(s=>`${s.fw}×${s.fh} ×${s.n||1}`);
 }
 /* 합적(마이다) 블록의 줄 — **조각마다 완성치수와 재단치수를 짝지어** 놓습니다
@@ -3370,7 +3370,7 @@ function buildGlassOrderHTML(glassAll, odByShip, lead){
       // (n SET)은 그 사이즈가 한 SET에 몇 장 들어가는지로 나눕니다 — 예전의 ÷2 는 틀렸습니다
       const setN = g.set && g.perSet ? (g.qty/g.perSet) : 0;
       const tag  = (setN && Number.isFinite(setN)) ? ` <span class="set-tag">(${+setN.toFixed(2)}SET)</span>` : '';
-      return head+`<tr><td>${no}</td><td class="gs">${g.gw} × ${g.gh}</td><td>${esc(g.color)}</td>`
+      return head+`<tr><td>${no}</td><td class="gs">${g.gw}×${g.gh}</td><td>${esc(g.color)}</td>`
            + `<td style="text-align:center;font-weight:bold">${g.qty}${tag}</td></tr>`;
     }).join('');
     const totQty=arr.reduce((s,g)=>s+g.qty,0);
@@ -3381,7 +3381,7 @@ function buildGlassOrderHTML(glassAll, odByShip, lead){
       const ca={}; byColorG[color].forEach(g=>{ const k=g.gw+'×'+g.gh; ca[k]=(ca[k]||0)+g.qty; });
       const carr=Object.keys(ca).map(k=>{const p=k.split('×');return{gw:+p[0],gh:+p[1],qty:ca[k]};}).sort((a,b)=>(b.gh-a.gh)||(b.gw-a.gw));
       const ct=carr.reduce((s,x)=>s+x.qty,0);
-      const crows=carr.map((g,i)=>`<tr><td>${i+1}</td><td class="gs">${g.gw} × ${g.gh}</td><td style="text-align:center;font-weight:bold">${g.qty}</td></tr>`).join('');
+      const crows=carr.map((g,i)=>`<tr><td>${i+1}</td><td class="gs">${g.gw}×${g.gh}</td><td style="text-align:center;font-weight:bold">${g.qty}</td></tr>`).join('');
       const cKo=colorKo(color), cc=COLOR_CHIP[cKo];
       const cStyle=`display:inline-block;margin-bottom:5px;font-size:14px`
         + (cc?`;background:${cc[0]};border-color:${cc[1]};color:${cc[2]}`:'');
@@ -3479,11 +3479,11 @@ function generate(){
           let k,frame,sortH,set=false;
           if(segs){   // 마이다 합적 — EURO700과 동일한 세로 고정값(폭만 −6)
             const same=segs.every(p=>p.v===segs[0].v);
-            frame=same?`${fw} × ${segs[0].v}`:segs.map(p=>`${fw}×${p.v}`).join(' / ');
+            frame=same?`${fw}×${segs[0].v}`:segs.map(p=>`${fw}×${p.v}`).join(' / ');
             sortH=+segs[0].v||0; set=true; k='S|'+frame;
           }else{
             const fh=r.h?r.h-4:'';
-            frame=`${fw} × ${fh}`; sortH=+fh||0; k=frame;
+            frame=`${fw}×${fh}`; sortH=+fh||0; k=frame;
           }
           if(!agg[k]) agg[k]={frame, sortH, qty:0, set};
           agg[k].qty+=q;
@@ -3565,13 +3565,13 @@ function generate(){
             } else gt=c.glass.map(gl=>`${gl.gw}×${gl.gh}${gl.n>1?' ×'+gl.n:''}`).join(' / ');
             let frameTxt;
             if(sideSplit){
-              frameTxt=`${c.frameSegs[0].fw} × ${c.frameSegs[0].fh} ×${c.frameSegs[0].n}`;
+              frameTxt=`${c.frameSegs[0].fw}×${c.frameSegs[0].fh} ×${c.frameSegs[0].n}`;
             }else if(c.frameSegs){
               const allSame=c.frameSegs.every(s=>s.fh===c.frameSegs[0].fh);
               // (상·하 2) 표기는 뺐다 — 수량이 이미 'nSET(2n EA)'로 나와 겹친다 (2026-07-21)
-              frameTxt = allSame ? `${c.fw} × ${c.frameSegs[0].fh}`
+              frameTxt = allSame ? `${c.fw}×${c.frameSegs[0].fh}`
                                  : c.frameSegs.map(s=>`${s.fw}×${s.fh}`).join(' / ');
-            } else frameTxt=`${c.fw} × ${c.fh}`;
+            } else frameTxt=`${c.fw}×${c.fh}`;
             const isSet=!!c.frameSegs;
             const old=isOldFrame(r);
             const key=`${frameTxt}|${gt}|${c.note||''}|${r.isAS?'AS':''}|${old?'O':''}`;
@@ -4164,8 +4164,8 @@ function qcAddOne(code,w,h,lr,type){
   let frameTxt;
   if(c.frameSegs){
     const allSame=c.frameSegs.every(s=>s.fh===c.frameSegs[0].fh);
-    frameTxt = allSame ? `${c.fw} × ${c.frameSegs[0].fh} (상·하 2)` : c.frameSegs.map(s=>`${s.fw}×${s.fh}`).join(' / ');
-  } else frameTxt=`${c.fw} × ${c.fh}`;
+    frameTxt = allSame ? `${c.fw}×${c.frameSegs[0].fh} (상·하 2)` : c.frameSegs.map(s=>`${s.fw}×${s.fh}`).join(' / ');
+  } else frameTxt=`${c.fw}×${c.fh}`;
   QC_ROWS.push({code,type:tp,w:+w,h:+h,lr:lr||'',frameTxt,glass:c.glass,glassTxt,note:c.note||''});
   return true;
 }
@@ -4178,7 +4178,7 @@ function qcRender(){
     rows+=`<tr>
       <td>${i+1}</td>
       <td><b>${esc(r.code)}</b>${r.type==='HD'?' <span style="color:#7a3fb0">HD</span>':''}${r.lr?' ('+r.lr+')':''}</td>
-      <td>${r.w} × ${r.h}</td>
+      <td>${r.w}×${r.h}</td>
       <td class="qc-frame">${r.frameTxt}</td>
       <td class="qc-glass">${esc(r.glassTxt)}</td>
       <td class="qc-memo">${esc(r.note||'')}</td>
