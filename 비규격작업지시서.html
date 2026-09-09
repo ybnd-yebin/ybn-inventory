@@ -1268,14 +1268,15 @@ function libDoorDropGreenNotes(doc){
   }catch(e){}
   return n;
 }
-/* 도어 밑으로 내려가는 가로 치수줄 걷어내기 (사용자 요청 2026-09-09 — BD3U)
+/* 도어 몸통 **바깥으로 뻗은 검정 치수줄** 걷어내기 (사용자 요청 2026-09-09 — BD3U)
 
-   BD3U 는 맨 아래 큰 도어(380) 밑에 가로 치수줄이 한 벌 더 붙어 있습니다.
-   블록에서는 완성치수를 글자로 따로 적으므로 이 줄이 겹쳐 보이기만 합니다.
+   BD3U 는 큰 도어(380) 밑과 작은 도어(188) 오른쪽에 치수줄이 한 벌씩 더 붙어 있습니다.
+   블록에서는 완성치수를 글자로 따로 적으므로 이 줄들이 겹쳐 보이기만 합니다.
 
-   **도어 몸통 밑변보다 아래로 내려간 검정 요소만** 지웁니다. 밑변은 좌표를 손으로 적지 않고
-   **가장 아래 있는 긴 가로선**으로 찾습니다(도면마다 좌표가 달라서입니다).
-   옆(세로) 치수줄은 밑변 위에서 끝나므로 그대로 남습니다. */
+   **몸통 밑변보다 아래, 몸통 오른쪽 끝보다 오른쪽**으로 나간 검정 요소를 지웁니다.
+   경계는 좌표를 손으로 적지 않고 **가장 긴 가로선**(= 몸통 너비)에서 찾습니다.
+   ⚠ 다른 도면(B 의 142·110 처럼)은 오른쪽 치수가 꼭 필요하므로,
+      아래 CAD_DROP_BOTTOM_DIM 에 든 코드에만 적용합니다. */
 const CAD_DROP_BOTTOM_DIM = new Set(['BD3U']);
 function libDoorDropBottomDim(doc){
   let n=0;
@@ -1293,21 +1294,25 @@ function libDoorDropBottomDim(doc){
       const p=P(e); if(p.length<2) return;
       for(let i=0;i+1<p.length;i++){
         const a=p[i], b=p[i+1];
-        if(Math.abs(b[1]-a[1])<0.6) hor.push({len:Math.abs(b[0]-a[0]), y:Math.max(a[1],b[1])});
+        if(Math.abs(b[1]-a[1])<0.6)
+          hor.push({len:Math.abs(b[0]-a[0]), y:Math.max(a[1],b[1]), x:Math.max(a[0],b[0])});
       }
     });
     if(!hor.length) return 0;
     const longest=Math.max(...hor.map(h=>h.len));
     if(longest<50) return 0;               // 몸통을 못 찾으면 손대지 않는다
-    const bottom=Math.max(...hor.filter(h=>h.len>=longest*0.9).map(h=>h.y));
-    const LINE = bottom + 20;              // 밑변에서 조금 아래 — 여기보다 내려가면 치수줄로 본다
-    // ② 그 아래로 내려간 검정 선·글자를 지운다
+    const body=hor.filter(h=>h.len>=longest*0.9);
+    const bottom=Math.max(...body.map(h=>h.y));   // 몸통 밑변
+    const right =Math.max(...body.map(h=>h.x));   // 몸통 오른쪽 끝
+    const LINE_Y = bottom + 20;            // 여기보다 아래면 치수줄
+    const LINE_X = right  + 2;             // 여기보다 오른쪽이면 치수줄
+    // ② 몸통 밖(아래·오른쪽)으로 나간 검정 선·글자를 지운다
     doc.querySelectorAll('path,line,text').forEach(e=>{
       if(!black(e)) return;
-      let maxY=-1;
-      if(e.tagName==='text') maxY=+e.getAttribute('y')||-1;
-      else P(e).forEach(p=>{ maxY=Math.max(maxY,p[1]); });
-      if(maxY>LINE){ e.parentNode && e.parentNode.removeChild(e); n++; }
+      let maxY=-1, maxX=-1;
+      if(e.tagName==='text'){ maxY=+e.getAttribute('y')||-1; maxX=+e.getAttribute('x')||-1; }
+      else P(e).forEach(p=>{ maxY=Math.max(maxY,p[1]); maxX=Math.max(maxX,p[0]); });
+      if(maxY>LINE_Y || maxX>LINE_X){ e.parentNode && e.parentNode.removeChild(e); n++; }
     });
   }catch(e){}
   return n;
@@ -2619,6 +2624,18 @@ function setSheetsOf(c){
   if(!c || !c.frameSegs) return 1;
   return c.frameSegs.reduce((s,p)=>s+(p.n||1), 0) || 1;
 }
+/* 한 SET에 **그 사이즈의 유리가 몇 장** 들어가는지 — 사이즈별로 다릅니다.
+     BD2R : 380 이 두 장(상·하) → 380 은 2
+     BD3U : 185 가 두 장, 377 이 한 장 → 185 는 2, 377 은 1
+   유리 발주 리스트의 (n SET) 표기를 여기서 냅니다.
+   ⚠ 예전에는 `장수 ÷ 2` 로 적어, BD3U 377 이 **0.5SET** 이라는 이상한 값이 나왔습니다. */
+function glassPerSet(c){
+  const m={};
+  if(c && c.frameSegs) (c.glass||[]).forEach(g=>{
+    const k=g.gw+'×'+g.gh; m[k]=(m[k]||0)+(g.n||1);
+  });
+  return m;
+}
 /* 완성치수를 **줄바꿈으로** 나눈 목록 (사용자 요청 2026-09-09 — 슬래시로 잇지 말 것).
    조각 세로가 서로 다르면 조각마다 한 줄로 적고, 몇 개인지도 함께 적습니다. */
 function frameLinesOf(c){
@@ -3161,13 +3178,34 @@ function buildGlassOrderHTML(glassAll, odByShip, lead){
     const agg={};
     byShipG[ship].forEach(g=>{
       const key=`${g.gw}×${g.gh}|${g.color||''}`;
-      if(!agg[key]) agg[key]={gw:g.gw,gh:g.gh,color:g.color||'미지정',qty:0,set:false};
+      if(!agg[key]) agg[key]={gw:g.gw,gh:g.gh,color:g.color||'미지정',qty:0,set:false,perSet:g.perSet||1};
       agg[key].qty+=g.qty;
       if(g.isSet) agg[key].set=true;
     });
-    const arr=Object.values(agg).sort((a,b)=>(b.gh-a.gh)||(b.gw-a.gw));
+    /* 색상별로 모아 놓습니다 (사용자 요청 2026-09-09).
+       에토프가 외주로 나가므로 색이 섞여 있으면 갈라 적기가 번거롭습니다.
+       색 안에서는 예전처럼 세로 → 가로 차례입니다. */
+    const arr=Object.values(agg).sort((a,b)=>
+      String(a.color).localeCompare(String(b.color)) || (b.gh-a.gh) || (b.gw-a.gw));
     window.__glassOrder[ship]=arr;
-    const rows=arr.map((g,i)=>`<tr><td>${i+1}</td><td class="gs">${g.gw} × ${g.gh}</td><td>${esc(g.color)}</td><td style="text-align:center;font-weight:bold">${g.qty}${g.set?` <span class="set-tag">(${g.qty/2}SET)</span>`:''}</td></tr>`).join('');
+    let prevColor=null, no=0;
+    const rows=arr.map(g=>{
+      let head='';
+      if(g.color!==prevColor){                      // 색이 바뀌면 그 색의 머리줄을 끼웁니다
+        const sub=arr.filter(x=>x.color===g.color).reduce((s,x)=>s+x.qty,0);
+        const cKo=colorKo(g.color), cc=COLOR_CHIP[cKo];
+        const st=cc?`background:${cc[0]};color:${cc[2]}`:'background:#eef1f5;color:#333';
+        head=`<tr class="gcolor-head"><td colspan="4" style="${st};font-weight:800;padding:6px 8px">`
+           + `${esc(cKo||g.color)} · ${sub}장</td></tr>`;   // 머리줄은 한글 색이름으로
+        prevColor=g.color;
+      }
+      no++;
+      // (n SET)은 그 사이즈가 한 SET에 몇 장 들어가는지로 나눕니다 — 예전의 ÷2 는 틀렸습니다
+      const setN = g.set && g.perSet ? (g.qty/g.perSet) : 0;
+      const tag  = (setN && Number.isFinite(setN)) ? ` <span class="set-tag">(${+setN.toFixed(2)}SET)</span>` : '';
+      return head+`<tr><td>${no}</td><td class="gs">${g.gw} × ${g.gh}</td><td>${esc(g.color)}</td>`
+           + `<td style="text-align:center;font-weight:bold">${g.qty}${tag}</td></tr>`;
+    }).join('');
     const totQty=arr.reduce((s,g)=>s+g.qty,0);
     // 인쇄실용: 색상별로 모은 유리 사이즈 표 (색깔 기준 · 사이즈만)
     const byColorG={}; byShipG[ship].forEach(g=>{ (byColorG[g.color||'미지정']=byColorG[g.color||'미지정']||[]).push(g); });
@@ -3186,7 +3224,7 @@ function buildGlassOrderHTML(glassAll, odByShip, lead){
     orderHTML+=`<div class="page-block"><div class="order-sheet">
       <h2>유리 발주 리스트 — 납품요청 ${fmtDate(ship)}</h2>
       <div style="color:#111;font-size:13px;margin:-4px 0 4px">발주일 : ${fmtDate(odByShip[ship]||bizBefore(ship,lead))}</div>
-      <div class="order-date">${arr.length}종 · 총 ${totQty}장 (동일 사이즈 합산)</div>
+      <div class="order-date">${arr.length}종 · 총 ${totQty}장 (색상별로 나눔 · 같은 색·같은 사이즈만 합산)</div>
       <div class="order-tools">
         <button onclick="copyGlassSizes('${ship}')">📋 유리 사이즈만 복사(세로열)</button>
         <button onclick="copyGlassTable('${ship}')">📋 표 전체 복사(엑셀)</button>
@@ -3219,8 +3257,10 @@ function glassCollect(){
     rows.forEach(r=>{
       if(isHPMColor(r.color)) return;              // HPM(베일)은 유리 발주 대상이 아니다
       const c=calc(r);
+      const per=glassPerSet(c);   // 한 SET에 그 사이즈가 몇 장 들어가는지
       (c.glass||[]).forEach(gl=>glassAll.push({ship, code:r.code, type:r.type, label:gl.label,
-        gw:gl.gw, gh:gl.gh, color:r.color, qty:(gl.n||1)*(r.qty||1), isAS:r.isAS, isSet:gl.isSet}));
+        gw:gl.gw, gh:gl.gh, color:r.color, qty:(gl.n||1)*(r.qty||1), isAS:r.isAS, isSet:gl.isSet,
+        perSet:per[gl.gw+'×'+gl.gh]||1}));
     });
   });
   return {glassAll, odByShip, lead};
@@ -3371,7 +3411,8 @@ function generate(){
             if(!agg[key]) agg[key]={frameTxt,gt,isSet,note:c.note||'',isAS:r.isAS,old,glass:c.glass,L:0,R:0,none:0};
             const a=agg[key];
             if(r.lr==='L') a.L+=r.qty; else if(r.lr==='R') a.R+=r.qty; else a.none+=r.qty;
-            if(!colorIsHPM) c.glass.forEach(gl=>glassAll.push({ship,code:r.code,type:r.type,label:gl.label,gw:gl.gw,gh:gl.gh,color:r.color,qty:(gl.n||1)*r.qty,isAS:r.isAS,isSet:gl.isSet}));
+            if(!colorIsHPM){ const per=glassPerSet(c);
+              c.glass.forEach(gl=>glassAll.push({ship,code:r.code,type:r.type,label:gl.label,gw:gl.gw,gh:gl.gh,color:r.color,qty:(gl.n||1)*r.qty,isAS:r.isAS,isSet:gl.isSet,perSet:per[gl.gw+'×'+gl.gh]||1})); }
           });
           colorAggs.push({color, colorIsHPM, aggList:Object.values(agg)});
         });
