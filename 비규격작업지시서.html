@@ -328,8 +328,10 @@
     <div class="status" id="status"></div>
 
     <div class="meta-bar">
-      <label>업체명<input id="company" value="와이비앤디" /></label>
-      <label>현장명<input id="site" placeholder="현장명 입력" /></label>
+      <!-- 업체명은 '한샘 비규격'이 기본입니다(사용자 확정 2026-09-09).
+           현장명은 비워 둡니다 — 적을 것이 있을 때만 손으로 채웁니다. -->
+      <label>업체명<input id="company" value="한샘 비규격" /></label>
+      <label>현장명<input id="site" placeholder="(비워 두면 공란)" /></label>
       <label>출고 리드(영업일)<input id="leadDays" type="number" value="2" style="width:70px" /></label>
     </div>
 
@@ -368,7 +370,7 @@
   <!-- ══ 탭: 유리발주 ══ -->
   <div id="tab-glass" class="tab-panel">
     <div id="orderForm" class="order-form">
-      <div class="of-title">📦 유리 발주서 <span class="of-sub">아래 유리 사이즈로 발주서를 만듭니다 (색상 무시 · 같은 사이즈 합산)</span></div>
+      <div class="of-title">📦 유리 발주서 <span class="of-sub">아래 유리 사이즈로 발주서를 만듭니다 (색상별로 나눔 · 같은 색·같은 사이즈만 합산)</span></div>
       <div class="meta-bar">
         <label>발주처<select id="od-vendor" onchange="odVendorChanged()"></select></label>
         <label>종류 (두께·비고 자동)<select id="od-type" onchange="odTypeChanged()"></select></label>
@@ -786,7 +788,9 @@ const DOOR_LIB = {
 // 도면 별칭 — 제 도면이 없는 코드를 다른 코드의 도면으로 돌린다.
 //   BC1A·BC1B는 B의 캐드 도면을 같이 쓴다(사용자 확정 2026-09-08 · CLAUDE.md 12-2-1).
 //   전용 도면을 새로 만들지 말 것.
-const DOOR_ALIAS = { W2HBT:'M', BC1A:'B', BC1B:'B' };
+//   MS(EURO500)는 M 의 캐드 도면을 씁니다 (사용자 확정 2026-09-09).
+//   ⚠ MS 는 RULES 에 없습니다 — 계산은 EURO500 기본값으로 흘러갑니다. 확인대기 B11 참고.
+const DOOR_ALIAS = { W2HBT:'M', BC1A:'B', BC1B:'B', MS:'M' };
 function libDoor(code, type){
   const arr = (typeof DOOR_LIB!=='undefined' && DOOR_LIB.drawings) ? DOOR_LIB.drawings : [];
   const want = (type==='HD') ? 'HD' : 'OB';
@@ -1209,6 +1213,42 @@ function libDoorFixSeriesDims(r, c, doc){
   }
 }
 // 라이브러리 SVG의 X 노드를 값으로 바꾼 SVG 반환. 값이 없으면 원본 그대로.
+/* 캐드 초록 주석글자 걷어내기 (사용자 요청 2026-09-09)
+
+   캐드 원본에 초록(#00a000)으로 적힌 주석이 있습니다 —
+   `ø20X9.5조절케이싱보링(부착)` 같은 것입니다. 도면 바깥으로 길게 뻗어 나가
+   **오른쪽 치수·수량 글자와 겹쳐 읽기 어렵게** 만듭니다(BD3U 에서 확인).
+
+   도면 데이터(DOOR_LIB)를 직접 지우지 않고 **그릴 때 걸러냅니다.** 이유:
+   캐드에서 도면을 다시 뽑아도 자동으로 걸러지고, 되살리려면 이 함수만 비우면 됩니다.
+   (11-2·12-8 — 도면은 DXF 원본에서 다시 뽑는 것이 원칙입니다)
+
+   지금 초록 주석이 있는 도면: BD3U(OB·HD) · WTARG · BTARG.
+   뒤 둘은 RULES 에 없어 화면에 안 나옵니다(11-2). 실제로 보이는 건 BD3U 뿐입니다. */
+const CAD_NOTE_GREEN = '#00a000';   // 주석 글자 · 보링 표시
+const CAD_LEAD_TEAL  = '#00a0a0';   // 지시선 · 보링 십자표
+function libDoorDropGreenNotes(doc){
+  let n=0;
+  try{
+    const isGreen = e => ((e.getAttribute('fill')||'')+(e.getAttribute('stroke')||''))
+                          .toLowerCase().includes(CAD_NOTE_GREEN);
+    /* 초록 글자가 없는 도면은 아예 손대지 않습니다 — 청록은 BD2R·BDI1R·TH 에도 쓰이므로
+       엉뚱한 도면을 건드리면 안 됩니다. */
+    if(![...doc.querySelectorAll('text')].some(isGreen)) return 0;
+
+    /* ① 초록으로 그린 것을 **글자·선·표시 모두** 지웁니다 (사용자 확정 2026-09-09).
+          `ø20X9.5조절케이싱보링(부착)` 주석과 그 보링 표시입니다. */
+    [...doc.querySelectorAll('*')].filter(isGreen)
+      .forEach(e=>{ e.parentNode && e.parentNode.removeChild(e); n++; });
+
+    /* ② 그 주석을 가리키던 **청록 지시선**도 함께 지웁니다.
+          안 지우면 아무것도 안 가리키는 선이 남습니다. */
+    [...doc.querySelectorAll('*')]
+      .filter(e=>(e.getAttribute('stroke')||'').toLowerCase()===CAD_LEAD_TEAL)
+      .forEach(e=>{ e.parentNode && e.parentNode.removeChild(e); n++; });
+  }catch(e){}
+  return n;
+}
 function libDoorFilled(r){
   if(CAD_LIB_HOLD.has(r.code)) return null;   // 보류 코드 → 파라메트릭 폴백(cadDoorSize가 doorSVG로 받는다)
   // EURO500은 제 도면이 없다 → EURO700 **OB** 도면을 같이 쓴다 (사용자 확정 2026-09-04)
@@ -1225,6 +1265,7 @@ function libDoorFilled(r){
     // 체인을 모르면(구간 밖 등) 원본 그대로 — 조용히 틀린 그림을 내보내지 않는다
   }
   const doc=new DOMParser().parseFromString(d.svg,'image/svg+xml');
+  libDoorDropGreenNotes(doc);               // 캐드 초록 주석글자 걷어내기 (BD3U 등)
   const closed=libDoorCloseFrame(doc);      // 빠진 오른쪽 테두리 채우기 (BD2R OB 등)
   libDoorFixSeriesDims(r, c, doc);          // 계열별 고정치수 맞추기 (BHBU HD 상부 142)
   const hand=libDoorDrawHandle(r, doc);     // 손잡이 그리기 (BHBU — HD ⊔ 하나 / OB 바)
@@ -2487,7 +2528,12 @@ function cadSheetSVG(header, banner){
 /* 좌우(L/R)를 나눠 세는 코드 — 같은 사이즈라도 L·R 수량을 합치지 않는다.
    조립에서 보링 위치가 좌우로 갈리므로 합쳐 두면 몇 장씩 만들지 알 수 없다.
    코드를 더하면 그 코드도 좌우로 갈린다. (사용자 요청 2026-09-04) */
-const LR_SPLIT_CODES = new Set(['WHBT']);
+/* 좌우(L/R)를 나눠 세는 코드. 같은 사이즈라도 L·R 을 합치지 않고 따로 셉니다.
+   여기 코드를 더하면 그 코드도 좌우로 갈립니다.
+     WHBT — 2026-09-04 · B — 2026-09-09(사용자: "B(HD)는 좌우 구분 있어")
+   ⚠ RULES 에 `lr:true` 인 코드가 더 있습니다(BC1A·BC1B·WTA·WTAP·BNDB2N·TCP1D·TAP1D 등).
+     한꺼번에 켜면 표기가 크게 바뀌므로, 사장님이 짚어 주신 코드만 하나씩 넣습니다. */
+const LR_SPLIT_CODES = new Set(['WHBT','B']);
 // 완성치수(프레임) 글자 — 합적(마이다)이면 분할 세로를 붙여 적는다. 작업지시서·프레임탭이 같이 쓴다.
 function frameTextOf(c){
   if(c.frameSegs){
@@ -2495,6 +2541,34 @@ function frameTextOf(c){
     return same ? `${c.fw} × ${c.frameSegs[0].fh}` : c.frameSegs.map(s=>`${s.fw}×${s.fh}`).join(' / ');
   }
   return `${c.fw} × ${c.fh}`;
+}
+
+/* 합적(마이다) 한 SET에 실제로 몇 장 들어가는가 — **조각마다 개수가 다릅니다.**
+     BD2R : 380 ×1 + 380 ×1        = 2장
+     BD3U : 188 ×2 + 380 ×1        = 3장   ← 예전에 2장으로 잘못 셌습니다
+   예전에는 `qty*2` 로 어디서나 2장이라 적었습니다. 조각의 `n` 을 더해 셉니다.
+   **이 함수 한 곳에서만 셉니다** — 여러 곳에 2를 적어 두면 반드시 어긋납니다(12-4와 같은 이유). */
+function setSheetsOf(c){
+  if(!c || !c.frameSegs) return 1;
+  return c.frameSegs.reduce((s,p)=>s+(p.n||1), 0) || 1;
+}
+/* 완성치수를 **줄바꿈으로** 나눈 목록 (사용자 요청 2026-09-09 — 슬래시로 잇지 말 것).
+   조각 세로가 서로 다르면 조각마다 한 줄로 적고, 몇 개인지도 함께 적습니다. */
+function frameLinesOf(c){
+  if(!c.frameSegs) return [`${c.fw} × ${c.fh}`];
+  const same=c.frameSegs.every(s=>s.fh===c.frameSegs[0].fh);
+  if(same) return [`${c.fw} × ${c.frameSegs[0].fh}`];
+  return c.frameSegs.map(s=>`${s.fw}×${s.fh} ×${s.n||1}`);
+}
+/* 재단치수(유리)도 같은 방식으로 줄바꿈. */
+function glassLinesOf(c){
+  const gs=c.glass||[];
+  if(!gs.length) return [];                                   // EURO500 — 프레임만
+  if(c.frameSegs){
+    const same=gs.every(g=>g.gw===gs[0].gw && g.gh===gs[0].gh);
+    return same ? [`${gs[0].gw}×${gs[0].gh}`] : gs.map(g=>`${g.gw}×${g.gh} ×${g.n||1}`);
+  }
+  return gs.map(g=>`${g.gw}×${g.gh}${(g.n||1)>1?' ×'+g.n:''}`);
 }
 // 한 블록(코드묶음)의 렌더용 행: 코드 / 색상 / (완성치수=수량) / 재단치수(빨강)
 function cadBlockRows(list){
@@ -2505,34 +2579,37 @@ function cadBlockRows(list){
     const agg={};
     byColor[color].forEach(r=>{
       const c=calc(r);
-      let frameTxt=frameTextOf(c), glassTxt;
-      const gs=c.glass||[];
-      if(!gs.length) glassTxt='';                       // EURO500 — 프레임만, 유리 없음
-      else if(c.frameSegs){ const sg=gs.every(g=>g.gw===gs[0].gw&&g.gh===gs[0].gh); glassTxt=sg?`${gs[0].gw}×${gs[0].gh}`:gs.map(g=>`${g.gw}×${g.gh}`).join(' / '); }
-      else glassTxt=gs.map(g=>`${g.gw}×${g.gh}${g.n>1?' ×'+g.n:''}`).join(' / ');
+      // 완성치수·재단치수를 **줄 목록**으로 받습니다(슬래시로 잇지 않습니다 — 2026-09-09).
+      const frameLines=frameLinesOf(c), glassLines=glassLinesOf(c);
+      const frameTxt=frameLines.join('¶'), glassTxt=glassLines.join('¶');   // 묶는 열쇠로만 씀
       const isSet=!!c.frameSegs;
+      const setSheets=setSheetsOf(c);                   // 한 SET 장수 (BD3U 3장 · BD2R 2장)
       // 좌우 짝 합적(W2HBT) — 한 장을 반으로 갈라 L 1장 + R 1장을 만든다. calc가 side:true로 표시한다.
       const isSide=!!(c.frameSegs && c.frameSegs[0] && c.frameSegs[0].side);
       // 좌우를 나눠 세는 코드 — 같은 사이즈라도 L·R을 합치지 않고 따로 센다.
       //   여기 코드를 더하면 그 코드도 좌우로 갈린다. (사용자 요청 2026-09-04: WHBT)
       const side=LR_SPLIT_CODES.has(r.code) ? String(r.lr||'').trim().toUpperCase() : '';
       const key=frameTxt+'|'+glassTxt;
-      if(!agg[key]) agg[key]={frameTxt, glassTxt, isSet, isSide, qty:0, lr:{L:0,R:0,'':0}};
+      if(!agg[key]) agg[key]={frameLines, glassLines, isSet, isSide, setSheets, qty:0, lr:{L:0,R:0,'':0}};
       agg[key].qty+=(r.qty||1);
       agg[key].lr[(side==='L'||side==='R')?side:''] += (r.qty||1);
     });
     Object.values(agg).forEach(a=>{
       let qt;
       if(a.isSide)      qt=`${a.qty}SET(L${a.qty}/R${a.qty})`;      // 한 SET = L1 + R1
-      else if(a.isSet)  qt=`${a.qty}SET(${a.qty*2}EA)`;
+      else if(a.isSet)  qt=`${a.qty}SET(${a.qty*a.setSheets}EA)`;    // 장수는 조각 n 을 더해 셈 (BD3U 3장)
       else if(a.lr.L||a.lr.R){                                       // 좌우 구분 코드
         const p=[]; if(a.lr.L) p.push(`L${a.lr.L}`); if(a.lr.R) p.push(`R${a.lr.R}`);
         if(a.lr['']) p.push(`미표기${a.lr['']}`);                    // 좌우가 안 적힌 건 숨기지 않고 드러낸다
         qt=`${p.join('/')} (${a.qty}EA)`;
       }
       else              qt=`${a.qty}EA`;
-      rows.push({k:'frame', text:`${a.frameTxt} = ${qt}`});
-      if(a.glassTxt) rows.push({k:'glass', text:a.glassTxt});   // EURO500은 유리가 없어 재단치수 줄을 안 만든다
+      // 완성치수는 줄마다 한 행. 수량은 **마지막 줄 뒤에** 붙입니다.
+      a.frameLines.forEach((ln,i)=>{
+        const last = i===a.frameLines.length-1;
+        rows.push({k:'frame', text: last ? `${ln} = ${qt}` : ln});
+      });
+      a.glassLines.forEach(ln=>rows.push({k:'glass', text:ln}));  // EURO500은 유리가 없어 줄이 안 생긴다
     });
   });
   return rows;
@@ -2827,14 +2904,24 @@ function cadPageSVG(header, banner, pageBlocks){
     const dh = b.hasDrawing ? cadDoorSpan(b, lh) : 0;
     total += Math.max(dh, cadTextH(b.rowsSlice||b.rows, lh)) + GAP;
   });
-  const drop = Math.max(0, Math.min((AREA-total)/2, CENTER_MAX));
+  /* 블록이 두세 개뿐인 장은 서로 바짝 붙어 보였습니다(사용자 지적 2026-09-09).
+     **남는 자리를 블록 사이에 나눠** 벌립니다.
+     ⚠ 쪽 나누기(cadSplitToPages)는 CAD_BLOCK_GAP 으로만 셉니다. 여기서 더 벌리는 폭은
+        **이미 비어 있다고 계산된 자리(slack) 안에서만** 씁니다. 그래서 박스 아래선을
+        넘을 수 없습니다. (12-4 — 여백을 두 곳에 따로 적어 어긋났던 사고 때문입니다) */
+  const GAP_EXTRA_MAX = 22;                 // 한 틈에 더 벌릴 수 있는 최대 mm
+  const nGap  = Math.max(0, pageBlocks.length-1);
+  const slack = Math.max(0, AREA-total);
+  const gapExtra = nGap ? Math.min(slack*0.6/nGap, GAP_EXTRA_MAX) : 0;
+  const drop = Math.max(0, Math.min((slack-gapExtra*nGap)/2, CENTER_MAX));
   let y=(297-215.10)+3+drop, inner='';      // 배치영역 상단(SVG y 81.90)부터 + 여유분
   let curBanner = pageBlocks[0] ? pageBlocks[0].banner : '';
   pageBlocks.forEach((b,i)=>{
     if(i>0 && b.banner!==curBanner){        // HD→OB 등 타입 전환 → 중간 헤더 밴드
       y+=2; inner+=cadMidBanner(b.banner, y); y+=CAD_BANNER_H; curBanner=b.banner;
     }
-    const r=cadBlockSVG(b, CAD_BLOCK_X, y); inner+=r.svg; y+=r.height+CAD_BLOCK_GAP;
+    const r=cadBlockSVG(b, CAD_BLOCK_X, y); inner+=r.svg;
+    y += r.height + CAD_BLOCK_GAP + (i < pageBlocks.length-1 ? gapExtra : 0);
   });
   return base.replace('</svg>', inner+'</svg>');
 }
@@ -2866,7 +2953,7 @@ function frmBuild(){
       const isSet=!!c.frameSegs;
       const isSide=!!(c.frameSegs && c.frameSegs[0] && c.frameSegs[0].side);
       const key=`${type}│${r.code}│${frameTxt}`;
-      if(!agg[key]) agg[key]={type, code:r.code, frameTxt, isSet, isSide, qty:0, L:0, R:0, N:0, colors:new Set()};
+      if(!agg[key]) agg[key]={type, code:r.code, frameTxt, isSet, isSide, setSheets:setSheetsOf(c), qty:0, L:0, R:0, N:0, colors:new Set()};
       const a=agg[key];
       const q=r.qty||1;
       a.qty+=q;
@@ -2878,13 +2965,14 @@ function frmBuild(){
     const list=Object.values(agg).sort((x,y)=>
       (ORD[x.type]-ORD[y.type]) || x.code.localeCompare(y.code) || x.frameTxt.localeCompare(y.frameTxt));
     // 장수 = SET이면 ×2 (한 SET에 2장)
-    list.forEach(a=>{ a.sheets = a.isSet ? a.qty*2 : a.qty; });
+    // 장수 = SET이면 조각 n 을 더한 만큼 (BD3U 3장 · BD2R 2장). setSheetsOf 한 곳에서만 셉니다.
+    list.forEach(a=>{ a.sheets = a.isSet ? a.qty*(a.setSheets||2) : a.qty; });
     return {ship, od, isAS, list, total:list.reduce((s,a)=>s+a.sheets,0)};
   });
 }
 function frmCompo(a){
   if(a.isSide) return `${a.qty}SET · L${a.qty}/R${a.qty}`;
-  if(a.isSet)  return `${a.qty}SET × 2장`;
+  if(a.isSet)  return `${a.qty}SET × ${a.setSheets||2}장`;
   const p=[]; if(a.L) p.push(`L${a.L}`); if(a.R) p.push(`R${a.R}`);
   if(a.N) p.push(p.length?`미표기${a.N}`:'');
   return p.filter(Boolean).join(' / ');
@@ -2953,7 +3041,8 @@ function cadGenerate(){
     const od=(rowsAll.filter(r=>r.po).map(r=>r.po).sort()[0])||bizBefore(ship,lead)||'';
     // ship = 납품요청일(D-2) · deliv = 요청일 + 2영업일 (실제 납품일) · CLAUDE.md 5번
     const header={od:fmtDate(od), ship:fmtDate(ship), deliv:fmtDate(warehouseOutDate(ship)),
-                  company:company||'와이비앤디', site:site||'한샘 비규격'};
+                  // 업체명 기본 '한샘 비규격' · 현장명은 안 적으면 공란으로 둡니다 (사용자 확정 2026-09-09)
+                  company:company||'한샘 비규격', site:site||''};
     // 계열 묶음: EURO700 HD / EURO700 OB / EURO500. EURO500은 도면을 OB 것으로 쓰되 띠는 따로 붙인다.
     const byType={HD:[],OB:[],E500:[]};
     rowsAll.forEach(r=>byType[isEuro500(r)?'E500':(r.type==='HD'?'HD':'OB')].push(r));
@@ -3591,21 +3680,27 @@ function odTypeChanged(){
   document.getElementById('od-bigo').value=p.bigo||'';
   document.getElementById('od-type-hint').textContent=`${p.thick||''} · 품명 "${p.pname||'-'}" · 비고 "${p.bigo||'-'}"`;
 }
-// 유리 사이즈 집계 (색상·출고일 무시, 같은 가로×세로 합산). generate가 만든 window.__glassOrder 사용.
+/* 유리 사이즈 집계 — **색상별로 나눠 셉니다** (사용자 요청 2026-09-09).
+   에토프는 외주로 나가므로 같은 사이즈라도 색이 다르면 따로 발주해야 합니다.
+   출고일은 그대로 무시하고 합칩니다. generate가 만든 window.__glassOrder 를 씁니다. */
 function odGlassItems(){
   const src=window.__glassOrder||{};
   const agg={};
   Object.keys(src).forEach(ship=>{ (src[ship]||[]).forEach(g=>{
-    const key=`${g.gw}×${g.gh}`;
-    if(!agg[key]) agg[key]={w:+g.gw||0, h:+g.gh||0, qty:0};
+    const col=colorKo(g.color||'')||'미지정';
+    const key=`${g.gw}×${g.gh}|${col}`;
+    if(!agg[key]) agg[key]={w:+g.gw||0, h:+g.gh||0, color:col, qty:0};
     agg[key].qty+=g.qty;
   }); });
-  return Object.values(agg).sort((a,b)=>(b.h-a.h)||(b.w-a.w));
+  // 색상끼리 모아 보이게 색 → 세로 → 가로 차례로 늘어놓습니다.
+  return Object.values(agg).sort((a,b)=>
+    String(a.color).localeCompare(String(b.color)) || (b.h-a.h) || (b.w-a.w));
 }
 function odCollect(){
   const p=odCurPreset();
   const bigo=(document.getElementById('od-bigo').value||'').trim();
-  const items=odGlassItems().map(g=>({w:g.w, h:g.h, qty:g.qty, pname:(p.pname||'').trim(), bigo}));
+  // 색상을 함께 실어 보냅니다 — 발주서 비고에 찍혀, 에토프처럼 외주로 갈라야 할 때 구분됩니다.
+  const items=odGlassItems().map(g=>({w:g.w, h:g.h, qty:g.qty, color:g.color||'', pname:(p.pname||'').trim(), bigo}));
   return {
     vendor:document.getElementById('od-vendor').value,
     cat:'유리', type:p.type||'', thick:p.thick||'', title:p.title||'유리 발주',
@@ -3635,7 +3730,9 @@ function odBuildAOA(o){
   rows.push(hdr);
   let tot=0;
   o.items.forEach((it,i)=>{ tot+=it.qty;
-    const r=['',i+1,it.pname,'',(it.w&&it.h)?`${it.w}*${it.h}`:'','','',it.qty,o.due,it.bigo];
+    // 비고에 색상을 앞세워 적습니다(색상 · 사장님이 적은 비고). 품명은 건드리지 않습니다.
+    const bg=[it.color&&it.color!=='미지정'?it.color:'', it.bigo].filter(Boolean).join(' · ');
+    const r=['',i+1,it.pname,'',(it.w&&it.h)?`${it.w}*${it.h}`:'','','',it.qty,o.due,bg];
     if(hasClient) r.push(o.client);
     rows.push(r);
   });
