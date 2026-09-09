@@ -342,11 +342,11 @@
     <button data-tab="snap">예시 파일 넣기</button>
     <button class="active" data-tab="board">발주 예상</button>
     <button data-tab="month">2주 물량</button>
+    <button data-tab="match">납품서 대조</button>
     <button class="tab-more" id="btnMoreTabs" title="가끔 보는 화면들">⋯ 더보기</button>
     <button data-tab="warn" class="tab-extra">조기경보</button>
     <button data-tab="hit" class="tab-extra">헛스윙 분석</button>
-    <button data-tab="match" class="tab-extra">납품서 대조</button>
-    <button data-tab="data" class="tab-extra">데이터·백업</button>
+        <button data-tab="data" class="tab-extra">데이터·백업</button>
   </nav>
 
   <!-- ── 발주 예상 ───────────────────────────── -->
@@ -448,9 +448,11 @@
   <!-- ── 스냅샷 입력 ───────────────────────────── -->
   <section class="panel" id="panel-match">
     <div class="chipbar" id="matchModeChips" style="margin-bottom:14px">
-      <button class="chip active" data-mode="forecast">📅 발주일 기준 대조 (직원 예고편)</button>
+      <!-- 이 탭의 이름이 '납품서 대조'인데, 납품서를 넣는 화면은 세 번째 모드였다.
+           탭을 열어도 넣을 자리가 안 보여 "그런 탭이 없나" 소리가 나온다. 첫 번째로 옮긴다. -->
+      <button class="chip active" data-mode="reconcile">📋 예시 vs 실물 대조 <span class="tag" style="opacity:.75">납품서 PDF</span></button>
+      <button class="chip" data-mode="forecast">📅 발주일 기준 대조 (직원 예고편)</button>
       <button class="chip" data-mode="basacc">🔵 바스 당일확정 누적</button>
-      <button class="chip" data-mode="reconcile">📋 예시 vs 실물 대조</button>
     </div>
 
     <!-- ===== 바스 당일확정 누적 모드 ===== -->
@@ -2446,7 +2448,7 @@ function exportBasBridge(){
 }
 
 // 모드 전환
-let MATCH_MODE = 'forecast';
+let MATCH_MODE = 'reconcile';   // 이 탭의 본래 일 — 납품서 넣고 대조하기
 function switchMatchMode(mode){
   MATCH_MODE = mode;
   document.getElementById('matchForecastWrap').style.display  = (mode==='forecast')?'':'none';
@@ -2639,6 +2641,12 @@ syncBasBridge();   // 이미 쌓아둔 스냅샷도 바로 넘어가도록, 열�
 if(LEAD_FIXED_ON_LOAD > 0){
   setTimeout(()=>toast(`리드타임 규칙이 바뀌어 저장된 예시 ${LEAD_FIXED_ON_LOAD}행을 새 값으로 맞췄어요`), 600);
 }
+
+/* 대조 탭의 첫 모드를 실제로 켠다.
+   모드별 영역은 HTML에 display:none 으로 박혀 있고, 그걸 푸는 건 switchMatchMode 뿐이다.
+   예전엔 이 함수가 '칩을 눌렀을 때만' 불려서, 첫 모드 칩은 켜져 보이는데
+   화면은 다른 모드가 떠 있었다. 처음 한 번은 여기서 맞춰 준다. */
+switchMatchMode(MATCH_MODE);
 </script>
 </body>
 </html>
