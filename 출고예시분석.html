@@ -216,6 +216,8 @@
             padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
   .m-tbl td{padding:8px 10px;border-bottom:1px solid #eee;color:var(--ink)}
   .m-tbl td.n{text-align:right;font-variant-numeric:tabular-nums}
+  /* 치수 — 이게 안 보이면 어느 물건인지 못 가린다. 이름보다 또렷하게. */
+  .m-tbl td.sz{font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap}
   .m-tbl .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .m-tbl tr.red td:first-child{box-shadow:inset 3px 0 0 #c0392b}
   .m-tbl tr.orange td:first-child{box-shadow:inset 3px 0 0 #d35400}
@@ -2036,6 +2038,18 @@ function buildMatchRows(orderDate){
 const MATCH_LABEL = {exact:'일치', swing:'헛스윙', unforecast:'미예고',
                      early:'조기발주', diff:'수량차이', resize:'사이즈변경 의심', as:'AS 출고'};
 const MATCH_TONE  = {swing:'red', unforecast:'orange'};   // 색 있는 건 이 둘뿐
+
+/* 품목 이름에서 치수 꼬리를 뗀다.
+   `… 비규격 (400*0*516*0 M) 400X0X516X0` 처럼 같은 치수가 두 번 붙어 오는데,
+   말줄임이 하필 그 자리를 잘라 정작 치수가 안 보였다. 치수는 옆 칸에 따로 세우고
+   이름에서는 뺀다 — 이름 칸이 짧아져 제품이 무엇인지가 먼저 읽힌다. */
+function trimName(name){
+  return String(name||'')
+    .replace(/\s*비규격\s*\([^)]*\)?/g,'')      // 비규격(...) — 닫는 괄호가 잘려도 지운다
+    .replace(/\s*\d+X\d+X\d+X\d+\S*/ig,'')      // 400X0X516X0 꼴 꼬리
+    .replace(/[\s(),·-]+$/,'')                  // 괄호를 떼고 남은 짝 잃은 부호
+    .replace(/\s{2,}/g,' ').trim() || name;
+}
 let MATCH_SEL = new Set(['swing','unforecast']);          // 처음엔 문제만
 
 /* 사이즈변경 의심 — 같은 코드·같은 가로·세로만 다른 짝.
@@ -2129,15 +2143,24 @@ function renderMatch(){
   const order=['swing','unforecast','resize','diff','early','exact','as'];
   const counts={}; for(const s of order) counts[s]=0;
   for(const r of main) counts[r.status]=(counts[r.status]||0)+qtyOf(r);
-  chipEl.innerHTML = order.filter(s=>counts[s]>0 || s==='swing' || s==='unforecast').map(s=>
-    `<button class="m-chip ${MATCH_TONE[s]||''} ${MATCH_SEL.has(s)?'on':''}" data-st="${s}">${MATCH_LABEL[s]}<span class="n">${counts[s]||0}</span></button>`
-  ).join('');
-  chipEl.querySelectorAll('.m-chip').forEach(c=>c.onclick=()=>{
+  const shown = order.filter(s=>counts[s]>0 || s==='swing' || s==='unforecast');
+  /* 칩이 눌리는 것인 줄 모르시는 분이 많다. '전부 보기 ↔ 문제만 보기'를 한 단추로 둔다.
+     전부 보기 = 일치까지 포함해 모델별 예시·실물 수량을 통째로 훑는 상태. */
+  const allOn = shown.every(s=>MATCH_SEL.has(s));
+  chipEl.innerHTML = shown.map(s=>
+      `<button class="m-chip ${MATCH_TONE[s]||''} ${MATCH_SEL.has(s)?'on':''}" data-st="${s}">${MATCH_LABEL[s]}<span class="n">${counts[s]||0}</span></button>`
+    ).join('')
+    + `<button class="m-chip" id="mAllToggle" style="margin-left:auto">${allOn?'문제만 보기':'전부 보기'}</button>`;
+  chipEl.querySelectorAll('.m-chip[data-st]').forEach(c=>c.onclick=()=>{
     const s=c.dataset.st;
     if(MATCH_SEL.has(s)) MATCH_SEL.delete(s); else MATCH_SEL.add(s);
     if(!MATCH_SEL.size) MATCH_SEL.add(s);      // 최소 하나는 켜 둔다
     renderMatch();
   });
+  document.getElementById('mAllToggle').onclick=()=>{
+    MATCH_SEL = allOn ? new Set(['swing','unforecast']) : new Set(shown);
+    renderMatch();
+  };
 
   // ── 3층 목록 — 고른 분류만, 칸 다섯 개
   const show = main.filter(r=>MATCH_SEL.has(r.status)).sort((a,b)=>qtyOf(b)-qtyOf(a));
@@ -2145,11 +2168,10 @@ function renderMatch(){
     body.innerHTML = emptyMsg('고른 분류에 해당하는 품목이 없어요','위 칩을 눌러 다른 분류를 보세요.');
   }else{
     body.innerHTML = `<div class="board-scroll"><table class="m-tbl">
-      <colgroup><col style="width:46%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:21%"></colgroup>
-      <thead><tr><th>품목</th><th style="text-align:right">예시</th><th style="text-align:right">실물</th>
-                 <th style="text-align:right">차이</th><th>오더번호</th></tr></thead><tbody>`
+      <colgroup><col style="width:40%"><col style="width:16%"><col style="width:9%"><col style="width:9%"><col style="width:26%"></colgroup>
+      <thead><tr><th>품목</th><th>치수</th><th style="text-align:right">예시</th><th style="text-align:right">실물</th>
+                 <th>오더번호</th></tr></thead><tbody>`
       + show.map(r=>{
-        const d=r.aq-r.yq;
         const tone=MATCH_TONE[r.status]||'';
         const tag = r.status==='resize' ? `<span class="m-tag">→ ${r.mate}</span>`
                   : r.resizeMate ? `<span class="m-tag">← ${r.resizeMate}</span>`
@@ -2157,10 +2179,10 @@ function renderMatch(){
                   : (MATCH_SEL.size>1 ? `<span class="m-tag">${MATCH_LABEL[r.status]}</span>` : '');
         const full=`${r.name||r.code} · ${r.code}${r.size?' · '+r.size:''}`;
         return `<tr class="${tone}">
-          <td><div class="nm" title="${full.replace(/"/g,'&quot;')}">${r.name||r.code}${tag}</div>
-              <div class="tag" style="opacity:.7">${r.code}${r.size?' · '+r.size:''}</div></td>
+          <td><div class="nm" title="${full.replace(/"/g,'&quot;')}">${trimName(r.name||r.code)}${tag}</div>
+              <div class="tag" style="opacity:.7">${r.code}</div></td>
+          <td class="sz">${r.size ? r.size.replace('|',' ') : '<span class="tag">정규격</span>'}</td>
           <td class="n">${r.yq||'·'}</td><td class="n">${r.aq||'·'}</td>
-          <td class="n" style="color:${d===0?'#999':'var(--ink)'}">${d===0?'·':(d>0?'+'+d:d)}</td>
           <td class="tag">${r.orderNo||'·'}</td></tr>`;
       }).join('') + '</tbody></table></div>';
   }
@@ -2171,11 +2193,12 @@ function renderMatch(){
     <div class="m-sec">오이도 창고물 (참고)</div>
     <div class="tag" style="margin-bottom:8px">오이도는 창고를 채우는 물량이라 예시보다 많이 나가는 것이 정상입니다. 수량초과를 경고로 보지 않습니다.</div>
     <div class="board-scroll"><table class="m-tbl">
-      <colgroup><col style="width:58%"><col style="width:14%"><col style="width:14%"><col style="width:14%"></colgroup>
-      <thead><tr><th>품목</th><th style="text-align:right">예시</th><th style="text-align:right">실물</th><th style="text-align:right">차이</th></tr></thead>
+      <colgroup><col style="width:46%"><col style="width:18%"><col style="width:12%"><col style="width:12%"><col style="width:12%"></colgroup>
+      <thead><tr><th>품목</th><th>치수</th><th style="text-align:right">예시</th><th style="text-align:right">실물</th><th style="text-align:right">차이</th></tr></thead>
       <tbody>${oido.sort((a,b)=>b.aq-a.aq).map(r=>{ const d=r.aq-r.yq;
-        return `<tr><td><div class="nm" title="${(r.name||r.code).replace(/"/g,'&quot;')}">${r.name||r.code}</div>
-                <div class="tag" style="opacity:.7">${r.code}${r.size?' · '+r.size:''}</div></td>
+        return `<tr><td><div class="nm" title="${(r.name||r.code).replace(/"/g,'&quot;')}">${trimName(r.name||r.code)}</div>
+                <div class="tag" style="opacity:.7">${r.code}</div></td>
+                <td class="sz">${r.size ? r.size.replace('|',' ') : '<span class="tag">정규격</span>'}</td>
                 <td class="n">${r.yq||'·'}</td><td class="n">${r.aq||'·'}</td>
                 <td class="n">${d===0?'·':(d>0?'+'+d:d)}</td></tr>`; }).join('')}
       </tbody></table></div>`;
