@@ -789,7 +789,6 @@ const DOOR_LIB = {
 //   BC1A·BC1B는 B의 캐드 도면을 같이 쓴다(사용자 확정 2026-09-08 · CLAUDE.md 12-2-1).
 //   전용 도면을 새로 만들지 말 것.
 //   MS(EURO500)는 M 의 캐드 도면을 씁니다 (사용자 확정 2026-09-09).
-//   ⚠ MS 는 RULES 에 없습니다 — 계산은 EURO500 기본값으로 흘러갑니다. 확인대기 B11 참고.
 const DOOR_ALIAS = { W2HBT:'M', BC1A:'B', BC1B:'B', MS:'M' };
 function libDoor(code, type){
   const arr = (typeof DOOR_LIB!=='undefined' && DOOR_LIB.drawings) ? DOOR_LIB.drawings : [];
@@ -1234,18 +1233,82 @@ function libDoorDropGreenNotes(doc){
                           .toLowerCase().includes(CAD_NOTE_GREEN);
     /* 초록 글자가 없는 도면은 아예 손대지 않습니다 — 청록은 BD2R·BDI1R·TH 에도 쓰이므로
        엉뚱한 도면을 건드리면 안 됩니다. */
-    if(![...doc.querySelectorAll('text')].some(isGreen)) return 0;
+    const texts=[...doc.querySelectorAll('text')].filter(isGreen);
+    if(!texts.length) return 0;
 
-    /* ① 초록으로 그린 것을 **글자·선·표시 모두** 지웁니다 (사용자 확정 2026-09-09).
-          `ø20X9.5조절케이싱보링(부착)` 주석과 그 보링 표시입니다. */
-    [...doc.querySelectorAll('*')].filter(isGreen)
-      .forEach(e=>{ e.parentNode && e.parentNode.removeChild(e); n++; });
+    /* ① 초록 **주석 글자**를 지웁니다 (`ø20X9.5조절케이싱보링(부착)`). */
+    texts.forEach(t=>{ t.parentNode && t.parentNode.removeChild(t); n++; });
 
-    /* ② 그 주석을 가리키던 **청록 지시선**도 함께 지웁니다.
-          안 지우면 아무것도 안 가리키는 선이 남습니다. */
-    [...doc.querySelectorAll('*')]
-      .filter(e=>(e.getAttribute('stroke')||'').toLowerCase()===CAD_LEAD_TEAL)
-      .forEach(e=>{ e.parentNode && e.parentNode.removeChild(e); n++; });
+    /* ② 그 글자를 가리키던 **안내선**을 지웁니다. 글자만 지우면 아무것도 안 가리키는 선이 남습니다.
+
+       ⚠ **케이싱 보링 위치 표시(⊕ 십자·동그라미)는 남깁니다** — 어디를 뚫는지 알려주는
+          표시라 현장에 필요합니다. (사용자 지적 2026-09-09: "케이싱 위치 있던 건 좋았는데")
+       가르는 기준: 안내선에는 **비스듬한 선**이 있고, 위치 표시는 가로·세로뿐입니다.
+       비스듬한 선을 찾은 뒤 거기 이어 붙은 꼬리·화살촉까지 함께 지웁니다. */
+    const pts = el => {
+      const nums=(el.getAttribute('d')||'').match(/-?\d+(?:\.\d+)?/g)||[];
+      const out=[]; for(let i=0;i+1<nums.length;i+=2) out.push([+nums[i],+nums[i+1]]);
+      return out;
+    };
+    const lead=[...doc.querySelectorAll('path')]
+      .filter(e=>{ const s=(e.getAttribute('stroke')||'').toLowerCase();
+                   return s===CAD_LEAD_TEAL || s===CAD_NOTE_GREEN; })
+      .map(e=>({el:e, p:pts(e)}));
+    const isDiag = o => o.p.some((a,i)=>{ const b=o.p[i+1]; if(!b) return false;
+      return Math.abs(b[0]-a[0])>1 && Math.abs(b[1]-a[1])>1; });
+    const near = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1]) <= 2.5;
+    const doomed = new Set(lead.filter(isDiag));
+    for(let pass=0; pass<2; pass++){          // 꼬리 → 그 끝의 화살촉까지 이어 모읍니다
+      lead.forEach(o=>{
+        if(doomed.has(o)) return;
+        for(const d of doomed) if(o.p.some(x=>d.p.some(y=>near(x,y)))){ doomed.add(o); break; }
+      });
+    }
+    doomed.forEach(o=>{ o.el.parentNode && o.el.parentNode.removeChild(o.el); n++; });
+  }catch(e){}
+  return n;
+}
+/* 도어 밑으로 내려가는 가로 치수줄 걷어내기 (사용자 요청 2026-09-09 — BD3U)
+
+   BD3U 는 맨 아래 큰 도어(380) 밑에 가로 치수줄이 한 벌 더 붙어 있습니다.
+   블록에서는 완성치수를 글자로 따로 적으므로 이 줄이 겹쳐 보이기만 합니다.
+
+   **도어 몸통 밑변보다 아래로 내려간 검정 요소만** 지웁니다. 밑변은 좌표를 손으로 적지 않고
+   **가장 아래 있는 긴 가로선**으로 찾습니다(도면마다 좌표가 달라서입니다).
+   옆(세로) 치수줄은 밑변 위에서 끝나므로 그대로 남습니다. */
+const CAD_DROP_BOTTOM_DIM = new Set(['BD3U']);
+function libDoorDropBottomDim(doc){
+  let n=0;
+  try{
+    const P=el=>{const a=(el.getAttribute('d')||'').match(/-?\d+(?:\.\d+)?/g)||[];
+                 const o=[];for(let i=0;i+1<a.length;i+=2)o.push([+a[i],+a[i+1]]);return o;};
+    const black=e=>((e.getAttribute('stroke')||e.getAttribute('fill')||'').toLowerCase()==='#000000');
+    /* ① 도어 밑변 찾기.
+       ⚠ "300보다 긴 가로선"으로 잡으면 **치수줄 자체(320)** 를 밑변으로 잘못 짚습니다(실제로 겪음).
+          그래서 **가장 긴 가로선**(도어 몸통 너비, BD3U 는 594)을 먼저 재고,
+          그 길이의 90% 이상인 것들 중 **가장 아래**를 밑변으로 봅니다. */
+    const hor=[];
+    doc.querySelectorAll('path').forEach(e=>{
+      if(!black(e)) return;
+      const p=P(e); if(p.length<2) return;
+      for(let i=0;i+1<p.length;i++){
+        const a=p[i], b=p[i+1];
+        if(Math.abs(b[1]-a[1])<0.6) hor.push({len:Math.abs(b[0]-a[0]), y:Math.max(a[1],b[1])});
+      }
+    });
+    if(!hor.length) return 0;
+    const longest=Math.max(...hor.map(h=>h.len));
+    if(longest<50) return 0;               // 몸통을 못 찾으면 손대지 않는다
+    const bottom=Math.max(...hor.filter(h=>h.len>=longest*0.9).map(h=>h.y));
+    const LINE = bottom + 20;              // 밑변에서 조금 아래 — 여기보다 내려가면 치수줄로 본다
+    // ② 그 아래로 내려간 검정 선·글자를 지운다
+    doc.querySelectorAll('path,line,text').forEach(e=>{
+      if(!black(e)) return;
+      let maxY=-1;
+      if(e.tagName==='text') maxY=+e.getAttribute('y')||-1;
+      else P(e).forEach(p=>{ maxY=Math.max(maxY,p[1]); });
+      if(maxY>LINE){ e.parentNode && e.parentNode.removeChild(e); n++; }
+    });
   }catch(e){}
   return n;
 }
@@ -1265,7 +1328,8 @@ function libDoorFilled(r){
     // 체인을 모르면(구간 밖 등) 원본 그대로 — 조용히 틀린 그림을 내보내지 않는다
   }
   const doc=new DOMParser().parseFromString(d.svg,'image/svg+xml');
-  libDoorDropGreenNotes(doc);               // 캐드 초록 주석글자 걷어내기 (BD3U 등)
+  libDoorDropGreenNotes(doc);               // 캐드 초록 주석글자·안내선 걷어내기 (BD3U 등)
+  if(CAD_DROP_BOTTOM_DIM.has(r.code)) libDoorDropBottomDim(doc);   // 도어 밑 가로치수 걷어내기
   const closed=libDoorCloseFrame(doc);      // 빠진 오른쪽 테두리 채우기 (BD2R OB 등)
   libDoorFixSeriesDims(r, c, doc);          // 계열별 고정치수 맞추기 (BHBU HD 상부 142)
   const hand=libDoorDrawHandle(r, doc);     // 손잡이 그리기 (BHBU — HD ⊔ 하나 / OB 바)
@@ -1288,7 +1352,10 @@ const RULES={
   WHM:{handle:'one',note:'후드문·피스합적·사전펀치'},WHFM:{handle:'one',note:'피스합적·사전펀치'},
   WHBT:{handle:'one',note:'피스합적·사전펀치'},
   WRMB:{handle:'one',orient:'H',note:'상부 가로장·피스합적·사전펀치'},WRMBS:{handle:'one',orient:'H',note:'피스합적·사전펀치'},
-  M:{handle:'both'},B:{handle:'both',lr:true,hingeBase:764,doorHsub:146,glassHsub:149,topB:142,note:'핸들타입 / 보링위치 확인 / 상부 142 고정'},
+  M:{handle:'both'},
+  // MS(EURO500) — 생산할 때 뒤에 덧방이 붙는 차이뿐이라 **M 과 똑같이 풉니다**
+  //   (사용자 확정 2026-09-09). 도면도 M 것을 씁니다(DOOR_ALIAS).
+  MS:{handle:'both'},B:{handle:'both',lr:true,hingeBase:764,doorHsub:146,glassHsub:149,topB:142,note:'핸들타입 / 보링위치 확인 / 상부 142 고정'},
   BAD:{handle:'both',doorHsub:324,glassHsub:327,note:'상부고정부 있음 / 세로차감 큼 확인'},
   BHBU:{handle:'both',hingeTxt:r=>`상부고정 ${bhbuTopFix(r&&r.type)}·하부변환`,note:'힌지위치 다름(상부고정·하부변환) / 좌우 확인'},
   // BC1A·BC1B: 납품 세로가 910이면 프레임 세로를 고정값으로 푼다(−4 아님). 타입에 따라 갈린다 — HD 764 / OB 732.
@@ -2601,7 +2668,8 @@ function cadBlockRows(list){
       else if(a.lr.L||a.lr.R){                                       // 좌우 구분 코드
         const p=[]; if(a.lr.L) p.push(`L${a.lr.L}`); if(a.lr.R) p.push(`R${a.lr.R}`);
         if(a.lr['']) p.push(`미표기${a.lr['']}`);                    // 좌우가 안 적힌 건 숨기지 않고 드러낸다
-        qt=`${p.join('/')} (${a.qty}EA)`;
+        qt=p.join('/');                                              // 뒤에 (2EA)는 안 붙입니다 — L1/R1이면 합이 뻔합니다
+
       }
       else              qt=`${a.qty}EA`;
       // 완성치수는 줄마다 한 행. 수량은 **마지막 줄 뒤에** 붙입니다.
@@ -2909,10 +2977,11 @@ function cadPageSVG(header, banner, pageBlocks){
      ⚠ 쪽 나누기(cadSplitToPages)는 CAD_BLOCK_GAP 으로만 셉니다. 여기서 더 벌리는 폭은
         **이미 비어 있다고 계산된 자리(slack) 안에서만** 씁니다. 그래서 박스 아래선을
         넘을 수 없습니다. (12-4 — 여백을 두 곳에 따로 적어 어긋났던 사고 때문입니다) */
-  const GAP_EXTRA_MAX = 22;                 // 한 틈에 더 벌릴 수 있는 최대 mm
+  //   2026-09-09: 처음 넣은 폭이 너무 벌어져 35% 줄였습니다 (0.60→0.39 · 22→14.3mm).
+  const GAP_EXTRA_MAX = 14.3;               // 한 틈에 더 벌릴 수 있는 최대 mm
   const nGap  = Math.max(0, pageBlocks.length-1);
   const slack = Math.max(0, AREA-total);
-  const gapExtra = nGap ? Math.min(slack*0.6/nGap, GAP_EXTRA_MAX) : 0;
+  const gapExtra = nGap ? Math.min(slack*0.39/nGap, GAP_EXTRA_MAX) : 0;
   const drop = Math.max(0, Math.min((slack-gapExtra*nGap)/2, CENTER_MAX));
   let y=(297-215.10)+3+drop, inner='';      // 배치영역 상단(SVG y 81.90)부터 + 여유분
   let curBanner = pageBlocks[0] ? pageBlocks[0].banner : '';
