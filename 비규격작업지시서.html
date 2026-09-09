@@ -2765,7 +2765,10 @@ function cadBlockRows(list){
           rows.push({k:'frame', text:`${s.frame} = ${s.n*a.qty}EA`, seg:true});
           if(s.glass) rows.push({k:'glass', text:s.glass, seg:true});
         });
-        if(a.qty>1) rows.push({k:'setmark', text:`${a.qty}SET`, span:a.segLines.length});
+        /* 한 벌(1SET)도 **반드시 내보냅니다.** 안 내보내면 렌더러가 '색마다 같은지'를 잘못 봅니다 —
+           웜코튼 2SET · 에토프 1SET 인데 표식이 하나뿐이라 제목에 ×2SET 이 찍힌 사고가 있었습니다.
+           화면에 실제로 적을지는 렌더러가 정합니다(모두 1SET 이면 안 적습니다). */
+        rows.push({k:'setmark', text:`${a.qty}SET`, span:a.segLines.length});
       }else{
         // 완성치수는 줄마다 한 행. 수량은 **마지막 줄 뒤에** 붙입니다.
         a.frameLines.forEach((ln,i)=>{
@@ -2995,17 +2998,33 @@ function cadBlockSVG(b, xL, yTop){
   const doorY = yTop + DOOR_DROP + dyFix + dropDoor;
   const door = b.hasDrawing ? cadEmbedDoor(d.svg, xL, doorY, d.w, d.h, d.vb) : '';
   let ty = yTop + dropText, s='', box='';
-  ty+=lh; s+=`<text x="${txX}" y="${ty.toFixed(2)}" font-family="${F}" font-size="7.5" font-weight="700" fill="#1560c0">${esc(b.code)}${b.type==='HD'?' (HD)':''}${b.isCont?' (계속)':''}</text>`;
+  /* 세트 수를 어디에 적을지 (사용자 확정 2026-09-09).
+     색상 꺾쇠가 이미 그 색의 줄을 묶어 주므로 **세트 꺾쇠는 겹칩니다** — 없앴습니다.
+       · 블록 안 세트 수가 **모두 같으면** → 코드 옆에 `×2SET` (빨강)
+       · **색마다 다르면** → 제목에 하나만 적으면 틀리므로, 그 색 **칩 뒤**에 `×2SET`
+     한 벌뿐인 색에는 아무것도 안 적습니다.
+     ⚠ 코드줄보다 **먼저** 잡아야 합니다 — 코드줄에서 titleSet 을 쓰기 때문입니다. */
+  const setMarks = rows.filter(r=>r.k==='setmark').map(r=>String(r.text));
+  const allSame  = setMarks.length>0 && setMarks.every(t=>t===setMarks[0]);
+  // 모두 같고 두 벌 이상이면 제목에. 모두 1SET 이면 굳이 안 적습니다.
+  const titleSet = (allSame && setMarks[0]!=='1SET') ? setMarks[0] : null;
+  ty+=lh;
+  {
+    // 코드줄. 세트 수가 블록 안에서 모두 같으면 여기에 `×2SET`을 빨강으로 덧붙인다.
+    const codeTxt=`${esc(b.code)}${b.type==='HD'?' (HD)':''}${b.isCont?' (계속)':''}`;
+    s+=`<text x="${txX}" y="${ty.toFixed(2)}" font-family="${F}" font-size="7.5" font-weight="700" fill="#1560c0">${codeTxt}`
+     + (titleSet ? `<tspan fill="#e00000" font-size="6.6"> ×${esc(titleSet)}</tspan>` : '')
+     + `</text>`;
+  }
   let hpmTop=null;                                   // 베일(HPM) 색상 묶음의 시작 y — 박스 치려고 기억
   let segTop=null;                                   // 합적 조각 줄의 시작 y — 세트 꺾쇠용
-  let colTop=null, colName='';                       // 색상 묶음의 시작 y와 이름 — 색상 꺾쇠용
+  let colTop=null, colName='', colSet='';            // 색상 묶음의 시작 y·이름·세트 수 — 색상 꺾쇠용
   /* 꺾쇠 자리는 **블록 안에서 한 번만** 잡는다 — 줄마다 재면 꺾쇠가 들쭉날쭉해진다.
      가장 긴 글자줄 오른쪽에 세트 꺾쇠, 그 바깥에 색상 꺾쇠를 세운다. */
   const rowW = r => String(r.text||'').length*5.6*0.55;
   const maxRowW = rows.filter(r=>r.k==='frame'||r.k==='glass').reduce((m,r)=>Math.max(m,rowW(r)), 0);
-  const hasSetMark = rows.some(r=>r.k==='setmark');
-  const BX_SET = txX+4+maxRowW+3;                    // 세트 꺾쇠 x
-  const BX_COL = BX_SET + (hasSetMark ? 20 : 0);     // 색상 꺾쇠 x (세트 꺾쇠와 'nSET' 글자 바깥)
+  const BX_SET = txX+4+maxRowW+3;                    // 꺾쇠 x
+  const BX_COL = BX_SET;                             // 색상 꺾쇠 (세트 꺾쇠를 없애 같은 자리)
   const closeColor=()=>{                             // 색상 묶음이 끝나면 오른쪽에 꺾쇠를 세운다
     if(colTop==null || !CAD_COLOR_AS_BRACKET) { colTop=null; return; }
     const y0=colTop-lh*0.75, y1=ty+lh*0.20, cy=(y0+y1)/2;
@@ -3026,7 +3045,10 @@ function cadBlockSVG(b, xL, yTop){
      + ` rx="${(bh*0.32).toFixed(2)}" fill="${isH?'#f2e9fb':c.fill}" stroke="${isH?'#7a3fb0':c.line}" stroke-width="0.4"/>`
      + `<text x="${(bxr+bw/2).toFixed(2)}" y="${(byr+bh*0.72).toFixed(2)}" font-family="${F}" font-size="${FS}"`
      + ` font-weight="700" text-anchor="middle" fill="${isH?'#7a3fb0':c.text}">${esc(colName)}</text>`;
-    colTop=null;
+    // 색마다 세트 수가 다를 때만 칩 뒤에 적는다 (모두 같으면 코드 옆에 이미 있다)
+    if(colSet) s+=`<text x="${(bxr+bw+2).toFixed(2)}" y="${(byr+bh*0.72).toFixed(2)}" font-family="${F}"`
+     + ` font-size="5.6" font-weight="700" fill="#e00000">×${esc(colSet)}</text>`;
+    colTop=null; colSet='';
   };
   const closeHpm=()=>{                               // 베일 묶음이 끝나면 보라 박스로 두른다
     if(hpmTop==null) return;
@@ -3070,14 +3092,10 @@ function cadBlockSVG(b, xL, yTop){
            395×380 = 1EA  │
            395×377        ┘
          ty 를 올리지 않습니다 — 줄을 차지하지 않으므로 cadTextH 에서도 뺍니다. */
-      if(segTop!=null){
-        const y0=segTop-lh*0.75, y1=ty+lh*0.20;
-        const bx=BX_SET;
-        s+=`<path d="M${(bx-1.8).toFixed(2)} ${y0.toFixed(2)} H${bx.toFixed(2)} V${y1.toFixed(2)} H${(bx-1.8).toFixed(2)}"`
-         + ` fill="none" stroke="#1560c0" stroke-width="0.45"/>`
-         + `<text x="${(bx+1.6).toFixed(2)}" y="${((y0+y1)/2+1.9).toFixed(2)}" font-family="${F}" font-size="5.2"`
-         + ` font-weight="700" fill="#1560c0">${esc(row.text)}</text>`;
-      }
+      /* 색마다 세트 수가 **다를 때만** 칩 뒤에 적습니다. 이때는 1SET 인 색에도 적습니다 —
+         한쪽만 적으면 나머지가 몇 벌인지 알 수 없어 헷갈립니다.
+         모두 같으면 제목에 이미 있으므로 여기서는 안 적습니다. */
+      if(!allSame) colSet=String(row.text);
       return;                       // ty 를 올리지 않는다
     }
     ty+=lh;                         // 여기서부터 진짜 한 줄을 쓴다
