@@ -3005,17 +3005,27 @@ function cadBlockSVG(b, xL, yTop){
   const maxRowW = rows.filter(r=>r.k==='frame'||r.k==='glass').reduce((m,r)=>Math.max(m,rowW(r)), 0);
   const hasSetMark = rows.some(r=>r.k==='setmark');
   const BX_SET = txX+4+maxRowW+3;                    // 세트 꺾쇠 x
-  const BX_COL = BX_SET + (hasSetMark ? 15 : 0);     // 색상 꺾쇠 x (세트 꺾쇠 바깥)
+  const BX_COL = BX_SET + (hasSetMark ? 20 : 0);     // 색상 꺾쇠 x (세트 꺾쇠와 'nSET' 글자 바깥)
   const closeColor=()=>{                             // 색상 묶음이 끝나면 오른쪽에 꺾쇠를 세운다
     if(colTop==null || !CAD_COLOR_AS_BRACKET) { colTop=null; return; }
     const y0=colTop-lh*0.75, y1=ty+lh*0.20, cy=(y0+y1)/2;
     const c=cadColorDot(colName);
     const isH=(typeof isHPMColor==='function') && isHPMColor(colName);
+    /* 색이름은 **둥근 사각형에 색을 채우고 그 안에 글씨**를 넣습니다 (사용자 요청 2026-09-09).
+       예전의 앞 동그라미는 뺐습니다 — 칩 자체가 색을 알려 주므로 겹칩니다.
+       배색은 다른 화면과 같은 표(COLOR_CHIP)를 씁니다. 배경 c.fill · 글씨 c.text.
+       글자 너비는 한글이 한 칸(1.0em), 그 밖(영문·숫자)은 0.55em으로 잽니다 —
+       'W/Cotton'처럼 영문으로 오는 색도 칸이 맞아야 합니다. */
+    const FS=6, PAD=2.0;
+    const tw=[...String(colName)].reduce((w,ch)=>w+(/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(ch)?FS:FS*0.55), 0);
+    const bw=tw+PAD*2, bh=FS*1.55;
+    const bxr=BX_COL+2.6, byr=cy-bh*0.72;
     s+=`<path d="M${(BX_COL-1.8).toFixed(2)} ${y0.toFixed(2)} H${BX_COL.toFixed(2)} V${y1.toFixed(2)} H${(BX_COL-1.8).toFixed(2)}"`
      + ` fill="none" stroke="${isH?'#7a3fb0':c.line}" stroke-width="0.5"/>`
-     + `<circle cx="${(BX_COL+3.6).toFixed(2)}" cy="${(cy-1.9).toFixed(2)}" r="2.2" fill="${c.fill}" stroke="${c.line}" stroke-width="0.4"/>`
-     + `<text x="${(BX_COL+7.2).toFixed(2)}" y="${cy.toFixed(2)}" font-family="${F}" font-size="6"`
-     + ` font-weight="700" fill="${isH?'#7a3fb0':c.text}">${esc(colName)}</text>`;
+     + `<rect x="${bxr.toFixed(2)}" y="${byr.toFixed(2)}" width="${bw.toFixed(2)}" height="${bh.toFixed(2)}"`
+     + ` rx="${(bh*0.32).toFixed(2)}" fill="${isH?'#f2e9fb':c.fill}" stroke="${isH?'#7a3fb0':c.line}" stroke-width="0.4"/>`
+     + `<text x="${(bxr+bw/2).toFixed(2)}" y="${(byr+bh*0.72).toFixed(2)}" font-family="${F}" font-size="${FS}"`
+     + ` font-weight="700" text-anchor="middle" fill="${isH?'#7a3fb0':c.text}">${esc(colName)}</text>`;
     colTop=null;
   };
   const closeHpm=()=>{                               // 베일 묶음이 끝나면 보라 박스로 두른다
