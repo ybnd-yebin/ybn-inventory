@@ -4703,11 +4703,15 @@ function subdoorCollect(onlyShip){
 // 수량 — 도면이 '= L/R'로 되어 있으면 좌·우를 한 줄에, 아니면 합쳐서 EA
 function subdoorQtyText(s, lrMode){
   if(lrMode){
+    /* 좌우는 **슬래시로 잇습니다** — `L1/R2` (사용자 확정 2026-09-11).
+       띄어쓰기(`L1 R2`)로 두면 두 값인지 한 값인지 한눈에 안 들어옵니다.
+       캐드 양식 블록도 같은 표기를 씁니다. */
     const p = [];
     if(s.L) p.push('L'+s.L);
     if(s.R) p.push('R'+s.R);
-    if(s.N) p.push(s.N+' EA');
-    return p.join(' ');
+    // 좌우가 적힌 게 있으면 나머지는 '미표기N' 으로 드러냅니다(숨기지 않습니다)
+    if(s.N) p.push((s.L||s.R) ? '미표기'+s.N : s.N+' EA');
+    return p.join('/');
   }
   const n = s.L + s.R + s.N;
   return n ? n+' EA' : '';
