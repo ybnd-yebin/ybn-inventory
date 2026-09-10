@@ -282,9 +282,13 @@
        그래서 **1mm 여유**를 둡니다. 296/297 = 99.66% 라 눈으로는 표가 안 납니다.
        svg 는 viewBox 비율을 지키므로 가로도 함께 줄어 가운데로 놓입니다. */
     .cad-page{margin:0!important;box-shadow:none!important;width:210mm;height:296mm;overflow:hidden;
-      break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always}
+      break-inside:avoid;page-break-inside:avoid}
+    /* ⚠ **뒤에서 끊지(break-after) 말고 앞에서 끊습니다(break-before).**
+       한 장을 거의 채운 요소 뒤에 break-after 를 걸면 브라우저가 **빈 장을 하나 더** 만듭니다.
+       마지막 장만 예외로 빼도(:last-child) 장 사이마다 빈 장이 남았습니다(2026-09-10 실측: 2장 → 3장).
+       둘째 장부터 '앞에서' 끊으면 끊는 횟수가 장수보다 하나 적어 빈 장이 안 생깁니다. */
+    .cad-page + .cad-page{break-before:page;page-break-before:always}
     .cad-page>svg{height:296mm!important;width:auto!important;max-width:210mm;display:block;margin:0 auto}
-    .cad-page:last-child{break-after:auto;page-break-after:auto}
     .hpm-box{border:1.5px solid #7a3fb0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .sheet{background:#fff;border:2px solid #000;color:#000;-webkit-box-decoration-break:clone;box-decoration-break:clone}
     /* ★ 페이지마다 머리글 반복의 핵심 두 줄.
