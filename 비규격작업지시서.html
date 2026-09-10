@@ -450,7 +450,7 @@
       <div class="of-title">🚪 수납도어 작업지시서 <span class="of-sub">캐드 도면 그대로 · 날짜와 치수만 채웁니다</span></div>
       <div class="of-hint">[📄 납품서 처리] 탭에 올린 납품서에서 시그니처 글래스도어 · 유리장식장 · 에어힌지 · 빗면 프레임을 골라냅니다. 검정은 프레임 치수, 빨강은 유리 치수입니다. 날짜를 고르지 않으면 올린 납품서가 전부 나옵니다.</div>
       <div class="meta-bar">
-        <label>납품요청일<select id="subdoorDate" style="min-width:190px"><option value="">전체</option></select></label>
+        <label>발주일<select id="subdoorDate" style="min-width:190px"><option value="">전체</option></select></label>
         <button onclick="subdoorFillDates()">🔄 날짜 다시 읽기</button>
       </div>
       <div class="foot">
@@ -4663,10 +4663,14 @@ function subdoorSheetId(grp, name, fh){
 }
 
 /* ROWS → 장(page) 목록. 한 장에 한 사이즈(시그니처만 450연장·500연장 두 줄). */
-function subdoorCollect(onlyShip){
+/* 날짜를 고르는 기준은 **발주일**입니다 (사용자 확정 2026-09-11).
+   한 번에 낸 발주를 통째로 뽑는 것이 일하는 단위와 맞습니다.
+   장을 묶는 것은 예전대로 납품요청일별이라, 한 발주일에 요청일이 여럿이면 장이 나뉩니다
+   (머리글의 D−2·납품일이 요청일마다 달라야 하기 때문입니다). */
+function subdoorCollect(onlyPo){
   const pages = [], skipped = [], bag = {};
   ROWS.filter(r => r.include !== false).forEach(r=>{
-    if(onlyShip && (r.ship||'') !== onlyShip) return;   // 화면에서 고른 납품요청일만
+    if(onlyPo && (r.po||'') !== onlyPo) return;         // 화면에서 고른 발주일만
     const grp = subdoorGroup(r.short);
     if(!grp) return;                                   // 유로 계열 등 — 이 탭 대상 아님
     const lw = +r.w, lh = +r.h;
@@ -4832,17 +4836,17 @@ function subdoorPageSVG(p){
   return SUBDOOR_SVG_OPEN + s + SUBDOOR_SVG_CLOSE;
 }
 
-/* 납품요청일 고르는 칸 채우기. 탭을 열 때와 [날짜 다시 읽기]에서 부른다.
+/* 발주일 고르는 칸 채우기. 탭을 열 때와 [날짜 다시 읽기]에서 부른다.
    장수를 같이 보여 줘, 고르기 전에 몇 장 나올지 알 수 있게 한다. */
 function subdoorFillDates(){
   const sel = document.getElementById('subdoorDate'); if(!sel) return;
   const keep = sel.value;
   const all = subdoorCollect('').pages;
   const cnt = {};
-  all.forEach(p=>{ const k=p.ship||''; cnt[k]=(cnt[k]||0)+1; });
+  all.forEach(p=>{ const k=p.po||''; cnt[k]=(cnt[k]||0)+1; });   // 발주일별로 센다
   const days = Object.keys(cnt).sort();
   sel.innerHTML = '<option value="">전체 · '+all.length+'장</option>'
-    + days.map(d=>'<option value="'+esc(d)+'">'+esc(d ? fmtDate(d) : '(요청일 없음)')+' · '+cnt[d]+'장</option>').join('');
+    + days.map(d=>'<option value="'+esc(d)+'">'+esc(d ? fmtDate(d) : '(발주일 없음)')+' · '+cnt[d]+'장</option>').join('');
   if(days.indexOf(keep) >= 0) sel.value = keep;
 }
 
@@ -4855,7 +4859,7 @@ function subdoorGenerate(){
   const pages = got.pages, skipped = got.skipped;
   if(!pages.length){
     out.innerHTML = '<div class="empty">'
-      + (day ? esc(fmtDate(day))+'에는 수납도어 품목이 없습니다.'
+      + (day ? esc(fmtDate(day))+' 발주에는 수납도어 품목이 없습니다.'
              : '이 납품서에는 수납도어(시그니처 글래스도어 · 유리장식장 · 에어힌지 · 빗면 프레임) 품목이 없습니다.')
       + '</div>';
     return;
@@ -4869,7 +4873,7 @@ function subdoorGenerate(){
    || (subdoorFirst(a).fh||0) - (subdoorFirst(b).fh||0)
    || (subdoorFirst(a).fw||0) - (subdoorFirst(b).fw||0));
   let note = '<div class="cad-note">🚪 수납도어 '+pages.length+'장'
-           + (day ? ' · 납품요청 '+esc(fmtDate(day)) : ' · 올린 납품서 전체')
+           + (day ? ' · 발주일 '+esc(fmtDate(day)) : ' · 올린 납품서 전체')
            + ' · 캐드 도면 그대로 · 인쇄는 브라우저 인쇄(A4)</div>';
   if(skipped.length){
     const seen = {}, li = [];
