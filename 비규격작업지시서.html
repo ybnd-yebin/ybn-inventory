@@ -60,7 +60,13 @@
   .empty{padding:40px 20px;text-align:center;color:#9098a3;font-size:13px;background:#fff;border:1px solid #dfe3e8;border-radius:12px}
   /* 캐드 양식 출력 — 화면에서는 A4 한 장씩 카드처럼, 인쇄에서는 @media print가 다시 잡는다 */
   .cad-note{font-size:12px;color:#6b7280;margin:2px 0 8px}
-  .cad-page{margin:10px auto;width:210mm;max-width:100%;box-shadow:0 1px 6px rgba(0,0,0,.25);background:#fff}
+  /* ⚠ SVG를 그냥 두면 `display:inline` 이라 **글줄 여백이 아래에 붙습니다.**
+     그래서 한 장이 297mm가 아니라 298.59mm가 되고, 인쇄하면 그 1.59mm가 다음 장으로 넘어가
+     **장마다 빈 페이지가 하나씩 끼어듭니다**(2장짜리가 5장으로 나왔습니다).
+     여백이 10mm였을 때는 브라우저가 통째로 줄여 넣어 드러나지 않던 것이,
+     여백을 0으로 바꾸자 나타났습니다. block 으로 두고 줄높이를 0으로 눌러 막습니다. */
+  .cad-page{margin:10px auto;width:210mm;max-width:100%;box-shadow:0 1px 6px rgba(0,0,0,.25);background:#fff;line-height:0;font-size:0}
+  .cad-page>svg{display:block;width:100%;height:auto}
 
   /* ── 작업지시서 시트 ── */
   .sheet{background:#fff;border:2px solid #333;padding:26px;margin-bottom:18px;color:#111}
@@ -269,7 +275,10 @@
        각 A4 장은 한 페이지에 하나씩, 쪼개지지 않게. */
     .cad-note{display:none!important}
     .parts-alert{display:none!important}
-    .cad-page{margin:0!important;box-shadow:none!important;break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always}
+    /* 인쇄에서는 한 장을 **정확히 A4 크기로 못 박습니다.** 조금이라도 넘치면 빈 장이 끼어듭니다. */
+    .cad-page{margin:0!important;box-shadow:none!important;width:210mm;height:297mm;overflow:hidden;
+      break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always}
+    .cad-page>svg{width:210mm!important;height:297mm!important;display:block}
     .cad-page:last-child{break-after:auto;page-break-after:auto}
     .hpm-box{border:1.5px solid #7a3fb0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .sheet{background:#fff;border:2px solid #000;color:#000;-webkit-box-decoration-break:clone;box-decoration-break:clone}
@@ -2641,9 +2650,10 @@ function cadSheetSVG(header, banner){
   s+=`<line x1="8.75" y1="${top(215.10).toFixed(2)}" x2="201.25" y2="${top(215.10).toFixed(2)}" stroke="#000" stroke-width="${sw}"/>`;
   // 제품명 띠 텍스트 — 가로중앙 105. 계열명만(수량은 블록 수량줄에). 문구는 호출부가 정규화해 넘김.
   const bandTop = (top(227.60)+top(215.10))/2 - 3.0;
-  // 그룹이 앞 장에서 이어질 때는 머리글에 (계속)을 붙인다 (2026-09-09)
-  const bandTxt=(banner&&banner.text?banner.text:'EO700 신형(OB)') + (banner&&banner.cont?' (계속)':'');
-  s+=T(105, bandTop, 6.0, esc(bandTxt), {anchor:'middle', bold:true});
+  /* 머리글에는 계열 이름만 넣습니다. 이어지는 장에 (계속)을 붙였다가 뺐습니다
+     (사용자 확정 2026-09-10) — 장마다 계열 이름이 그대로 찍히니 굳이 필요 없습니다.
+     다시 넣으려면 banner.cont 를 여기서 읽으면 됩니다(값은 계속 넘어옵니다). */
+  s+=T(105, bandTop, 6.0, esc(banner&&banner.text?banner.text:'EO700 신형(OB)'), {anchor:'middle', bold:true});
   s+=`</svg>`;
   return s;
 }
