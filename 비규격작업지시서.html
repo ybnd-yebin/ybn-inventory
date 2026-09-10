@@ -3443,7 +3443,7 @@ function cadGenerate(){
   if(!sel.length){ out.innerHTML='<div class="empty">선택된 품목이 없습니다.</div>'; return; }
   const sheetKeyOf=r=>(r.ship||'(미지정)')+'|'+(r.isAS?'AS':'N');
   const byShip={}; sel.forEach(r=>{ const k=sheetKeyOf(r); (byShip[k]=byShip[k]||[]).push(r); });
-  let html='';
+  let html='', sheetCount=0;
   Object.keys(byShip).sort().forEach(sheetK=>{
     const rowsAll=byShip[sheetK];
     const ship=rowsAll[0].ship||'(미지정)', isAS=!!rowsAll[0].isAS;
@@ -3466,6 +3466,7 @@ function cadGenerate(){
       });
     });
     const pages=cadSplitToPages(blocks);
+    sheetCount += pages.length;      // 화면에 몇 장인지 적어, 인쇄 장수와 견줄 수 있게
     pages.forEach(pageBlocks=>{
       // cont = 그룹이 앞 장에서 이어짐(groupCont) 또는 블록 자체가 잘려 이어짐(isCont)
       const b0=pageBlocks[0];
@@ -3473,7 +3474,11 @@ function cadGenerate(){
       html+=`<div class="cad-page">${cadPageSVG(header, banner, pageBlocks)}</div>`;
     });
   });
-  out.innerHTML=`<div class="cad-note">📐 캐드 양식(시험) · 기존 [작업지시서 생성]과 별개 · 인쇄는 브라우저 인쇄(A4)</div>`+html;
+  /* 장수를 적어 둡니다 — **인쇄 창의 '용지 N장'과 이 숫자가 같아야 정상입니다.**
+     다르면 빈 장이 끼었다는 뜻이라, 어디가 어긋났는지 바로 알 수 있습니다. */
+  out.innerHTML=`<div class="cad-note">📐 캐드 양식 · <b>총 ${sheetCount}장</b>`
+    + ` <span style="color:#6b7280">(인쇄 창의 '용지 N장'이 이 숫자와 같아야 합니다)</span>`
+    + ` · 기존 [작업지시서 생성]과 별개 · 인쇄는 브라우저 인쇄(A4)</div>`+html;
   // 유리발주 탭도 같이 채운다 — 캐드 양식으로만 뽑아도 유리 사이즈를 볼 수 있게(2026-09-07)
   try{
     const g=glassCollect();
