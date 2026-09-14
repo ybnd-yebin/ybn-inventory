@@ -14799,16 +14799,23 @@ function parseDelivText(text){
          ★ 별표형 `(450*0*2296*0)` 도 알아봅니다. 예전에는 '비규격' 글자나 X형만
            찾아, `( 비 ) 글래스 채널도어` 처럼 '(비)'로만 오는 시그니처의 사이즈를
            통째로 버렸습니다 (2026-09-15 · CLAUDE.md 12-6과 같은 뿌리). */
+      /* ★ 뒤로도 앞으로도 봅니다 (2026-09-15 두 번째 고침).
+         처음에는 뒤 두 줄만 봤는데, 납품서 양식에 따라 사이즈가 **품목 줄 위**에
+         찍히기도 합니다. 코드가 있는 줄을 만나면 멈춥니다 — 옆 품목의 사이즈를
+         끌어오면 엉뚱한 치수가 들어갑니다. */
       if(!hasSize){
-        for(let k=1;k<=2;k++){
-          const nx=(rawLines[li+k]||'').replace(/\s+/g,' ').trim();
-          if(!nx) continue;
-          if(nx.split(' ').some(isCode)) break;     // 다음 품목이 시작되면 멈춥니다
-          if(!SIZE_HINT_RE.test(nx)) continue;
-          // '그레이박/스' 같은 납품처 꼬리 제거
-          extra+=' '+nx.replace(/그레이박|스|오이도|창원|원주|[가-힣]*센터.*/g,'').trim();
-          break;
-        }
+        const grab=dir=>{
+          for(let k=1;k<=2;k++){
+            const s=(rawLines[li+dir*k]||'').replace(/\s+/g,' ').trim();
+            if(!s) continue;
+            if(s.split(' ').some(isCode)) return '';    // 옆 품목이 시작되면 멈춥니다
+            if(!SIZE_HINT_RE.test(s)) continue;
+            // '그레이박/스' 같은 납품처 꼬리 제거
+            return ' '+s.replace(/그레이박|스|오이도|창원|원주|[가-힣]*센터.*/g,'').trim();
+          }
+          return '';
+        };
+        extra += grab(1) || grab(-1);
       }
       if(extra.trim()) rawName=(beforeToks.concat(nameToks).join(' ')+' '+extra).replace(/\s+/g,' ').trim();
     }

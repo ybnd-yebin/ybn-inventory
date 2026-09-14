@@ -2126,15 +2126,23 @@ function parseDelivText(text){
            X형만 찾아, `( 비 ) 글래스 채널도어` 처럼 '(비)'로만 오는 시그니처의
            사이즈를 통째로 버렸습니다. 수납도어 작업지시서에서 '규격을 읽지 못함'
            으로 걸리던 것이 이것입니다 (2026-09-15 · CLAUDE.md 12-6과 같은 뿌리). */
+      /* ★ 뒤로도 앞으로도 봅니다 (2026-09-15 두 번째 고침).
+         처음에는 뒤 두 줄만 봤는데, 납품서 양식에 따라 사이즈가 **품목 줄 위**에
+         찍히기도 합니다. 그래서 '(비) 글래스 채널도어'가 여전히 안 읽혔습니다.
+         코드가 있는 줄을 만나면 거기서 멈춥니다 — 옆 품목의 사이즈를 끌어오면
+         엉뚱한 치수가 들어가기 때문입니다. */
       if(!hasSize){
-        for(let k=1;k<=2;k++){
-          const nx=(rawLines[li+k]||'').replace(/\s+/g,' ').trim();
-          if(!nx) continue;
-          if(nx.split(' ').some(isCode)) break;          // 다음 품목이 시작되면 멈춥니다
-          if(!SIZE_HINT_RE.test(nx)) continue;
-          extra+=' '+nx.replace(/그레이박|스|오이도|창원|원주|[가-힣]*센터.*/g,'').trim();
-          break;
-        }
+        const grab=dir=>{
+          for(let k=1;k<=2;k++){
+            const s=(rawLines[li+dir*k]||'').replace(/\s+/g,' ').trim();
+            if(!s) continue;
+            if(s.split(' ').some(isCode)) return '';     // 옆 품목이 시작되면 멈춥니다
+            if(!SIZE_HINT_RE.test(s)) continue;
+            return ' '+s.replace(/그레이박|스|오이도|창원|원주|[가-힣]*센터.*/g,'').trim();
+          }
+          return '';
+        };
+        extra += grab(1) || grab(-1);
       }
       if(extra.trim()) rawName=(beforeToks.concat(nameToks).join(' ')+' '+extra).replace(/\s+/g,' ').trim();
     }
@@ -4902,12 +4910,12 @@ function subdoorCollect(onlyPo){
     const grp = subdoorGroup(r.short);
     if(!grp) return;                                   // 유로 계열 등 — 이 탭 대상 아님
     const lw = +r.w, lh = +r.h;
-    if(!lw || !lh){ skipped.push({name:r.short, why:'규격을 읽지 못함'}); return; }
+    if(!lw || !lh){ skipped.push({name:r.short, why:'규격을 읽지 못함', raw:r.name||'', fromApp:!!r.fromApp}); return; }
     const C  = SUBDOOR_CALC[grp];
     const fw = lw + C.f[0], fh = lh + C.f[1];
     const gw = fw + C.g[0], gh = fh + C.g[1];
     const id = subdoorSheetId(grp, r.short, fh);
-    if(!id){ skipped.push({name:r.short, why:'맞는 도면이 없음'}); return; }
+    if(!id){ skipped.push({name:r.short, why:'맞는 도면이 없음', raw:r.name||'', fromApp:!!r.fromApp}); return; }
     const isSig = id.indexOf('SIG') === 0;
     const ship  = r.ship || '';
     // 시그니처는 한 장 안에 450연장·500연장 두 줄이 있으므로 세로가 같으면 같은 장에 담는다
@@ -5104,10 +5112,28 @@ function subdoorGenerate(){
            + (day ? ' · 발주일 '+esc(fmtDate(day)) : ' · 올린 납품서 전체')
            + ' · 캐드 도면 그대로 · 인쇄는 브라우저 인쇄(A4)</div>';
   if(skipped.length){
+    /* 왜 못 읽었는지 화면이 말해 주어야 합니다 (2026-09-15).
+       예전에는 '규격을 읽지 못함'이라고만 적어, 납품서 글자가 어떻게 생겼는지
+       모른 채 짐작만 해야 했습니다. 이제 읽은 이름 그대로와 어디서 온 행인지를
+       같이 적습니다 — 앱에서 가져온 행이면 앱이 옛 판으로 읽어 둔 것이라
+       납품서를 다시 올리셔야 채워집니다. */
     const seen = {}, li = [];
-    skipped.forEach(s=>{ const k=s.name+'|'+s.why; if(!seen[k]){ seen[k]=1; li.push(esc(s.name)+' — '+s.why); } });
-    note += '<div class="cad-note" style="color:#b45309">⚠ 도면을 고르지 못한 '+skipped.length
-          + '건 — 확인이 필요합니다: '+li.join(' · ')+'</div>';
+    skipped.forEach(s=>{
+      const k = s.name+'|'+s.why;
+      if(seen[k]) return;
+      seen[k] = 1;
+      const src = s.fromApp ? '앱에서 가져온 행' : '여기에 올린 납품서';
+      li.push('<div style="margin-top:3px">· <b>'+esc(s.name)+'</b> — '+s.why
+            + ' <span style="color:#9aa1a9">(' + src + ')</span>'
+            + (s.raw ? '<br><span style="color:#9aa1a9;font-size:11px;margin-left:10px">읽은 이름: “'+esc(s.raw)+'”</span>' : '')
+            + '</div>');
+    });
+    const anyApp = skipped.some(s=>s.fromApp);
+    note += '<div class="cad-note" style="color:#b45309">⚠ 도면을 고르지 못한 '+skipped.length+'건 — 확인이 필요합니다'
+          + li.join('')
+          + (anyApp ? '<div style="margin-top:6px;color:#6b7280">앱에서 가져온 행은 <b>앱이 예전 판으로 읽어 둔 것</b>이라 규격이 비어 있습니다. '
+                    + '그 납품서를 <b>와이비앤디 앱에 다시 올리시면</b> 빠진 규격만 채워집니다(수량·차감은 그대로). 그 뒤 다시 가져오십시오.</div>' : '')
+          + '</div>';
   }
   out.innerHTML = note + pages.map(p=>'<div class="cad-page">'+subdoorPageSVG(p)+'</div>').join('');
   if(typeof setStatus === 'function') setStatus('✓ 수납도어 '+pages.length+'장 생성');
