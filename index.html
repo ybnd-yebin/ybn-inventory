@@ -16204,6 +16204,59 @@ function etpHeadHtml(rows){
   '</div>';
 }
 
+/* ── 지금 하셔야 할 일 ────────────────────────────────────────────
+   예전에는 차감 단추가 사이즈 스무여 줄을 지나 한참 아래에 있어, 뭘 눌러야
+   하는지 안 보였습니다(사장님 지적 2026-09-14). 할 일이 있으면 맨 위에
+   한 줄로 띄우고 그 자리에서 바로 누르실 수 있게 합니다. */
+function etpTodoHtml(){
+  const todo = [];
+  const dl = etpDeductList();
+  const take = dl.wait.filter(x => x.choice === 'out');
+  if(take.length){
+    const q = take.reduce((s, x) => s + x.total, 0);
+    todo.push({
+      color:'var(--acc4)', ico:'📤',
+      text:'납품서 <b>' + take.length + '건</b>의 유리 <b>' + q + '장</b>이 아직 재고에서 안 빠졌습니다',
+      btn:'빼기', fn:'etpApplyDeduct()'
+    });
+  }
+  const chk = etpCheckSizes().filter(x => x.ovr == null);
+  if(chk.length){
+    todo.push({
+      color:'var(--acc2)', ico:'⚠',
+      text:'<b>' + chk.length + '개 사이즈</b>는 한 달에 몇 장 쓰는지 몰라 채워둘 양을 못 정합니다',
+      btn:'보기', fn:'etpJump(\'etp-check\')'
+    });
+  }
+  const short = etpBuildRows().filter(r => r.short && (r.safety - r.cur - r.onOrder) > 0);
+  if(short.length){
+    todo.push({
+      color:'var(--acc)', ico:'🧾',
+      text:'<b>' + short.length + '개 사이즈</b>가 모자랍니다 — 발주 초안을 뽑을 수 있습니다',
+      btn:'보기', fn:'etpJump(\'etp-draft\')'
+    });
+  }
+  if(!todo.length) return '';
+  return '<div class="card" style="padding:0;overflow:hidden">' +
+    '<div style="padding:9px 14px 5px;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--tx2)">지금 하실 일</div>' +
+    todo.map(t =>
+      '<div style="display:flex;gap:10px;align-items:center;padding:9px 14px;border-top:1px solid var(--b1)">' +
+        '<span style="flex:none;font-size:14px">' + t.ico + '</span>' +
+        '<span style="flex:1;min-width:0;font-size:12px;color:var(--tx2);line-height:1.5">' + t.text + '</span>' +
+        '<button onclick="' + t.fn + '" style="flex:none;padding:7px 16px;background:' + t.color + ';border:none;border-radius:16px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif">' + t.btn + '</button>' +
+      '</div>').join('') +
+  '</div>';
+}
+// 아래 카드로 데려다 줍니다
+function etpJump(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.scrollIntoView({ behavior:'smooth', block:'start' });
+  el.style.transition = 'box-shadow .4s';
+  el.style.boxShadow = '0 0 0 3px var(--acc2)';
+  setTimeout(() => { el.style.boxShadow = ''; }, 1400);
+}
+
 // ── 한 줄 ────────────────────────────────────────────────────────────
 function etpRowHtml(r){
   const badge = r.short ? '<span style="font-size:10px;font-weight:800;color:var(--acc4);margin-left:6px">부족</span>'
@@ -16219,9 +16272,9 @@ function etpRowHtml(r){
   // 오른쪽 꼬리말 — 무엇을 알려 줘야 이 줄을 보고 판단이 되는가
   let tail = '';
   // '월 0장'(마스터에 있고 실제로 0) 과 '월평균 모름'(마스터에 아예 없음)은 다른 말입니다
-  if(r.avg > 0)        tail = '월 ' + etpDot(r.avg) + '장';
-  else if(r.noMaster)  tail = '월평균 모름';
-  else                 tail = '월 0장';
+  if(r.avg > 0)        tail = '한 달 ' + etpDot(r.avg) + '장';
+  else if(r.noMaster)  tail = '한 달에 몇 장 쓰는지 모름';
+  else                 tail = '한 달 0장';
   if(r.cur < 0)            tail += ' · <b style="color:var(--acc4)">모자랍니다</b>';
   else if(r.cover != null) tail += ' · ' + r.cover + '영업일치';
   else if(r.cur > 0)       tail += ' · 8개월간 출고 없음';
@@ -16356,7 +16409,7 @@ function renderEtp(){
     rows.forEach(r => { if(m.avgBySize[r.size] != null) r.measAvg = m.avgBySize[r.size]; });
   }
 
-  const head = etpHeadHtml(rows);
+  const head = etpHeadHtml(rows) + etpTodoHtml();
 
   const shown = rows.filter(r => {
     if(!etpMatchRow(r)) return false;
@@ -16381,7 +16434,7 @@ function renderEtp(){
 
   el.innerHTML =
     head +
-    '<div class="filter-row" style="margin-top:10px">' + chip('short', '부족만') + chip('all', '전체') + chip('over', '과잉') + chip('nomaster', '마스터에 없음') + '</div>' +
+    '<div class="filter-row" style="margin-top:10px">' + chip('short', '부족만') + chip('all', '전체') + chip('over', '과잉') + chip('nomaster', '확인 필요') + '</div>' +
     '<input class="inp" id="etp-search" value="' + etpEsc(etpSearchKey) + '" placeholder="🔍 사이즈 / 모델명 검색..." oninput="etpOnSearch(this.value)">' +
     list +
     etpDeductCardHtml() +
@@ -16601,13 +16654,36 @@ const ETP_PO_SEED = {
     {size:'895x377', qty:20}, {size:'945x326', qty:10}, {size:'995x326', qty:10}
   ]
 };
-function etpSeedPOOnce(){
-  if(etpLoad('etpPoSeededV1', false)) return 0;
-  if(Array.isArray(etpPOs) && etpPOs.length){ etpStore('etpPoSeededV1', true); return 0; }
-  etpPOs.push(Object.assign({}, ETP_PO_SEED, {items:ETP_PO_SEED.items.map(x=>({...x})), at:new Date().toISOString()}));
-  etpStore('etpPoSeededV1', true);
+/* 2026-09-14 현성 발주 7품목 140장 (3.2t 백샤틴 에토프 정규격 추가).
+   사장님이 보내주신 발주서 엑셀에서 그대로 옮겼습니다.
+   앞으로 오는 발주서는 「📥 발주서 올리기」로 엑셀을 올리시면 됩니다. */
+const ETP_PO_SEED2 = {
+  id:'etppo_260914', no:'260914', date:'2026-09-14', vendor:'현성유리', due:'2026-09-18',
+  memo:'3.2t 백샤틴 에토프 정규격 추가', items:[
+    {size:'295x761', qty:10, name:'HD B 3091 L'},
+    {size:'395x729', qty:40, name:'OB M 4073(공용) M'},
+    {size:'395x761', qty:10, name:'HD B 4091 L'},
+    {size:'445x761', qty:30, name:'HD B 4591 L'},
+    {size:'595x247', qty:10, name:'OB BLD1R 6091 M'},
+    {size:'595x377', qty:20, name:'HD BD2R 6091 M'},
+    {size:'895x377', qty:20, name:'HD BD2R 9091 M'}
+  ]
+};
+/* 발주 시드는 건마다 표식을 따로 둡니다. 하나로 두면 첫 것이 이미 들어간
+   기기에서는 뒤에 더한 것이 영영 안 들어갑니다. */
+function etpSeedPo(seed, flag){
+  if(etpLoad(flag, false)) return 0;
+  if(Array.isArray(etpPOs) && etpPOs.some(p => p && p.id === seed.id)){ etpStore(flag, true); return 0; }
+  etpPOs.push(Object.assign({}, seed, { items:seed.items.map(x => ({...x})), at:new Date().toISOString() }));
+  etpStore(flag, true);
   etpSavePOs();
   return 1;
+}
+function etpSeedPOOnce(){
+  let n = 0;
+  n += etpSeedPo(ETP_PO_SEED,  'etpPoSeededV1');
+  n += etpSeedPo(ETP_PO_SEED2, 'etpPoSeed260914');
+  return n;
 }
 
 // 발주 한 건의 품목별 입고 대조. status 를 따로 저장하지 않고 늘 다시 셉니다 —
@@ -16970,9 +17046,21 @@ function etpReceivePo(poId){
 
 // ── 발주 대조 카드 ───────────────────────────────────────────────────
 function etpPoCardHtml(){
-  if(!Array.isArray(etpPOs) || !etpPOs.length) return '';
+  // 발주서 엑셀을 올리는 자리 — 손으로 옮겨 적을 일이 없게
+  const up = '<div class="card" id="etp-po">' +
+    '<div class="card-ttl"><span>📥 발주서 올리기</span></div>' +
+    '<div class="info-note" style="margin-top:6px">' +
+      '현성유리에 보내신 <b>발주서 엑셀을 그대로</b> 올리시면 품목·수량·납기를 읽어 발주 기록으로 넣습니다. ' +
+      '넣기 전에 무엇을 읽었는지 먼저 보여 드립니다.' +
+    '</div>' +
+    '<input type="file" accept=".xlsx,.xls" onchange="etpPoXlsx(event)" ' +
+      'style="width:100%;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:12px;font-family:\'Noto Sans KR\',sans-serif;cursor:pointer">' +
+    '<div id="etp-po-status" style="margin-top:6px;font-size:11px"></div>' +
+    etpPoDraftHtml() +
+  '</div>';
+  if(!Array.isArray(etpPOs) || !etpPOs.length) return up;
   const td=todayStr();
-  return etpPOs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(po=>{
+  return up + etpPOs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(po=>{
     const rows=etpPoRows(po);
     const st=etpPoStatus(po);
     const ordered=rows.reduce((s,r)=>s+r.ordered,0);
@@ -17343,14 +17431,16 @@ function etpCheckCardHtml(){
   const list = etpCheckSizes();
   if(!list.length) return '';
   const meas = etpMeasured({ includeAS:true });
-  return '<div class="card" style="border-left:3px solid var(--acc2)">' +
+  return '<div class="card" id="etp-check" style="border-left:3px solid var(--acc2)">' +
     '<div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center">' +
-      '<span style="color:var(--acc2)">⚠ 확인 필요 — 마스터에 없는 사이즈</span>' +
+      '<span style="color:var(--acc2)">⚠ 한 달에 몇 장 쓰는지 모르는 사이즈</span>' +
       '<span style="font-size:11px;font-weight:700;color:var(--tx2);text-transform:none;letter-spacing:0">' + list.length + '종</span>' +
     '</div>' +
     '<div class="info-note" style="margin-top:6px">' +
-      '월평균을 모르면 <b>안전재고가 하한 3장으로만</b> 잡힙니다. 실제로 많이 쓰는 사이즈면 늘 모자라게 됩니다.<br>' +
-      '어느 모델이 쓰는지 보시고 월평균을 넣어 주십시오. 납품서에 실적이 있으면 <b>실측값</b>을 그대로 쓰셔도 됩니다.' +
+      '<b>채워둘 양(안전재고)은 「한 달에 몇 장 쓰는지」로 정합니다.</b> 많이 쓰면 많이, 조금 쓰면 조금 채워둡니다.<br>' +
+      '아래 사이즈들은 그 값이 없어서 <b>가장 적은 3장으로만</b> 채워집니다. 실제로 많이 쓰는 것이면 늘 모자라게 됩니다.<br>' +
+      '어느 모델에 들어가는 유리인지 보시고 <b>한 달에 몇 장 쓰는지</b> 적어 주십시오. ' +
+      '납품서에 나간 실적이 있으면 <b>[실측 N장 쓰기]</b> 를 누르시면 그 값이 그대로 들어갑니다.' +
     '</div>' +
     '<div style="margin-top:8px;border:1px solid var(--b1);border-radius:8px;overflow:hidden">' +
     list.map(x => {
@@ -17362,10 +17452,10 @@ function etpCheckCardHtml(){
         '<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">' +
           '<span style="font-family:\'JetBrains Mono\',monospace;font-size:14px;font-weight:800;color:var(--tx1)">' + x.size.replace('x', '×') + '</span>' +
           '<span style="font-size:11px;color:var(--tx3)">재고 ' + x.cur + '</span>' +
-          (x.ovr != null ? '<span style="font-size:11px;font-weight:700;color:var(--acc3)">월 ' + x.ovr + '장으로 정함</span>' : '') +
+          (x.ovr != null ? '<span style="font-size:11px;font-weight:700;color:var(--acc3)">한 달 ' + x.ovr + '장으로 정함</span>' : '') +
           '<span style="flex:1"></span>' +
-          (mv != null ? '<button onclick="etpUseMeasured(\'' + x.size + '\')" class="f-btn" style="font-size:10px;padding:3px 9px">실측 ' + mv + '장 쓰기</button>' : '') +
-          '<input type="number" step="0.1" min="0" value="' + (x.ovr != null ? x.ovr : '') + '" placeholder="월평균"' +
+          (mv != null ? '<button onclick="etpUseMeasured(\'' + x.size + '\')" class="f-btn" style="font-size:10px;padding:3px 9px">납품 실적 ' + mv + '장 쓰기</button>' : '') +
+          '<input type="number" step="0.1" min="0" value="' + (x.ovr != null ? x.ovr : '') + '" placeholder="한 달 몇 장"' +
             ' onchange="etpSetAvgOvr(\'' + x.size + '\', this.value)"' +
             ' style="width:78px;flex:none;padding:5px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:12px;font-family:\'JetBrains Mono\',monospace;text-align:right">' +
         '</div>' +
@@ -17419,9 +17509,9 @@ function etpFallbackCopy(txt, done){
 function etpDraftCardHtml(){
   const d = etpDraftOrder();
   const total = d.reduce((s, x) => s + x.qty, 0);
-  return '<div class="card">' +
+  return '<div class="card" id="etp-draft">' +
     '<div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center">' +
-      '<span>🧾 부족분 발주 초안</span>' +
+      '<span>🧾 모자란 것 — 발주 초안</span>' +
       '<span style="font-size:11px;font-weight:700;color:var(--tx2);text-transform:none;letter-spacing:0">' + d.length + '품목 · ' + total + '장</span>' +
     '</div>' +
     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">' +
@@ -17440,6 +17530,191 @@ function etpDraftCardHtml(){
         '</div>').join('') + '</div>'
       : '<div style="font-size:12px;color:var(--tx3)">안전재고를 다 채웠습니다.</div>') +
   '</div>';
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   📥 발주서 엑셀 올리기                                        2026-09-14
+   현성유리 발주서 양식을 그대로 읽습니다. 손으로 옮겨 적을 일이 없게.
+
+   양식 (2026-09-14 받은 파일 기준)
+     B5  발주일 (엑셀 날짜값)
+     머리글 줄: NO / 품명 / 규격 / 수량 / 납기 / 비고 / 업체명
+     그 아래로 품목. NO 는 빈 줄까지 미리 찍혀 있으므로 품명이 빈 줄은 건너뜁니다.
+     규격 칸이 곧 유리 사이즈입니다(295×761). 수량은 유리 장수입니다.
+     비고에 ETP/WC 가 적혀 옵니다.
+
+   ⚠ 칸 자리를 숫자로 박지 않습니다. 머리글 글자를 찾아 그 열을 씁니다 —
+     양식이 조금 바뀌어도 견디게 하려는 것입니다. 못 찾으면 조용히 넘어가지
+     않고 무엇을 못 찾았는지 화면에 적습니다.
+   ══════════════════════════════════════════════════════════════════════ */
+var etpPoDraft = null;   // 미리보기 중인 발주서
+
+// 엑셀 날짜값(1900 기준 일련번호) → 'YYYY-MM-DD'
+function etpXlDate(v){
+  if(v == null || v === '') return '';
+  if(typeof v === 'string'){
+    const m = v.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+    if(m) return m[1] + '-' + String(+m[2]).padStart(2,'0') + '-' + String(+m[3]).padStart(2,'0');
+    const m2 = v.match(/(\d{2})[-./](\d{1,2})[-./](\d{1,2})/);
+    if(m2) return '20' + m2[1] + '-' + String(+m2[2]).padStart(2,'0') + '-' + String(+m2[3]).padStart(2,'0');
+    return '';
+  }
+  const n = Number(v);
+  if(!n || n < 20000 || n > 80000) return '';
+  /* 날짜만 있는 값은 UTC 자정으로 다뤄야 어긋나지 않습니다.
+     _ymdLocal 을 쓰면 시간대 때문에 하루가 밀립니다 (CLAUDE.md 3-1). */
+  const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+  return d.toISOString().slice(0, 10);
+}
+
+async function etpPoXlsx(ev){
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if(!file) return;
+  const st = document.getElementById('etp-po-status');
+  const setSt = h => { if(st) st.innerHTML = h; };
+  if(typeof XLSX === 'undefined'){ setSt('<span style="color:var(--acc4)">엑셀 라이브러리를 못 불러왔습니다. 인터넷 연결을 확인해 주십시오.</span>'); return; }
+  setSt('<span style="color:var(--tx3)">읽는 중…</span>');
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type:'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
+    const got = etpParsePoSheet(aoa, file.name);
+    if(got.err){ setSt('<span style="color:var(--acc4)">' + etpEsc(got.err) + '</span>'); etpPoDraft = null; renderEtp(); return; }
+    etpPoDraft = got;
+    setSt('');
+    renderEtp();
+  }catch(e){
+    console.warn('[에토프] 발주서 읽기 실패', e);
+    setSt('<span style="color:var(--acc4)">읽지 못했습니다 — ' + etpEsc(e.message || '') + '</span>');
+  }
+}
+
+function etpParsePoSheet(aoa, fileName){
+  const txt = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  // ① 머리글 줄 찾기 — '품명'과 '규격'과 '수량'이 한 줄에 있는 곳
+  let hr = -1, col = {};
+  for(let i = 0; i < Math.min(aoa.length, 40); i++){
+    const row = aoa[i] || [];
+    const c = {};
+    row.forEach((v, j) => {
+      const s = txt(v).replace(/\s/g, '');
+      if(/^품명$/.test(s) || /^품\s*명$/.test(s)) c.name = j;
+      else if(/^규격$/.test(s)) c.size = j;
+      else if(/^수량$/.test(s)) c.qty = j;
+      else if(/^납기$/.test(s)) c.due = j;
+      else if(/^비고$/.test(s)) c.note = j;
+      else if(/^업체명$/.test(s)) c.buyer = j;
+    });
+    if(c.name != null && c.size != null && c.qty != null){ hr = i; col = c; break; }
+  }
+  if(hr < 0) return { err:'머리글(품명·규격·수량)을 못 찾았습니다. 현성 발주서 양식이 맞는지 보아 주십시오.' };
+
+  // ② 발주일 — 머리글 위쪽에서 '발주일'이라 적힌 칸의 오른쪽을 봅니다
+  let poDate = '', due = '';
+  for(let i = 0; i < hr; i++){
+    const row = aoa[i] || [];
+    for(let j = 0; j < row.length; j++){
+      if(!/발\s*주\s*일/.test(txt(row[j]))) continue;
+      for(let k = j + 1; k < Math.min(j + 5, row.length); k++){
+        const d = etpXlDate(row[k]);
+        if(d){ poDate = d; break; }
+      }
+    }
+    if(poDate) break;
+  }
+
+  // ③ 품목
+  const items = [], bad = [];
+  let lastDue = '';
+  for(let i = hr + 1; i < aoa.length; i++){
+    const row = aoa[i] || [];
+    const name = txt(row[col.name]);
+    const rawSize = txt(row[col.size]);
+    const qty = parseInt(String(row[col.qty]).replace(/[^\d-]/g, ''), 10);
+    if(!name && !rawSize) continue;                 // NO 만 찍힌 빈 줄
+    if(/^총\s*수량|^비고/.test(name) || /^총\s*수량/.test(txt(row[0]))) break;
+    if(!rawSize || !qty || qty <= 0){ if(name) bad.push({ name, why:'규격이나 수량을 못 읽었습니다' }); continue; }
+    const norm = etpNormSize(rawSize);
+    if(!norm.ok){ bad.push({ name, why:'규격을 못 읽었습니다 — ' + rawSize }); continue; }
+    if(norm.needLr){ bad.push({ name, why:'관통보링인데 좌우(L/R)가 없습니다 — ' + rawSize }); continue; }
+    const d = etpXlDate(row[col.due]);
+    if(d) lastDue = d;
+    items.push({ size:norm.size, qty, name, note:txt(row[col.note]),
+                 flipped:norm.flipped, unknown:norm.unknown });
+  }
+  if(!items.length) return { err:'읽은 품목이 없습니다. 품명·규격·수량이 채워져 있는지 보아 주십시오.' };
+  due = lastDue;
+
+  // ④ 에토프가 아닌 줄이 섞였는지 — 비고에 색이 적혀 옵니다
+  const notEtp = items.filter(x => {
+    const n = (x.note + ' ' + x.name).toUpperCase();
+    return n.includes('W/COTTON') || n.includes('WC') || n.includes('웜코튼');
+  });
+
+  return {
+    file:fileName, date:poDate || todayStr(), due, vendor:ETP_VENDOR,
+    items, bad, notEtp,
+    total:items.reduce((s, x) => s + x.qty, 0),
+    dupWarn: (Array.isArray(etpPOs) ? etpPOs.some(p => p.date === (poDate || todayStr())) : false)
+  };
+}
+
+function etpPoDraftCancel(){ etpPoDraft = null; renderEtp(); }
+
+function etpPoDraftSave(){
+  const d = etpPoDraft;
+  if(!d) return;
+  if(d.dupWarn && !confirm('같은 발주일(' + d.date + ')의 발주가 이미 있습니다.\n\n한 건 더 넣을까요?')) return;
+  const id = 'etppo_' + d.date.replace(/-/g, '').slice(2) + '_' + Math.random().toString(36).slice(2, 5);
+  etpPOs.push({
+    id, no:d.date.replace(/-/g, '').slice(2), date:d.date, vendor:d.vendor, due:d.due || '',
+    memo:d.file || '', at:new Date().toISOString(),
+    items:d.items.map(x => ({ size:x.size, qty:x.qty, name:x.name }))
+  });
+  etpSavePOs();
+  if(typeof meta !== 'undefined') meta.lastLocalChange = new Date().toISOString();
+  if(typeof autoSync === 'function') autoSync();
+  showToast('발주 ' + d.items.length + '품목 · ' + d.total + '장 넣었습니다');
+  etpPoDraft = null;
+  renderEtp();
+}
+
+function etpPoDraftHtml(){
+  const d = etpPoDraft;
+  if(!d) return '';
+  const row = x => {
+    const tags = [
+      x.flipped ? '<span style="font-size:9px;font-weight:700;color:var(--acc5);margin-left:5px">뒤집어 맞춤</span>' : '',
+      x.unknown ? '<span style="font-size:9px;font-weight:700;color:var(--acc2);margin-left:5px">마스터에 없음</span>' : ''
+    ].join('');
+    return '<div style="display:flex;gap:8px;align-items:center;padding:6px 11px;border-bottom:1px solid var(--b1)">' +
+      '<span style="font-family:\'JetBrains Mono\',monospace;font-size:13px;font-weight:800;color:var(--tx1);flex:none;width:96px">' + x.size.replace('x', '×') + tags + '</span>' +
+      '<span style="flex:1;min-width:0;font-size:11px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + etpEsc(x.name) + '</span>' +
+      '<span style="font-family:\'JetBrains Mono\',monospace;font-size:14px;font-weight:900;color:var(--acc);flex:none">' + x.qty + '</span>' +
+    '</div>';
+  };
+  return '<div style="margin-top:10px;padding:10px;border:1px solid var(--acc);border-radius:8px;background:rgba(37,99,235,.04)">' +
+    '<div style="font-size:12px;font-weight:700;color:var(--tx1)">📄 ' + etpEsc(d.file) + '</div>' +
+    '<div style="font-size:11px;color:var(--tx2);margin-top:4px">' +
+      '발주일 <b>' + d.date + '</b> · 납기 <b>' + (d.due || '—') + '</b> · ' + etpEsc(d.vendor) +
+      ' · <b style="color:var(--acc)">' + d.items.length + '품목 ' + d.total + '장</b></div>' +
+    (d.dupWarn ? '<div style="font-size:11px;color:var(--acc2);margin-top:4px">⚠ 같은 발주일의 발주가 이미 있습니다</div>' : '') +
+    (d.notEtp.length ? '<div style="font-size:11px;color:var(--acc2);margin-top:4px">⚠ 에토프가 아닌 줄이 섞인 것 같습니다 ' + d.notEtp.length + '개 — 비고를 보아 주십시오</div>' : '') +
+    '<div style="margin-top:8px;border:1px solid var(--b1);border-radius:8px;overflow:hidden;background:var(--s1)">' +
+      d.items.map(row).join('') + '</div>' +
+    (d.bad.length
+      ? '<div style="margin-top:8px;padding:8px 10px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.25);border-radius:8px">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--acc4)">못 읽은 줄 ' + d.bad.length + '개 — 넣지 않습니다</div>' +
+        d.bad.map(b => '<div style="font-size:10px;color:var(--tx2);margin-top:3px">' + etpEsc(b.name) + ' — ' + etpEsc(b.why) + '</div>').join('') +
+        '</div>'
+      : '') +
+    '<div style="display:flex;gap:8px;margin-top:10px">' +
+      '<button onclick="etpPoDraftSave()" style="flex:1;padding:10px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif">✓ 발주로 넣기</button>' +
+      '<button onclick="etpPoDraftCancel()" style="padding:10px 14px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:12px;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif">취소</button>' +
+    '</div></div>';
 }
 
 // ── 켤 때 한 번 ──────────────────────────────────────────────────────
