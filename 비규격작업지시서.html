@@ -364,6 +364,17 @@
     <input type="file" id="fileInput" accept="application/pdf,.xlsx,.xls" multiple>
     <div class="status" id="status"></div>
 
+    <!-- 와이비앤디 앱에서 바로 가져오기 — 납품서를 두 번 올리지 않게 (2026-09-15) -->
+    <div style="margin-top:12px;padding:12px 14px;border:1px solid #dfe3e8;border-radius:10px;background:#f8fafc">
+      <div style="font-size:13px;font-weight:700;color:#1f2937">🔗 와이비앤디 앱에서 가져오기</div>
+      <div style="font-size:11.5px;color:#6b7280;line-height:1.6;margin-top:4px">
+        업무 앱에 올린 납품서를 그대로 꺼내 씁니다. <b>여기 또 올리실 필요가 없습니다.</b>
+        두 페이지가 같은 주소라 저장함을 나눠 씁니다.<br>
+        발주일을 고르면 그 발주만 가져옵니다. 이미 가져온 납품서는 건너뛰므로 두 번 눌러도 부풀지 않습니다.
+      </div>
+      <div id="ybnPickBox"></div>
+    </div>
+
     <div class="meta-bar">
       <!-- 업체명은 '한샘 비규격'이 기본입니다(사용자 확정 2026-09-09).
            현장명은 비워 둡니다 — 적을 것이 있을 때만 손으로 채웁니다. -->
@@ -1903,6 +1914,153 @@ function isAggregateDeliv(t){ t=(t||'').replace(/\s+/g,''); return t.includes('�
      비규격(…)  ·  450X0X2296X0(X형)  ·  (450*0*2296*0)(별표형)
    별표형이 빠져 있어 '(비)'로만 오는 시그니처의 사이즈를 버리고 있었습니다. */
 const SIZE_HINT_RE=/비규격|\d+\s*X\s*\d+\s*X|\(\s*\d+(?:\s*\*\s*\d+)+\s*[LRM]?\s*\)/i;
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   🔗 와이비앤디 앱에서 납품서 가져오기                          2026-09-15
+
+   납품서를 두 번 올리시던 것을 없앱니다. 와이비앤디 업무 앱에 올리면
+   여기서 그대로 꺼내 씁니다.
+
+   ── 어떻게 되나
+   두 페이지가 같은 주소(ybnd-yebin.github.io)에 있어 브라우저 저장함을
+   나눠 씁니다. 그래서 앱이 저장해 둔 납품서(ybn-deliv-v1)를 그대로 읽습니다.
+   서버도, 파일 주고받기도 필요 없습니다.
+
+   ⚠ 파일을 더블클릭해서 여시면(file://) 저장함이 갈려 안 보입니다.
+     홈페이지 주소로 여셔야 합니다. 그때는 그렇게 적습니다.
+   ⚠ 앱이 읽은 그대로 씁니다. 앱에서 사이즈를 못 읽은 품목은 여기서도
+     못 읽습니다 — 지어내지 않고 '규격을 읽지 못함'으로 드러냅니다.
+   ══════════════════════════════════════════════════════════════════════ */
+const YBN_DELIV_KEY = 'ybn-deliv-v1';
+const YBN_DELIV_DEL = 'ybn-deliv-del-v1';
+
+function ybnReadDelivs(){
+  let log = [], del = {};
+  try{ log = JSON.parse(localStorage.getItem(YBN_DELIV_KEY) || '[]') || []; }
+  catch(e){ return { err:'앱이 저장해 둔 납품서를 읽지 못했습니다.' }; }
+  try{ del = JSON.parse(localStorage.getItem(YBN_DELIV_DEL) || '{}') || {}; }
+  catch(e){ del = {}; }
+  if(!Array.isArray(log) || !log.length){
+    return { err:(location.protocol === 'file:')
+      ? '파일을 더블클릭해서 여시면 앱과 저장함이 갈려 납품서가 안 보입니다. 홈페이지 주소로 열어 주십시오.'
+      : '와이비앤디 앱에 올라온 납품서가 없습니다. 앱에서 먼저 올려 주십시오.' };
+  }
+  return { log: log.filter(d => d && d.id && !del[d.id]) };
+}
+
+// 앱이 쌓아 둔 납품서의 발주일 목록 (최근 것부터)
+function ybnDelivDates(log){
+  const m = {};
+  log.forEach(d => {
+    const od = d.orderDate || '';
+    if(!od) return;
+    const a = m[od] || (m[od] = { od, docs:0, items:0 });
+    a.docs++;
+    a.items += (d.items || []).filter(it => isNonStdName((it.name || '') + ' ' + (it.short || ''))).length;
+  });
+  return Object.values(m).sort((a, b) => String(b.od).localeCompare(String(a.od)));
+}
+
+/* 앱의 납품서 한 건 → 이 화면이 쓰는 행(ROWS) 으로.
+   ★ 이 파일이 PDF 를 직접 읽을 때 만드는 행과 같은 모양이어야 합니다.
+     한쪽만 다르면 계산이 어긋납니다. parseDelivText 아래쪽과 같은 차례로 짭니다. */
+function ybnDocToRows(d){
+  const rows = [], skipped = [];
+  const reqD = d.delivReqDate || '';
+  const isAS = /^54/.test(String(d.refNo || '')) || (typeof isASDeliv === 'function' && isASDeliv(d.delivNo));
+  (d.items || []).forEach(it => {
+    const nameAll = (it.name || '') + ' ' + (it.short || '');
+    if(!isNonStdName(nameAll)) return;                  // 비규격만 — 정규격은 이 화면 대상이 아닙니다
+    const code = codeFromShort(it.short) || codeFromShort(it.name);
+    const type = /\bHD\b/.test(nameAll) ? 'HD' : (/\bCH\b/.test(nameAll) ? 'CH' : 'OB');
+    const { w, h } = parseSizeWH(it.size);
+    if(!w || !h){ skipped.push((it.short || it.name || it.code)); }   // 버리지 않고 알립니다
+    const rule = (typeof RULES !== 'undefined' && RULES[code]) ? RULES[code] : {};
+    const ser = (typeof seriesOf === 'function') ? seriesOf(nameAll) : { key:'', label:'' };
+    const colr = colorKo(it.color) || (typeof colorFromName === 'function' ? colorFromName(nameAll) : '');
+    rows.push({
+      code, type, w, h,
+      lr: it.lr || '',
+      color: colr,
+      series: ser.key, seriesLabel: ser.label,
+      isAS, euro: false, name: it.name || '',
+      qty: it.qty || 1, oldStd: null,
+      handle: rule.handle || 'both',
+      short: it.short, prodCode: it.code,
+      delivNo: d.delivNo, refNo: d.refNo || '',
+      req: reqD, ship: reqD, po: d.orderDate || '',
+      fromApp: true                                      // 앱에서 온 행이라는 표시
+    });
+  });
+  return { rows, skipped };
+}
+
+var ybnPickDate = '';      // 고른 발주일 ('' = 전체)
+function ybnSetDate(v){ ybnPickDate = v; ybnRenderPick(); }
+
+function ybnRenderPick(){
+  const box = document.getElementById('ybnPickBox');
+  if(!box) return;
+  const got = ybnReadDelivs();
+  if(got.err){
+    box.innerHTML = '<div style="font-size:12px;color:#b45309;padding:8px 0">' + esc(got.err) + '</div>';
+    return;
+  }
+  const dates = ybnDelivDates(got.log);
+  if(!dates.length){
+    box.innerHTML = '<div style="font-size:12px;color:#6b7280;padding:8px 0">앱의 납품서에 발주일이 없습니다.</div>';
+    return;
+  }
+  if(ybnPickDate && !dates.some(x => x.od === ybnPickDate)) ybnPickDate = '';
+  const tot = dates.reduce((s, x) => s + x.items, 0);
+  const chip = (v, label, n) => '<button onclick="ybnSetDate(\'' + v + '\')" style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;' +
+    'border:1px solid ' + (ybnPickDate === v ? '#1560c0' : '#d5dae0') + ';background:' + (ybnPickDate === v ? '#1560c0' : '#fff') + ';' +
+    'color:' + (ybnPickDate === v ? '#fff' : '#5a6270') + ';font-weight:' + (ybnPickDate === v ? '700' : '500') + '">' +
+    label + ' <span style="opacity:.75">' + n + '</span></button>';
+  box.innerHTML =
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0">' +
+      '<span style="font-size:12px;color:#6b7280;margin-right:2px">발주일</span>' +
+      chip('', '전체', tot) +
+      dates.slice(0, 14).map(x => chip(x.od, fmtDate(x.od) || x.od, x.items)).join('') +
+    '</div>' +
+    '<button class="primary" onclick="ybnImport()" style="margin-top:2px">🔗 가져오기</button>' +
+    '<span style="font-size:11px;color:#6b7280;margin-left:8px">앱에 올라온 납품서 ' + got.log.length + '건 · 비규격 ' + tot + '건</span>';
+}
+
+function ybnImport(){
+  const got = ybnReadDelivs();
+  if(got.err){ alert(got.err); return; }
+  let docs = got.log.filter(d => (d.items || []).length);
+  if(ybnPickDate) docs = docs.filter(d => (d.orderDate || '') === ybnPickDate);
+  if(!docs.length){ alert('가져올 납품서가 없습니다.'); return; }
+
+  // 이미 들어와 있는 납품번호는 건너뜁니다 — 두 번 눌러도 부풀지 않게
+  const have = new Set(ROWS.map(r => r.delivNo).filter(Boolean));
+  let added = 0, dup = 0, skipped = [];
+  const newRows = [];
+  docs.forEach(d => {
+    if(have.has(d.delivNo)){ dup++; return; }
+    const r = ybnDocToRows(d);
+    if(!r.rows.length) return;
+    r.rows.forEach(x => newRows.push(x));
+    skipped = skipped.concat(r.skipped);
+    added++;
+  });
+  if(!newRows.length){
+    setStatus('가져올 새 납품서가 없습니다' + (dup ? ' · 이미 있는 것 ' + dup + '건' : ''));
+    return;
+  }
+  newRows.forEach(x => ROWS.push(x));
+  let msg = '🔗 앱에서 ' + added + '건 가져옴 · 비규격 ' + newRows.reduce((s, x) => s + (x.qty || 1), 0) + '장';
+  if(dup) msg += ' · 이미 있던 것 ' + dup + '건 건너뜀';
+  if(skipped.length) msg += ' · ⚠ 규격 못 읽음 ' + skipped.length + '건';
+  setStatus(msg);
+  if(skipped.length) console.warn('[앱에서 가져오기] 규격을 못 읽은 품목:', skipped);
+  const gb = document.getElementById('genBtn');
+  if(gb) gb.disabled = ROWS.length === 0;
+  ybnRenderPick();
+}
 
 function parseDelivText(text){
   let reqDate='',orderDate='',delivNo='',dest='',refNo='';
@@ -4625,6 +4783,8 @@ fillModelSelect();
 odFillVendors();
 loadRows();   // 지난번에 올린 납품서를 되살린다 (없으면 조용히 지나감)
 archRun();    // 보관함 요약(건수) 표시 — 검색어 없으면 목록은 안 펼침
+// 앱에 올라온 납품서 목록 보이기 (못 읽어도 화면이 멈추지 않게 감쌉니다)
+try{ ybnRenderPick(); }catch(e){ console.warn('[앱에서 가져오기]', e); }
 { const el=document.getElementById('archSearch'); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') archRun(); }); }
 ['qcW','qcH'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') qcCalcSingle(); }); });
 ['setPattern','setKo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') addUserColor(); }); });

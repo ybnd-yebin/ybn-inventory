@@ -14846,7 +14846,7 @@ async function handleDelivPdf(ev){
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const statusEl=document.getElementById('deliv-upload-status');
   statusEl.textContent='⏳ '+files.length+'개 파일 읽는 중...';
-  let added=0,dup=0,fail=0,skipped=0;
+  let added=0,dup=0,fail=0,skipped=0,fixedSize=0;
   window._delivDebug=''; const _oldBox=document.getElementById('deliv-debug-box'); if(_oldBox) _oldBox.remove();
   for(const file of files){
     try{
@@ -14926,7 +14926,24 @@ async function handleDelivPdf(ev){
       const _exist=delivLog.findIndex(d=>d.delivNo===parsed.delivNo);
       if(_exist>=0){
         // 이미 있으면: 출고차감 완료된 건 보존, 아니면 새 파싱으로 덮어써서 옛 데이터 갱신
-        if(delivLog[_exist].deducted){ dup++; continue; }
+        if(delivLog[_exist].deducted){
+          /* 차감이 끝난 납품서는 수량·차감 상태를 절대 안 건드립니다.
+             다만 **비어 있는 사이즈·좌우만** 새로 읽은 값으로 채웁니다 (2026-09-15).
+             옛 파서가 '(비)' 시그니처의 사이즈를 버렸던 탓에, 이미 올라온 납품서는
+             다시 올려도 규격이 빈 채로 남아 비규격작업지시서에서 '규격을 읽지 못함'
+             으로 걸렸습니다. 사이즈는 차감에 쓰이지 않으므로 채워도 숫자가 안 바뀝니다.
+             빈 칸만 채우고, 이미 값이 있는 것은 덮어쓰지 않습니다. */
+          let filled=0;
+          try{
+            const old=delivLog[_exist];
+            (finalItems||[]).forEach(ni=>{
+              const oi=(old.items||[]).find(x=>x.code===ni.code && (x.orderNo||'')===(ni.orderNo||'') && !x.size && ni.size);
+              if(oi){ oi.size=ni.size; if(!oi.lr && ni.lr) oi.lr=ni.lr; filled++; }
+            });
+          }catch(e){ console.warn('[납품서] 사이즈 보충 실패', e); }
+          if(filled){ fixedSize+=filled; saveAll(); }
+          dup++; continue;
+        }
         delivLog.splice(_exist,1); // 제거 후 아래에서 새로 push
       }
       const reqD=_ymd8(parsed.reqDate);
@@ -14954,7 +14971,7 @@ async function handleDelivPdf(ev){
     try{ if(typeof etpAutoDeduct==='function') etpAutoDeduct(); }catch(e){ console.warn('[에토프 자동차감]', e); }
     if(typeof autoSync==='function') autoSync(); }
   if(added && typeof renderSoonap==='function') renderSoonap(); // 수납유리재고 자동 반영
-  statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${fail?` · 실패 ${fail}건`:''}`;
+  statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${fixedSize?` · <b style="color:var(--acc3)">빠져 있던 규격 ${fixedSize}건 채움</b>`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${fail?` · 실패 ${fail}건`:''}`;
   ev.target.value='';
   renderDelivery();
   // 납품서가 추가되면 인쇄실 카드 월평균(6개월 롤링)도 즉시 반영
