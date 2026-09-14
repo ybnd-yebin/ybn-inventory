@@ -15377,12 +15377,20 @@ function etpSizeDict(){
   _etpSizeDict = d;
   return d;
 }
-function etpKnownSize(s){ const d = etpSizeDict(); return d.master.has(s) || d.bom.has(s); }
-function etpInMaster(s){ return etpSizeDict().master.has(s); }
-function etpInBom(s){ return etpSizeDict().bom.has(s); }
+/* 사전을 볼 때는 좌우 꼬리('592x693 L')를 떼고 봅니다 — 사전에는 사이즈만 있습니다 */
+function etpKnownSize(s){ const b = etpBaseSize(s), d = etpSizeDict(); return d.master.has(b) || d.bom.has(b); }
+function etpInMaster(s){ return etpSizeDict().master.has(etpBaseSize(s)); }
+function etpInBom(s){ return etpSizeDict().bom.has(etpBaseSize(s)); }
 
 function etpNormSize(raw){
-  const s = String(raw == null ? '' : raw)
+  let s0 = String(raw == null ? '' : raw).trim();
+
+  // 끝에 붙은 좌우 표시를 먼저 떼어 둡니다 — '592x693 L' · '592*693R' 모두
+  let lr = '';
+  const mlr = s0.match(/[\s_\-]*([LRlr])\s*$/);
+  if(mlr && /\d/.test(s0.slice(0, mlr.index))){ lr = mlr[1].toUpperCase(); s0 = s0.slice(0, mlr.index); }
+
+  const s = s0
     .replace(/[×xX*∗·]/g, 'x')
     .replace(/\s+/g, 'x')
     .replace(/x+/g, 'x')
@@ -15391,9 +15399,30 @@ function etpNormSize(raw){
   if(!m) return { size:'', ok:false, why:'숫자 두 개를 못 읽었습니다' };
   const A = m[1] + 'x' + m[2];
   const B = m[2] + 'x' + m[1];
-  if(etpKnownSize(A)) return { size:A, ok:true, flipped:false, unknown:false };
-  if(etpKnownSize(B)) return { size:B, ok:true, flipped:true,  unknown:false };
-  return { size:A, ok:true, flipped:false, unknown:true };   // 저장은 하되 눈에 띄게 표시
+
+  let base = A, flipped = false, unknown = false;
+  if(etpKnownSize(A))      { base = A; }
+  else if(etpKnownSize(B)) { base = B; flipped = true; }
+  else                     { unknown = true; }         // 저장은 하되 눈에 띄게 표시
+
+  /* 관통보링 사이즈인데 좌우가 안 적혀 오면 되물어야 합니다 — 합쳐 세면
+     서로 바꿔 쓸 수 없는 것을 한 칸에 담게 됩니다. */
+  const needLr = !lr && !!etpLrSizes()[base];
+  return { size: base + (lr ? ' ' + lr : ''), ok:true, flipped, unknown, lr, needLr };
+}
+
+// 좌우를 갈라 세야 하는 사이즈 목록 (관통보링 모델이 쓰는 사이즈)
+var _etpLrSizes = null;
+function etpLrSizes(){
+  if(_etpLrSizes) return _etpLrSizes;
+  const o = {};
+  if(typeof SIZE_TO_MODELS !== 'undefined'){
+    Object.keys(SIZE_TO_MODELS).forEach(s => {
+      if((SIZE_TO_MODELS[s] || []).some(m => etpNeedsLr(m))) o[s] = true;
+    });
+  }
+  _etpLrSizes = o;
+  return o;
 }
 
 // ── 장부 집계 ────────────────────────────────────────────────────────
@@ -15414,7 +15443,8 @@ function etpStockMap(){
 
 function etpAvgOf(size){
   if(typeof ETP_SIZE_MASTER === 'undefined') return 0;
-  const f = ETP_SIZE_MASTER.find(x => x.size === size);
+  const b = etpBaseSize(size);
+  const f = ETP_SIZE_MASTER.find(x => x.size === b);
   return f ? (Number(f.etpAvg) || 0) : 0;
 }
 
@@ -15479,7 +15509,13 @@ function etpBuildRows(){
       over:  st.cur >= sf.n && ((cov != null && cov > ETP_OVER_COVER) || (avg <= 0 && st.cur > 0)),
       noMaster: !etpInMaster(size),
       noBom:    !etpInBom(size),
-      models: (typeof SIZE_TO_MODELS !== 'undefined' && SIZE_TO_MODELS[size]) ? SIZE_TO_MODELS[size] : []
+      lr: etpKeyLr(size),
+      models: (typeof SIZE_TO_MODELS !== 'undefined' && SIZE_TO_MODELS[etpBaseSize(size)])
+                ? SIZE_TO_MODELS[etpBaseSize(size)].filter(m => {
+                    const l = etpKeyLr(size);
+                    return l ? etpLrOf(m) === l : true;   // 좌우를 가르는 줄에는 그쪽 모델만 보여줍니다
+                  })
+                : []
     });
   };
   if(typeof ETP_SIZE_MASTER !== 'undefined') ETP_SIZE_MASTER.forEach(x => push(x.size));
@@ -15513,13 +15549,47 @@ function etpBizGap(fromYmd, toYmd){
    ★ 안전재고에 쓸 값은 반드시 'AS 포함' 이어야 합니다.
      차감은 AS 포함인데 안전재고를 AS 제외 평균으로 잡으면 매달 AS만큼
      조용히 모자랍니다. 'AS 제외' 값은 생산계획·예시대조 쪽에서 씁니다. */
+/* 모델 이름은 반드시 '제품명'에서 읽습니다 — CODE_MODEL_MAP 이 아닙니다.
+   CODE_MODEL_MAP 의 short 에는 끝의 L/R 이 없습니다. 제품명에는 있습니다.
+   실측(2026-09-14 · 납품서 60건, 에토프 품목만):
+     CODE_MODEL_MAP 경로 — 유리를 못 찾은 것 170장, 좌우 표시 161장 전부 잃음
+     제품명 경로         — 못 찾은 것 2장, 좌우 보존
+     두 경로가 서로 다른 유리 사이즈를 내놓은 경우 0건
+   앞이 'Euro700 Grace ETP' 처럼 세 토막(시리즈·색상)이라 그것만 떼면
+   MODEL_BOM 열쇠가 됩니다. 프롬프트가 말한 방식이기도 합니다. */
 function etpModelNameOf(it){
+  const nm = String(it.short || it.name || '').trim();
+  const stripped = nm.replace(/^Euro700\s+\S+\s+\S+\s+/i, '').trim();
+  if(stripped && typeof bomOf === 'function' && bomOf(stripped)) return stripped;
   const mapped = (typeof CODE_MODEL_MAP !== 'undefined' && it.code) ? CODE_MODEL_MAP[it.code] : null;
-  if(mapped && mapped.short) return mapped.short;
-  return String(it.short || it.name || '')
-    .replace(/Euro700\s+Grace\s+(ETP|W\/Cotton)\s+/ig, '')
-    .trim();
+  if(mapped && mapped.short) return mapped.short;   // 제품명으로 못 찾을 때만 뒤로 물러납니다
+  return stripped || nm;
 }
+
+/* ── 좌우(L/R)를 따로 세는 것은 관통보링 계열뿐입니다 (사용자 확정 2026-09-14)
+   유리에 인쇄면이 따로 있어서, 관통보링 자리가 좌우로 갈리면 서로 바꿔 쓸 수
+   없습니다. 그래서 이 계열만 '592x693 L' 처럼 좌우를 열쇠에 답니다.
+   나머지는 좌우가 같은 유리라 사이즈 하나로 합쳐 셉니다 — 현성 인수증도
+   사이즈로만 오고 좌우 표기가 없습니다. MODEL_BOM 의 L·R 짝 24쌍도 유리
+   사이즈가 전부 같습니다(전수 확인).
+   지금 걸리는 것: BTARG 6070 · WTARG 60141 · WTARG 60154 (각 L·R).
+   늘릴 일이 있으면 아래 한 줄만 고치십시오. */
+const ETP_LR_SPLIT = /TARG/;
+
+function etpLrOf(model){
+  const m = String(model || '').match(/\s([LR])$/);
+  return m ? m[1] : '';
+}
+function etpNeedsLr(model){ return ETP_LR_SPLIT.test(String(model || '')); }
+function etpSizeKeyOf(model, w, h){
+  const base = w + 'x' + h;
+  if(!etpNeedsLr(model)) return base;
+  const lr = etpLrOf(model);
+  return lr ? (base + ' ' + lr) : base;   // 좌우를 모르면 붙이지 않고 '좌우 미표기'로 드러납니다
+}
+// 열쇠에서 사이즈만 / 좌우만 떼어 보기
+function etpBaseSize(key){ return String(key || '').replace(/\s+[LR]$/, ''); }
+function etpKeyLr(key){ const m = String(key || '').match(/\s([LR])$/); return m ? m[1] : ''; }
 function etpIsNonStd(name){
   const n = String(name || '');
   return /비규격/.test(n) || n.trim().startsWith('(비)');   // CLAUDE.md 4-1
@@ -15592,7 +15662,7 @@ function etpMeasured(opt){
       bom.glass.forEach(g => {
         const q = (Number(g.qty) || 1) * (Number(it.qty) || 0);
         if(q <= 0) return;
-        const key = g.w + 'x' + g.h;
+        const key = etpSizeKeyOf(model, g.w, g.h);   // 관통보링만 좌우가 갈립니다
         bySize[key] = (bySize[key] || 0) + q;
         total += q;
         if(isAS) asQty += q;
@@ -15764,9 +15834,10 @@ function etpRowHtml(r){
 
   // 오른쪽 꼬리말 — 무엇을 알려 줘야 이 줄을 보고 판단이 되는가
   let tail = '';
-  if(r.avg > 0) tail = '월 ' + etpDot(r.avg) + '장';
-  else if(r.in > 0 || r.out > 0) tail = '월평균 모름';
-  else tail = '월 0장';
+  // '월 0장'(마스터에 있고 실제로 0) 과 '월평균 모름'(마스터에 아예 없음)은 다른 말입니다
+  if(r.avg > 0)        tail = '월 ' + etpDot(r.avg) + '장';
+  else if(r.noMaster)  tail = '월평균 모름';
+  else                 tail = '월 0장';
   if(r.cover != null) tail += ' · ' + r.cover + '영업일치';
   else if(r.cur > 0)  tail += ' · 8개월간 출고 없음';
   if(r.onOrder > 0)   tail += ' · <b style="color:var(--acc)">발주 ' + r.onOrder + '장 미입고</b>';
@@ -15783,7 +15854,9 @@ function etpRowHtml(r){
     '<div onclick="etpToggleSize(\'' + r.size + '\')" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--b1);cursor:pointer;' + (r.short ? 'background:rgba(220,38,38,.05)' : '') + '">' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-family:\'JetBrains Mono\',monospace;font-size:15px;font-weight:800;color:' + (r.short ? 'var(--acc4)' : r.over ? 'var(--tx3)' : 'var(--tx1)') + '">' +
-          r.size.replace('x', '<span style="color:var(--tx3);font-weight:400">×</span>') + badge + flag + nobom +
+          etpBaseSize(r.size).replace('x', '<span style="color:var(--tx3);font-weight:400">×</span>') +
+          (r.lr ? '<span title="관통보링이라 좌우를 따로 셉니다 — 서로 바꿔 쓸 수 없습니다" style="font-size:11px;font-weight:900;color:var(--acc5);margin-left:4px">' + r.lr + '</span>' : '') +
+          badge + flag + nobom +
         '</div>' +
         '<div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + tail + '</div>' +
       '</div>' +
