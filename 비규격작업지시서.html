@@ -3371,8 +3371,15 @@ function frmBuild(){
       const isSet=!!c.frameSegs;
       const isSide=!!(c.frameSegs && c.frameSegs[0] && c.frameSegs[0].side);
       const key=`${type}│${r.code}│${frameTxt}`;
-      if(!agg[key]) agg[key]={type, code:r.code, frameTxt, isSet, isSide, setSheets:setSheetsOf(c), qty:0, L:0, R:0, N:0, colors:new Set()};
+      if(!agg[key]) agg[key]={type, code:r.code, frameTxt, isSet, isSide, setSheets:setSheetsOf(c), qty:0, L:0, R:0, N:0, colors:new Set(), glassTxt:null};
       const a=agg[key];
+      /* 유리 재단치수도 옆에 적습니다 — 참고용입니다(사장님 2026-09-14).
+         묶는 열쇠에는 넣지 않습니다. 넣으면 프레임이 같은데 유리만 다른 줄이
+         갈라져 조립1팀이 보던 장수가 쪼개집니다.
+         그래서 유리가 서로 다르면 합치지 않고 '여러 가지'로 드러냅니다. */
+      const gTxt=(typeof glassLinesOf==='function' ? glassLinesOf(c) : []).join(' / ');
+      if(a.glassTxt===null) a.glassTxt=gTxt;
+      else if(a.glassTxt!==gTxt) a.glassTxt='여러 가지';
       const q=r.qty||1;
       a.qty+=q;
       const s=String(r.lr||'').trim().toUpperCase();
@@ -3395,11 +3402,31 @@ function frmCompo(a){
   if(a.N) p.push(p.length?`미표기${a.N}`:'');
   return p.filter(Boolean).join(' / ');
 }
+var frmPickOd='';                        // 고른 발주일 ('' = 전체)
+function frmSetOd(v){ frmPickOd=v; frmRender(); }
 function frmRender(){
   const el=document.getElementById('frameArea'); if(!el) return;
-  const sheets=frmBuild();
-  if(!sheets.length){ el.innerHTML='<div class="empty">뽑을 품목이 없습니다. 납품서를 먼저 올리세요.</div>'; return; }
-  el.innerHTML=sheets.map(s=>`
+  const all=frmBuild();
+  if(!all.length){ el.innerHTML='<div class="empty">뽑을 품목이 없습니다. 납품서를 먼저 올리세요.</div>'; return; }
+
+  /* 발주일로 골라 봅니다 (사장님 2026-09-14).
+     한 번에 낸 발주를 통째로 보는 것이 일하는 단위와 맞습니다.
+     한 발주일에 납품요청일이 여럿이면 장은 그대로 나뉩니다 — 머리글의
+     납품일·D-2 가 요청일마다 다르기 때문입니다. (수납도어 탭과 같은 방식) */
+  const ods=[...new Set(all.map(s=>s.od||'(미지정)'))].sort().reverse();
+  if(frmPickOd && ods.indexOf(frmPickOd)<0) frmPickOd='';      // 없어진 날짜는 풀어 줍니다
+  const sheets = frmPickOd ? all.filter(s=>(s.od||'(미지정)')===frmPickOd) : all;
+  const chip=(v,label,n)=>`<button class="frm-od${(frmPickOd===v)?' on':''}" onclick="frmSetOd('${v}')"
+      style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;
+             border:1px solid ${frmPickOd===v?'#1560c0':'#d5dae0'};background:${frmPickOd===v?'#1560c0':'#fff'};
+             color:${frmPickOd===v?'#fff':'#5a6270'};font-weight:${frmPickOd===v?'700':'500'}">${label}${n!=null?` <span style="opacity:.75">${n}</span>`:''}</button>`;
+  const bar=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <span style="font-size:12px;color:#6b7280;margin-right:2px">발주일</span>
+      ${chip('','전체',all.reduce((s,x)=>s+x.total,0))}
+      ${ods.map(o=>chip(o, fmtDate(o)||o, all.filter(s=>(s.od||'(미지정)')===o).reduce((s,x)=>s+x.total,0))).join('')}
+    </div>`;
+
+  el.innerHTML=bar+sheets.map(s=>`
     <div class="page-block" style="background:#fff;border:1px solid #dfe3e8;border-radius:10px;padding:14px 16px;margin-bottom:14px">
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
         <div style="font-size:15px;font-weight:800">📅 납품 ${fmtDate(warehouseOutDate(s.ship))}</div>
@@ -3412,6 +3439,7 @@ function frmRender(){
           <th style="text-align:left;padding:5px 8px">계열</th>
           <th style="text-align:left;padding:5px 8px">코드</th>
           <th style="text-align:left;padding:5px 8px">완성치수(프레임)</th>
+          <th style="text-align:left;padding:5px 8px">유리(참고)</th>
           <th style="text-align:right;padding:5px 8px">장수</th>
           <th style="text-align:left;padding:5px 8px">구성</th>
           <th style="text-align:left;padding:5px 8px">색상(참고)</th>
@@ -3420,6 +3448,7 @@ function frmRender(){
           <td style="padding:5px 8px;color:#6b7280">${esc(a.type)}</td>
           <td style="padding:5px 8px;font-weight:700;color:#1560c0">${esc(a.code)}</td>
           <td style="padding:5px 8px">${esc(a.frameTxt)}</td>
+          <td style="padding:5px 8px;color:#c0392b;font-size:12px">${esc(a.glassTxt||'')}</td>
           <td style="padding:5px 8px;text-align:right;font-weight:700">${a.sheets}</td>
           <td style="padding:5px 8px;color:#6b7280">${esc(frmCompo(a))}</td>
           <td style="padding:5px 8px;color:#9aa1a9;font-size:11px">${esc([...a.colors].join('·'))}</td>
@@ -3429,13 +3458,15 @@ function frmRender(){
 }
 // 표를 탭으로 구분해 복사 — 엑셀에 그대로 붙습니다
 function frmCopy(){
-  const sheets=frmBuild();
+  // 화면에서 고른 발주일만 복사합니다 — 보시는 것과 복사되는 것이 같아야 합니다
+  const all=frmBuild();
+  const sheets = frmPickOd ? all.filter(s=>(s.od||'(미지정)')===frmPickOd) : all;
   if(!sheets.length){ alert('뽑을 품목이 없습니다.'); return; }
   const lines=[];
   sheets.forEach(s=>{
-    lines.push(`[납품 ${fmtDate(warehouseOutDate(s.ship))} · D-2 ${fmtDate(s.ship)}${s.isAS?' · AS':''}] 총 ${s.total}장`);
-    lines.push(['계열','코드','완성치수','장수','구성','색상'].join('\t'));
-    s.list.forEach(a=>lines.push([a.type,a.code,a.frameTxt,a.sheets,frmCompo(a),[...a.colors].join('·')].join('\t')));
+    lines.push(`[납품 ${fmtDate(warehouseOutDate(s.ship))} · D-2 ${fmtDate(s.ship)} · 발주 ${fmtDate(s.od)}${s.isAS?' · AS':''}] 총 ${s.total}장`);
+    lines.push(['계열','코드','완성치수','유리(참고)','장수','구성','색상'].join('\t'));
+    s.list.forEach(a=>lines.push([a.type,a.code,a.frameTxt,(a.glassTxt||''),a.sheets,frmCompo(a),[...a.colors].join('·')].join('\t')));
     lines.push('');
   });
   const txt=lines.join('\n');
