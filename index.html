@@ -16294,6 +16294,7 @@ function renderEtp(){
     '<div class="filter-row" style="margin-top:10px">' + chip('short', '부족만') + chip('all', '전체') + chip('over', '과잉') + chip('nomaster', '마스터에 없음') + '</div>' +
     '<input class="inp" id="etp-search" value="' + etpEsc(etpSearchKey) + '" placeholder="🔍 사이즈 / 모델명 검색..." oninput="etpOnSearch(this.value)">' +
     list +
+    etpLookupCardHtml() +
     etpMeasureCardHtml();
 
   // 글자를 치던 자리를 잃지 않게 커서를 되돌립니다
@@ -16305,6 +16306,177 @@ function renderEtp(){
   document.querySelectorAll('.etp-mode-btn').forEach(b => {
     b.classList.toggle('on', b.getAttribute('data-mode') === etpMode);
   });
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   🔍 오더번호로 되짚기 — AS 건이 자체 인쇄분인지 외주분인지 가리기 위함
+                                                              2026-09-14
+   AS 납품서에 찍히는 오더번호는 그 AS 건의 제 번호(13* 로 시작)라서,
+   그것만으로는 원래 오더가 언제 나갔는지 알 수 없습니다. 사장님이 한샘에서
+   원오더번호를 따로 받아 오시면 여기에 넣습니다.
+
+   넣으면 나오는 것: 발주일 · 납품요청일 · 제품명 · 색상 · 유리 사이즈(합적
+   포함) · 납품번호 · 참조문서번호. 그리고 발주일이 외주 전환일(etpCutover)
+   앞이면 '자체 인쇄분', 뒤면 '외주분'으로 갈라 줍니다.
+
+   ⚠ 앱에 쌓인 납품서만 뒤집니다. 그보다 오래된 오더는 못 찾습니다.
+     못 찾으면 숫자를 지어내지 않고 그렇게 적습니다. 다만 앱에 쌓인 가장 오래된
+     날짜보다 앞이라는 뜻이므로, 그 날짜가 전환일보다 앞이면 자체 인쇄분입니다.
+   ══════════════════════════════════════════════════════════════════════ */
+
+// 앱이 들고 있는 납품서의 발주일 범위
+function etpDelivRange(){
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  let min='', max='';
+  log.forEach(d=>{
+    const dt=d.orderDate||d.delivReqDate||'';
+    if(!dt) return;
+    if(!min||dt<min) min=dt;
+    if(!max||dt>max) max=dt;
+  });
+  return {min, max, docs:log.length};
+}
+
+/* 오더번호 하나를 되짚습니다. 번호가 여러 납품서에 걸칠 수 있어(실측 115건)
+   걸린 것을 모두 돌려줍니다. */
+function etpLookupOrder(orderNo){
+  const key=String(orderNo||'').replace(/[^0-9A-Za-z]/g,'');
+  if(!key) return {key:'', hits:[]};
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  const hits=[];
+  /* 같은 납품서에 같은 품목이 여러 줄로 들어 있는 일이 흔합니다(비규격은 건마다
+     줄이 나뉩니다). 납품번호+코드+실제치수가 같으면 한 줄로 합쳐 셉니다. */
+  const seen={};
+  log.forEach(d=>{
+    (d.items||[]).forEach(it=>{
+      if(String(it.orderNo||'').replace(/[^0-9A-Za-z]/g,'')!==key) return;
+      const mk=d.delivNo+'│'+(it.code||'')+'│'+(it.size||'');
+      if(seen[mk]){
+        const h=seen[mk];
+        h.qty+=(Number(it.qty)||0);
+        h.glass.forEach(g=>{ g.qty=g.per*h.qty; });
+        return;
+      }
+      const name=String(it.short||it.name||'');
+      const model=name.replace(/^Euro700\s+\S+\s+\S+\s+/i,'').trim();
+      const bom=etpBomOf(model);
+      const glass=[];
+      if(bom && bom.glass) bom.glass.forEach(g=>{
+        glass.push({ size: etpSizeKeyOf(model, g.w, g.h), per:(Number(g.qty)||1),
+                     qty:(Number(g.qty)||1)*(Number(it.qty)||0) });
+      });
+      const row={
+        delivNo:d.delivNo, refNo:d.refNo||'', dest:d.dest||'',
+        orderDate:d.orderDate||'', reqDate:d.delivReqDate||'',
+        isAS:String(d.refNo||'').startsWith('54'),
+        code:it.code||'', name, model, qty:Number(it.qty)||0,
+        realSize: it.size||'',              // 비규격은 실제 치수가 여기 있습니다
+        nonstd: /비규격/.test(name) || name.trim().startsWith('(비)'),
+        color:etpColorOf(it), glass, hapjeok: !!(bom && bom.hapjeok)
+      };
+      seen[mk]=row;
+      hits.push(row);
+    });
+  });
+  hits.sort((a,b)=>String(a.orderDate).localeCompare(String(b.orderDate)));
+  return {key, hits};
+}
+
+/* 자체분인지 외주분인지 — 발주일 하나로 갈립니다.
+   9/10 부터 에토프 완제품을 외주 유리로만 만들었습니다(사용자 확정). */
+function etpSideOf(orderDate){
+  if(!orderDate) return {side:'', label:'발주일을 몰라 가릴 수 없습니다', color:'var(--tx3)'};
+  if(orderDate >= etpCutover)
+    return {side:'out', label:'외주분 — 현성 유리로 만든 것이라 에토프 재고에서 뺍니다', color:'var(--etp)'};
+  return {side:'self', label:'자체 인쇄분 — 우리가 인쇄한 유리라 에토프 재고에서 빼지 않습니다', color:'var(--wc)'};
+}
+
+function etpDoLookup(){
+  const inp=document.getElementById('etp-ord-input');
+  etpLookupKey = inp ? inp.value : '';
+  renderEtp();
+}
+function etpClearLookup(){
+  etpLookupKey='';
+  const inp=document.getElementById('etp-ord-input');
+  if(inp) inp.value='';
+  renderEtp();
+}
+var etpLookupKey='';
+
+function etpLookupCardHtml(){
+  const rng=etpDelivRange();
+  const head=
+    '<div class="card" style="border-left:3px solid var(--acc5)">' +
+    '<div class="card-ttl"><span>🔍 오더번호로 되짚기</span></div>' +
+    '<div class="info-note" style="margin-top:6px">' +
+      'AS 건의 <b>원오더번호</b>를 넣으면 그 오더가 <b>언제 발주됐고 어떤 유리를 썼는지</b> 나옵니다. ' +
+      '발주일이 전환일(<b>' + etpMd(etpCutover) + '</b>)보다 앞이면 우리가 인쇄한 유리라 에토프 재고에서 빼지 않습니다.<br>' +
+      'AS 납품서에 찍힌 번호(13…)로는 못 찾습니다 — 그건 AS 건의 제 번호입니다. 한샘에서 받으신 <b>원오더번호</b>를 넣으십시오.' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
+      '<input id="etp-ord-input" value="' + etpEsc(etpLookupKey) + '" placeholder="예) 312660237" ' +
+        'onkeydown="if(event.key===\'Enter\')etpDoLookup()" ' +
+        'style="flex:1;min-width:160px;padding:9px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:14px;font-family:\'JetBrains Mono\',monospace">' +
+      '<button onclick="etpDoLookup()" style="padding:9px 16px;background:var(--acc5);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif">찾기</button>' +
+      (etpLookupKey ? '<button onclick="etpClearLookup()" style="padding:9px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:12px;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif">지우기</button>' : '') +
+    '</div>' +
+    '<div style="margin-top:6px;font-size:10px;color:var(--tx3)">이 기기에 쌓인 납품서 ' + rng.docs + '건 · 발주일 ' + etpMd(rng.min) + ' ~ ' + etpMd(rng.max) + ' 안에서 찾습니다.</div>';
+
+  if(!etpLookupKey) return head + '</div>';
+
+  const res=etpLookupOrder(etpLookupKey);
+  if(!res.hits.length){
+    const older = rng.min && rng.min > etpCutover ? false : true;
+    return head +
+      '<div style="margin-top:12px;padding:12px;background:rgba(234,108,0,.08);border:1px solid rgba(234,108,0,.25);border-radius:8px">' +
+        '<div style="font-size:12px;font-weight:700;color:var(--acc2)">못 찾았습니다 — <span style="font-family:\'JetBrains Mono\',monospace">' + etpEsc(res.key) + '</span></div>' +
+        '<div style="font-size:11px;color:var(--tx2);line-height:1.7;margin-top:6px">' +
+          '이 기기에 쌓인 납품서는 <b>' + etpMd(rng.min) + '</b> 부터입니다. 그보다 오래된 오더는 여기 없습니다.<br>' +
+          (older
+            ? '그 날짜가 전환일(' + etpMd(etpCutover) + ')보다 앞이므로, <b style="color:var(--wc)">못 찾았다는 것 자체가 자체 인쇄분이라는 뜻일 가능성이 큽니다.</b> 다만 납품서를 안 올린 건일 수도 있어 단정하지 않습니다.'
+            : '숫자를 지어내지 않겠습니다. 손으로 확인해 주십시오.') +
+        '</div>' +
+      '</div></div>';
+  }
+
+  const rows=res.hits.map(h=>{
+    const side=etpSideOf(h.orderDate);
+    const cm=(typeof gnColMeta==='function') ? gnColMeta(h.color) : {dot:'var(--tx3)', kor:h.color||'', ico:''};
+    const glassTx = h.glass.length
+      ? h.glass.map(g=>'<span style="font-family:\'JetBrains Mono\',monospace;font-weight:800;color:var(--tx1)">' + g.size.replace('x','×') + '</span> <span style="color:var(--tx2)">' + g.qty + '장</span>' + (g.per>1 ? ' <span style="color:var(--acc2);font-size:9px;font-weight:700">도어당 ' + g.per + '장</span>' : '')).join(' · ')
+        + (h.nonstd ? '<div style="color:var(--acc2);font-size:10px;margin-top:3px">⚠ 비규격입니다 — 위 치수는 대표치수이고 실제 치수는 ' + (h.realSize ? '<b>' + etpEsc(h.realSize) + '</b>' : '납품서를 보셔야 합니다') + '</div>' : '')
+      : '<span style="color:var(--acc4)">유리를 못 찾았습니다 — 인쇄유리 대상이 아닐 수 있습니다</span>';
+    return '<div style="padding:11px 12px;border-bottom:1px solid var(--b1)">' +
+      '<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">' +
+        '<span style="font-size:13px;font-weight:700;color:var(--tx1)">' + etpEsc(h.name) + '</span>' +
+        '<span style="font-family:\'JetBrains Mono\',monospace;font-size:13px;font-weight:900;color:var(--acc)">' + h.qty + '장</span>' +
+        (h.color ? '<span style="font-size:11px;font-weight:700;color:' + cm.dot + '">' + cm.ico + ' ' + cm.kor + '</span>' : '') +
+        (h.hapjeok ? '<span style="font-size:9px;font-weight:700;color:var(--acc2);border:1px solid var(--acc2);border-radius:8px;padding:1px 5px">합적</span>' : '') +
+        (h.isAS ? '<span style="font-size:9px;font-weight:700;color:var(--acc4);border:1px solid var(--acc4);border-radius:8px;padding:1px 5px">AS 납품서</span>' : '') +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--tx2);margin-top:5px">→ 유리 ' + glassTx + '</div>' +
+      '<div style="font-size:10px;color:var(--tx3);margin-top:5px">' +
+        '발주일 <b style="color:var(--tx2)">' + (h.orderDate || '—') + '</b> · 납품요청일 ' + (h.reqDate || '—') +
+        ' · 납품번호 ' + etpEsc(h.delivNo) + ' · 참조 ' + etpEsc(h.refNo) + (h.dest ? ' · ' + etpEsc(h.dest) : '') +
+      '</div>' +
+      '<div style="margin-top:6px;font-size:11px;font-weight:700;color:' + side.color + '">' +
+        (side.side === 'self' ? '🔵 ' : side.side === 'out' ? '🟠 ' : '⚪ ') + side.label +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  // 여러 줄이 같은 쪽으로 떨어지면 한 줄로 요약해 줍니다
+  const sides=[...new Set(res.hits.map(h=>etpSideOf(h.orderDate).side))];
+  const verdict = sides.length === 1
+    ? '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:' + (sides[0] === 'self' ? 'rgba(29,111,181,.08)' : 'rgba(180,83,9,.08)') + ';font-size:12px;font-weight:700;color:' + (sides[0] === 'self' ? 'var(--wc)' : 'var(--etp)') + '">판정 — ' + etpSideOf(res.hits[0].orderDate).label + '</div>'
+    : '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(234,108,0,.08);font-size:12px;font-weight:700;color:var(--acc2)">⚠ 이 오더번호가 전환일 앞뒤로 걸쳐 있습니다 — 줄마다 따로 보십시오</div>';
+
+  return head +
+    '<div style="margin-top:12px;border:1px solid var(--b1);border-radius:8px;overflow:hidden">' + rows + '</div>' +
+    verdict +
+  '</div>';
 }
 
 // ── 켤 때 한 번 ──────────────────────────────────────────────────────
