@@ -3889,7 +3889,7 @@ function gnDateOf(doc){
 function gnCollect(fromV, toV){
   const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
   const rows=[];
-  let skipped=0, missedByOld=0, colorless=0;
+  let skipped=0, missedByOld=0, colorless=0, notGlass=0;
   log.forEach(doc=>{
     const date=gnDateOf(doc);
     if(fromV && date<fromV) return;
@@ -3909,6 +3909,14 @@ function gnCollect(fromV, toV){
       let color='';
       if(typeof delivColorOf==='function' && it.code) color=delivColorOf(it.code)||'';
       if(!color) color=it.color || (mapped && mapped.color) || '';
+      /* ★ 베일(쉐이드·BRZ)은 유리가 아닙니다 (사용자 확정 2026-09-14).
+         인쇄유리는 Grace 계열(웜코튼·에토프)뿐입니다. 한샘 카탈로그도 그렇게
+         적혀 있습니다 — 베일 코드 396개는 색상 칸이 전부 비어 있고, Grace 만
+         WC/ETP 가 적혀 있습니다.
+         그런데 bomOf 가 'VEIL BRZ'·'VEIL SHADE' 접두를 떼고 같은 모델의 유리를
+         돌려주는 바람에, 베일 779장이 인쇄유리 소요에 섞여 들어왔습니다.
+         조용히 버리지 않고 몇 장을 뺐는지 화면에 적습니다. */
+      if(color!=='WC' && color!=='ETP'){ notGlass+=(it.qty||0); return; }
       if(!color) colorless+=(it.qty||0);
       bom.glass.forEach(g=>{
         const qty=(g.qty||1)*(it.qty||0);
@@ -3922,7 +3930,7 @@ function gnCollect(fromV, toV){
       });
     });
   });
-  return {rows, skipped, missedByOld, colorless};
+  return {rows, skipped, missedByOld, colorless, notGlass};
 }
 
 /* 색은 넷입니다. 웜코튼·에토프만 알고 나머지를 '미지정'으로 뭉뚱그리면
@@ -3980,7 +3988,8 @@ function renderGlassNeed(){
            <span style="font-size:12px;color:var(--tx2)">발주일 <b style="color:var(--tx1)">${dateSet.size}</b>일</span>
            <span style="font-size:12px;color:var(--tx2)">총 인쇄유리 <b style="color:var(--acc)">${grandTotal}</b>장</span>
            ${colorChips}
-           ${got.skipped?`<span style="font-size:10px;color:var(--tx3)">· 인쇄유리 대상 아님 ${got.skipped}장 제외</span>`:''}
+           ${got.notGlass?`<span style="font-size:10px;color:var(--tx3)">· 베일(쉐이드·BRZ)은 유리가 아니라 제외 — 도어 ${got.notGlass}장</span>`:''}
+           ${got.skipped?`<span style="font-size:10px;color:var(--tx3)">· 인쇄유리 대상 아님 제외 — 도어 ${got.skipped}장</span>`:''}
          </div>` +
         (got.missedByOld
           ? `<div style="margin-top:6px;font-size:10.5px;color:var(--acc2)">🔧 좌우(L/R) 품목 <b>${got.missedByOld}장</b>이 예전에는 빠져 있었습니다 — 이제 들어갑니다. (되돌리려면 GN_FIX_LR)</div>`
@@ -12080,11 +12089,14 @@ function odBomStats(w, h, months){
         if(g.w!==w || g.h!==h) return;
         const q=(g.qty||1)*(it.qty||0);
         if(q<=0) return;
-        total+=q; monthsSeen.add(dt.slice(0,7));
         let col='';
         if(typeof delivColorOf==='function' && it.code) col=delivColorOf(it.code)||'';
         if(!col) col=(typeof normColor==='function') ? normColor(it.color||'') : (it.color||'');
-        if(col==='WC') byColor.WC+=q; else if(col==='ETP') byColor.ETP+=q; else byColor.etc+=q;
+        /* 베일(쉐이드·BRZ)은 유리가 아닙니다 — 인쇄유리는 Grace 계열뿐입니다.
+           bomOf 가 'VEIL BRZ' 접두를 떼고 같은 유리를 돌려주므로 여기서 거릅니다. */
+        if(col!=='WC' && col!=='ETP') return;
+        total+=q; monthsSeen.add(dt.slice(0,7));
+        if(col==='WC') byColor.WC+=q; else byColor.ETP+=q;
       });
     });
   });
@@ -12130,7 +12142,10 @@ function odColorLine(u){
   const parts=[];
   if((b.WC||0)>0)  parts.push(`<span style="color:var(--wc);font-weight:700">🔵 웜코튼 월 ${r(a.WC)}장</span> <span style="color:var(--tx3)">(6개월 ${b.WC})</span>`);
   if((b.ETP||0)>0) parts.push(`<span style="color:var(--etp);font-weight:700">🟠 에토프 월 ${r(a.ETP)}장</span> <span style="color:var(--tx3)">(6개월 ${b.ETP})</span>`);
-  if((b.etc||0)>0) parts.push(`<span style="color:var(--tx3)">그 밖 월 ${r(a.etc)}장 (6개월 ${b.etc})</span>`);
+  /* '그 밖'은 웜코튼·에토프가 아닌 것 — 대부분 베일(쉐이드·BRZ)입니다.
+     베일은 유리가 아니므로 인쇄유리로 세면 안 됩니다. 다만 위의 총합(월평균)은
+     오래 쓰신 숫자라 여기서 바꾸지 않고, 섞여 있다는 것만 적어 둡니다. */
+  if((b.etc||0)>0) parts.push(`<span style="color:var(--tx3)">그 밖 월 ${r(a.etc)}장 (6개월 ${b.etc}) — 베일 등 유리 아님</span>`);
   if(!parts.length) return '';
   return `<div style="font-size:10.5px;margin-top:3px;padding-left:14px;display:flex;gap:12px;flex-wrap:wrap">${parts.join('')}</div>`;
 }
