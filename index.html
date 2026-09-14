@@ -1977,6 +1977,7 @@ function rollingShipStats(w, h, months){
   const sizeNames = sg ? new Set(sg.models.map(n=>n.replace(/\s+/g,'').toLowerCase())) : null;
   let total=0;
   const monthsSeen=new Set();
+  const byColor={WC:0, ETP:0, etc:0};   // 색상별 갈래 (총합 total 은 예전 그대로)
   delivLog.forEach(d=>{
     if((d.refNo||'').startsWith('54')) return; // AS 제외
     const dt=d.delivReqDate||d.orderDate;
@@ -1993,7 +1994,20 @@ function rollingShipStats(w, h, months){
         const nm=(it.short||(delivLookup(it.code).short)||'').replace(/\s+/g,'').toLowerCase();
         if(nm && sizeNames.has(nm)) match=true;
       }
-      if(match){ total+=(it.qty||0); monthsSeen.add(dt.slice(0,7)); }
+      if(match){
+        const q=(it.qty||0);
+        total+=q; monthsSeen.add(dt.slice(0,7));
+        /* 색상별로도 나눠 셉니다 (2026-09-14 추가).
+           에토프를 현성에 외주로 넘겼기 때문에, 같은 사이즈라도 웜코튼은
+           우리가 인쇄할 몫이고 에토프는 현성에 시킬 몫이라 발주할 곳이
+           다릅니다. 총합은 예전 그대로 두고 갈래만 더합니다.
+           색은 제품명 기준(delivColorOf)입니다 — MODELS.color 는 같은 모델에
+           WC/ETP 가 섞여 있어 못 믿습니다(2026-09-04 기록). */
+        let col='';
+        if(typeof delivColorOf==='function' && it.code) col=delivColorOf(it.code)||'';
+        if(!col) col=(typeof normColor==='function') ? normColor(it.color||'') : (it.color||'');
+        if(col==='WC') byColor.WC+=q; else if(col==='ETP') byColor.ETP+=q; else byColor.etc+=q;
+      }
     });
   });
   const activeMonths=monthsSeen.size;
@@ -2002,7 +2016,10 @@ function rollingShipStats(w, h, months){
     total,
     monthlyAvg: total>0 ? total/denom : 0,
     activeMonths,
-    hasEnoughData: total>0 && activeMonths>=2
+    hasEnoughData: total>0 && activeMonths>=2,
+    byColor,
+    // 색상별 월평균도 같은 분모로 냅니다 — 총합과 갈래가 어긋나지 않게
+    avgByColor: { WC: byColor.WC/denom, ETP: byColor.ETP/denom, etc: byColor.etc/denom }
   };
 }
 
@@ -11823,11 +11840,71 @@ function odUseAvg(w, h){
   const roll=rollingShipStats(W, H, 6);
   if(roll && roll.total>0)
     return {avg:Math.round(roll.monthlyAvg*10)/10, total:roll.total,
-            months:roll.activeMonths, solid:!!roll.hasEnoughData, src:'live'};
+            months:roll.activeMonths, solid:!!roll.hasEnoughData, src:'live',
+            byColor:roll.byColor, avgByColor:roll.avgByColor};
+  /* ── 0장으로 나올 때만 BOM 으로 한 번 더 세어 봅니다 (2026-09-14) ──
+     rollingShipStats 는 제품명을 SIZE_GROUPS 의 모델명과 맞춰 보는데, 거기
+     모델명에는 끝의 L/R 이 없습니다('HD B 5091'). 납품서 품목은
+     'Euro700 Grace ETP HD B 5091 L' 이라 안 맞아 통째로 0장이 됩니다.
+     실측: 495x761 이 0장으로 나오지만 실제로는 6개월 91장입니다.
+     ★ 이미 숫자가 나온 사이즈는 건드리지 않습니다. 빈 자리만 채웁니다.
+       그래서 지금까지 보시던 숫자는 하나도 안 바뀝니다.
+     화면에는 'BOM 기준'이라 적어 어느 길로 나온 값인지 보이게 합니다.
+     되돌리려면 OD_BOM_FALLBACK 을 false 로 두십시오. */
+  if(OD_BOM_FALLBACK){
+    const bm=odBomStats(W,H,6);
+    if(bm && bm.total>0)
+      return {avg:Math.round(bm.monthlyAvg*10)/10, total:bm.total,
+              months:bm.activeMonths, solid:bm.activeMonths>=2, src:'bom',
+              byColor:bm.byColor, avgByColor:bm.avgByColor};
+  }
   // 납품서 실데이터가 없으면 과거 분석값(SIZE_GROUPS)으로 폴백 — 인쇄실 화면과 같은 순서
   const sg=(typeof SIZE_GROUPS!=='undefined') ? SIZE_GROUPS.find(g=>g.w===W && g.h===H) : null;
   if(sg && sg.avg_monthly) return {avg:Math.round(sg.avg_monthly*10)/10, solid:false, src:'hist'};
   return null;
+}
+
+const OD_BOM_FALLBACK = true;   // false 로 두면 예전 그대로 (빈 자리는 빈 자리로)
+
+/* 납품서를 BOM 으로 펼쳐 이 사이즈가 몇 장 쓰였는지 셉니다.
+   합적 도어(유리 2~3장)가 여기서 제대로 펼쳐집니다.
+   AS(54*)와 비규격을 빼는 것은 rollingShipStats 와 같은 기준입니다 —
+   두 길에서 나온 값이 서로 견줄 수 있어야 하기 때문입니다. */
+function odBomStats(w, h, months){
+  months = months || 6;
+  if(typeof delivLog==='undefined' || !delivLog.length || typeof bomOf!=='function') return null;
+  const now=new Date();
+  const cutoffStr=_ymdLocal(new Date(now.getFullYear(), now.getMonth()-months, now.getDate()));
+  let total=0;
+  const byColor={WC:0, ETP:0, etc:0};
+  const monthsSeen=new Set();
+  delivLog.forEach(d=>{
+    if((d.refNo||'').startsWith('54')) return;               // AS 제외 (기존 기준과 같게)
+    const dt=d.delivReqDate||d.orderDate;
+    if(!dt || dt<cutoffStr) return;
+    (d.items||[]).forEach(it=>{
+      const nm=String(it.short||it.name||'');
+      if(/비규격/.test(nm) || nm.trim().startsWith('(비)')) return;
+      // 이름은 제품명에서 읽습니다 — 그래야 끝의 L/R 이 살아 있습니다
+      const model=nm.replace(/^Euro700\s+\S+\s+\S+\s+/i,'').trim();
+      const b=bomOf(model) || bomOf(model+' L') || bomOf(model+' R');
+      if(!b || !b.glass) return;
+      b.glass.forEach(g=>{
+        if(g.w!==w || g.h!==h) return;
+        const q=(g.qty||1)*(it.qty||0);
+        if(q<=0) return;
+        total+=q; monthsSeen.add(dt.slice(0,7));
+        let col='';
+        if(typeof delivColorOf==='function' && it.code) col=delivColorOf(it.code)||'';
+        if(!col) col=(typeof normColor==='function') ? normColor(it.color||'') : (it.color||'');
+        if(col==='WC') byColor.WC+=q; else if(col==='ETP') byColor.ETP+=q; else byColor.etc+=q;
+      });
+    });
+  });
+  const activeMonths=monthsSeen.size;
+  const denom=Math.min(months, Math.max(activeMonths,1));
+  return { total, monthlyAvg: total>0 ? total/denom : 0, activeMonths, byColor,
+           avgByColor:{WC:byColor.WC/denom, ETP:byColor.ETP/denom, etc:byColor.etc/denom} };
 }
 /* 사이즈가 채워진 줄에는 '항상' 한 줄을 띄웁니다.
    숫자가 나오면 숫자를, 안 나오면 왜 안 나오는지를 적습니다.
@@ -11850,8 +11927,25 @@ function odUseBadge(ln){
   }
   const sub = u.src==='hist'
     ? '<span style="color:var(--tx3)">과거 분석값</span>'
-    : `<span style="color:var(--tx3)">최근 6개월 ${u.total}장${u.solid?'':' · 표본 적음'}</span>`;
-  return wrap(`📊 <b>${W}×${H}</b> 월평균 <b style="color:var(--acc);font-size:13px">${u.avg}</b>장 · ${sub}`);
+    : `<span style="color:var(--tx3)">최근 6개월 ${u.total}장${u.solid?'':' · 표본 적음'}${u.src==='bom'?' · BOM 기준':''}</span>`;
+  return wrap(`📊 <b>${W}×${H}</b> 월평균 <b style="color:var(--acc);font-size:13px">${u.avg}</b>장 · ${sub}`)
+       + odColorLine(u);
+}
+
+/* 색상별 월평균 한 줄 (2026-09-14 추가).
+   에토프를 현성에 외주로 넘긴 뒤로는 같은 사이즈라도 발주할 곳이 갈립니다 —
+   웜코튼은 우리가 인쇄할 원판이고, 에토프는 현성에 시킬 완성 인쇄유리입니다.
+   위의 총합 줄은 그대로 두고 아래에 덧붙이기만 합니다(되돌리기 쉽게). */
+function odColorLine(u){
+  if(!u || !u.avgByColor) return '';
+  const a=u.avgByColor, b=u.byColor||{};
+  const r=n=>Math.round((n||0)*10)/10;
+  const parts=[];
+  if((b.WC||0)>0)  parts.push(`<span style="color:var(--wc);font-weight:700">🔵 웜코튼 월 ${r(a.WC)}장</span> <span style="color:var(--tx3)">(6개월 ${b.WC})</span>`);
+  if((b.ETP||0)>0) parts.push(`<span style="color:var(--etp);font-weight:700">🟠 에토프 월 ${r(a.ETP)}장</span> <span style="color:var(--tx3)">(6개월 ${b.ETP})</span>`);
+  if((b.etc||0)>0) parts.push(`<span style="color:var(--tx3)">그 밖 월 ${r(a.etc)}장 (6개월 ${b.etc})</span>`);
+  if(!parts.length) return '';
+  return `<div style="font-size:10.5px;margin-top:3px;padding-left:14px;display:flex;gap:12px;flex-wrap:wrap">${parts.join('')}</div>`;
 }
 
 function renderOdLines(){
