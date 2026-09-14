@@ -14171,6 +14171,19 @@ const DELIV_PROD_CODE_RE = /^[A-Z]{2,6}[0-9A-Z]*$/;
 // 코드 → 제품명/색상/구분/사이즈 (엑셀 카탈로그 우선)
 // 비규격 제품명에서 사이즈·좌우(LR)를 추출. 파서와 카드 렌더 양쪽에서 사용.
 // 괄호 형식: (450*0*781*0 M) — 숫자들 뒤 방향표기 L/R/M(M=공용). 0은 제외.
+/* 비규격 판정 — '비규격' 글자가 없이 '(비)' 로만 오는 품목이 실재합니다
+   (시그니처 글래스도어. CLAUDE.md 4-1·12-6).
+   납품서 글자에는 괄호 안에 공백이 끼어 `( 비 )` 로 오기도 해서 느슨하게 봅니다. */
+function isNonStd(name){
+  const n=String(name||'');
+  return /비규격/.test(n) || /\(\s*비\s*\)/.test(n);
+}
+/* 한 줄에 '사이즈다운 것'이 있는지 보는 잣대. 세 가지를 다 알아봐야 합니다.
+     비규격(…)  ·  450X0X2296X0(X형)  ·  (450*0*2296*0)(별표형)
+   별표형이 빠져 있어, 사이즈가 다음 줄로 넘어간 '(비)' 품목의 사이즈를
+   이어 붙이지 못하고 버리고 있었습니다. */
+const SIZE_HINT_RE=/비규격|\d+\s*X\s*\d+\s*X|\(\s*\d+(?:\s*\*\s*\d+)+\s*[LRM]?\s*\)/i;
+
 function delivSizeLR(rawName){
   const name=rawName||''; let size='', lr='';
   let m=name.match(/비규격\s*\(\s*([\d*]+)\s*([LRM])?\s*\)/);
@@ -14181,8 +14194,21 @@ function delivSizeLR(rawName){
     const m2=name.match(/비규격\s*\(\s*([\d*]+)/); // 괄호 안 닫힘(줄바꿈) 폴백
     if(m2) size=m2[1].split('*').filter(n=>n!=='0'&&n!=='').join('×');
   }
-  if(!lr){ const ml=name.match(/\b([LR])\)/); if(ml) lr=ml[1]; } // LR 폴백
   if(!size){ const mx=name.match(/(\d+)X(\d+)X(\d+)X(\d+)/i); if(mx) size=[mx[1],mx[2],mx[3],mx[4]].filter(n=>n!=='0').join('×'); }
+  /* '(비)'로만 표기된 품목은 이름에 '비규격' 글자가 없어 위 규칙에 하나도 안 걸립니다
+     (CLAUDE.md 4-1·12-6 — 예: `( 비 ) 글래스 채널도어 (450*0*2296*0)`).
+     마지막 수단으로 괄호로 온전히 닫힌 별표형 숫자묶음을 읽습니다.
+     ★ 닫는 괄호를 요구합니다. 칸 너비에 잘려 나간 조각(`(380*0*73`)을 읽으면
+       엉뚱한 사이즈가 들어가기 때문입니다(2026-07-24 AS납품서 사고).
+     (비규격작업지시서에는 이미 있던 폴백인데 이쪽에는 빠져 있었습니다) */
+  if(!size){
+    const m3=name.match(/\(\s*(\d+(?:\s*\*\s*\d+)+)\s*([LRM])?\s*\)/);
+    if(m3){
+      size=m3[1].replace(/\s+/g,'').split('*').filter(n=>n!=='0'&&n!=='').join('×');
+      if(!lr && (m3[2]==='L'||m3[2]==='R')) lr=m3[2];
+    }
+  }
+  if(!lr){ const ml=name.match(/\b([LR])\)/); if(ml) lr=ml[1]; } // LR 폴백
   return {size, lr};
 }
 function delivLookup(code){
@@ -14761,25 +14787,37 @@ function parseDelivText(text){
     // 제품명이 비었거나 모델 설명이 없으면(=코드만 있는 줄), 앞줄에서 제품명, 뒷줄에서 사이즈를 끌어온다.
     // 이 PDF는 한 품목이 3줄(제품명 / 순번·코드·수량·오더 / 비규격사이즈)로 쪼개지는 경우가 있음.
     const hasModelText = /[A-Za-z가-힣]{2,}/.test(rawName.replace(code,''));
-    const hasSize = /비규격|\d+X\d+X/i.test(rawName);
+    const hasSize = SIZE_HINT_RE.test(rawName);
     if(!hasModelText || !hasSize){
       // 앞줄: 제품코드가 없고 글자가 있는 줄 = 제품명 윗부분
       const prev=(rawLines[li-1]||'').replace(/\s+/g,' ').trim();
-      const next=(rawLines[li+1]||'').replace(/\s+/g,' ').trim();
       const prevHasCode=prev.split(' ').some(isCode);
-      const nextHasCode=next.split(' ').some(isCode);
       let extra='';
       if(!hasModelText && prev && !prevHasCode && /[A-Za-z가-힣]{2,}/.test(prev)) extra+=' '+prev;
-      // 뒷줄: '비규격(...)' 또는 'AXBXCXD' 사이즈 줄 (코드 없음)
-      if(!hasSize && next && !nextHasCode && /비규격|\d+X\d+X/i.test(next)){
-        // '그레이박/스' 같은 납품처 꼬리 제거
-        extra+=' '+next.replace(/그레이박|스|오이도|창원|원주|[가-힣]*센터.*/g,'').trim();
+      /* 뒷줄: 사이즈만 있는 줄을 이어 붙입니다 (코드 없는 줄).
+         ★ 두 줄까지 봅니다 — 사이에 창고·구역 같은 것이 끼면 한 줄만 봐서는 놓칩니다.
+         ★ 별표형 `(450*0*2296*0)` 도 알아봅니다. 예전에는 '비규격' 글자나 X형만
+           찾아, `( 비 ) 글래스 채널도어` 처럼 '(비)'로만 오는 시그니처의 사이즈를
+           통째로 버렸습니다 (2026-09-15 · CLAUDE.md 12-6과 같은 뿌리). */
+      if(!hasSize){
+        for(let k=1;k<=2;k++){
+          const nx=(rawLines[li+k]||'').replace(/\s+/g,' ').trim();
+          if(!nx) continue;
+          if(nx.split(' ').some(isCode)) break;     // 다음 품목이 시작되면 멈춥니다
+          if(!SIZE_HINT_RE.test(nx)) continue;
+          // '그레이박/스' 같은 납품처 꼬리 제거
+          extra+=' '+nx.replace(/그레이박|스|오이도|창원|원주|[가-힣]*센터.*/g,'').trim();
+          break;
+        }
       }
       if(extra.trim()) rawName=(beforeToks.concat(nameToks).join(' ')+' '+extra).replace(/\s+/g,' ').trim();
     }
     // ── 사이즈·좌우(LR) 추출 (공용 함수) ──
     let lineSize='', lr='';
-    if(/비규격/.test(rawName)){
+    /* '(비)'로만 온 시그니처도 사이즈를 읽어야 합니다 (CLAUDE.md 4-1·12-6).
+       예전에는 '비규격' 글자가 있어야만 delivSizeLR 을 불러, 시그니처는
+       사이즈가 있어도 읽지 않고 지나갔습니다. */
+    if(isNonStd(rawName)){
       const sz=delivSizeLR(rawName); lineSize=sz.size; lr=sz.lr;
     } else {
       const mE=rawName.match(/(\d{3,4})(?:\(공용\))?\s+M\s*$/); // 정규격 모델 끝 사이즈코드
