@@ -1310,8 +1310,30 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
              style="width:64px;padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-family:'JetBrains Mono',monospace">
       <span style="font-size:11px;color:var(--tx3)">영업일치</span>
     </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button onclick="etpOpenInput('manual')" style="flex:1;min-width:120px;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">✍️ 넣기</button>
+      <button onclick="etpOpenInput('paste')" style="flex:1;min-width:120px;padding:11px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📋 붙여넣기</button>
+      <button onclick="etpOpenInput('count')" style="flex:1;min-width:120px;padding:11px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔢 실사</button>
+      <button onclick="etpExport()" style="padding:11px 14px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⬇ 내보내기</button>
+    </div>
   </div>
   <div id="etp-body"></div>
+</div>
+
+<!-- 에토프재고 — 넣기 (수기 · 붙여넣기 · 실사) -->
+<div class="modal-bg" id="etp-input-modal">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeM('etp-input-modal')">×</button>
+    <div class="modal-ttl">🟠 에토프 인쇄유리 — 넣기</div>
+    <div class="modal-tabs">
+      <button class="m-tab etp-in-tab on" data-tab="manual" onclick="etpSetTab('manual')">✍️ 수기</button>
+      <button class="m-tab etp-in-tab" data-tab="paste" onclick="etpSetTab('paste')">📋 붙여넣기</button>
+      <button class="m-tab etp-in-tab" data-tab="count" onclick="etpSetTab('count')">🔢 실사</button>
+    </div>
+    <span class="lbl">날짜</span>
+    <input type="date" id="etp-in-date" class="inp" style="margin-bottom:12px">
+    <div id="etp-in-body"></div>
+  </div>
 </div>
 
 <!-- SETTINGS -->
@@ -8424,6 +8446,15 @@ function metaForSync(){
      다른 기기는 끈 채로 남아 같은 앱이 서로 다른 재고를 보여줄 수 있었습니다. */
   put('inkCut',        typeof inkCut!=='undefined'        ? inkCut        : undefined);
   put('odAuto',        typeof odAuto!=='undefined'        ? odAuto        : undefined);
+  /* 에토프 외주 인쇄유리 (2026-09-14). 장부·발주·묘비를 함께 보냅니다 —
+     묘비가 안 가면 한 기기에서 지운 줄이 다른 기기에서 되살아납니다. */
+  put('etpLedger',     typeof etpLedger!=='undefined'     ? etpLedger     : undefined);
+  put('etpDeleted',    typeof etpDeleted!=='undefined'    ? etpDeleted    : undefined);
+  put('etpPOs',        typeof etpPOs!=='undefined'        ? etpPOs        : undefined);
+  put('etpCfg', (typeof etpSafetyDays!=='undefined')
+      ? {safetyDays:etpSafetyDays, override:etpSafetyOvr, mode:etpMode, cutover:etpCutover,
+         at:(typeof etpCfgAt!=='undefined'?etpCfgAt:'')}
+      : undefined);
   let s='';
   try{ s=JSON.stringify(ext); }catch(e){ s=''; }
   const out=Object.assign({}, meta);
@@ -8568,6 +8599,36 @@ function applyMergedFromSheet(data){
   if(data.odAuto!==undefined && typeof odAuto!=='undefined' && _newer(data.odAuto, odAuto)){
     odAuto=Object.assign({on:false,fallbackDays:3}, data.odAuto);
     try{ localStorage.setItem(LS_OD_AUTO, JSON.stringify(odAuto)); }catch(e){}
+  }
+  /* ── 에토프 외주 인쇄유리 병합 (2026-09-14) ──────────────────────
+     줄 단위(id 기준) 병합입니다. 통째로 덮어쓰면 한 기기에서 넣은 것이
+     다른 기기 것에 지워집니다. 묘비를 먼저 받아야 지운 줄이 안 되살아납니다. */
+  if(data.etpDeleted!==undefined && data.etpDeleted && typeof data.etpDeleted==='object' && typeof etpDeleted!=='undefined'){
+    for(const k in data.etpDeleted){ if(!etpDeleted[k]) etpDeleted[k]=data.etpDeleted[k]; }
+  }
+  if(data.etpLedger!==undefined && Array.isArray(data.etpLedger) && typeof etpLedger!=='undefined'){
+    etpLedger=mergeById(etpLedger, data.etpLedger, 'id');
+    etpLedger=etpLedger.filter(r=>r && r.id && !etpDeleted[r.id]);   // 지운 줄은 부활 금지
+  }
+  if(data.etpPOs!==undefined && Array.isArray(data.etpPOs) && typeof etpPOs!=='undefined'){
+    etpPOs=mergeById(etpPOs, data.etpPOs, 'id');
+  }
+  if((data.etpLedger!==undefined || data.etpPOs!==undefined || data.etpDeleted!==undefined) && typeof etpSaveLedger==='function'){
+    try{ etpSaveLedger(); etpSavePOs(); }catch(e){ console.warn('[에토프] 병합 뒤 저장 실패', e); }
+  }
+  // 설정은 나중에 고친 쪽을 따릅니다 (시각이 없는 옛 자료는 로컬을 지킵니다)
+  if(data.etpCfg!==undefined && data.etpCfg && typeof etpSafetyDays!=='undefined'){
+    const r=data.etpCfg;
+    if(!(typeof etpCfgAt!=='undefined' && etpCfgAt) || String(r.at||'')>String(etpCfgAt||'')){
+      if(r.safetyDays) etpSafetyDays=Number(r.safetyDays)||etpSafetyDays;
+      if(r.override && typeof r.override==='object') etpSafetyOvr=r.override;
+      if(r.mode) etpMode=r.mode;
+      if(r.cutover) etpCutover=r.cutover;
+      etpCfgAt=r.at||'';
+      // stamp:false — 받은 쪽 시각을 그대로 지킵니다. 여기서 다시 찍으면
+      // 이 기기가 늘 최신인 것처럼 보여 설정이 오락가락합니다.
+      try{ etpStore('etpCfgAt', etpCfgAt); etpSaveCfg(false); }catch(e){}
+    }
   }
   // 스냅샷 값: 받은 쪽 채택 (서버가 이미 병합본을 보내줌)
   if(data.stock!==undefined) stock=data.stock;
@@ -15636,10 +15697,12 @@ var etpSafetyOvr  = etpLoad('etpSafetyOverride', {});   // {"445x729":20} 수동
 var etpSafetyDays = Number(etpLoad('etpSafetyDays', 10)) || 10;
 var etpMode       = etpLoad('etpMode', 'fill');         // 'fill'=목표채우기 / 'normal'=정상운영
 var etpCutover    = etpLoad('etpCutover', ETP_CUTOVER_DEFAULT);
+var etpCfgAt      = etpLoad('etpCfgAt', '');   // 설정을 마지막으로 고친 시각 — 기기끼리 견줄 때 씁니다
 
 function etpSaveLedger(){ etpStore('etpGlassLedger', etpLedger); etpStore('etpDeleted', etpDeleted); }
 function etpSavePOs(){ etpStore('etpPurchaseOrders', etpPOs); }
-function etpSaveCfg(){
+function etpSaveCfg(stamp){
+  if(stamp!==false){ etpCfgAt=new Date().toISOString(); etpStore('etpCfgAt', etpCfgAt); }
   etpStore('etpSafetyDays', etpSafetyDays);
   etpStore('etpSafetyOverride', etpSafetyOvr);
   etpStore('etpMode', etpMode);
@@ -15816,6 +15879,14 @@ function etpBuildRows(){
   };
   if(typeof ETP_SIZE_MASTER !== 'undefined') ETP_SIZE_MASTER.forEach(x => push(x.size));
   Object.keys(stock).forEach(push);
+  /* 발주만 걸려 있고 아직 한 장도 안 들어온 사이즈도 줄을 만들어야 합니다.
+     안 만들면 그 사이즈의 미입고 수량이 헤드라인 합계에서 통째로 빠집니다.
+     실제로 295x1342(마스터에도 장부에도 없는 사이즈) 10장이 빠져,
+     헤드라인은 30장인데 발주 카드는 40장이라 어긋났습니다. */
+  if(Array.isArray(etpPOs)) etpPOs.forEach(po => {
+    if(!po || po.canceled) return;
+    (po.items || []).forEach(it => { if(it && it.size) push(it.size); });
+  });
   // 월평균 내림차순. 같으면 사이즈 이름순 — 순서가 흔들리지 않아야 눈에 익습니다
   out.sort((a, b) => (b.avg - a.avg) || a.size.localeCompare(b.size));
   return out;
@@ -16184,7 +16255,8 @@ function etpHistoryHtml(size){
       '<span style="font-family:\'JetBrains Mono\',monospace;color:var(--tx3);width:44px;flex:none">' + etpMd(r.d) + '</span>' +
       '<span style="font-weight:700;color:' + (col[r.t] || 'var(--tx2)') + ';width:28px;flex:none">' + (kor[r.t] || r.t) + '</span>' +
       '<span style="font-family:\'JetBrains Mono\',monospace;font-weight:800;width:40px;flex:none;text-align:right">' + q + '</span>' +
-      '<span style="color:var(--tx2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + etpEsc(r.src || '') + (r.memo ? ' <span style="color:var(--tx3)">· ' + etpEsc(r.memo) + '</span>' : '') + '</span>' +
+      '<span style="color:var(--tx2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + etpEsc(r.src || '') + (r.reason ? ' <span style="color:var(--acc2)">[' + etpEsc(r.reason) + ']</span>' : '') + (r.memo ? ' <span style="color:var(--tx3)">· ' + etpEsc(r.memo) + '</span>' : '') + '</span>' +
+      '<span onclick="event.stopPropagation();etpDeleteRow(\'' + r.id + '\')" title="이 기록 지우기" style="flex:none;color:var(--tx3);cursor:pointer;padding:0 3px">🗑</span>' +
     '</div>';
   }).join('') + '</div>';
 }
@@ -16294,6 +16366,7 @@ function renderEtp(){
     '<div class="filter-row" style="margin-top:10px">' + chip('short', '부족만') + chip('all', '전체') + chip('over', '과잉') + chip('nomaster', '마스터에 없음') + '</div>' +
     '<input class="inp" id="etp-search" value="' + etpEsc(etpSearchKey) + '" placeholder="🔍 사이즈 / 모델명 검색..." oninput="etpOnSearch(this.value)">' +
     list +
+    etpPoCardHtml() +
     etpLookupCardHtml() +
     etpMeasureCardHtml();
 
@@ -16479,10 +16552,474 @@ function etpLookupCardHtml(){
   '</div>';
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════
+   ✍️ 에토프재고 — 넣는 길 네 가지                              2026-09-14
+     ① 발주 연결 입고 — 발주 기록에서 '입고 확인'을 누르면 남은 수량이
+        그대로 채워집니다. 옮겨 칠 것이 없어야 합니다.
+     ② 수기 입력 — 사이즈 또는 모델명으로 찾아 한 줄씩.
+     ③ 붙여넣기 — 인수증을 보고 여러 줄을 한꺼번에. 미리보기 뒤 저장.
+     ④ 실사 조정 — 실제 수량을 넣으면 차이만큼 조정 기록을 덧붙입니다.
+        기존 기록은 고치지 않습니다. 되돌릴 수 있어야 하기 때문입니다.
+   ══════════════════════════════════════════════════════════════════════ */
+
+// ── 발주 기록 ────────────────────────────────────────────────────────
+/* 2026-09-08 현성 발주 27품목 290장. 엑셀 「발주대조」 시트에서 그대로 옮겼습니다.
+   입고 252장 · 미입고 4품목 40장 · 초과 2품목 2장이 이 자료로 재현됩니다. */
+const ETP_PO_SEED = {
+  id:'etppo_260908', no:'260908', date:'2026-09-08', vendor:'현성유리', due:'2026-09-14',
+  memo:'첫 정식 발주', items:[
+    {size:'245x729', qty:10}, {size:'295x1342',qty:10}, {size:'295x761', qty:10},
+    {size:'345x649', qty:10}, {size:'345x729', qty:10}, {size:'395x1342',qty:10},
+    {size:'395x649', qty:10}, {size:'395x761', qty:10}, {size:'402x729', qty:10},
+    {size:'402x761', qty:10}, {size:'422x729', qty:10}, {size:'422x761', qty:10},
+    {size:'445x761', qty:20}, {size:'545x729', qty:10}, {size:'545x761', qty:10},
+    {size:'595x1342',qty:10}, {size:'595x170', qty:10}, {size:'595x247', qty:10},
+    {size:'595x377', qty:10}, {size:'595x731', qty:10}, {size:'595x761', qty:10},
+    {size:'605x351', qty:10}, {size:'895x351', qty:10}, {size:'895x371', qty:10},
+    {size:'895x377', qty:20}, {size:'945x326', qty:10}, {size:'995x326', qty:10}
+  ]
+};
+function etpSeedPOOnce(){
+  if(etpLoad('etpPoSeededV1', false)) return 0;
+  if(Array.isArray(etpPOs) && etpPOs.length){ etpStore('etpPoSeededV1', true); return 0; }
+  etpPOs.push(Object.assign({}, ETP_PO_SEED, {items:ETP_PO_SEED.items.map(x=>({...x})), at:new Date().toISOString()}));
+  etpStore('etpPoSeededV1', true);
+  etpSavePOs();
+  return 1;
+}
+
+// 발주 한 건의 품목별 입고 대조. status 를 따로 저장하지 않고 늘 다시 셉니다 —
+// 저장해 두면 입고를 지웠을 때 어긋납니다.
+function etpPoRows(po){
+  return (po.items||[]).map(it=>{
+    const got = etpReceivedQty(po.id, it.size);
+    const diff = got - (Number(it.qty)||0);
+    return { size:it.size, ordered:Number(it.qty)||0, got, diff,
+             state: diff===0 ? 'ok' : (got===0 ? 'none' : (diff<0 ? 'partial' : 'over')) };
+  });
+}
+function etpPoStatus(po){
+  const rows=etpPoRows(po);
+  if(!rows.length) return 'open';
+  if(rows.every(r=>r.got>=r.ordered)) return 'done';
+  if(rows.some(r=>r.got>0)) return 'partial';
+  return 'open';
+}
+
+// ── 넣기 모달 ────────────────────────────────────────────────────────
+var etpTab='manual';          // 'manual' | 'paste' | 'count'
+var etpPasteRows=null;        // 붙여넣기 미리보기 결과
+var etpSizePick='';           // 수기 입력에서 고른 사이즈
+var etpCountDraft={};         // 실사 입력값 {size:실제수량}
+
+function etpOpenInput(tab){
+  etpTab=tab||'manual'; etpPasteRows=null; etpSizePick=''; etpCountDraft={};
+  const el=document.getElementById('etp-input-modal');
+  if(!el) return;
+  el.classList.add('on');
+  const d=document.getElementById('etp-in-date'); if(d) d.value=todayStr();
+  etpRenderInput();
+}
+function etpSetTab(t){ etpTab=t; etpPasteRows=null; etpRenderInput(); }
+
+function etpRenderInput(){
+  document.querySelectorAll('.etp-in-tab').forEach(b=>b.classList.toggle('on', b.getAttribute('data-tab')===etpTab));
+  const box=document.getElementById('etp-in-body');
+  if(!box) return;
+  if(etpTab==='manual')      box.innerHTML=etpManualHtml();
+  else if(etpTab==='paste')  box.innerHTML=etpPasteHtml();
+  else                       box.innerHTML=etpCountHtml();
+}
+
+/* ── ② 수기 입력 ─────────────────────────────────────────────────── */
+var etpManualType='in';      // 'in' | 'out' | 'adj'
+var etpManualReason='납품';
+function etpSetManualType(t){ etpManualType=t; etpRenderInput(); }
+function etpSetReason(r){ etpManualReason=r; etpRenderInput(); }
+
+function etpManualHtml(){
+  const tbtn=(t,label,col)=>`<button class="q-btn" onclick="etpSetManualType('${t}')" style="${etpManualType===t?`background:${col};border-color:${col};color:#fff;font-weight:700`:''}">${label}</button>`;
+  const rbtn=r=>`<button class="q-btn" onclick="etpSetReason('${r}')" style="${etpManualReason===r?'background:var(--s3);border-color:var(--b2);color:var(--tx1);font-weight:700':''}">${r}</button>`;
+  return `
+    <span class="lbl">구분</span>
+    <div class="quick-btns" style="margin-bottom:12px">
+      ${tbtn('in','＋ 입고','var(--acc3)')}${tbtn('out','－ 출고','var(--acc4)')}${tbtn('adj','± 조정','var(--acc5)')}
+    </div>
+    ${etpManualType==='out' ? `<span class="lbl">사유</span>
+      <div class="quick-btns" style="margin-bottom:12px">${rbtn('납품')}${rbtn('파손')}${rbtn('불량반품')}</div>` : ''}
+    <span class="lbl">사이즈 찾기 <span style="font-weight:400;color:var(--tx3)">— 모델명으로도 찾습니다</span></span>
+    <input class="inp" id="etp-in-size" value="${etpEsc(etpSizePick)}" placeholder="예) 895x347 · 347*895 · OB BD2R 9091 M"
+           oninput="etpSizeSuggest(this.value)" style="font-family:'JetBrains Mono',monospace">
+    <div id="etp-size-hint" style="margin-bottom:10px"></div>
+    <span class="lbl">수량 ${etpManualType==='adj'?'<span style="font-weight:400;color:var(--tx3)">— 조정은 음수도 됩니다</span>':''}</span>
+    <input class="inp" id="etp-in-qty" type="number" value="" placeholder="0" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700">
+    <span class="lbl">출처</span>
+    <input class="inp" id="etp-in-src" value="${etpManualType==='in'?'현성 인수증 '+etpMd(todayStr()):''}" placeholder="예) 현성 인수증 26.09.14">
+    <span class="lbl">비고</span>
+    <input class="inp" id="etp-in-memo" placeholder="(선택)">
+    <button class="act-btn blue" style="color:#fff" onclick="etpSaveManual()">✓ 저장</button>`;
+}
+
+/* 사이즈 또는 모델명으로 찾아 줍니다. 직원이 모델명만 알고 사이즈를 모르는
+   경우가 있어 SIZE_TO_MODELS 를 거꾸로도 훑습니다. */
+function etpSizeSuggest(v){
+  const el=document.getElementById('etp-size-hint');
+  if(!el) return;
+  const q=String(v||'').trim();
+  etpSizePick=q;
+  if(!q){ el.innerHTML=''; return; }
+
+  const norm=etpNormSize(q);
+  const cand=[];
+  const seen={};
+  const add=(size,why)=>{ if(seen[size]) return; seen[size]=1; cand.push({size,why}); };
+
+  if(norm.ok && !norm.unknown) add(norm.size, norm.flipped?'뒤집어 맞췄습니다':'');
+  const lower=q.toLowerCase();
+  if(typeof SIZE_TO_MODELS!=='undefined'){
+    Object.keys(SIZE_TO_MODELS).forEach(s=>{
+      if(cand.length>=8) return;
+      if(s.replace('x','').includes(lower.replace(/[x*×\s]/g,''))) add(s,'');
+      else if((SIZE_TO_MODELS[s]||[]).some(m=>m.toLowerCase().includes(lower))) add(s,'모델명으로 찾음');
+    });
+  }
+  if(!cand.length){
+    el.innerHTML = norm.ok
+      ? `<div style="font-size:11px;color:var(--acc2);padding:6px 2px">⚠ <b>${etpEsc(norm.size)}</b> 는 마스터에 없는 사이즈입니다. 그래도 저장은 됩니다 — 목록에 '마스터에 없음'으로 뜹니다.</div>`
+      : `<div style="font-size:11px;color:var(--tx3);padding:6px 2px">${etpEsc(norm.why||'못 읽었습니다')}</div>`;
+    return;
+  }
+  el.innerHTML = cand.slice(0,8).map(c=>{
+    const st=etpStockMap()[c.size];
+    const mdl=(typeof SIZE_TO_MODELS!=='undefined' && SIZE_TO_MODELS[etpBaseSize(c.size)]) ? SIZE_TO_MODELS[etpBaseSize(c.size)] : [];
+    const mtx=mdl.length ? (mdl.length>2 ? mdl.slice(0,2).join(' · ')+` 외 ${mdl.length-2}개` : mdl.join(' · ')) : '';
+    const needLr = etpLrSizes()[etpBaseSize(c.size)] && !etpKeyLr(c.size);
+    return `<div onclick="etpPickSize('${c.size}')" style="display:flex;gap:8px;align-items:center;padding:7px 10px;border:1px solid var(--b1);border-radius:8px;margin-top:5px;cursor:pointer;background:var(--s2)">
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;color:var(--tx1)">${c.size.replace('x','×')}
+          ${c.why?`<span style="font-size:10px;font-weight:400;color:var(--acc2);margin-left:5px">${c.why}</span>`:''}
+          ${needLr?`<span style="font-size:10px;font-weight:700;color:var(--acc5);margin-left:5px">좌우 필요</span>`:''}
+        </div>
+        ${mtx?`<div style="font-size:10px;color:var(--tx3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${etpEsc(mtx)}</div>`:''}
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--tx2);flex:none">${st?st.cur:0}</div>
+    </div>`;
+  }).join('');
+}
+function etpPickSize(s){
+  etpSizePick=s;
+  const el=document.getElementById('etp-in-size'); if(el) el.value=s;
+  etpSizeSuggest(s);
+  const q=document.getElementById('etp-in-qty'); if(q) q.focus();
+}
+
+function etpSaveManual(){
+  const d=(document.getElementById('etp-in-date')||{}).value||todayStr();
+  const rawSize=(document.getElementById('etp-in-size')||{}).value||'';
+  const qty=parseInt((document.getElementById('etp-in-qty')||{}).value,10);
+  const src=(document.getElementById('etp-in-src')||{}).value||'';
+  const memo=(document.getElementById('etp-in-memo')||{}).value||'';
+
+  const norm=etpNormSize(rawSize);
+  if(!norm.ok){ showToast('사이즈를 못 읽었습니다 — ' + (norm.why||'')); return; }
+  if(norm.needLr){ showToast('관통보링 사이즈입니다 — 좌우(L/R)를 적어 주십시오'); return; }
+  if(!qty && qty!==0){ showToast('수량을 넣어 주십시오'); return; }
+  if(etpManualType!=='adj' && qty<=0){ showToast('입고·출고 수량은 0보다 커야 합니다'); return; }
+  if(etpManualType==='adj' && qty===0){ showToast('조정 수량이 0입니다'); return; }
+  if(d>todayStr() && !confirm('날짜가 앞날(' + d + ')입니다. 그대로 넣을까요?')) return;
+
+  etpAddRow({ d, t:etpManualType, size:norm.size, qty:Math.abs(qty)*(etpManualType==='adj'&&qty<0?-1:1),
+              src, memo, reason: etpManualType==='out' ? etpManualReason : '' });
+  if(!etpCommit()) return;
+  showToast((etpManualType==='in'?'입고':etpManualType==='out'?'출고':'조정') + ' ' + qty + '장 — ' + norm.size);
+  closeM('etp-input-modal');
+  renderEtp();
+}
+
+/* ── ③ 붙여넣기 ──────────────────────────────────────────────────── */
+function etpPasteHtml(){
+  return `
+    <div class="info-note" style="margin-bottom:10px">
+      인수증을 보고 한 줄에 하나씩 적습니다. <b>사이즈 수량</b> 차례입니다.<br>
+      <span style="font-family:'JetBrains Mono',monospace">895x347 10</span> ·
+      <span style="font-family:'JetBrains Mono',monospace">347*895 10</span> ·
+      <span style="font-family:'JetBrains Mono',monospace">592x693 L 5</span> 모두 됩니다.
+      뒤집힌 표기는 알아서 맞춥니다.
+    </div>
+    <span class="lbl">붙여넣기</span>
+    <textarea id="etp-paste" class="inp" rows="8" placeholder="895x347 10&#10;445x729 20&#10;347*895 5"
+      style="font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;resize:vertical"></textarea>
+    <span class="lbl">출처</span>
+    <input class="inp" id="etp-paste-src" value="현성 인수증 ${etpMd(todayStr())}" placeholder="예) 현성 인수증 26.09.14">
+    <button class="act-btn" style="background:var(--s2);border:1px solid var(--b2);color:var(--tx1)" onclick="etpPastePreview()">🔎 미리보기</button>
+    <div id="etp-paste-prev"></div>`;
+}
+
+/* 한 줄 읽기 — 마지막 숫자를 수량으로, 나머지를 사이즈로 봅니다. */
+function etpParsePasteLine(line){
+  let s=String(line||'').trim().replace(/[장]\s*$/,'').replace(/\s*(EA|ea)\s*$/,'');
+  if(!s) return null;
+  const parts=s.split(/[\s,\t:]+/).filter(Boolean);
+  if(parts.length<2) return {raw:line, err:'수량이 없습니다'};
+  const qtyTok=parts[parts.length-1];
+  if(!/^-?\d+$/.test(qtyTok)) return {raw:line, err:'수량을 못 읽었습니다'};
+  const qty=parseInt(qtyTok,10);
+  const sizeStr=parts.slice(0,-1).join(' ');
+  const norm=etpNormSize(sizeStr);
+  if(!norm.ok) return {raw:line, err:norm.why||'사이즈를 못 읽었습니다'};
+  if(qty<=0) return {raw:line, err:'수량이 0 이하입니다'};
+  /* 관통보링 사이즈인데 좌우가 없으면 저장하면 안 됩니다.
+     서로 바꿔 쓸 수 없는 두 가지를 한 칸에 담게 됩니다.
+     예전에는 미리보기에 '좌우 필요' 라고만 적고 저장은 그대로 됐습니다. */
+  if(norm.needLr) return {raw:line, err:'좌우(L/R)를 적어 주십시오 — 관통보링'};
+  return {raw:line, size:norm.size, qty, flipped:norm.flipped, unknown:norm.unknown, needLr:false};
+}
+
+function etpPastePreview(){
+  const txt=(document.getElementById('etp-paste')||{}).value||'';
+  const lines=txt.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const rows=lines.map(etpParsePasteLine).filter(Boolean);
+  etpPasteRows=rows;
+  const ok=rows.filter(r=>!r.err);
+  const bad=rows.filter(r=>r.err);
+  const total=ok.reduce((s,r)=>s+r.qty,0);
+  const el=document.getElementById('etp-paste-prev');
+  if(!el) return;
+  if(!rows.length){ el.innerHTML='<div style="font-size:12px;color:var(--tx3);padding:8px 0">읽을 줄이 없습니다.</div>'; return; }
+
+  // 같은 사이즈가 여러 줄로 오면 합쳐서 알려 줍니다 (인수증에 나눠 적힌 경우)
+  const dup={};
+  ok.forEach(r=>{ dup[r.size]=(dup[r.size]||0)+1; });
+  const dupList=Object.keys(dup).filter(s=>dup[s]>1);
+
+  el.innerHTML =
+    `<div style="margin-top:10px;border:1px solid var(--b1);border-radius:8px;overflow:hidden">` +
+    rows.map(r=>{
+      if(r.err) return `<div style="display:flex;gap:8px;padding:7px 10px;border-bottom:1px solid var(--b1);background:rgba(220,38,38,.06)">
+        <span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${etpEsc(r.raw)}</span>
+        <span style="font-size:11px;color:var(--acc4);font-weight:700;flex:none">${etpEsc(r.err)}</span></div>`;
+      const tags=[
+        r.flipped?'<span style="font-size:9px;font-weight:700;color:var(--acc5);margin-left:5px">뒤집어 맞춤</span>':'',
+        r.unknown?'<span style="font-size:9px;font-weight:700;color:var(--acc2);margin-left:5px">마스터에 없음</span>':'',
+        r.needLr?'<span style="font-size:9px;font-weight:700;color:var(--acc4);margin-left:5px">좌우 필요</span>':''
+      ].join('');
+      return `<div style="display:flex;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--b1)">
+        <span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--tx1)">${r.size.replace('x','×')}${tags}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:var(--acc);flex:none">${r.qty}</span>
+      </div>`;
+    }).join('') + `</div>` +
+    (dupList.length?`<div style="margin-top:8px;font-size:11px;color:var(--acc2)">· 같은 사이즈가 두 줄 이상인 것: ${dupList.join(' · ')} — 그대로 각각 기록됩니다(합계는 같습니다)</div>`:'') +
+    `<div style="margin-top:10px;font-size:12px;color:var(--tx2)">읽은 줄 <b style="color:var(--tx1)">${ok.length}</b>개 · 합계 <b style="color:var(--acc)">${total}</b>장${bad.length?` · <b style="color:var(--acc4)">못 읽은 줄 ${bad.length}개</b>`:''}</div>` +
+    (bad.length?`<div style="font-size:11px;color:var(--acc4);margin-top:4px">못 읽은 줄은 저장하지 않습니다. 고쳐서 다시 미리보기 하십시오.</div>`:'') +
+    (ok.length?`<button class="act-btn green" style="color:#fff;margin-top:10px" onclick="etpSavePaste()">✓ ${ok.length}줄 저장 (${total}장)</button>`:'');
+}
+
+function etpSavePaste(){
+  if(!etpPasteRows) return;
+  const ok=etpPasteRows.filter(r=>!r.err);
+  if(!ok.length){ showToast('저장할 줄이 없습니다'); return; }
+  const d=(document.getElementById('etp-in-date')||{}).value||todayStr();
+  const src=(document.getElementById('etp-paste-src')||{}).value||'';
+  const poId=etpPastePoId||'';
+  ok.forEach(r=>etpAddRow({d, t:'in', size:r.size, qty:r.qty, src, poId, po:etpPastePoNo||'', memo:''}));
+  if(!etpCommit()) return;
+  showToast(`입고 ${ok.length}줄 · ${ok.reduce((s,r)=>s+r.qty,0)}장 저장`);
+  etpPastePoId=''; etpPastePoNo='';
+  closeM('etp-input-modal');
+  renderEtp();
+}
+var etpPastePoId='', etpPastePoNo='';
+
+/* ── ④ 실사 조정 ─────────────────────────────────────────────────── */
+function etpCountHtml(){
+  const rows=etpBuildRows().filter(r=>r.cur!==0 || etpCountDraft[r.size]!=null);
+  return `
+    <div class="info-note" style="margin-bottom:10px">
+      세어 보신 <b>실제 수량</b>을 넣으십시오. 기존 기록은 고치지 않고 <b>차이만큼 조정 기록을 덧붙입니다</b> — 나중에 되돌릴 수 있습니다.<br>
+      안 넣은 칸은 건드리지 않습니다.
+    </div>
+    <div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden;max-height:44vh;overflow-y:auto">
+      ${rows.map(r=>`<div style="display:flex;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--b1)">
+        <span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--tx1)">${r.size.replace('x','×')}</span>
+        <span style="font-size:11px;color:var(--tx3);flex:none">장부 ${r.cur}</span>
+        <input type="number" value="${etpCountDraft[r.size]!=null?etpCountDraft[r.size]:''}" placeholder="실제"
+          oninput="etpCountSet('${r.size}', this.value)"
+          style="width:74px;flex:none;padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:13px;font-family:'JetBrains Mono',monospace;text-align:right">
+      </div>`).join('')}
+    </div>
+    <div id="etp-count-sum" style="margin-top:10px">${etpCountSumHtml()}</div>`;
+}
+function etpCountSet(size, v){
+  if(v===''||v==null) delete etpCountDraft[size];
+  else etpCountDraft[size]=parseInt(v,10);
+  const el=document.getElementById('etp-count-sum');
+  if(el) el.innerHTML=etpCountSumHtml();
+}
+function etpCountDiffs(){
+  const stock=etpStockMap();
+  const out=[];
+  Object.keys(etpCountDraft).forEach(size=>{
+    const real=etpCountDraft[size];
+    if(real==null || isNaN(real)) return;
+    const cur=(stock[size]||{cur:0}).cur;
+    if(real===cur) return;
+    out.push({size, cur, real, diff:real-cur});
+  });
+  return out;
+}
+function etpCountSumHtml(){
+  const diffs=etpCountDiffs();
+  if(!diffs.length) return '<div style="font-size:12px;color:var(--tx3)">아직 차이가 없습니다.</div>';
+  return `<div style="font-size:12px;color:var(--tx2);margin-bottom:6px">차이 <b style="color:var(--tx1)">${diffs.length}</b>품목</div>` +
+    diffs.map(x=>`<div style="display:flex;gap:8px;font-size:12px;padding:3px 0">
+      <span style="flex:1;font-family:'JetBrains Mono',monospace;font-weight:700">${x.size.replace('x','×')}</span>
+      <span style="color:var(--tx3)">${x.cur} → ${x.real}</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:800;color:${x.diff<0?'var(--acc4)':'var(--acc3)'};width:44px;text-align:right">${x.diff>0?'+':''}${x.diff}</span>
+    </div>`).join('') +
+    `<button class="act-btn" style="background:var(--acc5);color:#fff;margin-top:10px" onclick="etpSaveCount()">✓ 조정 ${diffs.length}건 기록</button>`;
+}
+function etpSaveCount(){
+  const diffs=etpCountDiffs();
+  if(!diffs.length){ showToast('차이가 없습니다'); return; }
+  const d=(document.getElementById('etp-in-date')||{}).value||todayStr();
+  if(!confirm(`실사 조정 ${diffs.length}건을 기록할까요?\n\n기존 기록은 그대로 두고 차이만큼만 덧붙입니다.`)) return;
+  diffs.forEach(x=>etpAddRow({d, t:'adj', size:x.size, qty:x.diff, src:'실사 ' + etpMd(d),
+                              memo:`장부 ${x.cur} → 실제 ${x.real}`}));
+  if(!etpCommit()) return;
+  showToast(`실사 조정 ${diffs.length}건 기록`);
+  etpCountDraft={};
+  closeM('etp-input-modal');
+  renderEtp();
+}
+
+/* ── 한 줄 넣기 · 저장 ───────────────────────────────────────────── */
+function etpAddRow(o){
+  const now=new Date().toISOString();
+  etpLedger.push({
+    id: etpUid('etp_'), d:o.d, t:o.t, size:o.size, qty:Number(o.qty)||0,
+    src:o.src||'', po:o.po||'', poId:o.poId||'', reason:o.reason||'', memo:o.memo||'',
+    ts: now, at: now, by:(typeof getActor==='function'?getActor():'')||''
+  });
+}
+/* 저장이 실패하면 조용히 넘어가면 안 됩니다 — 넣으신 것이 날아갑니다.
+   저장함이 막힌 브라우저(사생활 보호 창)에서 실제로 일어납니다. */
+function etpCommit(){
+  let ok=true;
+  try{
+    localStorage.setItem('etpGlassLedger', JSON.stringify(etpLedger));
+    localStorage.setItem('etpDeleted', JSON.stringify(etpDeleted));
+  }catch(e){ ok=false; console.warn('[에토프] 저장 실패', e); }
+  if(!ok){
+    alert('⚠ 저장하지 못했습니다.\n\n브라우저가 저장함을 막고 있습니다(사생활 보호 창이거나 사이트 자료 차단).\n\n지금 넣으신 내용은 창을 닫으면 사라집니다. 일반 창에서 다시 넣어 주십시오.');
+    return false;
+  }
+  if(typeof meta!=='undefined') meta.lastLocalChange=new Date().toISOString();
+  if(typeof autoSync==='function') autoSync();
+  return true;
+}
+
+// 한 줄 지우기 — 묘비를 남겨 다른 기기에서 되살아나지 않게 합니다
+function etpDeleteRow(id){
+  const r=etpRows().find(x=>x.id===id);
+  if(!r) return;
+  if(!confirm(`이 기록을 지울까요?\n\n${r.d} · ${r.t==='in'?'입고':r.t==='out'?'출고':'조정'} ${r.qty}장 · ${r.size}\n${r.src||''}`)) return;
+  etpDeleted[id]=new Date().toISOString();
+  if(!etpCommit()) return;
+  showToast('지웠습니다');
+  renderEtp();
+}
+
+/* ── ① 발주 연결 입고 ────────────────────────────────────────────── */
+function etpReceivePo(poId){
+  const po=etpPOs.find(p=>p.id===poId);
+  if(!po) return;
+  const left=etpPoRows(po).filter(r=>r.got<r.ordered);
+  if(!left.length){ showToast('이 발주는 다 들어왔습니다'); return; }
+  etpPastePoId=po.id; etpPastePoNo=po.no||'';
+  etpOpenInput('paste');
+  setTimeout(()=>{
+    const ta=document.getElementById('etp-paste');
+    if(ta) ta.value=left.map(r=>`${r.size} ${r.ordered-r.got}`).join('\n');
+    const sr=document.getElementById('etp-paste-src');
+    if(sr) sr.value=`현성 인수증 ${etpMd(todayStr())}`;
+    etpPastePreview();
+  }, 30);
+}
+
+// ── 발주 대조 카드 ───────────────────────────────────────────────────
+function etpPoCardHtml(){
+  if(!Array.isArray(etpPOs) || !etpPOs.length) return '';
+  const td=todayStr();
+  return etpPOs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(po=>{
+    const rows=etpPoRows(po);
+    const st=etpPoStatus(po);
+    const ordered=rows.reduce((s,r)=>s+r.ordered,0);
+    const got=rows.reduce((s,r)=>s+r.got,0);
+    const missRows=rows.filter(r=>r.got<r.ordered);
+    const overRows=rows.filter(r=>r.got>r.ordered);
+    const miss=missRows.reduce((s,r)=>s+(r.ordered-r.got),0);
+    const over=overRows.reduce((s,r)=>s+(r.got-r.ordered),0);
+    const late = st!=='done' && po.due && po.due<td;
+    const stLabel = st==='done'?'입고 완료':st==='partial'?'일부 입고':'미입고';
+    const stColor = st==='done'?'var(--acc3)':late?'var(--acc4)':'var(--acc2)';
+    const line=(title,list,col,sign)=> list.length ? `<div style="margin-top:6px;font-size:11px;color:${col}">
+        <b>${title}</b> ${list.map(r=>`${r.size.replace('x','×')} <span style="font-family:'JetBrains Mono',monospace">${sign}${Math.abs(r.diff)}</span>`).join(' · ')}
+      </div>` : '';
+    return `<div class="card" style="border-left:3px solid ${stColor}">
+      <div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center">
+        <span>🧾 ${po.date} ${etpEsc(po.vendor||'')} 발주</span>
+        <span style="font-size:11px;font-weight:700;color:${stColor};text-transform:none;letter-spacing:0">${stLabel}</span>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline;font-size:12px;color:var(--tx2)">
+        <span>발주 <b style="font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--tx1)">${ordered}</b>장 · ${rows.length}품목</span>
+        <span>입고 <b style="font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--acc3)">${got}</b>장</span>
+        ${miss?`<span>미입고 <b style="font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--acc4)">${miss}</b>장 · ${missRows.length}품목</span>`:''}
+        ${over?`<span style="color:var(--tx3)">초과 ${over}장 · ${overRows.length}품목</span>`:''}
+      </div>
+      <div style="margin-top:5px;font-size:10px;color:${late?'var(--acc4)':'var(--tx3)'}">
+        납기 ${po.due||'—'}${late?' — 지났습니다':''}
+      </div>
+      ${line('미입고', missRows, 'var(--acc4)', '−')}
+      ${line('초과입고', overRows, 'var(--tx3)', '+')}
+      ${st!=='done' ? `<button onclick="etpReceivePo('${po.id}')" style="width:100%;margin-top:10px;padding:10px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📥 입고 확인 — 남은 ${miss}장이 채워집니다</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── 내보내기 ─────────────────────────────────────────────────────────
+function etpExport(){
+  const rows=etpRows().slice().sort((a,b)=>String(a.d).localeCompare(String(b.d)) || String(a.ts||'').localeCompare(String(b.ts||'')));
+  const kor={in:'입고', out:'출고', adj:'조정'};
+  const head=['날짜','구분','사이즈','수량','출처','비고'];
+  const body=rows.map(r=>[r.d, kor[r.t]||r.t, r.size, r.qty, r.src||'', [r.reason,r.memo].filter(Boolean).join(' / ')]);
+  const name='에토프_인쇄유리_원장_'+todayStr().replace(/-/g,'')+'.xlsx';
+  try{
+    if(typeof XLSX!=='undefined'){
+      const ws=XLSX.utils.aoa_to_sheet([head, ...body]);
+      const wb=XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '원장');
+      XLSX.writeFile(wb, name);
+      showToast('내보냈습니다 — ' + name);
+      return;
+    }
+  }catch(e){ console.warn('[에토프] xlsx 실패, csv 로 냅니다', e); }
+  // 엑셀 라이브러리가 없거나 실패하면 csv 로 냅니다 (BOM 을 붙여야 한글이 안 깨집니다)
+  const csv='﻿'+[head, ...body].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=name.replace('.xlsx','.csv');
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  showToast('내보냈습니다 (csv)');
+}
+
 // ── 켤 때 한 번 ──────────────────────────────────────────────────────
 (function etpBoot(){
   try{ etpSeedOnce(); }
   catch(e){ console.warn('[에토프] 첫 자료를 못 넣었습니다', e); }
+  try{ etpSeedPOOnce(); }
+  catch(e){ console.warn('[에토프] 첫 발주를 못 넣었습니다', e); }
   try{
     const bad = etpLRAudit();
     if(bad.length) console.warn('[에토프] 좌우(L/R) 유리가 서로 다른 모델이 생겼습니다 — etpBomOf 폴백을 다시 보십시오:', bad);
