@@ -14182,17 +14182,33 @@ function isNonStd(name){
      비규격(…)  ·  450X0X2296X0(X형)  ·  (450*0*2296*0)(별표형)
    별표형이 빠져 있어, 사이즈가 다음 줄로 넘어간 '(비)' 품목의 사이즈를
    이어 붙이지 못하고 버리고 있었습니다. */
-const SIZE_HINT_RE=/비규격|\d+\s*X\s*\d+\s*X|\(\s*\d+(?:\s*\*\s*\d+)+\s*[LRM]?\s*\)/i;
+const SIZE_HINT_RE=/비규격|\d+\s*X\s*\d+\s*X|\(\s*\d+(?:\s*\*\s*\d+)+[^)]{0,8}\)/i;
+
+/* 별표형 숫자묶음에서 가로·세로를 뽑습니다.
+   ★ 네 토막은 `가로*두께*세로*두께` 입니다 — 1·3번째가 가로·세로입니다.
+     예전에는 '0인 것을 버리고 남은 둘'로 봤는데, 두께가 0일 때만 우연히
+     맞았습니다. 실제 납품서에 `(500*22*2358*0 X)` 처럼 두께가 22인 것이
+     와서 `500×22` 로 잘못 읽었습니다 (2026-09-15 · 시그니처 채널도어).
+   ★ 0을 버려서 딱 둘이 남으면 예전 방식을 그대로 둡니다 — 지금까지 맞게
+     읽히던 것을 건드리지 않으려는 것입니다. */
+function _starSize(body){
+  const a=String(body||'').replace(/\s+/g,'').split('*').filter(s=>s!=='');
+  const nz=a.filter(s=>s!=='0');
+  if(nz.length===2) return nz[0]+'×'+nz[1];        // (445*0*729*0) — 예전 그대로
+  if(a.length>=3 && a[0] && a[2]) return a[0]+'×'+a[2];   // (500*22*2358*0) — 1·3번째
+  if(nz.length>=2) return nz[0]+'×'+nz[1];
+  return '';
+}
 
 function delivSizeLR(rawName){
   const name=rawName||''; let size='', lr='';
-  let m=name.match(/비규격\s*\(\s*([\d*]+)\s*([LRM])?\s*\)/);
+  let m=name.match(/비규격\s*\(\s*([\d*\s]+?)\s*([LRMX])?\s*\)/i);
   if(m){
-    size=m[1].split('*').filter(n=>n!=='0'&&n!=='').join('×');
+    size=_starSize(m[1]);
     lr=(m[2]==='L'||m[2]==='R')?m[2]:'';
   } else {
     const m2=name.match(/비규격\s*\(\s*([\d*]+)/); // 괄호 안 닫힘(줄바꿈) 폴백
-    if(m2) size=m2[1].split('*').filter(n=>n!=='0'&&n!=='').join('×');
+    if(m2) size=_starSize(m2[1]);
   }
   if(!size){ const mx=name.match(/(\d+)X(\d+)X(\d+)X(\d+)/i); if(mx) size=[mx[1],mx[2],mx[3],mx[4]].filter(n=>n!=='0').join('×'); }
   /* '(비)'로만 표기된 품목은 이름에 '비규격' 글자가 없어 위 규칙에 하나도 안 걸립니다
@@ -14202,10 +14218,14 @@ function delivSizeLR(rawName){
        엉뚱한 사이즈가 들어가기 때문입니다(2026-07-24 AS납품서 사고).
      (비규격작업지시서에는 이미 있던 폴백인데 이쪽에는 빠져 있었습니다) */
   if(!size){
-    const m3=name.match(/\(\s*(\d+(?:\s*\*\s*\d+)+)\s*([LRM])?\s*\)/);
+    /* 괄호 끝에 `X` 같은 표시가 붙어 오기도 합니다 — 실제 납품서가
+       `(500*22*2358*0 X)` 였습니다. 표시를 허용하되 닫는 괄호는 그대로
+       요구합니다(잘린 조각을 읽지 않기 위해서). */
+    const m3=name.match(/\(\s*(\d+(?:\s*\*\s*\d+)+)\s*([A-Z가-힣]{0,3})\s*\)/i);
     if(m3){
-      size=m3[1].replace(/\s+/g,'').split('*').filter(n=>n!=='0'&&n!=='').join('×');
-      if(!lr && (m3[2]==='L'||m3[2]==='R')) lr=m3[2];
+      size=_starSize(m3[1]);
+      const tag=String(m3[2]||'').toUpperCase();
+      if(!lr && (tag==='L'||tag==='R')) lr=tag;
     }
   }
   if(!lr){ const ml=name.match(/\b([LR])\)/); if(ml) lr=ml[1]; } // LR 폴백
