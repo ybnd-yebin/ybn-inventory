@@ -1265,10 +1265,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- 인쇄유리 소요 (납품서 → 인쇄실 대상 유리 · 오더날짜별) -->
 <div class="sec-pg" id="pg-glassneed" style="padding:14px 14px 80px">
   <div class="card" style="border-left:3px solid var(--acc)">
-    <div class="card-ttl"><span>🖨️ 인쇄유리 소요 (오더날짜별)</span></div>
+    <div class="card-ttl"><span>🖨️ 인쇄유리 소요</span></div>
     <div class="info-note" style="margin-top:6px">
-      납품서에 올라온 오더를 인쇄유리 대상 모델만 골라, 오더 날짜별로 인쇄해야 할 유리를 사이즈별로 보여줍니다.
-      합적(BD3U 등) 모델은 세트당 여러 장으로 자동 전개됩니다. <b>재고 대조는 하지 않습니다</b>(당일 생산 기준 소요량만).
+      납품서에 올라온 오더에서 인쇄유리 대상 모델만 골라, 인쇄해야 할 유리를 보여줍니다.
+      합적(BD3U 등) 모델은 세트당 여러 장으로 자동 전개됩니다. <b>재고 대조는 하지 않습니다</b>(생산 기준 소요량만).<br>
+      날짜는 <b>발주일</b> 기준입니다 — 유리는 조립할 때 쓰이고, 조립은 발주일부터 시작하기 때문입니다.
+      <b>에토프</b>는 이제 현성유리에서 완성품으로 받으므로 인쇄 대상이 아닙니다(🟠 에토프재고 탭에서 봅니다).
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
       <label style="font-size:11px;color:var(--tx2)">기간</label>
@@ -1277,6 +1279,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <input type="date" id="gn-to" style="padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px">
       <button onclick="renderGlassNeed()" style="padding:7px 14px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">조회</button>
       <button onclick="gnResetRange()" style="padding:7px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:16px;color:var(--tx2);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체</button>
+    </div>
+    <div class="filter-row" id="gn-view" style="margin-top:10px;margin-bottom:0">
+      <span style="font-size:11px;color:var(--tx2);align-self:center;margin-right:2px">보기</span>
+      <button class="f-btn on" data-view="date"  onclick="gnSetView('date',this)">📅 발주일별</button>
+      <button class="f-btn"    data-view="size"  onclick="gnSetView('size',this)">📐 사이즈별</button>
+      <button class="f-btn"    data-view="color" onclick="gnSetView('color',this)">🎨 색상별</button>
     </div>
     <div id="gn-summary" style="margin-top:10px"></div>
   </div>
@@ -3842,6 +3850,95 @@ function gnResetRange(){
   if(f) f.value=''; if(t) t.value='';
   renderGlassNeed();
 }
+/* ══════════════════════════════════════════════════════════════════════
+   🖨️ 인쇄유리 소요 — 보기 세 가지 (오더날짜별 · 사이즈별 · 색상별)
+                                                          2026-09-14 개편
+   ── 고친 것 둘 ──────────────────────────────────────────────────
+   ① 날짜가 안 잡혀 전부 '(날짜없음)' 한 덩어리로 나왔습니다.
+      doc.delivDate 를 보고 있었는데, 납품서 PDF 로 올린 것에는 그 칸이
+      없습니다(발주서 엑셀로 들어온 것에만 있습니다). 실측: 납품서 458건
+      가운데 delivDate 가 있는 것 0건, orderDate 가 있는 것 458건.
+      그래서 발주일(orderDate)을 먼저 봅니다 — 유리는 조립할 때 쓰이고
+      조립은 발주일부터 시작하므로 소요 날짜로도 이쪽이 맞습니다.
+
+   ② 좌우(L/R) 품목의 유리가 통째로 빠졌습니다.
+      모델 이름을 CODE_MODEL_MAP 에서 읽었는데 거기 short 에는 끝의
+      L/R 이 없습니다('HD B 5091'). MODEL_BOM 에는 'HD B 5091 L'·'R'
+      만 있어 못 찾고 넘어갔습니다. 제품명에는 L/R 이 살아 있으므로
+      제품명에서 읽습니다. 두 길이 서로 다른 유리 사이즈를 낸 경우는
+      0건이라(전수 확인) 사이즈가 틀어질 걱정은 없습니다.
+      되돌리려면 GN_FIX_LR 을 false 로 두십시오.
+   ══════════════════════════════════════════════════════════════════════ */
+var gnView = 'date';          // 'date' 오더날짜별 | 'size' 사이즈별 | 'color' 색상별
+var GN_FIX_LR = true;         // false 로 두면 예전처럼 CODE_MODEL_MAP 으로만 찾습니다
+
+function gnSetView(v, btn){
+  gnView = v;
+  if(btn && btn.parentElement) btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderGlassNeed();
+}
+
+// 소요 날짜 — 발주일 우선 (위 ① 참고)
+function gnDateOf(doc){
+  return doc.orderDate || doc.delivReqDate || doc.delivDate || doc.date || '(날짜없음)';
+}
+
+/* 납품서를 유리 한 장 단위로 펼칩니다.
+   반환: {rows:[{date,w,h,size,color,model,qty}], skipped, missedByOld, colorless} */
+function gnCollect(fromV, toV){
+  const log=(typeof delivLog!=='undefined'?delivLog:[])||[];
+  const rows=[];
+  let skipped=0, missedByOld=0, colorless=0;
+  log.forEach(doc=>{
+    const date=gnDateOf(doc);
+    if(fromV && date<fromV) return;
+    if(toV && date>toV) return;
+    (doc.items||[]).forEach(it=>{
+      const raw=String(it.short||it.name||'');
+      const mapped=(typeof CODE_MODEL_MAP!=='undefined' && it.code) ? CODE_MODEL_MAP[it.code] : null;
+      // 예전 길: CODE_MODEL_MAP 우선  /  지금 길: 제품명에서 접두 세 토막만 떼기
+      const oldName = mapped ? mapped.short : (raw||it.code);
+      const newName = raw.replace(/^Euro700\s+\S+\s+\S+\s+/i,'').trim() || oldName;
+      const oldBom = bomOf(oldName);
+      const modelName = GN_FIX_LR ? newName : oldName;
+      let bom = bomOf(modelName);
+      if(!bom && GN_FIX_LR) bom = bomOf(modelName+' L') || bomOf(modelName+' R');
+      if(!bom || !bom.glass || !bom.glass.length){ skipped+=(it.qty||0); return; }
+      // 색상은 제품명 기준(delivColorOf)입니다 — MODELS.color 는 못 믿습니다
+      let color='';
+      if(typeof delivColorOf==='function' && it.code) color=delivColorOf(it.code)||'';
+      if(!color) color=it.color || (mapped && mapped.color) || '';
+      if(!color) colorless+=(it.qty||0);
+      bom.glass.forEach(g=>{
+        const qty=(g.qty||1)*(it.qty||0);
+        if(qty<=0) return;
+        /* 비규격은 MODEL_BOM 에 '대표치수'가 하나 들어 있을 뿐이고 실제 치수는
+           건마다 다릅니다. 예전부터 이 탭에 섞여 있었으므로 빼지는 않되,
+           정규격으로 잘못 읽히지 않게 표시만 답니다. */
+        const nonstd = /비규격/.test(modelName) || modelName.trim().startsWith('(비)');
+        rows.push({date, w:g.w, h:g.h, size:g.w+'x'+g.h, color, model:modelName, qty, nonstd});
+        if(GN_FIX_LR && !oldBom) missedByOld+=qty;   // 예전 길이었으면 빠졌을 물량
+      });
+    });
+  });
+  return {rows, skipped, missedByOld, colorless};
+}
+
+/* 색은 넷입니다. 웜코튼·에토프만 알고 나머지를 '미지정'으로 뭉뚱그리면
+   베일 계열 779장이 통째로 정체불명이 됩니다(실측 2026-09-14). */
+const GN_COL = {
+  WC:   {dot:'var(--wc)',   kor:'웜코튼',    ico:'🔵', note:'우리가 인쇄합니다'},
+  ETP:  {dot:'var(--etp)',  kor:'에토프',    ico:'🟠', note:'현성유리에서 받습니다'},
+  SHADE:{dot:'var(--tx2)',  kor:'베일 쉐이드', ico:'⚫', note:''},
+  BRZ:  {dot:'var(--acc5)', kor:'베일 BRZ',  ico:'🟣', note:''}
+};
+const GN_COL_ORDER = ['WC','ETP','SHADE','BRZ'];
+function gnColMeta(c){
+  return GN_COL[c] || {dot:'var(--tx3)', kor:(c||'색 미표기'), ico:'⚪',
+                       note:(c?'':'제품명에 색이 안 적혀 있습니다 — 확인이 필요합니다')};
+}
+
 function renderGlassNeed(){
   const sumEl=document.getElementById('gn-summary');
   const bodyEl=document.getElementById('gn-body');
@@ -3854,82 +3951,172 @@ function renderGlassNeed(){
   }
   const fromV=(document.getElementById('gn-from')||{}).value||'';
   const toV=(document.getElementById('gn-to')||{}).value||'';
+  const got=gnCollect(fromV, toV);
+  const rows=got.rows;
 
-  // 오더날짜(delivDate) → { sizeKey: {w,h,color,short,qty, models} } 전개
-  const byDate={};
-  let skippedNoBom=0;   // 인쇄유리 대상 아님(BOM 없음)
-  const dates=[];
-
-  log.forEach(doc=>{
-    const date=doc.delivDate||doc.date||'(날짜없음)';
-    if(fromV && date<fromV) return;
-    if(toV && date>toV) return;
-    (doc.items||[]).forEach(it=>{
-      // ── 모델 매칭: 납품서 품목코드(code)를 CODE_MODEL_MAP으로 실제 모델명으로 변환한 뒤 bomOf 조회 ──
-      //   납품서의 short는 긴 마케팅 품명이라 MODEL_BOM 키와 안 맞음 → code 우선 사용
-      const mapped = (typeof CODE_MODEL_MAP!=='undefined' && it.code) ? CODE_MODEL_MAP[it.code] : null;
-      const modelName = mapped ? mapped.short : (it.short||it.code);
-      const bom=bomOf(modelName);
-      if(!bom || !bom.glass || !bom.glass.length){ skippedNoBom+=(it.qty||0); return; } // 인쇄유리 대상 아님 → 제외
-      // color: 납품서 값 우선, 없으면 CODE_MODEL_MAP 보완
-      const color=it.color || (mapped && mapped.color) || '';
-      bom.glass.forEach(g=>{
-        const qty=(g.qty||1)*(it.qty||0);
-        if(qty<=0) return;
-        const key=`${g.w}x${g.h}_${color}`;
-        if(!byDate[date]) byDate[date]={};
-        if(!byDate[date][key]) byDate[date][key]={w:g.w,h:g.h,color,qty:0,models:{}};
-        byDate[date][key].qty+=qty;
-        const mn=modelName;
-        byDate[date][key].models[mn]=(byDate[date][key].models[mn]||0)+qty;
-      });
-    });
+  // 보기 단추 — 지금 어느 보기인지 켜 둡니다
+  document.querySelectorAll('#gn-view .f-btn').forEach(b=>{
+    b.classList.toggle('on', b.getAttribute('data-view')===gnView);
   });
 
-  Object.keys(byDate).forEach(d=>dates.push(d));
-  dates.sort((a,b)=>String(b).localeCompare(String(a))); // 최신 오더 위로
+  let grandTotal=0;
+  const dateSet=new Set(), grandByColor={};
+  rows.forEach(r=>{
+    grandTotal+=r.qty; dateSet.add(r.date);
+    grandByColor[r.color||'']=(grandByColor[r.color||'']||0)+r.qty;
+  });
+  const colorChips=Object.keys(grandByColor)
+    .sort((a,b)=>{ const ia=GN_COL_ORDER.indexOf(a), ib=GN_COL_ORDER.indexOf(b); return (ia<0?9:ia)-(ib<0?9:ib); })
+    .map(c=>{ const m=gnColMeta(c);
+      return `<span style="font-size:11px;color:${m.dot};font-weight:700">${m.ico} ${m.kor} ${grandByColor[c]}</span>`; })
+    .join('');
 
-  let grandTotal=0, grandWc=0, grandEtp=0;
-  dates.forEach(d=>Object.values(byDate[d]).forEach(a=>{
-    grandTotal+=a.qty;
-    if(a.color==='WC') grandWc+=a.qty; else if(a.color==='ETP') grandEtp+=a.qty;
-  }));
   if(sumEl){
-    if(!dates.length){
+    if(!rows.length){
       sumEl.innerHTML='<div style="font-size:12px;color:var(--tx3)">해당 기간에 인쇄유리 대상 오더가 없습니다.</div>';
     } else {
       sumEl.innerHTML=
         `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline">
-           <span style="font-size:12px;color:var(--tx2)">오더일 <b style="color:var(--tx1)">${dates.length}</b>일</span>
+           <span style="font-size:12px;color:var(--tx2)">발주일 <b style="color:var(--tx1)">${dateSet.size}</b>일</span>
            <span style="font-size:12px;color:var(--tx2)">총 인쇄유리 <b style="color:var(--acc)">${grandTotal}</b>장</span>
-           <span style="font-size:11px;color:var(--wc)">🔵 웜코튼 ${grandWc}</span>
-           <span style="font-size:11px;color:var(--etp)">🟠 에토프 ${grandEtp}</span>
-           ${skippedNoBom?`<span style="font-size:10px;color:var(--tx3)">· 인쇄유리 대상 아님 ${skippedNoBom}건 제외</span>`:''}
-         </div>`;
+           ${colorChips}
+           ${got.skipped?`<span style="font-size:10px;color:var(--tx3)">· 인쇄유리 대상 아님 ${got.skipped}장 제외</span>`:''}
+         </div>` +
+        (got.missedByOld
+          ? `<div style="margin-top:6px;font-size:10.5px;color:var(--acc2)">🔧 좌우(L/R) 품목 <b>${got.missedByOld}장</b>이 예전에는 빠져 있었습니다 — 이제 들어갑니다. (되돌리려면 GN_FIX_LR)</div>`
+          : '');
     }
   }
+  if(!rows.length){ bodyEl.innerHTML=''; return; }
 
-  if(!dates.length){ bodyEl.innerHTML=''; return; }
+  if(gnView==='size')      bodyEl.innerHTML=gnBySizeHtml(rows);
+  else if(gnView==='color')bodyEl.innerHTML=gnByColorHtml(rows);
+  else                     bodyEl.innerHTML=gnByDateHtml(rows);
+}
 
-  bodyEl.innerHTML=dates.map(date=>{
-    const rows=Object.values(byDate[date]).sort((a,b)=>{
+// ── 사이즈 한 줄 (사이즈별·색상별 보기가 함께 씁니다) ────────────────
+function gnSizeLine(size, tot, byColor, models, nonstdQty){
+  const [w,h]=size.split('x');
+  const nsTag = nonstdQty>0
+    ? `<span title="비규격은 건마다 치수가 다릅니다. 여기 숫자는 대표치수 기준이라 그대로 재단하시면 안 됩니다" style="font-size:9px;font-weight:700;color:var(--acc2);border:1px solid var(--acc2);border-radius:8px;padding:1px 5px;margin-left:6px">비규격 대표치수 ${nonstdQty}</span>`
+    : '';
+  const keys=Object.keys(byColor).sort((a,b)=>{
+    const ia=GN_COL_ORDER.indexOf(a), ib=GN_COL_ORDER.indexOf(b);
+    return (ia<0?9:ia)-(ib<0?9:ib);
+  });
+  const seg=keys.filter(k=>byColor[k]>0).map(k=>{
+    const m=gnColMeta(k);
+    return `<span style="font-size:11px;color:${m.dot};font-weight:700;white-space:nowrap">${m.ico} ${m.kor} ${byColor[k]}</span>`;
+  }).join('');
+  const mdl = models && models.length
+    ? (models.length>2 ? models.slice(0,2).join(' · ')+` 외 ${models.length-2}개` : models.join(' · '))
+    : '';
+  return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--b1)">
+    <div style="flex:1;min-width:0">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:var(--tx1)">
+        ${w}<span style="color:var(--tx3);font-weight:400">×</span>${h}${nsTag}
+      </div>
+      ${mdl?`<div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${mdl}</div>`:''}
+    </div>
+    <div style="display:flex;gap:10px;flex:none;flex-wrap:wrap;justify-content:flex-end;max-width:220px">${seg}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc);flex:none;width:52px;text-align:right">
+      ${tot}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
+    </div>
+  </div>`;
+}
+
+// ── 보기 ①: 사이즈별 (많이 쓰는 순) ─────────────────────────────────
+function gnBySizeHtml(rows){
+  const m={};
+  rows.forEach(r=>{
+    const a = m[r.size] || (m[r.size]={size:r.size, w:r.w, h:r.h, tot:0, ns:0, byColor:{}, models:{}});
+    a.tot+=r.qty;
+    if(r.nonstd) a.ns+=r.qty;
+    const c=r.color||'';
+    a.byColor[c]=(a.byColor[c]||0)+r.qty;
+    a.models[r.model]=(a.models[r.model]||0)+r.qty;
+  });
+  const list=Object.values(m).sort((a,b)=>b.tot-a.tot);
+  const tot=list.reduce((s,x)=>s+x.tot,0);
+  return `<div class="card" style="margin-top:12px;padding:0;overflow:hidden">
+    <div class="card-ttl" style="padding:14px 14px 8px;margin-bottom:0;display:flex;justify-content:space-between;align-items:center">
+      <span>📐 사이즈별</span>
+      <span style="font-size:11px;font-weight:700;color:var(--tx2);text-transform:none;letter-spacing:0">${list.length}종 · ${tot}장</span>
+    </div>
+    ${list.map(a=>gnSizeLine(a.size, a.tot, a.byColor, Object.keys(a.models), a.ns)).join('')}
+  </div>`;
+}
+
+// ── 보기 ②: 색상별 (색 안에서 다시 사이즈별) ────────────────────────
+function gnByColorHtml(rows){
+  const byCol={};
+  rows.forEach(r=>{
+    const c=r.color||'';
+    const b = byCol[c] || (byCol[c]={color:c, tot:0, sizes:{}});
+    b.tot+=r.qty;
+    const s = b.sizes[r.size] || (b.sizes[r.size]={tot:0, models:{}});
+    s.tot+=r.qty; s.models[r.model]=(s.models[r.model]||0)+r.qty;
+  });
+  // 웜코튼 → 에토프 → 베일 쉐이드 → 베일 BRZ → 그 밖 차례
+  const cols=Object.values(byCol).sort((a,b)=>{
+    const ia=GN_COL_ORDER.indexOf(a.color), ib=GN_COL_ORDER.indexOf(b.color);
+    if(ia!==ib) return (ia<0?9:ia)-(ib<0?9:ib);
+    return b.tot-a.tot;
+  });
+  return cols.map(c=>{
+    const meta=gnColMeta(c.color);
+    const sizes=Object.entries(c.sizes).map(([size,v])=>({size,...v})).sort((a,b)=>b.tot-a.tot);
+    const note = meta.note || '';
+    return `<div class="card" style="margin-top:12px;padding:0;overflow:hidden;border-left:3px solid ${meta.dot}">
+      <div class="card-ttl" style="padding:14px 14px 8px;margin-bottom:0;display:flex;justify-content:space-between;align-items:center">
+        <span style="color:${meta.dot}">${meta.ico} ${meta.kor}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--tx2);text-transform:none;letter-spacing:0">${sizes.length}종 · ${c.tot}장</span>
+      </div>
+      ${note?`<div style="padding:0 14px 6px;font-size:10.5px;color:var(--tx3)">${note}</div>`:''}
+      ${sizes.map(s=>{
+        const mdl=Object.keys(s.models);
+        const mtx = mdl.length>2 ? mdl.slice(0,2).join(' · ')+` 외 ${mdl.length-2}개` : mdl.join(' · ');
+        const [w,h]=s.size.split('x');
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--b1)">
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;color:var(--tx1)">${w}<span style="color:var(--tx3);font-weight:400">×</span>${h}</div>
+            <div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${mtx}</div>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:${meta.dot};flex:none">${s.tot}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span></div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
+// ── 보기 ③: 오더날짜별 (예전 보기 — 발주일 기준으로 바로잡음) ────────
+function gnByDateHtml(rows){
+  const byDate={};
+  rows.forEach(r=>{
+    const d = byDate[r.date] || (byDate[r.date]={});
+    const key=r.size+'_'+r.color;
+    const a = d[key] || (d[key]={w:r.w, h:r.h, size:r.size, color:r.color, qty:0, models:{}});
+    a.qty+=r.qty; a.models[r.model]=(a.models[r.model]||0)+r.qty;
+  });
+  const dates=Object.keys(byDate).sort((a,b)=>String(b).localeCompare(String(a))); // 최신 발주 위로
+  return dates.map(date=>{
+    const list=Object.values(byDate[date]).sort((a,b)=>{
       if(a.color!==b.color) return (a.color||'').localeCompare(b.color||'');
       if(a.h!==b.h) return a.h-b.h;
       return a.w-b.w;
     });
-    const dayTotal=rows.reduce((s,r)=>s+r.qty,0);
-    const rowHtml=rows.map(r=>{
-      const cDot=r.color==='WC'?'var(--wc)':r.color==='ETP'?'var(--etp)':'var(--tx3)';
-      const cLabel=r.color==='WC'?'웜코튼':r.color==='ETP'?'에토프':'미지정';
-      const modelList=Object.entries(r.models).map(([m,q])=>`${m} <span style="color:var(--tx3)">×${q}</span>`).join(' · ');
+    const dayTotal=list.reduce((s,r)=>s+r.qty,0);
+    const rowHtml=list.map(r=>{
+      const meta=gnColMeta(r.color);
+      const mdl=Object.entries(r.models).map(([m,q])=>`${m} <span style="color:var(--tx3)">×${q}</span>`).join(' · ');
       return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--b1)">
-        <span style="width:8px;height:8px;border-radius:50%;background:${cDot};flex:none"></span>
+        <span style="width:8px;height:8px;border-radius:50%;background:${meta.dot};flex:none"></span>
         <div style="flex:1;min-width:0">
           <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:var(--tx1)">
             ${r.w}<span style="color:var(--tx3);font-weight:400">×</span>${r.h}
-            <span style="font-size:11px;font-weight:700;color:${cDot};margin-left:6px">${cLabel}</span>
+            <span style="font-size:11px;font-weight:700;color:${meta.dot};margin-left:6px">${meta.kor}</span>
           </div>
-          <div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${modelList}</div>
+          <div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${mdl}</div>
         </div>
         <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc);flex:none">
           ${r.qty}<span style="font-size:10px;font-weight:400;color:var(--tx3)">장</span>
@@ -3939,7 +4126,7 @@ function renderGlassNeed(){
     return `<div class="card" style="margin-top:12px">
       <div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center">
         <span>📅 ${date}</span>
-        <span style="font-size:11px;font-weight:700;color:var(--tx2);text-transform:none;letter-spacing:0">인쇄유리 ${dayTotal}장 · ${rows.length}종</span>
+        <span style="font-size:11px;font-weight:700;color:var(--tx2);text-transform:none;letter-spacing:0">인쇄유리 ${dayTotal}장 · ${list.length}종</span>
       </div>
       <div style="margin-top:4px">${rowHtml}</div>
     </div>`;
