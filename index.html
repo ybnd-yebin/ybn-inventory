@@ -335,6 +335,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
     <button class="main-nav-btn" onclick="showMain('delivery')">📦 납품서</button>
     <button class="main-nav-btn" onclick="showMain('glassneed')">🖨️ 인쇄유리소요</button>
+    <button class="main-nav-btn" onclick="showMain('etp')">🟠 에토프재고</button>
     <!-- 비규격 작업지시서 — 이 앱 안의 탭이 아니라 같은 주소의 다른 페이지다(새 창).
          상대경로라 홈페이지에서도, 바탕화면에서도 그대로 열린다.
          같은 출처(ybnd-yebin.github.io)이므로 두 페이지가 브라우저 저장함을 나눠 쓴다. -->
@@ -1280,6 +1281,29 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="gn-summary" style="margin-top:10px"></div>
   </div>
   <div id="gn-body"></div>
+</div>
+
+<!-- 🟠 에토프재고 — 외주(현성유리) 인쇄유리 사이즈별 재고 -->
+<div class="sec-pg" id="pg-etp" style="padding:14px 14px 80px">
+  <div class="card" style="border-left:3px solid var(--etp)">
+    <div class="card-ttl"><span>🟠 에토프 인쇄유리 재고 (외주 · 현성유리)</span></div>
+    <div class="info-note" style="margin-top:6px">
+      에토프 색상 인쇄를 현성유리에 넘겼습니다. 현성이 원판 구매·재단·인쇄를 다 하고, 우리는 <b>완성된 인쇄유리를 사이즈별로</b> 받습니다.
+      웜코튼은 계속 우리가 인쇄하므로 여기에 없습니다.<br>
+      재고는 <b>사이즈 기준</b>이고 모델명은 참고로만 띄웁니다 — 한 사이즈를 여러 모델이 나눠 쓰기 때문에 모델로 쪼개면 같은 유리가 흩어집니다.
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px">
+      <div class="filter-row" style="margin-bottom:0">
+        <button class="f-btn etp-mode-btn on" data-mode="fill" onclick="etpSetMode('fill')" title="지금은 재고를 처음 쌓는 중입니다. 안전재고에 못 미치는 것을 부족으로 봅니다">목표채우기</button>
+        <button class="f-btn etp-mode-btn" data-mode="normal" onclick="etpSetMode('normal')" title="같은 판정에 최근 3개월 실측 월평균을 곁들여 보여줍니다">정상운영</button>
+      </div>
+      <span style="font-size:11px;color:var(--tx2)">안전재고 기준</span>
+      <input type="number" id="etp-days" min="1" max="120" value="10" onchange="etpSetDays(this.value)"
+             style="width:64px;padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-family:'JetBrains Mono',monospace">
+      <span style="font-size:11px;color:var(--tx3)">영업일치</span>
+    </div>
+  </div>
+  <div id="etp-body"></div>
 </div>
 
 <!-- SETTINGS -->
@@ -3764,6 +3788,7 @@ function showMain(id){
   if(id==='stock')renderSub(curSub);
   if(id==='mat')renderMat();
   if(id==='glassneed')renderGlassNeed();
+  if(id==='etp')renderEtp();
   if(id==='settings')initGsUI();
 }
 function showSub(id){
@@ -8489,6 +8514,7 @@ function rerenderAfterSync(){
   try{ if(typeof renderFinished==='function') renderFinished(); }catch(e){}
   try{ if(typeof renderInk==='function') renderInk(); }catch(e){}
   try{ if(typeof renderStorageBar==='function') renderStorageBar(); }catch(e){}
+  try{ if(curMain==='etp' && typeof renderEtp==='function') renderEtp(); }catch(e){}
 }
 
 async function syncFromSheet(){
@@ -11579,6 +11605,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     else if(id==='order')renderOrderPage();
     else if(id==='order-analysis')renderAnalysis();
     else if(id==='glassneed')renderGlassNeed();
+    else if(id==='etp')renderEtp();
     else if(id==='ledger')renderLedger();
     else if(id==='vendors')renderVendors();
     else if(id==='settings')initGsUI();
@@ -15250,6 +15277,677 @@ function deleteDeliv(id){
 }
 
   
+
+/* ══════════════════════════════════════════════════════════════════════
+   🟠 에토프재고 — 외주(현성유리) 인쇄유리 사이즈별 재고        2026-09-14
+
+   에토프 색상 인쇄를 현성유리에 외주로 넘겼습니다. 현성이 원판 구매·재단·
+   인쇄를 다 하고 우리는 완성된 인쇄유리만 사이즈별로 받습니다.
+   웜코튼은 계속 우리가 인쇄하므로 이 탭은 에토프만 다룹니다.
+
+   ── 이 탭이 건드리는 것 ──────────────────────────────────────────
+   저장함 키는 전부 새것입니다: etpGlassLedger · etpDeleted · etpPurchaseOrders
+   · etpSafetyDays · etpSafetyOverride · etpMode · etpSeededV1 · etpCutover
+   기존 탭·기능·저장함 키는 한 글자도 안 건드립니다.
+
+   ── 날짜를 어떻게 보는가 (사용자 확정 2026-09-14) ────────────────
+   입고날과 출고날을 맞추지 않습니다. 따로 굴립니다.
+     9/7  첫 팔레트 211장 — 안전재고 확보용. 입고만 기록하고 이날 빠진 것 없음
+     9/8  비규격만 외주분. 정규격은 자체 인쇄분으로 생산 → 차감 안 함
+     9/10 부터 에토프 완제품을 외주 유리로만 생산 → 여기부터 차감
+   그래서 차감 경계는 etpCutover 입니다. 경계 판정은 납품요청일이 아니라
+   발주일로 봅니다 — 유리는 조립할 때 빠지고 조립은 발주일부터 시작하기
+   때문입니다(기존 앱도 같은 이유로 소모 날짜를 발주일로 찍습니다).
+   납품요청일로 자르면 9/8에 자체분으로 만든 것이 뒤늦게 외주분에서 빠집니다.
+
+   ── 날짜·영업일은 절대 새로 만들지 않습니다 ──────────────────────
+   _addBizDays · _toBizDay · _isHoliday · _ymdLocal · todayStr 를 그대로 씁니다.
+   제헌절 재지정 같은 것이 이미 반영돼 있습니다 (CLAUDE.md 3번).
+   ══════════════════════════════════════════════════════════════════════ */
+
+// ── 한곳에서만 정하는 값들 ──────────────────────────────────────────
+const ETP_CUTOVER_DEFAULT = '2026-09-10'; // 이 발주일부터 외주분으로 차감
+const ETP_VENDOR      = '현성유리';
+const ETP_LOT         = 10;   // 발주 묶음 — 9/8 발주 27품목이 전부 10 또는 20이었습니다
+const ETP_OVER_COVER  = 60;   // 커버가 이 영업일을 넘으면 '과잉'
+const ETP_LATE_BIZ    = 2;    // 마지막 출고가 이 영업일 넘게 밀리면 헤드라인을 주황으로
+const ETP_SAFETY_MIN  = 3;    // 안전재고 하한 — 월 1장 나가는 것이 1장이면 매번 발주해야 합니다
+const ETP_BIZ_PER_M   = 20;   // 한 달 영업일
+
+/* 저장함 읽기는 반드시 감쌉니다.
+   사생활 보호 창이나 사이트 자료 차단에서 감싸지 않은 읽기 한 줄이 화면
+   스크립트를 통째로 멈춥니다. 그러면 뒤쪽 선언이 아예 안 만들어집니다
+   (CLAUDE.md 9-3). initColorSettings 에서 실제로 겪었습니다. */
+function etpLoad(key, fallback){
+  try{
+    const v = localStorage.getItem(key);
+    if(v == null) return fallback;
+    const p = JSON.parse(v);
+    return (p == null) ? fallback : p;
+  }catch(e){ console.warn('[에토프] 저장함을 못 읽었습니다:', key, e); return fallback; }
+}
+function etpStore(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); }
+  catch(e){ console.warn('[에토프] 저장함에 못 썼습니다:', key, e); }
+}
+
+/* var 로 선언합니다 — const/let 은 선언 전에 typeof 만 해도 오류가 납니다.
+   동기화(metaForSync)가 typeof 로 물어보므로 var 여야 안전합니다. */
+var etpLedger     = etpLoad('etpGlassLedger', []);
+var etpDeleted    = etpLoad('etpDeleted', {});          // {id: 지운시각} 묘비 — 병합 부활 방지
+var etpPOs        = etpLoad('etpPurchaseOrders', []);
+var etpSafetyOvr  = etpLoad('etpSafetyOverride', {});   // {"445x729":20} 수동값이 공식보다 우선
+var etpSafetyDays = Number(etpLoad('etpSafetyDays', 10)) || 10;
+var etpMode       = etpLoad('etpMode', 'fill');         // 'fill'=목표채우기 / 'normal'=정상운영
+var etpCutover    = etpLoad('etpCutover', ETP_CUTOVER_DEFAULT);
+
+function etpSaveLedger(){ etpStore('etpGlassLedger', etpLedger); etpStore('etpDeleted', etpDeleted); }
+function etpSavePOs(){ etpStore('etpPurchaseOrders', etpPOs); }
+function etpSaveCfg(){
+  etpStore('etpSafetyDays', etpSafetyDays);
+  etpStore('etpSafetyOverride', etpSafetyOvr);
+  etpStore('etpMode', etpMode);
+  etpStore('etpCutover', etpCutover);
+}
+function etpUid(p){ return (p || 'etp_') + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+
+// 딸린 자료가 안 붙었는지 — 붙지 않았으면 조용히 넘어가지 않고 화면에 드러냅니다
+function etpDataMissing(){
+  const miss = [];
+  if(typeof ETP_SIZE_MASTER === 'undefined') miss.push('ETP_SIZE_MASTER');
+  if(typeof SIZE_TO_MODELS  === 'undefined') miss.push('SIZE_TO_MODELS');
+  if(typeof MODEL_BOM       === 'undefined') miss.push('MODEL_BOM');
+  return miss;
+}
+
+// ── 사이즈 정규화 ────────────────────────────────────────────────────
+/* 현장 표기가 제각각입니다. 팔레트에는 347*895 로 쓰고 인수증에는 895×347 로
+   씁니다. 그런데 895x347 / 895x351 / 895x371 / 895x377 이 전부 실제로 있는
+   다른 사이즈라, 뒤집힌 채 저장되면 엉뚱한 재고가 깎입니다.
+   큰 수를 앞으로 보내는 방식은 쓰지 않습니다 — 295x345 처럼 세로가 더 긴
+   사이즈가 실제로 있어서 그렇게 하면 오히려 틀립니다.
+   아는 사이즈인지 사전을 보고 맞추고, 둘 다 모르면 적은 순서대로 두되
+   '마스터에 없는 사이즈'로 드러냅니다. 조용히 버리지 않습니다. */
+var _etpSizeDict = null;
+function etpSizeDict(){
+  if(_etpSizeDict) return _etpSizeDict;
+  const d = { master:new Set(), bom:new Set() };
+  if(typeof ETP_SIZE_MASTER !== 'undefined') ETP_SIZE_MASTER.forEach(x => d.master.add(x.size));
+  if(typeof SIZE_TO_MODELS  !== 'undefined') Object.keys(SIZE_TO_MODELS).forEach(s => d.bom.add(s));
+  _etpSizeDict = d;
+  return d;
+}
+function etpKnownSize(s){ const d = etpSizeDict(); return d.master.has(s) || d.bom.has(s); }
+function etpInMaster(s){ return etpSizeDict().master.has(s); }
+function etpInBom(s){ return etpSizeDict().bom.has(s); }
+
+function etpNormSize(raw){
+  const s = String(raw == null ? '' : raw)
+    .replace(/[×xX*∗·]/g, 'x')
+    .replace(/\s+/g, 'x')
+    .replace(/x+/g, 'x')
+    .replace(/^x|x$/g, '');
+  const m = s.match(/(\d{2,5})x(\d{2,5})/);
+  if(!m) return { size:'', ok:false, why:'숫자 두 개를 못 읽었습니다' };
+  const A = m[1] + 'x' + m[2];
+  const B = m[2] + 'x' + m[1];
+  if(etpKnownSize(A)) return { size:A, ok:true, flipped:false, unknown:false };
+  if(etpKnownSize(B)) return { size:B, ok:true, flipped:true,  unknown:false };
+  return { size:A, ok:true, flipped:false, unknown:true };   // 저장은 하되 눈에 띄게 표시
+}
+
+// ── 장부 집계 ────────────────────────────────────────────────────────
+function etpRows(){ return etpLedger.filter(r => r && r.id && !etpDeleted[r.id]); }
+
+function etpStockMap(){
+  const m = {};
+  const take = s => (m[s] || (m[s] = { size:s, in:0, out:0, adj:0, cur:0 }));
+  etpRows().forEach(r => {
+    const q = Number(r.qty) || 0;
+    const a = take(r.size);
+    if(r.t === 'in')       { a.in  += q; a.cur += q; }
+    else if(r.t === 'out') { a.out += q; a.cur -= q; }
+    else if(r.t === 'adj') { a.adj += q; a.cur += q; }
+  });
+  return m;
+}
+
+function etpAvgOf(size){
+  if(typeof ETP_SIZE_MASTER === 'undefined') return 0;
+  const f = ETP_SIZE_MASTER.find(x => x.size === size);
+  return f ? (Number(f.etpAvg) || 0) : 0;
+}
+
+/* 안전재고 = MAX(3, ROUND(월평균 ÷ 20영업일 × 기준일수))
+   직원이 보관 중인 안전재고 파일이 오면 사이즈별 수동값이 공식을 이깁니다. */
+function etpSafetyOf(size){
+  if(etpSafetyOvr && etpSafetyOvr[size] != null){
+    return { n: Math.max(0, Number(etpSafetyOvr[size]) || 0), manual:true };
+  }
+  const avg = etpAvgOf(size);
+  return { n: Math.max(ETP_SAFETY_MIN, Math.round(avg / ETP_BIZ_PER_M * etpSafetyDays)), manual:false };
+}
+
+// 지금 재고가 며칠(영업일)치인가. 월평균이 0이면 셀 수 없으므로 null 을 돌려줍니다
+function etpCoverOf(size, cur){
+  const avg = etpAvgOf(size);
+  if(avg <= 0) return null;
+  return Math.round(cur / (avg / ETP_BIZ_PER_M));
+}
+
+// 아직 안 들어온 발주 장수 (4단계에서 채웁니다. 발주 기록이 없으면 0)
+function etpReceivedQty(poId, size){
+  let n = 0;
+  etpRows().forEach(r => { if(r.t === 'in' && r.poId === poId && r.size === size) n += (Number(r.qty) || 0); });
+  return n;
+}
+function etpOpenQtyOf(size){
+  if(!Array.isArray(etpPOs) || !etpPOs.length) return 0;
+  let n = 0;
+  etpPOs.forEach(po => {
+    if(!po || po.status === 'done' || po.canceled) return;
+    (po.items || []).forEach(it => {
+      if(it.size !== size) return;
+      const left = (Number(it.qty) || 0) - etpReceivedQty(po.id, size);
+      if(left > 0) n += left;
+    });
+  });
+  return n;
+}
+
+/* 화면에 뿌릴 한 줄씩. 마스터에 있는 것 + 장부에 있는 것을 합쳐 봅니다.
+   장부에만 있는 사이즈(마스터에 없는 새 사이즈)도 빠짐없이 나오게 하려는 것입니다. */
+function etpBuildRows(){
+  const stock = etpStockMap();
+  const seen = {};
+  const out = [];
+  const push = size => {
+    if(seen[size]) return;
+    seen[size] = 1;
+    const st  = stock[size] || { in:0, out:0, adj:0, cur:0 };
+    const sf  = etpSafetyOf(size);
+    const avg = etpAvgOf(size);
+    const cov = etpCoverOf(size, st.cur);
+    out.push({
+      size, avg,
+      in:st.in, out:st.out, adj:st.adj, cur:st.cur,
+      safety:sf.n, safetyManual:sf.manual,
+      gap: st.cur - sf.n,
+      cover: cov,
+      onOrder: etpOpenQtyOf(size),
+      short: st.cur < sf.n,
+      over:  st.cur >= sf.n && ((cov != null && cov > ETP_OVER_COVER) || (avg <= 0 && st.cur > 0)),
+      noMaster: !etpInMaster(size),
+      noBom:    !etpInBom(size),
+      models: (typeof SIZE_TO_MODELS !== 'undefined' && SIZE_TO_MODELS[size]) ? SIZE_TO_MODELS[size] : []
+    });
+  };
+  if(typeof ETP_SIZE_MASTER !== 'undefined') ETP_SIZE_MASTER.forEach(x => push(x.size));
+  Object.keys(stock).forEach(push);
+  // 월평균 내림차순. 같으면 사이즈 이름순 — 순서가 흔들리지 않아야 눈에 익습니다
+  out.sort((a, b) => (b.avg - a.avg) || a.size.localeCompare(b.size));
+  return out;
+}
+
+// ── 마지막으로 반영된 날 ─────────────────────────────────────────────
+function etpLastDate(type){
+  let d = '';
+  etpRows().forEach(r => { if(r.t === type && r.d > d) d = r.d; });
+  return d;
+}
+/* 두 날짜 사이가 몇 영업일인가. 주말·공휴일은 빼야 하므로 기존 _addBizDays 를
+   한 칸씩 밟습니다. _addBizDays(d,1) 은 '그날 포함 1영업일' = 그날 그대로라
+   한 칸 나아가려면 2를 넘겨야 합니다 (CLAUDE.md 2번 정의). */
+function etpBizGap(fromYmd, toYmd){
+  if(!fromYmd || !toYmd || fromYmd >= toYmd) return 0;
+  let n = 0, cur = fromYmd, guard = 0;
+  while(cur < toYmd && guard < 400){ cur = _addBizDays(cur, 2); n++; guard++; }
+  return n;
+}
+
+// ── 납품서로 실측 월평균 다시 세기 ───────────────────────────────────
+/* 마스터의 etpAvg 는 26년 1~8월 출고정리에서 뽑은 고정값인데, 그것이
+   AS오더(54*)를 포함한 값인지 아직 확인을 못 했습니다. 그래서 추측하지 않고
+   납품서로 같은 기간을 다시 세서 나란히 놓습니다. 숫자가 알려 줍니다.
+
+   ★ 안전재고에 쓸 값은 반드시 'AS 포함' 이어야 합니다.
+     차감은 AS 포함인데 안전재고를 AS 제외 평균으로 잡으면 매달 AS만큼
+     조용히 모자랍니다. 'AS 제외' 값은 생산계획·예시대조 쪽에서 씁니다. */
+function etpModelNameOf(it){
+  const mapped = (typeof CODE_MODEL_MAP !== 'undefined' && it.code) ? CODE_MODEL_MAP[it.code] : null;
+  if(mapped && mapped.short) return mapped.short;
+  return String(it.short || it.name || '')
+    .replace(/Euro700\s+Grace\s+(ETP|W\/Cotton)\s+/ig, '')
+    .trim();
+}
+function etpIsNonStd(name){
+  const n = String(name || '');
+  return /비규격/.test(n) || n.trim().startsWith('(비)');   // CLAUDE.md 4-1
+}
+function etpColorOf(it){
+  let c = '';
+  if(typeof delivColorOf === 'function' && it.code) c = delivColorOf(it.code) || '';
+  if(!c){                                   // 카탈로그에 없는 코드는 제품명으로 봅니다
+    const n = String(it.short || it.name || '').toUpperCase();
+    if(n.includes('W/COTTON')) c = 'WC';
+    else if(n.includes('ETP')) c = 'ETP';
+  }
+  return c;
+}
+
+/* 좌우(L/R)가 이름에서 떨어져 나온 것을 되살립니다.
+   납품서 품목은 'HD B 5091' 처럼 끝의 L/R 없이 옵니다. 그런데 MODEL_BOM 에는
+   'HD B 5091 L' · 'HD B 5091 R' 만 있어 bomOf 가 못 찾고 조용히 빠졌습니다.
+   실측(2026-09-14 · 납품서 59건): 891장 가운데 152장, 곧 17%가 이렇게 새고
+   있었습니다. HD B 계열이 대부분입니다.
+   L·R 짝 24쌍을 전수로 확인했더니 유리 사이즈가 모두 같아(다른 쌍 0개)
+   어느 쪽을 봐도 결과가 같습니다. 달라지는 쌍이 생기면 etpLRAudit 가 알립니다.
+   ※ 기존 bomOf 는 안 건드립니다 — 인쇄유리소요 탭이 같이 쓰고 있어
+     그쪽 숫자까지 한꺼번에 바뀌면 따로 확인을 받아야 합니다. */
+function etpBomOf(name){
+  const s = String(name || '').trim();
+  if(!s || typeof bomOf !== 'function') return null;
+  return bomOf(s) || bomOf(s + ' L') || bomOf(s + ' R') || null;
+}
+
+// L·R 짝의 유리가 서로 다른 것이 생기면 위 폴백이 틀어집니다. 생기면 알립니다.
+function etpLRAudit(){
+  if(typeof MODEL_BOM === 'undefined') return [];
+  const sig = g => (g && g.glass ? g.glass.map(x => x.w + 'x' + x.h + '*' + (x.qty || 1)).join('|') : '');
+  const base = {};
+  Object.keys(MODEL_BOM).forEach(k => {
+    const m = k.match(/^(.*) ([LR])$/);
+    if(m) (base[m[1]] = base[m[1]] || {})[m[2]] = MODEL_BOM[k];
+  });
+  return Object.keys(base).filter(b => base[b].L && base[b].R && sig(base[b].L) !== sig(base[b].R));
+}
+
+function etpMeasured(opt){
+  opt = opt || {};
+  const includeAS = !!opt.includeAS;
+  const from = opt.from || '', to = opt.to || '';
+  const log = (typeof delivLog !== 'undefined' ? delivLog : []) || [];
+  const bySize = {}, monthSet = new Set(), failMap = {};
+  let docs = 0, total = 0, asQty = 0, minD = '', maxD = '';
+
+  log.forEach(d => {
+    if(!d) return;
+    const isAS = String(d.refNo || '').startsWith('54');
+    if(isAS && !includeAS) return;
+    const dt = d.orderDate || d.delivReqDate || d.delivDate || '';
+    if(!dt) return;
+    if(from && dt < from) return;
+    if(to && dt > to) return;
+    let used = false;
+    (d.items || []).forEach(it => {
+      const nm = it.short || it.name || '';
+      if(etpIsNonStd(nm)) return;                    // 비규격은 건별 발주 — 재고 대상 아님
+      if(etpColorOf(it) !== 'ETP') return;
+      const model = etpModelNameOf(it);
+      const bom = etpBomOf(model);
+      if(!bom || !bom.glass || !bom.glass.length){   // 조용히 넘기지 않고 목록으로 남깁니다
+        failMap[model || nm] = (failMap[model || nm] || 0) + (Number(it.qty) || 0);
+        return;
+      }
+      bom.glass.forEach(g => {
+        const q = (Number(g.qty) || 1) * (Number(it.qty) || 0);
+        if(q <= 0) return;
+        const key = g.w + 'x' + g.h;
+        bySize[key] = (bySize[key] || 0) + q;
+        total += q;
+        if(isAS) asQty += q;
+        used = true;
+      });
+    });
+    if(used){
+      docs++;
+      monthSet.add(dt.slice(0, 7));
+      if(!minD || dt < minD) minD = dt;
+      if(!maxD || dt > maxD) maxD = dt;
+    }
+  });
+
+  const months = monthSet.size || 0;
+  const avgBySize = {};
+  if(months > 0) Object.keys(bySize).forEach(k => { avgBySize[k] = +(bySize[k] / months).toFixed(1); });
+  return {
+    bySize, avgBySize, months, docs, total, asQty,
+    from: minD, to: maxD,
+    monthlyTotal: months ? +(total / months).toFixed(1) : 0,
+    fails: Object.keys(failMap).map(k => ({ model:k, qty:failMap[k] })).sort((a, b) => b.qty - a.qty)
+  };
+}
+
+// 마스터 월평균 합 — 실측과 견줄 기준선
+function etpMasterTotal(){
+  if(typeof ETP_SIZE_MASTER === 'undefined') return 0;
+  return +ETP_SIZE_MASTER.reduce((s, x) => s + (Number(x.etpAvg) || 0), 0).toFixed(1);
+}
+
+// ── 첫 자료 심기 ─────────────────────────────────────────────────────
+/* 현성 첫 입고 3건(팔레트 사진 2장 + 인수증 2장)에서 판독한 실제 자료입니다.
+   합계 463장 · 32줄 · 31품목. 장부가 비어 있을 때만 한 번 넣습니다.
+   id 를 고정해 두어야 다른 기기와 합칠 때 같은 줄이 두 벌로 늘지 않습니다.
+   지운 뒤 다시 살아나지 않도록 심었다는 표식(etpSeededV1)도 함께 남깁니다. */
+const ETP_SEED = [
+  { d:'2026-09-07', size:'595x729',  qty:22, src:'현성 팔레트A' },
+  { d:'2026-09-07', size:'495x761',  qty:22, src:'현성 팔레트A' },
+  { d:'2026-09-07', size:'495x729',  qty:37, src:'현성 팔레트A' },
+  { d:'2026-09-07', size:'445x729',  qty:51, src:'현성 팔레트A' },
+  { d:'2026-09-07', size:'395x729',  qty:22, src:'현성 팔레트B' },
+  { d:'2026-09-07', size:'895x347',  qty:22, src:'현성 팔레트B' },
+  { d:'2026-09-07', size:'345x729',  qty:12, src:'현성 팔레트B' },
+  { d:'2026-09-07', size:'595x347',  qty:12, src:'현성 팔레트B' },
+  { d:'2026-09-07', size:'295x729',  qty:11, src:'현성 팔레트B' },
+  { d:'2026-09-10', size:'445x761',  qty:20, src:'현성 인수증 26.09.10', po:'260908' },
+  { d:'2026-09-10', size:'422x729',  qty:10, src:'현성 인수증 26.09.10', po:'260908' },
+  { d:'2026-09-10', size:'402x761',  qty:11, src:'현성 인수증 26.09.10', po:'260908' },
+  { d:'2026-09-10', size:'422x761',  qty:11, src:'현성 인수증 26.09.10', po:'260908' },
+  { d:'2026-09-10', size:'345x649',  qty:10, src:'현성 인수증 26.09.10', po:'260908' },
+  { d:'2026-09-10', size:'345x729',  qty:10, src:'현성 인수증 26.09.10', po:'260908' },
+  { d:'2026-09-10', size:'402x729',  qty:10, src:'현성 인수증 26.09.10', po:'260908' },
+  { d:'2026-09-10', size:'395x649',  qty:10, src:'현성 인수증 26.09.10', po:'260908' },
+  { d:'2026-09-10', size:'395x761',  qty:10, src:'현성 인수증 26.09.10', po:'260908' },
+  { d:'2026-09-11', size:'295x761',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'545x729',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'545x761',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'595x731',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'595x761',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'605x351',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'895x351',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'895x371',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'895x377',  qty:20, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'395x1342', qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'595x1342', qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'595x377',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'945x326',  qty:10, src:'현성 인수증 26.09.11', po:'260908' },
+  { d:'2026-09-11', size:'995x326',  qty:10, src:'현성 인수증 26.09.11', po:'260908' }
+];
+
+function etpSeedOnce(){
+  if(etpLoad('etpSeededV1', false)) return 0;
+  if(Array.isArray(etpLedger) && etpLedger.length){ etpStore('etpSeededV1', true); return 0; }
+  const ts = new Date().toISOString();
+  ETP_SEED.forEach((s, i) => {
+    etpLedger.push({
+      id: 'etp_seed_' + String(i + 1).padStart(2, '0'),
+      d: s.d, t: 'in', size: s.size, qty: s.qty,
+      src: s.src, po: s.po || '', poId: s.po ? ('etppo_' + s.po) : '',
+      reason: '', memo: '첫 입고 판독분', ts, at: ts, by: '시드'
+    });
+  });
+  etpStore('etpSeededV1', true);
+  etpSaveLedger();
+  console.log('[에토프] 첫 자료 ' + ETP_SEED.length + '줄을 넣었습니다.');
+  return ETP_SEED.length;
+}
+
+// ── 화면 ─────────────────────────────────────────────────────────────
+/* 기존 앱의 3단 구조를 따릅니다: 헤드라인 → 필터칩 → 리스트.
+   색은 빨강(부족)·주황(밀림) 둘뿐입니다. 늘리면 어느 것이 급한지 안 보입니다. */
+var etpFilter = 'short';                 // 'short'(기본) | 'all' | 'over' | 'nomaster'
+var etpOpen   = {};                      // {size:true} 펼쳐 둔 줄
+var etpSearchKey = '';
+
+function etpEsc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function etpDot(n){ return (Math.round(n * 10) / 10).toString(); }
+function etpMd(ymd){ const p = String(ymd || '').split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) : (ymd || '—'); }
+
+function etpSetFilter(f, btn){
+  etpFilter = f;
+  if(btn && btn.parentElement) btn.parentElement.querySelectorAll('.f-btn').forEach(b => b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderEtp();
+}
+function etpSetMode(m){ etpMode = m; etpSaveCfg(); renderEtp(); if(typeof autoSync === 'function') autoSync(); }
+function etpSetDays(v){
+  const n = Math.max(1, Math.min(120, Number(v) || 10));
+  etpSafetyDays = n; etpSaveCfg(); renderEtp();
+  if(typeof showToast === 'function') showToast('안전재고 기준일수 ' + n + '영업일');
+  if(typeof autoSync === 'function') autoSync();
+}
+function etpToggleSize(size){ etpOpen[size] = !etpOpen[size]; renderEtp(); }
+function etpOnSearch(v){ etpSearchKey = String(v || '').trim().toLowerCase(); renderEtp(); }
+
+/* 사이즈 검색창에서 모델명으로도 찾게 합니다.
+   직원이 모델명만 알고 사이즈를 모르는 경우가 있습니다. */
+function etpMatchRow(r){
+  if(!etpSearchKey) return true;
+  const k = etpSearchKey;
+  if(r.size.toLowerCase().replace('x', '').includes(k.replace(/[x*×\s]/g, ''))) return true;
+  if(r.size.toLowerCase().includes(k)) return true;
+  return (r.models || []).some(m => String(m).toLowerCase().includes(k));
+}
+
+// ── 헤드라인 ─────────────────────────────────────────────────────────
+function etpHeadHtml(rows){
+  const total  = rows.reduce((s, r) => s + r.cur, 0);
+  const shortN = rows.filter(r => r.short).length;
+  const onOrd  = rows.reduce((s, r) => s + r.onOrder, 0);
+  const lastIn  = etpLastDate('in');
+  const lastOut = etpLastDate('out');
+  const td = todayStr();
+
+  // 출고가 밀리면 재고가 실제보다 많아 보입니다. 여기 출고는 사람이 치는 게
+  // 아니라 납품서를 올려야 들어오므로, 원인을 그대로 적습니다.
+  let warn = '';
+  if(!lastOut){
+    warn = '<span style="color:var(--tx2)">아직 출고 반영 없음 — 차감 시작일 <b>' + etpMd(etpCutover) + '</b> (발주일 기준)</span>';
+  } else {
+    const gap = etpBizGap(lastOut, td);
+    if(gap >= ETP_LATE_BIZ) warn = '<span style="color:var(--acc2);font-weight:700">⚠ 납품서 업로드가 ' + gap + '영업일 밀렸습니다 — 재고가 실제보다 많아 보입니다</span>';
+  }
+  const late = !!warn && !!lastOut;
+
+  return '<div class="card" style="border-left:3px solid ' + (late ? 'var(--acc2)' : 'var(--acc)') + '">' +
+    '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:baseline">' +
+      '<span style="font-size:12px;color:var(--tx2)">총 재고 <b style="font-family:\'JetBrains Mono\',monospace;font-size:20px;font-weight:900;color:var(--tx1)">' + total + '</b>장</span>' +
+      '<span style="font-size:12px;color:var(--tx2)">부족 <b style="font-family:\'JetBrains Mono\',monospace;font-size:20px;font-weight:900;color:' + (shortN ? 'var(--acc4)' : 'var(--tx1)') + '">' + shortN + '</b>품목</span>' +
+      '<span style="font-size:12px;color:var(--tx2)">미입고 발주 <b style="font-family:\'JetBrains Mono\',monospace;font-size:20px;font-weight:900;color:var(--tx1)">' + onOrd + '</b>장</span>' +
+    '</div>' +
+    '<div style="margin-top:8px;font-size:11px;color:var(--tx3)">최종 반영 — 입고 <b style="color:var(--tx2)">' + etpMd(lastIn) + '</b> · 출고 <b style="color:var(--tx2)">' + etpMd(lastOut) + '</b></div>' +
+    (warn ? '<div style="margin-top:6px;font-size:11px">' + warn + '</div>' : '') +
+  '</div>';
+}
+
+// ── 한 줄 ────────────────────────────────────────────────────────────
+function etpRowHtml(r){
+  const badge = r.short ? '<span style="font-size:10px;font-weight:800;color:var(--acc4);margin-left:6px">부족</span>'
+              : r.over  ? '<span style="font-size:10px;font-weight:700;color:var(--tx3);margin-left:6px">과잉</span>' : '';
+  const flag  = r.noMaster ? '<span title="월평균을 모릅니다. 안전재고는 하한 3장으로 둡니다" style="font-size:9px;font-weight:700;color:var(--acc2);border:1px solid var(--acc2);border-radius:8px;padding:1px 5px;margin-left:5px">마스터에 없음</span>' : '';
+  const nobom = r.noBom    ? '<span title="어느 모델이 쓰는지 매핑이 없습니다. 재고 관리는 그대로 됩니다" style="font-size:9px;font-weight:700;color:var(--tx3);border:1px solid var(--b2);border-radius:8px;padding:1px 5px;margin-left:5px">BOM 미등록</span>' : '';
+  const gapTx = (r.gap > 0 ? '+' : '') + r.gap;
+  const gapCol = r.gap < 0 ? 'var(--acc4)' : 'var(--tx3)';
+
+  // 오른쪽 꼬리말 — 무엇을 알려 줘야 이 줄을 보고 판단이 되는가
+  let tail = '';
+  if(r.avg > 0) tail = '월 ' + etpDot(r.avg) + '장';
+  else if(r.in > 0 || r.out > 0) tail = '월평균 모름';
+  else tail = '월 0장';
+  if(r.cover != null) tail += ' · ' + r.cover + '영업일치';
+  else if(r.cur > 0)  tail += ' · 8개월간 출고 없음';
+  if(r.onOrder > 0)   tail += ' · <b style="color:var(--acc)">발주 ' + r.onOrder + '장 미입고</b>';
+  if(etpMode === 'normal' && r.measAvg != null) tail += ' · <span style="color:var(--acc5)">실측 ' + etpDot(r.measAvg) + '</span>';
+
+  const mdl = r.models.length
+    ? (r.models.length > 2
+        ? etpEsc(r.models.slice(0, 2).join(' · ')) + ' <span style="color:var(--tx3)">외 ' + (r.models.length - 2) + '개</span>'
+        : etpEsc(r.models.join(' · ')))
+    : '<span style="color:var(--tx3)">매핑 없음</span>';
+
+  const open = !!etpOpen[r.size];
+  const head =
+    '<div onclick="etpToggleSize(\'' + r.size + '\')" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--b1);cursor:pointer;' + (r.short ? 'background:rgba(220,38,38,.05)' : '') + '">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:15px;font-weight:800;color:' + (r.short ? 'var(--acc4)' : r.over ? 'var(--tx3)' : 'var(--tx1)') + '">' +
+          r.size.replace('x', '<span style="color:var(--tx3);font-weight:400">×</span>') + badge + flag + nobom +
+        '</div>' +
+        '<div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + tail + '</div>' +
+      '</div>' +
+      '<div style="text-align:right;flex:none;font-family:\'JetBrains Mono\',monospace">' +
+        '<div style="font-size:17px;font-weight:900;color:' + (r.cur < 0 ? 'var(--acc4)' : 'var(--tx1)') + '">' + r.cur + '</div>' +
+        '<div style="font-size:10px;color:var(--tx3)">안전 ' + r.safety + (r.safetyManual ? '<span title="손으로 정한 값" style="color:var(--acc5)">*</span>' : '') + '</div>' +
+      '</div>' +
+      '<div style="width:44px;text-align:right;flex:none;font-family:\'JetBrains Mono\',monospace;font-size:13px;font-weight:800;color:' + gapCol + '">' + gapTx + '</div>' +
+      '<span style="flex:none;color:var(--tx3);font-size:11px">' + (open ? '▾' : '▸') + '</span>' +
+    '</div>';
+
+  if(!open) return head;
+  return head + '<div style="padding:10px 12px 12px;background:var(--s2);border-bottom:1px solid var(--b1)">' +
+    '<div style="font-size:10px;color:var(--tx3);margin-bottom:6px">쓰는 모델 — ' + mdl + '</div>' +
+    '<div style="font-size:11px;color:var(--tx2);margin-bottom:6px">입고 ' + r.in + ' · 출고 ' + r.out + ' · 조정 ' + (r.adj > 0 ? '+' : '') + r.adj + ' = <b style="color:var(--tx1)">' + r.cur + '</b></div>' +
+    etpHistoryHtml(r.size) +
+  '</div>';
+}
+
+function etpHistoryHtml(size){
+  const rows = etpRows().filter(r => r.size === size)
+    .sort((a, b) => String(b.d).localeCompare(String(a.d)) || String(b.ts || '').localeCompare(String(a.ts || '')));
+  if(!rows.length) return '<div style="font-size:11px;color:var(--tx3)">아직 기록이 없습니다.</div>';
+  const kor = { in:'입고', out:'출고', adj:'조정' };
+  const col = { in:'var(--acc3)', out:'var(--acc4)', adj:'var(--acc5)' };
+  return '<div style="border-top:1px solid var(--b1);padding-top:6px">' + rows.map(r => {
+    const q = (r.t === 'out' ? '−' : r.t === 'adj' && r.qty < 0 ? '' : '+') + r.qty;
+    return '<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:11px">' +
+      '<span style="font-family:\'JetBrains Mono\',monospace;color:var(--tx3);width:44px;flex:none">' + etpMd(r.d) + '</span>' +
+      '<span style="font-weight:700;color:' + (col[r.t] || 'var(--tx2)') + ';width:28px;flex:none">' + (kor[r.t] || r.t) + '</span>' +
+      '<span style="font-family:\'JetBrains Mono\',monospace;font-weight:800;width:40px;flex:none;text-align:right">' + q + '</span>' +
+      '<span style="color:var(--tx2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + etpEsc(r.src || '') + (r.memo ? ' <span style="color:var(--tx3)">· ' + etpEsc(r.memo) + '</span>' : '') + '</span>' +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+// ── 실측 대조 카드 ───────────────────────────────────────────────────
+/* 사장님 물음에 답하는 자리입니다 — "AS는 빼고 월평균 카운트가 가능한가".
+   가능합니다. 같은 계산을 AS 포함·제외 두 번 돌려 나란히 놓습니다.
+   마스터 고정값이 어느 쪽에 가까운지가 곧 답입니다. */
+function etpMeasureCardHtml(){
+  const log = (typeof delivLog !== 'undefined' ? delivLog : []) || [];
+  if(!log.length){
+    return '<div class="card"><div class="card-ttl">🔎 실측 대조 (납품서)</div>' +
+      '<div class="info-note" style="margin-top:6px">이 기기에 올라온 납품서가 없어 실측을 낼 수 없습니다. 납품서 탭에서 PDF를 올리면 여기에 나옵니다.</div></div>';
+  }
+  const withAS = etpMeasured({ includeAS:true });
+  const noAS   = etpMeasured({ includeAS:false });
+  const master = etpMasterTotal();
+  const dW = Math.abs(withAS.monthlyTotal - master);
+  const dN = Math.abs(noAS.monthlyTotal - master);
+  let verdict;
+  if(!withAS.months) verdict = '기간이 잡히지 않아 판정하지 않습니다.';
+  else if(dW < dN)   verdict = '마스터 값은 <b>AS를 포함</b>한 것으로 보입니다 (AS 포함 쪽이 더 가깝습니다).';
+  else if(dN < dW)   verdict = '마스터 값은 <b>AS를 뺀</b> 것으로 보입니다 (AS 제외 쪽이 더 가깝습니다).';
+  else               verdict = '두 값이 똑같이 떨어져 있어 판정하지 않습니다.';
+
+  const cell = (t, v, note) =>
+    '<div style="flex:1;min-width:120px"><div style="font-size:10px;color:var(--tx3)">' + t + '</div>' +
+    '<div style="font-family:\'JetBrains Mono\',monospace;font-size:18px;font-weight:900;color:var(--tx1)">' + v + '<span style="font-size:10px;font-weight:400;color:var(--tx3)">장/월</span></div>' +
+    (note ? '<div style="font-size:10px;color:var(--tx3)">' + note + '</div>' : '') + '</div>';
+
+  const failHtml = withAS.fails.length
+    ? '<div style="margin-top:10px;padding:8px 10px;background:rgba(234,108,0,.08);border:1px solid rgba(234,108,0,.25);border-radius:8px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--acc2)">전개 실패 ' + withAS.fails.length + '종 — 유리 사이즈를 못 찾았습니다</div>' +
+      '<div style="font-size:10px;color:var(--tx2);margin-top:4px;line-height:1.6">' +
+        withAS.fails.slice(0, 12).map(f => etpEsc(f.model) + ' <span style="color:var(--tx3)">' + f.qty + '장</span>').join(' · ') +
+        (withAS.fails.length > 12 ? ' <span style="color:var(--tx3)">외 ' + (withAS.fails.length - 12) + '종</span>' : '') +
+      '</div>' +
+      '<div style="font-size:10px;color:var(--tx3);margin-top:4px">CH 계열(EURO500 구형)은 이 재고의 대상이 아니라 여기 있어도 괜찮습니다.</div>' +
+    '</div>' : '';
+
+  return '<div class="card"><div class="card-ttl">🔎 실측 대조 (납품서로 다시 센 월평균)</div>' +
+    '<div class="info-note" style="margin-top:6px">마스터의 월평균이 <b>AS오더(54*)를 포함한 값인지</b> 아직 확인하지 못했습니다. 같은 계산을 두 번 돌려 나란히 놓습니다. ' +
+      '<b>안전재고에는 AS 포함 값을 써야 합니다</b> — 차감은 AS 포함인데 평균만 빼면 매달 AS만큼 모자랍니다.</div>' +
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px">' +
+      cell('마스터 고정값', master, '26년 1~8월 출고정리') +
+      cell('실측 · AS 포함', withAS.monthlyTotal, withAS.months + '개월 · 납품서 ' + withAS.docs + '건') +
+      cell('실측 · AS 제외', noAS.monthlyTotal, 'AS ' + withAS.asQty + '장 뺌') +
+    '</div>' +
+    '<div style="margin-top:8px;font-size:11px;color:var(--tx2)">기간 ' + etpMd(withAS.from) + ' ~ ' + etpMd(withAS.to) + ' (발주일 기준) · ' + verdict + '</div>' +
+    '<div style="margin-top:4px;font-size:10px;color:var(--tx3)">※ 마스터는 26년 1~8월, 실측은 이 기기에 올라온 납품서 기간입니다. 기간이 달라 계절 차이가 섞일 수 있으니 눈금으로만 보십시오.</div>' +
+    failHtml +
+  '</div>';
+}
+
+// ── 본 화면 ──────────────────────────────────────────────────────────
+function renderEtp(){
+  const el = document.getElementById('etp-body');
+  if(!el) return;
+
+  // 딸린 자료가 안 붙었으면 조용히 빈 화면을 내지 않고 드러냅니다 (CLAUDE.md 9-3)
+  const miss = etpDataMissing();
+  if(miss.length){
+    el.innerHTML = '<div class="card" style="border-left:3px solid var(--acc4)">' +
+      '<div class="card-ttl" style="color:var(--acc4)">⛔ 자료가 안 붙었습니다</div>' +
+      '<div style="font-size:12px;color:var(--tx2);line-height:1.7;margin-top:6px">' +
+      '없는 것: <b>' + miss.join(' · ') + '</b><br>' +
+      '<b>ybn-data.js</b> 가 안 읽혔습니다. 파일을 더블클릭으로 열면 이렇게 됩니다 — 로컬 서버로 여십시오. ' +
+      '홈페이지에서 이러면 낡은 파일이 캐시에 남은 것이니 새로고침(Ctrl+F5) 해 보십시오.<br>' +
+      '<b>반쪽짜리 숫자를 보여 드리지 않으려고 화면을 멈췄습니다.</b></div></div>';
+    return;
+  }
+
+  let rows = etpBuildRows();
+
+  // 정상운영 모드에서만 실측 월평균을 줄마다 곁들입니다 (최근 3개월)
+  if(etpMode === 'normal'){
+    const from = _addDays(todayStr(), -92);
+    const m = etpMeasured({ includeAS:true, from });
+    rows.forEach(r => { if(m.avgBySize[r.size] != null) r.measAvg = m.avgBySize[r.size]; });
+  }
+
+  const head = etpHeadHtml(rows);
+
+  const shown = rows.filter(r => {
+    if(!etpMatchRow(r)) return false;
+    if(etpFilter === 'short')    return r.short;
+    if(etpFilter === 'over')     return r.over;
+    if(etpFilter === 'nomaster') return r.noMaster;
+    return true;
+  });
+
+  const cnt = {
+    short: rows.filter(r => r.short).length,
+    all: rows.length,
+    over: rows.filter(r => r.over).length,
+    nomaster: rows.filter(r => r.noMaster).length
+  };
+  const chip = (id, label) =>
+    '<button class="f-btn' + (etpFilter === id ? ' on' : '') + '" onclick="etpSetFilter(\'' + id + '\',this)">' + label + ' ' + cnt[id] + '</button>';
+
+  const list = shown.length
+    ? '<div class="card" style="padding:0;overflow:hidden">' + shown.map(etpRowHtml).join('') + '</div>'
+    : '<div class="card"><div class="empty"><div class="empty-ico">🔍</div>해당하는 사이즈가 없습니다</div></div>';
+
+  el.innerHTML =
+    head +
+    '<div class="filter-row" style="margin-top:10px">' + chip('short', '부족만') + chip('all', '전체') + chip('over', '과잉') + chip('nomaster', '마스터에 없음') + '</div>' +
+    '<input class="inp" id="etp-search" value="' + etpEsc(etpSearchKey) + '" placeholder="🔍 사이즈 / 모델명 검색..." oninput="etpOnSearch(this.value)">' +
+    list +
+    etpMeasureCardHtml();
+
+  // 글자를 치던 자리를 잃지 않게 커서를 되돌립니다
+  const s = document.getElementById('etp-search');
+  if(s && etpSearchKey){ s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+
+  const d = document.getElementById('etp-days');
+  if(d) d.value = etpSafetyDays;
+  document.querySelectorAll('.etp-mode-btn').forEach(b => {
+    b.classList.toggle('on', b.getAttribute('data-mode') === etpMode);
+  });
+}
+
+// ── 켤 때 한 번 ──────────────────────────────────────────────────────
+(function etpBoot(){
+  try{ etpSeedOnce(); }
+  catch(e){ console.warn('[에토프] 첫 자료를 못 넣었습니다', e); }
+  try{
+    const bad = etpLRAudit();
+    if(bad.length) console.warn('[에토프] 좌우(L/R) 유리가 서로 다른 모델이 생겼습니다 — etpBomOf 폴백을 다시 보십시오:', bad);
+  }catch(e){}
+})();
+
   // ── 자동 동기화 주기 (단일 지점 관리) ──
 // 혼자 쓸 땐 5분이면 충분. 작업자가 늘면 이 숫자만 조절하세요.
 // 1분=60000, 3분=180000, 5분=300000, 10분=600000
