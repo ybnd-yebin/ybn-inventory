@@ -12686,8 +12686,94 @@ function odExcelSaved(orderId){
   odWriteExcel(o);
 }
 
-// 엑셀 한 부를 만들어 내려받습니다 — 새로 쓰는 쪽과 리스트 쪽이 같이 씁니다
+/* ══════════════════════════════════════════════════════════════════
+   우리 양식 그대로 내보내기                                 2026-09-15
+   "발주탭에서 엑셀로 받으면 테두리가 하나도 없는데 우리 양식 그대로 쓸 수 없어?"
+
+   쓰던 라이브러리(XLSX)는 **값만 쓰고 서식은 못 씁니다.** 그래서 칸 자리는
+   맞는데 테두리·글꼴·도장이 전부 빠졌습니다. 양식을 코드로 다시 그려도
+   흉내에 그칩니다. 그래서 **사장님 양식 파일을 열어 값만 갈아 끼웁니다.**
+
+   양식: 「발주서양식.xlsx」 — 사장님 발주서(대원유리 시트)에서 값만 비운 것.
+     D4 거래처 · D5 발주일 · B9 종류 · 11행 머리 · 12~24행 품목(13줄)
+     J25 = SUM(J12:J24) 수식이라 총수량은 알아서 더해집니다.
+   품목이 13줄을 넘으면 12행을 서식째 복제해 늘리고 수식 범위도 같이 늘립니다.
+
+   ⚠ 양식을 바꾸실 일이 생기면 **파일만 갈아 끼우면 됩니다** — 코드는 그대로입니다.
+      다만 위 자리(D4·D5·B9·12행)는 지켜야 합니다.
+   ⚠ 인터넷이 없거나 양식을 못 받으면 **옛 방식으로 떨어져** 서식 없이라도 나옵니다.
+   ══════════════════════════════════════════════════════════════════ */
+const OD_TPL_URL   = '발주서양식.xlsx';
+const OD_TPL_ROW0  = 12;      // 품목 첫 줄
+const OD_TPL_ROWS  = 13;      // 양식에 그려진 품목 줄 수 (12~24)
+const OD_EXCELJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+
+let _odTplBuf = null;         // 한 번 받아 두고 다시 씁니다
+function odLoadExcelJs(){
+  if(typeof ExcelJS !== 'undefined') return Promise.resolve();
+  return new Promise((ok, ng) => {
+    const s = document.createElement('script');
+    s.src = OD_EXCELJS_URL; s.onload = ok;
+    s.onerror = () => ng(new Error('엑셀 서식 라이브러리를 못 불러왔습니다'));
+    document.head.appendChild(s);
+  });
+}
+
+async function odWriteExcelForm(o){
+  await odLoadExcelJs();
+  if(!_odTplBuf){
+    const r = await fetch(OD_TPL_URL);
+    if(!r.ok) throw new Error('양식 파일을 못 찾았습니다 (' + OD_TPL_URL + ')');
+    _odTplBuf = await r.arrayBuffer();
+  }
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(_odTplBuf.slice(0));      // 원본은 그대로 두고 복사본을 씁니다
+  const ws = wb.worksheets[0];
+
+  const part = odTitleParts(o);
+  ws.getCell('D4').value = o.vendor || '';
+  ws.getCell('D5').value = odShortDate(o.date);
+  ws.getCell('B9').value = (part.title + (part.bigo ? '  ' + part.bigo : '')).trim();
+
+  // 품목이 양식 줄 수를 넘으면 첫 줄을 서식째 복제해 늘립니다
+  const n = o.items.length;
+  if(n > OD_TPL_ROWS){
+    ws.duplicateRow(OD_TPL_ROW0, n - OD_TPL_ROWS, true);
+    const last = OD_TPL_ROW0 + n - 1;
+    ws.getCell('J' + (last + 1)).value = { formula:'SUM(J' + OD_TPL_ROW0 + ':J' + last + ')' };
+  }
+  const rows = Math.max(n, OD_TPL_ROWS);
+  for(let i = 0; i < rows; i++){
+    const r = OD_TPL_ROW0 + i, it = o.items[i];
+    ws.getCell('B' + r).value = it ? (i + 1) : null;
+    ws.getCell('C' + r).value = it ? (it.pname || '') : null;
+    ws.getCell('F' + r).value = it ? ((it.w && it.h) ? `${it.w}×${it.h}` : '') : null;
+    ws.getCell('J' + r).value = it ? (Number(it.qty) || 0) : null;
+    ws.getCell('K' + r).value = it ? (o.due || '') : null;
+    ws.getCell('L' + r).value = it ? (it.bigo || '') : null;
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `${o.vendor}_발주서_${String(o.date||'').replace(/-/g,'')}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+// 양식으로 먼저 해보고, 안 되면 서식 없는 옛 방식으로 떨어집니다
 function odWriteExcel(o){
+  odWriteExcelForm(o)
+    .then(() => showToast('📊 우리 양식으로 내려받았습니다'))
+    .catch(e => {
+      console.warn('[발주서] 양식 내보내기 실패 — 옛 방식으로 갑니다', e);
+      showToast('⚠ 양식을 못 써서 서식 없이 내보냅니다 — ' + (e.message || ''));
+      odWriteExcelPlain(o);
+    });
+}
+
+// 서식 없는 옛 방식 (양식을 못 받았을 때만)
+function odWriteExcelPlain(o){
   const aoa=odBuildAOA(o);
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   //        A      B(NO)   C(품명)  D       E       F(규격)  G      H      I      J(수량) K(납기)  L(비고)  M(업체명)
@@ -12707,7 +12793,7 @@ function odWriteExcel(o){
   const safeName=`${o.vendor}(${o.type||''})`.replace(/[\\\/\*\?\[\]:]/g,'').slice(0,31) || '발주서';
   XLSX.utils.book_append_sheet(wb,ws,safeName);
   XLSX.writeFile(wb, `${o.vendor}_발주서_${String(o.date||'').replace(/-/g,'')}.xlsx`);
-  showToast('📊 엑셀로 내려받았습니다');
+  showToast('📊 엑셀로 내려받았습니다 (서식 없음)');
 }
 
 function odCopyImageFrom(o){
