@@ -47,6 +47,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 /* GRID */
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+/* 주간 업무일지 — 넓으면 두 칸(할 일 | 한 일), 좁으면 한 칸으로 내려갑니다 */
+.wk-2col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:700px){ .wk-2col{grid-template-columns:1fr;gap:14px} }
 .stat{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:12px}
 .stat-l{font-size:10px;color:var(--tx2);margin-bottom:4px}
 .stat-v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700}
@@ -367,6 +370,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- 📋 업무판 — 예전 홈. 홈은 「오늘의 점검」이 되었고 이쪽으로 옮겼습니다 (2026-09-15) -->
 <div class="sec-pg" id="pg-deskboard">
+  <!-- 주간 업무일지 · 회의 메모 — 노션 「주간업무일지」를 참고 (2026-09-15) -->
+  <div id="weekly-host"></div>
   <div id="home-urgent"></div>
   <div class="card" style="margin-top:14px">
     <div class="card-ttl"><span>📊 오늘 현황</span><span id="home-date" style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0"></span></div>
@@ -3893,7 +3898,7 @@ function showMain(id){
   const fab=document.getElementById('fab-btn');
   fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
   if(id==='home')renderToday();
-  if(id==='deskboard')renderHome();
+  if(id==='deskboard'){renderHome(); if(typeof renderWeekly==='function') renderWeekly();}
   if(id==='todo')renderTodo();
   if(id==='board'){renderNotices();renderSchedules();renderBreaks();}
   if(id==='stock')renderSub(curSub);
@@ -8515,6 +8520,10 @@ function metaForSync(){
   put('etpLedger',     typeof etpLedger!=='undefined'     ? etpLedger     : undefined);
   put('etpDeleted',    typeof etpDeleted!=='undefined'    ? etpDeleted    : undefined);
   put('etpPOs',        typeof etpPOs!=='undefined'        ? etpPOs        : undefined);
+  // 주간 업무일지 · 회의 메모 (2026-09-15). 지운 줄 묘비도 함께 — 안 보내면 되살아납니다
+  put('weekLog',   typeof weekLog!=='undefined'   ? weekLog   : undefined);
+  put('meetLog',   typeof meetLog!=='undefined'   ? meetLog   : undefined);
+  put('wkDeleted', typeof wkDeleted!=='undefined' ? wkDeleted : undefined);
   put('etpCfg', (typeof etpSafetyDays!=='undefined')
       ? {safetyDays:etpSafetyDays, override:etpSafetyOvr, mode:etpMode, cutover:etpCutover,
          avgOvr:(typeof etpAvgOvr!=='undefined'?etpAvgOvr:{}),
@@ -8667,6 +8676,22 @@ function applyMergedFromSheet(data){
     odAuto=Object.assign({on:false,fallbackDays:3}, data.odAuto);
     try{ localStorage.setItem(LS_OD_AUTO, JSON.stringify(odAuto)); }catch(e){}
   }
+  /* ── 주간 업무일지 · 회의 메모 병합 (2026-09-15) ─────────────────
+     줄 단위(id) 병합입니다. 두 사람이 따로 적어도 서로 지우지 않습니다.
+     묘비를 먼저 받아야 지운 줄이 안 되살아납니다. */
+  if(data.wkDeleted!==undefined && data.wkDeleted && typeof data.wkDeleted==='object' && typeof wkDeleted!=='undefined'){
+    for(const k in data.wkDeleted){ if(!wkDeleted[k]) wkDeleted[k]=data.wkDeleted[k]; }
+  }
+  if(data.weekLog!==undefined && Array.isArray(data.weekLog) && typeof weekLog!=='undefined'){
+    weekLog=mergeById(weekLog, data.weekLog, 'id').filter(r=>r&&r.id&&!wkDeleted[r.id]);
+  }
+  if(data.meetLog!==undefined && Array.isArray(data.meetLog) && typeof meetLog!=='undefined'){
+    meetLog=mergeById(meetLog, data.meetLog, 'id').filter(r=>r&&r.id&&!wkDeleted[r.id]);
+  }
+  if((data.weekLog!==undefined||data.meetLog!==undefined||data.wkDeleted!==undefined) && typeof etpStore==='function'){
+    try{ etpStore('ybn-weekly-v1',weekLog); etpStore('ybn-meeting-v1',meetLog); etpStore('ybn-wk-del-v1',wkDeleted); }catch(e){}
+  }
+
   /* ── 에토프 외주 인쇄유리 병합 (2026-09-14) ──────────────────────
      줄 단위(id 기준) 병합입니다. 통째로 덮어쓰면 한 기기에서 넣은 것이
      다른 기기 것에 지워집니다. 묘비를 먼저 받아야 지운 줄이 안 되살아납니다. */
@@ -11963,7 +11988,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     const fab=document.getElementById('fab-btn');
     fab.style.display=(id==='todo'||id==='worklog')?'flex':'none';
     if(id==='home')renderToday();
-    else if(id==='deskboard'){renderHome();renderNotices();renderSchedules();renderCal();renderBreaks();}
+    else if(id==='deskboard'){renderHome();renderNotices();renderSchedules();renderCal();renderBreaks();if(typeof renderWeekly==='function')renderWeekly();}
     else if(id==='worklog')renderWorklogMain();
     else if(id==='delivery'){renderDelivery(); if(typeof renderDelivArchive==='function') renderDelivArchive();}
     else if(id==='todo')renderTodo();
@@ -18600,6 +18625,20 @@ function renderToday(){
       '<span style="color:var(--tx3)">납품서·재고·발주를 기준으로 본 것입니다.</span></div>');
   }
 
+  /* ── 📋 이번 주 할 일 — 업무판에 적어 두신 것 가운데 아직 안 끝낸 것.
+     적은 것이 오늘 화면에 올라와야 적을 맛이 납니다. */
+  const wkOpen=(function(){ try{ return (typeof wkOpenPlans==='function') ? wkOpenPlans() : []; }catch(e){ return []; } })();
+  if(wkOpen.length){
+    h+=tdyCard('var(--acc5)','📋','이번 주 할 일 '+wkOpen.length+'가지가 남았습니다',
+      wkOpen.slice(0,6).map(r=>
+        '<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-top:1px solid var(--b1)">' +
+          '<span onclick="wkDone(\''+r.id+'\')" title="다 했으면 누르십시오" style="flex:none;cursor:pointer;font-size:13px;width:17px;text-align:center">⬜</span>' +
+          '<span style="flex:1;min-width:0;font-size:12.5px;line-height:1.55;color:var(--tx1)">'+etpEsc(r.text)+'</span>' +
+        '</div>').join('') +
+      (wkOpen.length>6?'<div style="font-size:10.5px;color:var(--tx3);margin-top:6px">외 '+(wkOpen.length-6)+'가지</div>':''),
+      tdyGo('업무판',"showMain('deskboard')"));
+  }
+
   // ── 곁들여: 오늘 할 일 몇 가지 (예전 홈에 있던 것 중 쓰시는 것만)
   const todoN=(typeof todos!=='undefined') ? todos.filter(t=>t&&t.status==='진행중').length : 0;
   h+='<div class="card" style="background:var(--s2)">' +
@@ -18612,6 +18651,203 @@ function renderToday(){
 
   body.innerHTML=h;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   🗓 주간 업무일지 · 📝 회의 메모                              2026-09-15
+
+   노션 「주간업무일지」 템플릿을 참고해 만들었습니다(사장님 2026-09-15).
+     주차 구분 — 월요일 기준 · 지난주 한 일 · 이번주 할 일
+
+   ── 적는 값이 있게 만든 것이 핵심입니다 ────────────────────────
+   예전 할일이 손이 안 갔던 까닭은 **적어도 아무 일이 안 일어나서** 였습니다.
+   그래서 이렇게 했습니다.
+     · 한 줄 치고 Enter 면 바로 들어가고 칸은 비워집니다 — 열 줄을 내리 칩니다.
+       (회의 메모가 짧으면 한 줄, 길면 열 줄이라 하셔서 이게 제일 중요합니다)
+     · 칸을 고르라고 하지 않습니다. 담당자·업체·우선순위 안 묻습니다.
+     · 이번주 할 일 가운데 안 끝낸 것은 🏠 오늘 화면에 올라옵니다.
+     · 계획을 누르면 '한 일'로 넘어갑니다 — 옮겨 적을 필요가 없습니다.
+   ══════════════════════════════════════════════════════════════════════ */
+
+var weekLog = etpLoad('ybn-weekly-v1', []);     // [{id, week:'YYYY-MM-DD'(월), kind:'plan'|'done', text, at, by}]
+var meetLog = etpLoad('ybn-meeting-v1', []);    // [{id, d:'YYYY-MM-DD', text, at, by}]
+var wkDeleted = etpLoad('ybn-wk-del-v1', {});   // 지운 줄 묘비 (기기끼리 맞출 때 부활 금지)
+
+function wkSave(){
+  etpStore('ybn-weekly-v1', weekLog);
+  etpStore('ybn-meeting-v1', meetLog);
+  etpStore('ybn-wk-del-v1', wkDeleted);
+  if(typeof meta!=='undefined') meta.lastLocalChange=new Date().toISOString();
+  if(typeof autoSync==='function') autoSync();
+}
+function wkRows(arr){ return (arr||[]).filter(r=>r && r.id && !wkDeleted[r.id]); }
+
+// 그 날이 든 주의 **월요일**. 주차 이름은 이 날짜로 삼습니다(사람이 바로 알아봅니다)
+function weekMonOf(ymd){
+  const d=new Date((ymd||todayStr())+'T00:00:00');
+  const back=(d.getDay()+6)%7;              // 월=0 … 일=6
+  d.setDate(d.getDate()-back);
+  return _ymdLocal(d);
+}
+function weekLabel(mon){
+  const sun=_addDays(mon,6);
+  const f=s=>s.slice(5).replace('-','/');
+  const isNow = mon===weekMonOf(todayStr());
+  return f(mon)+'(월) ~ '+f(sun)+'(일)' + (isNow?' · 이번 주':'');
+}
+
+// ── 넣기 ─────────────────────────────────────────────────────────────
+function wkAdd(kind){
+  const id = kind==='meet' ? 'wk-meet' : 'wk-'+kind;
+  const el = document.getElementById(id);
+  if(!el) return;
+  const text = (el.value||'').trim();
+  if(!text) return;
+  const now = new Date().toISOString();
+  const by = (typeof getActor==='function' ? getActor() : '')||'';
+  if(kind==='meet'){
+    const d = (document.getElementById('wk-meet-date')||{}).value || todayStr();
+    meetLog.push({ id:'mt_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), d, text, at:now, by });
+  }else{
+    meetLog;                                  // (아무것도 안 함 — 아래가 본체)
+    weekLog.push({ id:'wk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+                   week:wkViewWeek, kind, text, at:now, by });
+  }
+  el.value='';                                // 비워서 다음 줄을 바로 칩니다
+  wkSave();
+  renderWeekly();
+  el.focus();                                 // 열 줄을 내리 칠 수 있게 커서를 돌려놓습니다
+}
+function wkKey(ev, kind){ if(ev.key==='Enter'){ ev.preventDefault(); wkAdd(kind); } }
+
+// 계획 → 한 일 (옮겨 적지 않게)
+function wkDone(id){
+  const r = weekLog.find(x=>x.id===id);
+  if(!r) return;
+  r.kind = (r.kind==='plan') ? 'done' : 'plan';
+  r.at = new Date().toISOString();
+  wkSave(); renderWeekly();
+  if(typeof renderToday==='function') try{ renderToday(); }catch(e){}
+}
+function wkDel(id){
+  if(!confirm('이 줄을 지울까요?')) return;
+  wkDeleted[id]=new Date().toISOString();
+  wkSave(); renderWeekly();
+  if(typeof renderToday==='function') try{ renderToday(); }catch(e){}
+}
+var wkViewWeek = '';                          // 보고 있는 주(월요일). 비면 이번 주
+function wkGoWeek(n){
+  wkViewWeek = _addDays(wkViewWeek||weekMonOf(todayStr()), n*7);
+  renderWeekly();
+}
+
+// 이번 주 안 끝낸 계획 — 🏠 오늘 화면이 가져다 씁니다
+function wkOpenPlans(){
+  const mon = weekMonOf(todayStr());
+  return wkRows(weekLog).filter(r=>r.week===mon && r.kind==='plan');
+}
+
+// ── 화면 ─────────────────────────────────────────────────────────────
+function wkLine(r, movable){
+  return '<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-top:1px solid var(--b1)">' +
+    (movable
+      ? '<span onclick="wkDone(\''+r.id+'\')" title="'+(r.kind==='plan'?'다 했으면 누르십시오':'계획으로 되돌리기')+'" style="flex:none;cursor:pointer;font-size:13px;line-height:1.5;width:17px;text-align:center">'+(r.kind==='done'?'✅':'⬜')+'</span>'
+      : '<span style="flex:none;color:var(--tx3);line-height:1.5">·</span>') +
+    '<span style="flex:1;min-width:0;font-size:12.5px;line-height:1.55;color:'+(r.kind==='done'?'var(--tx2)':'var(--tx1)')+'">'+etpEsc(r.text)+'</span>' +
+    (r.by?'<span style="flex:none;font-size:10px;color:var(--tx3);line-height:1.7">'+etpEsc(r.by)+'</span>':'') +
+    '<span onclick="wkDel(\''+r.id+'\')" title="지우기" style="flex:none;color:var(--tx3);cursor:pointer;font-size:11px;line-height:1.7">🗑</span>' +
+  '</div>';
+}
+function wkBox(id, ph, kind){
+  return '<input id="'+id+'" class="inp" placeholder="'+ph+'" onkeydown="wkKey(event,\''+kind+'\')" ' +
+         'style="margin-bottom:6px;font-size:13px" autocomplete="off">' +
+         '<div style="font-size:10px;color:var(--tx3);margin:-2px 0 8px">한 줄 치고 <b>Enter</b> — 칸이 비워져 바로 다음 줄을 칠 수 있습니다</div>';
+}
+
+function renderWeekly(){
+  const host = document.getElementById('weekly-host');
+  if(!host) return;
+  const mon = wkViewWeek || (wkViewWeek = weekMonOf(todayStr()));
+  const prevMon = _addDays(mon, -7);
+  const rows = wkRows(weekLog);
+  const plans = rows.filter(r=>r.week===mon && r.kind==='plan');
+  const dones = rows.filter(r=>r.week===mon && r.kind==='done');
+  const prevDone = rows.filter(r=>r.week===prevMon && r.kind==='done');
+  const prevPlan = rows.filter(r=>r.week===prevMon && r.kind==='plan');
+
+  // 회의 메모 — 날짜별로 묶어 최근부터
+  const md = {};
+  wkRows(meetLog).forEach(r=>{ (md[r.d]=md[r.d]||[]).push(r); });
+  const days = Object.keys(md).sort().reverse().slice(0, 14);
+
+  host.innerHTML =
+    // ── 주간 업무일지
+    '<div class="card">' +
+      '<div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center">' +
+        '<span>🗓 주간 업무일지</span>' +
+        '<span style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0">' +
+          '<button onclick="wkGoWeek(-1)" style="background:none;border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:12px;cursor:pointer;padding:2px 8px">‹</button>' +
+          '<span style="font-size:11px;font-weight:700;color:var(--tx2);min-width:150px;text-align:center">'+weekLabel(mon)+'</span>' +
+          '<button onclick="wkGoWeek(1)" style="background:none;border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:12px;cursor:pointer;padding:2px 8px">›</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="wk-2col">' +
+        '<div>' +
+          '<div style="font-size:11.5px;font-weight:700;color:var(--tx2);margin-bottom:6px">📋 이번 주 할 일 <span style="color:var(--tx3);font-weight:400">'+plans.length+'</span></div>' +
+          wkBox('wk-plan','이번 주에 할 일을 한 줄로…','plan') +
+          (plans.length ? plans.map(r=>wkLine(r,true)).join('') : '<div style="font-size:11px;color:var(--tx3);padding:6px 0">아직 없습니다.</div>') +
+        '</div>' +
+        '<div>' +
+          '<div style="font-size:11.5px;font-weight:700;color:var(--tx2);margin-bottom:6px">✅ 한 일 <span style="color:var(--tx3);font-weight:400">'+dones.length+'</span></div>' +
+          wkBox('wk-done','한 일을 한 줄로…','done') +
+          (dones.length ? dones.map(r=>wkLine(r,true)).join('') : '<div style="font-size:11px;color:var(--tx3);padding:6px 0">아직 없습니다.</div>') +
+        '</div>' +
+      '</div>' +
+      // 지난주 — 접어 둡니다. 주간보고 쓸 때 옆에 놓고 봅니다
+      '<details style="margin-top:12px">' +
+        '<summary style="cursor:pointer;font-size:11.5px;color:var(--tx2);font-weight:700">↩ 지난주 ('+weekLabel(prevMon).replace(' · 이번 주','')+') — 한 일 '+prevDone.length+' · 못 한 일 '+prevPlan.length+'</summary>' +
+        '<div style="margin-top:6px">' +
+          (prevDone.length ? prevDone.map(r=>wkLine(r,false)).join('') : '') +
+          (prevPlan.length ? '<div style="font-size:11px;color:var(--acc2);margin-top:6px">못 넘긴 것 — 누르면 이번 주로 옮깁니다</div>' +
+             prevPlan.map(r=>'<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-top:1px solid var(--b1)">' +
+               '<span style="flex:1;font-size:12.5px;color:var(--tx2)">'+etpEsc(r.text)+'</span>' +
+               '<button onclick="wkCarry(\''+r.id+'\')" class="f-btn" style="font-size:10px;padding:3px 9px">이번 주로</button></div>').join('') : '') +
+          (!prevDone.length && !prevPlan.length ? '<div style="font-size:11px;color:var(--tx3);padding:6px 0">지난주 기록이 없습니다.</div>' : '') +
+        '</div>' +
+      '</details>' +
+    '</div>' +
+
+    // ── 회의 메모
+    '<div class="card">' +
+      '<div class="card-ttl"><span>📝 회의 메모</span></div>' +
+      '<div class="info-note" style="margin-top:6px">매일 회의에서 나온 것을 <b>한 줄씩</b> 쌓아 둡니다. 짧으면 한 줄, 길면 열 줄 — Enter 로 계속 치시면 됩니다.</div>' +
+      '<div style="display:flex;gap:8px;align-items:center;margin:8px 0 6px">' +
+        '<span style="font-size:11px;color:var(--tx2)">날짜</span>' +
+        '<input type="date" id="wk-meet-date" value="'+todayStr()+'" style="padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px">' +
+      '</div>' +
+      wkBox('wk-meet','회의에서 나온 것을 한 줄로…','meet') +
+      (days.length ? days.map(d=>{
+        const list=md[d].slice().sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+        const isToday=d===todayStr();
+        return '<div style="margin-top:10px">' +
+          '<div style="font-size:11.5px;font-weight:700;color:'+(isToday?'var(--acc)':'var(--tx2)')+'">'+d.slice(5).replace('-','월 ')+'일'+(isToday?' · 오늘':'')+' <span style="font-weight:400;color:var(--tx3)">'+list.length+'줄</span></div>' +
+          list.map(r=>wkLine(r,false)).join('') +
+        '</div>';
+      }).join('') : '<div style="font-size:11px;color:var(--tx3);padding:6px 0">아직 적은 것이 없습니다.</div>') +
+      (Object.keys(md).length>14 ? '<div style="font-size:10px;color:var(--tx3);margin-top:8px">최근 14일만 보입니다.</div>' : '') +
+    '</div>';
+}
+
+// 지난주에 못 한 것을 이번 주로 옮기기
+function wkCarry(id){
+  const r = weekLog.find(x=>x.id===id);
+  if(!r) return;
+  r.week = weekMonOf(todayStr());
+  r.at = new Date().toISOString();
+  wkSave(); renderWeekly();
+  if(typeof renderToday==='function') try{ renderToday(); }catch(e){}
+  showToast('이번 주로 옮겼습니다');
+}
+
 
   // ── 자동 동기화 주기 (단일 지점 관리) ──
 // 혼자 쓸 땐 5분이면 충분. 작업자가 늘면 이 숫자만 조절하세요.
