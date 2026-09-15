@@ -12541,6 +12541,31 @@ function odMakeExcel(){
 }
 
 // ── 카톡용 이미지: 발주서를 HTML 표로 그려 클립보드에 복사 ──
+/* 카톡 발주서에 회사 도장을 찍습니다 (사장님 2026-09-15).
+   도장 그림을 따로 두지 않고 **양식 파일(발주서양식.xlsx) 안에 있는 것을 꺼내 씁니다.**
+   따로 두면 양식을 갈아 끼울 때 도장만 옛것으로 남아 어긋납니다.
+   한 번 꺼내 두고 계속 씁니다. 못 꺼내면 도장 없이 그립니다(예전 모습). */
+var odSealUrl = null, _odSealTried = false;
+async function odLoadSeal(){
+  if(odSealUrl || _odSealTried) return odSealUrl;
+  _odSealTried = true;
+  try{
+    await odLoadExcelJs();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await (await fetch(OD_TPL_URL)).arrayBuffer());
+    const ws = wb.worksheets[0];
+    for(const im of ws.getImages()){
+      const m = wb.getImage(Number(im.imageId));
+      if(!m || !/jpe?g|png/i.test(m.extension || '')) continue;   // emf 는 브라우저가 못 그립니다
+      const b = new Uint8Array(m.buffer); let s = '';
+      for(let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+      odSealUrl = 'data:image/' + (m.extension === 'png' ? 'png' : 'jpeg') + ';base64,' + btoa(s);
+      break;
+    }
+  }catch(e){ console.warn('[발주서] 도장을 못 꺼냈습니다 — 도장 없이 그립니다', e); }
+  return odSealUrl;
+}
+
 /* 엑셀 양식의 종류 박스는 두 칸입니다 — [3.2백사틴][각면/강화].
    그런데 발주서를 불러온 건은 둘이 붙어 '3.2백사틴 각면/강화' 한 덩어리로 들어옵니다.
    가공 표기(각면/강화 · 휠/반강화 · 각면/후면시트지)는 모두 '/' 를 품고 있으므로,
@@ -12604,7 +12629,8 @@ function odRenderCapture(o){
          <div><b>참　조 :</b> </div>
          <div><b>F a x :</b> </div>
        </div>
-       <div style="text-align:right">
+       <div style="text-align:right;position:relative">
+         ${odSealUrl?`<img src="${odSealUrl}" alt="" style="position:absolute;right:2px;top:30px;width:56px;height:56px;opacity:.9;pointer-events:none">`:''}
          <div style="font-size:18px;font-weight:800">㈜ 와이비 앤 디 YB & D</div>
          <div>인천시 남동구 남동대로 370번지 57-51</div>
          <div>남동공단 35블럭7롯트 신원 휄트 내 5동</div>
@@ -12796,7 +12822,8 @@ function odWriteExcelPlain(o){
   showToast('📊 엑셀로 내려받았습니다 (서식 없음)');
 }
 
-function odCopyImageFrom(o){
+async function odCopyImageFrom(o){
+  await odLoadSeal();          // 양식 파일에서 도장을 먼저 꺼내 옵니다 (한 번만)
   const node=odRenderCapture(o);
 
   // 손글씨 폰트(사인)가 로드된 뒤 캡처 — 폰트 미로드 시 기본체로 찍히는 것 방지
