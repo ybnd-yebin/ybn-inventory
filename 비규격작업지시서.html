@@ -1339,6 +1339,11 @@ const CAD_COLOR_AS_BRACKET = true;
    보라가 도면 위에서 너무 튀었습니다. 상자와 글씨를 같은 회색 계열로 두되
    글씨는 읽혀야 하므로 좀 더 진하게 둡니다. 두 값만 고치면 다 바뀝니다. */
 const CAD_HPM_LINE = '#8a8a8a';   // 상자 테두리
+/* 상자와 글자 사이 위아래 여백(mm) — 사장님 2026-09-16
+   "네모 박스랑 숫자랑 너무 타이트하게 붙어 있다".
+   예전에는 글줄 높이만으로 잡아 위 0.15줄·아래 0.05줄밖에 안 남았습니다.
+   숫자만 바꾸면 전체가 바뀝니다. 0 이면 예전 그대로입니다. */
+const CAD_BOX_PAD_Y = 1.1;
 const CAD_HPM_TEXT = '#555555';   // 색이름 글씨
 const CAD_NOTE_GREEN = '#00a000';   // 주석 글자 · 보링 표시
 const CAD_LEAD_TEAL  = '#00a0a0';   // 지시선 · 보링 십자표
@@ -3704,7 +3709,13 @@ function cadBlockSVG(b, xL, yTop){
        짧으면 오른쪽이 허전하게 넓었습니다. closeColor 가 적어 둔 끝자리를 씁니다
        (그래서 closeColor 를 먼저 부릅니다). 못 받았으면 예전 값으로 둡니다. */
     const w = (colRight ? (colRight - (txX-2) + 2.5) : 88);
-    box+=`<rect x="${(txX-2).toFixed(2)}" y="${(hpmTop-lh*0.85).toFixed(2)}" width="${w.toFixed(2)}" height="${(ty-hpmTop+lh*1.1).toFixed(2)}" rx="1.6" fill="none" stroke="${CAD_HPM_LINE}" stroke-width="0.5"/>`;
+    /* 위아래를 **같게** 둡니다. 예전 식은 아래가 lh*0.25 뿐이라
+       위 1.58mm · 아래 0.31mm 로 아래만 빡빡했습니다(2026-09-16 실측).
+       글자 윗선은 baseline−0.72em, 아랫선은 baseline+0.24em 이므로
+       위 0.85 에 맞추려면 아래는 0.44 가 됩니다. */
+    const by = hpmTop - lh*0.85 - CAD_BOX_PAD_Y;                 // 위 여백
+    const bh = (ty - hpmTop + lh*1.29) + CAD_BOX_PAD_Y*2;        // 아래 여백까지
+    box+=`<rect x="${(txX-2).toFixed(2)}" y="${by.toFixed(2)}" width="${w.toFixed(2)}" height="${bh.toFixed(2)}" rx="1.6" fill="none" stroke="${CAD_HPM_LINE}" stroke-width="0.5"/>`;
     hpmTop=null; colRight=0;
   };
   rows.forEach(row=>{
