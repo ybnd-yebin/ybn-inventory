@@ -5143,15 +5143,16 @@ function subdoorPageSVG(p){
      (숫자를 손으로 적으면 도면마다 어긋납니다). */
   const step = subdoorLineStep(t.svg);
   let grew = 0;                        // 줄이 늘어난 만큼 (가운데 정렬에 씁니다)
+  const empty = [];                    // 수량이 없어 지울 칸
   for(let i=1; i<=t.slots; i++){
     const ph = t.ph[i-1] || ['',''];
     const lrMode = /L\/R/.test(ph[0]);
     const list = (p.slots[i] || []).slice(0, SUBDOOR_MAX_SIZES);
-    // 비어 있는 줄은 캐드의 원래 문구(xxx * xxxx …)를 그대로 둔다
-    if(!list.length){
-      s = s.split('{{F'+i+'}}').join(esc(ph[0])).split('{{G'+i+'}}').join(esc(ph[1]));
-      continue;
-    }
+    /* 수량이 없는 칸은 **통째로 지웁니다** (사장님 요청 2026-09-15).
+       예전에는 캐드의 원래 문구(446 * xxxx = EA)를 그대로 뒀는데,
+       오늘 500연장만 있는 날에도 450연장 양식이 따라 나와 헷갈렸습니다.
+       이름표(450 연장)와 치수 두 줄을 함께 지웁니다. */
+    if(!list.length){ empty.push(i); continue; }
     // 한 쌍(완성/재단)이 두 줄이므로, 다음 쌍은 두 줄 아래로 내린다
     const stack = (arr) => arr.map((txt,n)=>
       n===0 ? esc(txt) : `<tspan x="0" dy="${(step*2).toFixed(3)}">${esc(txt)}</tspan>`).join('');
@@ -5159,7 +5160,8 @@ function subdoorPageSVG(p){
          .split('{{G'+i+'}}').join(stack(list.map(d=>d.gw+' * '+d.gh)));
     grew = Math.max(grew, (list.length-1) * step * 2);   // 줄이 늘어난 만큼
   }
-  s = subdoorCenterBlock(t, s, grew);
+  s = subdoorDropSlots(s, empty);
+  s = subdoorCenterBlock(t, s, grew, empty);
   return SUBDOOR_SVG_OPEN + s + SUBDOOR_SVG_CLOSE;
 }
 
@@ -5172,17 +5174,56 @@ function subdoorPageSVG(p){
    어디까지가 '빈 칸'인가
      위 = 제품명 띠 아래선 · 아래 = 글자 덩어리 밑에 처음 나오는 글자(*코너캡 등)
    줄이 늘어나면(사이즈가 여러 개) 늘어난 만큼 덩어리가 길어지므로 그것도 셉니다. */
-const SUBDOOR_CENTER = { SIG:true, SIGHANG:true };
+/* 두 칸짜리(450연장·500연장)인 시그니처 세 장이 대상입니다.
+   한 칸이 비면 그 칸을 지우므로(subdoorDropSlots) 남은 것을 다시 가운데로
+   내려 줘야 합니다. 한 칸짜리 도면은 빈 칸이 생기지 않아 넣지 않습니다. */
+const SUBDOOR_CENTER = { SIG:true, SIG18:true, SIGHANG:true };
 
-function subdoorCenterBlock(t, s, grew){
+/* ── 수량 없는 칸 지우기 (사장님 요청 2026-09-15) ──────────────────
+   시그니처는 한 장에 450연장·500연장 두 칸이 있습니다. 오늘 500연장만
+   들어온 날에도 450연장 양식(446 * xxxx = EA)이 그대로 따라 나와
+   "이것도 만들어야 하나" 헷갈렸습니다. 수량이 없으면 안 보이게 지웁니다.
+   지우는 것: 치수 두 줄이 든 덩어리 + 그 바로 위 이름표(450 연장).
+   도면 데이터는 손대지 않습니다 — 그릴 때만 덜어냅니다. */
+function subdoorDropSlots(s, slots){
+  if(!slots || !slots.length) return s;
+  slots.forEach(i => {
+    try{
+      // ① 치수 덩어리 — 그 안에 {{Fi}} 가 남아 있는 <g> 를 통째로
+      const gRe = new RegExp('<g transform="translate\\(([\\d.]+),([\\d.]+)\\)"[^>]*>(?:(?!<\\/g>)[\\s\\S])*?\\{\\{F'+i+'\\}\\}(?:(?!<\\/g>)[\\s\\S])*?<\\/g>');
+      const gm = s.match(gRe);
+      if(!gm) return;
+      const gx = +gm[1], gy = +gm[2];
+      s = s.replace(gRe, '');
+      // ② 그 바로 위(6mm 안쪽)에 붙은 이름표 — 같은 x 언저리에 있는 것만
+      const tRe = /<text x="([\d.]+)" y="([\d.]+)"[^>]*>(?:(?!<\/text>)[\s\S])*?<\/text>/g;
+      let m, hit = null;
+      while((m = tRe.exec(s))){
+        const x = +m[1], y = +m[2];
+        if(Math.abs(gx - x) < 12 && (gy - y) > 0 && (gy - y) < 6) hit = m[0];
+      }
+      if(hit) s = s.split(hit).join('');
+    }catch(e){ console.warn('[수납도어] 빈 칸을 못 지웠습니다', e); }
+  });
+  return s;
+}
+
+function subdoorCenterBlock(t, s, grew, empty){
   const id = Object.keys(SUBDOOR_SHEETS).find(k => SUBDOOR_SHEETS[k] === t);
   if(!id || !SUBDOOR_CENTER[id]) return s;
+  const gone = new Set(empty || []);
   try{
     const tpl = t.svg;
     // ① 치수 글자를 품은 덩어리(그 안에 {{F#}} 가 있던 것)
+    //    ★ 지운 칸은 빼고 봅니다 — 안 빼면 없는 글자까지 세어 엉뚱하게 내려갑니다
     const gRe = /<g transform="translate\(([\d.]+),([\d.]+)\)"[^>]*>((?:(?!<\/g>)[\s\S])*?)<\/g>/g;
-    const groups = []; let m;
-    while((m = gRe.exec(tpl))) if(/\{\{F\d\}\}/.test(m[3])) groups.push({ x:+m[1], y:+m[2], raw:`translate(${m[1]},${m[2]})` });
+    const groups = [], dropped = []; let m;
+    while((m = gRe.exec(tpl))){
+      const mf = /\{\{F(\d)\}\}/.exec(m[3]);
+      if(!mf) continue;
+      const g = { x:+m[1], y:+m[2], raw:`translate(${m[1]},${m[2]})` };
+      if(gone.has(+mf[1])) dropped.push(g); else groups.push(g);
+    }
     if(!groups.length) return s;
 
     /* ② 글자 자리를 **빠짐없이** 모읍니다.
@@ -5190,12 +5231,16 @@ function subdoorCenterBlock(t, s, grew){
          들어 있는 글자를 놓쳐, 한참 아래 표를 칸의 끝으로 잘못 잡고 26mm 나
          내려보낸 일이 있었습니다(2026-09-15). */
     const labels = [], others = [];
+    const nearTo = (arr,x,y) => arr.some(g => Math.abs(g.x - x) < 12 && (g.y - y) > 0 && (g.y - y) < 6);
     const tRe = /<text x="([\d.]+)" y="([\d.]+)" font-size="([\d.]+)"([^>]*)>([^<]*)<\/text>/g;
     while((m = tRe.exec(tpl))){
       const x=+m[1], y=+m[2], fs=+m[3];
-      const near = groups.some(g => Math.abs(g.x - x) < 12 && (g.y - y) > 0 && (g.y - y) < 6);
-      if(near) labels.push({ x, y, fs, raw:`<text x="${m[1]}" y="${m[2]}"` });
-      else others.push({ x, y, fs });
+      if(nearTo(groups,x,y)){ labels.push({ x, y, fs, raw:`<text x="${m[1]}" y="${m[2]}"` }); continue; }
+      /* ★ 지운 칸의 이름표는 아예 셈에서 뺍니다. 안 빼면 '글자 덩어리 밑에
+         처음 나오는 글자'를 그 이름표로 잘못 잡아, 칸이 실제보다 짧다고 보고
+         가운데로 안 내려갑니다(450만 있는 장이 위에 붙어 있었습니다). */
+      if(nearTo(dropped,x,y)) continue;
+      others.push({ x, y, fs });
     }
     // <g transform> 안에 든 글자 — 덩어리의 자리 + 글자의 y 를 더해 실제 자리를 냅니다
     const gAll = /<g transform="translate\(([\d.]+),([\d.]+)\)"[^>]*>((?:(?!<\/g>)[\s\S])*?)<\/g>/g;
