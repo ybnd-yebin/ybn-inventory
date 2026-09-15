@@ -607,6 +607,19 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </button>
   <div id="deliv-datedel-modal"></div>
 
+  <!-- 월별 정리 — 엑셀로 뽑아 두고 이 기기에서는 덜어냅니다 -->
+  <div class="card">
+    <div class="card-ttl"><span>🗂 월별 정리 (엑셀로 뽑고 덜어내기)</span></div>
+    <div class="info-note" style="margin-top:6px">
+      납품서는 건당 2KB 남짓 쌓여 시간이 지나면 브라우저 저장함이 찹니다.
+      <b>엑셀로 먼저 뽑은 다음</b> 이 기기에서 덜어냅니다 — 나중에 찾으실 일은 그 엑셀에서 보시면 됩니다
+      (한 줄에 한 품목이라 필터·검색이 됩니다).<br>
+      <b>내보내기가 안 되면 지우지 않습니다.</b> 재고 숫자도 안 바뀝니다 — 차감 기록은 따로 남아 있습니다.
+      <b>이번 달은 정리 대상에서 뺍니다</b>(아직 쓰는 중이라서요).
+    </div>
+    <div id="deliv-archive" style="margin-top:8px"></div>
+  </div>
+
   <input id="deliv-search" type="text" oninput="delivSearchKey=this.value.trim();renderDelivery()" placeholder="🔍 납품번호 · 참조문서번호 · 오더번호 · 제품 검색" style="width:100%;box-sizing:border-box;padding:10px;font-size:12px;border:1px solid var(--b2);border-radius:8px;background:var(--s2);color:var(--tx1);margin-bottom:12px;font-family:'Noto Sans KR',sans-serif">
 
   <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,var(--s2),var(--s1))">
@@ -11933,7 +11946,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     fab.style.display=(id==='todo'||id==='worklog')?'flex':'none';
     if(id==='home')renderHome();
     else if(id==='worklog')renderWorklogMain();
-    else if(id==='delivery')renderDelivery();
+    else if(id==='delivery'){renderDelivery(); if(typeof renderDelivArchive==='function') renderDelivArchive();}
     else if(id==='todo')renderTodo();
     else if(id==='board'){renderNotices();renderSchedules();renderCal();}
     else if(id==='stock')renderSub(curSub);
@@ -15263,6 +15276,193 @@ function setDelivView(mode,btn){
   if(btn&&btn.parentElement) btn.parentElement.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('on'));
   if(btn) btn.classList.add('on');
   renderDelivery();
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   📦 납품서 월별 정리 — 엑셀로 내보내고 덜어내기              2026-09-15
+
+   납품서가 건당 2.3KB 씩 쌓여 1년이면 브라우저 저장함이 찹니다.
+   그냥 지우면 나중에 "그때 그거 뭐였지" 를 못 찾으므로, **엑셀로 먼저 뽑고
+   그 다음에 지웁니다.** 엑셀은 한 줄에 한 품목이라 필터·검색으로 찾습니다.
+
+   ★ 순서를 절대 바꾸지 마십시오 — 내보내기가 실패하면 지우지 않습니다.
+     지운 뒤 내보내면 실패했을 때 자료가 사라집니다.
+   ★ 지운 납품서는 묘비(delivDeleted)를 남깁니다. 안 남기면 다른 기기와
+     맞출 때 되살아납니다.
+   ★ 재고 차감 기록은 따로(장부·에토프 장부) 남아 있어 그대로입니다 —
+     납품서를 덜어내도 재고 숫자는 안 바뀝니다.
+   ══════════════════════════════════════════════════════════════════════ */
+
+// 발주일 기준 월별로 묶습니다 (없으면 납품요청일)
+function delivMonths(){
+  const log = (typeof delivLog !== 'undefined' ? delivLog : []) || [];
+  const m = {};
+  log.forEach(d => {
+    if(!d || !d.delivNo) return;
+    const dt = d.orderDate || d.delivReqDate || '';
+    const ym = dt ? dt.slice(0, 7) : '(날짜없음)';
+    const a = m[ym] || (m[ym] = { ym, docs:0, items:0, qty:0, bytes:0, as:0 });
+    a.docs++;
+    a.items += (d.items || []).length;
+    a.qty   += (d.items || []).reduce((s, it) => s + (Number(it.qty) || 0), 0);
+    if(String(d.refNo || '').startsWith('54')) a.as++;
+    try{ a.bytes += JSON.stringify(d).length; }catch(e){}
+  });
+  return Object.values(m).sort((a, b) => String(b.ym).localeCompare(String(a.ym)));
+}
+
+// 그 달의 납품서를 한 줄에 한 품목으로 펼칩니다
+function delivMonthRows(ym){
+  const log = (typeof delivLog !== 'undefined' ? delivLog : []) || [];
+  const out = [];
+  log.forEach(d => {
+    if(!d || !d.delivNo) return;
+    const dt = d.orderDate || d.delivReqDate || '';
+    const k = dt ? dt.slice(0, 7) : '(날짜없음)';
+    if(k !== ym) return;
+    const isAS = String(d.refNo || '').startsWith('54');
+    (d.items || []).forEach(it => {
+      out.push({
+        발주일: d.orderDate || '',
+        납품요청일: d.delivReqDate || '',
+        출고일: (typeof _shipOf === 'function' ? (_shipOf(d) || '') : ''),
+        납품번호: d.delivNo || '',
+        참조문서번호: d.refNo || '',
+        구분: isAS ? 'AS' : '정오더',
+        납품처: d.dest || '',
+        오더번호: it.orderNo || '',
+        제품코드: it.code || '',
+        제품명: it.short || it.name || '',
+        색상: (typeof delivColorOf === 'function' && it.code) ? (delivColorOf(it.code) || '') : (it.color || ''),
+        규격: it.size || '',
+        좌우: it.lr || '',
+        수량: Number(it.qty) || 0,
+        대분류: it.daegubun || it.gubun || '',
+        올린날: (d.uploadedAt || '').slice(0, 10),
+        올린이: d.by || ''
+      });
+    });
+  });
+  // 발주일 → 납품번호 → 제품코드 차례로 (엑셀에서 눈으로 좇기 좋게)
+  out.sort((a, b) => String(a.발주일).localeCompare(String(b.발주일))
+                  || String(a.납품번호).localeCompare(String(b.납품번호))
+                  || String(a.제품코드).localeCompare(String(b.제품코드)));
+  return out;
+}
+
+/* 내보내기 — 엑셀이 되면 엑셀, 안 되면 csv.
+   되돌려 받은 값: true 면 파일이 실제로 나갔다는 뜻입니다. */
+function delivExportMonth(ym){
+  const rows = delivMonthRows(ym);
+  if(!rows.length){ showToast('그 달에 납품서가 없습니다'); return false; }
+  const head = Object.keys(rows[0]);
+  const body = rows.map(r => head.map(h => r[h]));
+  const name = '납품서_' + ym.replace('-', '') + '_' + rows.length + '품목.xlsx';
+  try{
+    if(typeof XLSX !== 'undefined'){
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([head, ...body]);
+      ws['!cols'] = head.map(h => ({ wch: (h === '제품명' ? 34 : h.length < 4 ? 10 : 13) }));
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s:{r:0,c:0}, e:{r:rows.length, c:head.length-1} }) };
+      ws['!freeze'] = { xSplit:0, ySplit:1 };
+      XLSX.utils.book_append_sheet(wb, ws, '품목');
+      // 납품서 한 건에 한 줄인 요약도 한 장 — 건수로 훑을 때 씁니다
+      const byDoc = {};
+      rows.forEach(r => {
+        const a = byDoc[r.납품번호] || (byDoc[r.납품번호] = { 발주일:r.발주일, 납품요청일:r.납품요청일, 납품번호:r.납품번호,
+          참조문서번호:r.참조문서번호, 구분:r.구분, 납품처:r.납품처, 품목수:0, 총수량:0 });
+        a.품목수++; a.총수량 += r.수량;
+      });
+      const dl2 = Object.values(byDoc).sort((a,b)=>String(a.발주일).localeCompare(String(b.발주일)));
+      const h2 = Object.keys(dl2[0]);
+      const ws2 = XLSX.utils.aoa_to_sheet([h2, ...dl2.map(r => h2.map(h => r[h]))]);
+      ws2['!cols'] = h2.map(() => ({ wch:14 }));
+      XLSX.utils.book_append_sheet(wb, ws2, '납품서');
+      XLSX.writeFile(wb, name);
+      showToast('📊 ' + ym + ' 내보냄 — ' + rows.length + '품목');
+      return true;
+    }
+  }catch(e){ console.warn('[납품서 정리] 엑셀 실패, csv 로 냅니다', e); }
+  try{
+    const csv = '﻿' + [head, ...body].map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    dl(csv, name.replace('.xlsx', '.csv'), 'text/csv;charset=utf-8');
+    showToast('📊 ' + ym + ' 내보냄 (csv) — ' + rows.length + '품목');
+    return true;
+  }catch(e){ alert('내보내지 못했습니다 — ' + (e.message||'') + '\n\n지우지 않았습니다.'); return false; }
+}
+
+// 그 달을 덜어냅니다 — 반드시 내보낸 뒤에만 부릅니다
+function delivPurgeMonth(ym){
+  const log = (typeof delivLog !== 'undefined' ? delivLog : []) || [];
+  const hit = log.filter(d => {
+    const dt = d && (d.orderDate || d.delivReqDate) || '';
+    return (dt ? dt.slice(0, 7) : '(날짜없음)') === ym;
+  });
+  if(!hit.length) return 0;
+  const now = new Date().toISOString();
+  hit.forEach(d => { if(d.id) delivDeleted[d.id] = now; });   // 묘비 — 병합 때 부활 금지
+  const ids = new Set(hit.map(d => d.id));
+  delivLog = delivLog.filter(d => !ids.has(d && d.id));
+  saveAll();
+  if(typeof invalidateDelivAgg === 'function') invalidateDelivAgg();
+  if(typeof autoSync === 'function') autoSync();
+  return hit.length;
+}
+
+function delivArchiveMonth(ym){
+  const m = delivMonths().find(x => x.ym === ym);
+  if(!m) return;
+  if(!confirm('📊 ' + ym + ' 납품서를 엑셀로 내보낸 뒤 이 기기에서 덜어냅니다.\n\n'
+    + '납품서 ' + m.docs + '건 · 품목 ' + m.items + '줄 · ' + Math.round(m.bytes/1024) + 'KB\n\n'
+    + '· 엑셀이 먼저 내려받아집니다. 내보내기가 안 되면 지우지 않습니다.\n'
+    + '· 재고 숫자는 안 바뀝니다 — 차감 기록은 따로 남아 있습니다.\n'
+    + '· 지운 뒤에는 이 앱에서 검색이 안 되고 엑셀에서 찾으셔야 합니다.\n\n'
+    + '계속할까요?')) return;
+
+  if(!delivExportMonth(ym)) return;            // ★ 내보내기가 먼저. 실패하면 안 지웁니다
+
+  if(!confirm('엑셀이 내려받아졌는지 확인해 주십시오.\n\n'
+    + '파일이 잘 열리면 [확인] 을 눌러 주십시오. 그때 이 기기에서 덜어냅니다.\n'
+    + '파일을 못 찾으셨으면 [취소] 를 누르십시오 — 아무것도 안 지웁니다.')) {
+    showToast('지우지 않았습니다');
+    return;
+  }
+  const n = delivPurgeMonth(ym);
+  showToast('🗂 ' + ym + ' 납품서 ' + n + '건을 덜어냈습니다');
+  renderDelivArchive();
+  if(typeof renderDelivery === 'function') renderDelivery();
+}
+
+// 내보내기만 (지우지 않음)
+function delivExportOnly(ym){ delivExportMonth(ym); }
+
+function renderDelivArchive(){
+  const host = document.getElementById('deliv-archive');
+  if(!host) return;
+  const ms = delivMonths();
+  if(!ms.length){ host.innerHTML = '<div style="font-size:12px;color:var(--tx3)">올라온 납품서가 없습니다.</div>'; return; }
+  const totalKB = Math.round(ms.reduce((s, m) => s + m.bytes, 0) / 1024);
+  const cur = todayStr().slice(0, 7);
+  host.innerHTML =
+    '<div style="font-size:11px;color:var(--tx2);margin-bottom:8px">' +
+      '올라온 납품서 <b>' + ms.reduce((s,m)=>s+m.docs,0) + '건</b> · ' + totalKB + 'KB · ' + ms.length + '개월' +
+    '</div>' +
+    '<div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden">' +
+    ms.map(m => {
+      const isCur = m.ym === cur;
+      return '<div style="display:flex;gap:8px;align-items:center;padding:8px 11px;border-bottom:1px solid var(--b1)">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:13px;font-weight:700;color:var(--tx1)">' + m.ym +
+            (isCur ? '<span style="font-size:10px;font-weight:400;color:var(--acc);margin-left:6px">이번 달</span>' : '') + '</div>' +
+          '<div style="font-size:10px;color:var(--tx3);margin-top:2px">납품서 ' + m.docs + '건 · 품목 ' + m.items + '줄 · ' + m.qty + '장' +
+            (m.as ? ' · AS ' + m.as + '건' : '') + ' · ' + Math.round(m.bytes/1024) + 'KB</div>' +
+        '</div>' +
+        '<button onclick="delivExportOnly(\'' + m.ym + '\')" class="f-btn" style="font-size:11px;padding:5px 11px">📊 엑셀만</button>' +
+        (isCur ? '<span style="font-size:10px;color:var(--tx3);width:96px;text-align:center">이번 달은 그대로 둡니다</span>'
+               : '<button onclick="delivArchiveMonth(\'' + m.ym + '\')" style="padding:5px 11px;background:var(--acc2);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif;width:96px">🗂 정리하기</button>') +
+      '</div>';
+    }).join('') + '</div>';
 }
 
 function clearDelivLog(){
