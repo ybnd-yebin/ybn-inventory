@@ -5106,6 +5106,7 @@ function subdoorPageSVG(p){
      줄 간격은 도면마다 다르므로 **캐드가 잡아 둔 F↔G 간격을 그대로 재서** 씁니다
      (숫자를 손으로 적으면 도면마다 어긋납니다). */
   const step = subdoorLineStep(t.svg);
+  let grew = 0;                        // 줄이 늘어난 만큼 (가운데 정렬에 씁니다)
   for(let i=1; i<=t.slots; i++){
     const ph = t.ph[i-1] || ['',''];
     const lrMode = /L\/R/.test(ph[0]);
@@ -5120,8 +5121,81 @@ function subdoorPageSVG(p){
       n===0 ? esc(txt) : `<tspan x="0" dy="${(step*2).toFixed(3)}">${esc(txt)}</tspan>`).join('');
     s = s.split('{{F'+i+'}}').join(stack(list.map(d=>d.fw+' * '+d.fh+' = '+subdoorQtyText(d, lrMode))))
          .split('{{G'+i+'}}').join(stack(list.map(d=>d.gw+' * '+d.gh)));
+    grew = Math.max(grew, (list.length-1) * step * 2);   // 줄이 늘어난 만큼
   }
+  s = subdoorCenterBlock(t, s, grew);
   return SUBDOOR_SVG_OPEN + s + SUBDOOR_SVG_CLOSE;
+}
+
+/* ── 치수 글자를 빈 칸 가운데로 내리기 (사용자 요청 2026-09-15) ──────
+   캐드 원본은 치수 글자가 칸 위쪽에 붙어 있어, 아래가 휑하니 비어 보였습니다.
+   도면 데이터는 손대지 않습니다 — 그릴 때만 내립니다(CLAUDE.md 12-8).
+   캐드에서 도면을 다시 뽑아도 그대로 먹고, 되돌리려면 SUBDOOR_CENTER 에서
+   그 도면을 빼면 됩니다.
+
+   어디까지가 '빈 칸'인가
+     위 = 제품명 띠 아래선 · 아래 = 글자 덩어리 밑에 처음 나오는 글자(*코너캡 등)
+   줄이 늘어나면(사이즈가 여러 개) 늘어난 만큼 덩어리가 길어지므로 그것도 셉니다. */
+const SUBDOOR_CENTER = { SIG:true, SIGHANG:true };
+
+function subdoorCenterBlock(t, s, grew){
+  const id = Object.keys(SUBDOOR_SHEETS).find(k => SUBDOOR_SHEETS[k] === t);
+  if(!id || !SUBDOOR_CENTER[id]) return s;
+  try{
+    const tpl = t.svg;
+    // ① 치수 글자를 품은 덩어리(그 안에 {{F#}} 가 있던 것)
+    const gRe = /<g transform="translate\(([\d.]+),([\d.]+)\)"[^>]*>((?:(?!<\/g>)[\s\S])*?)<\/g>/g;
+    const groups = []; let m;
+    while((m = gRe.exec(tpl))) if(/\{\{F\d\}\}/.test(m[3])) groups.push({ x:+m[1], y:+m[2], raw:`translate(${m[1]},${m[2]})` });
+    if(!groups.length) return s;
+
+    /* ② 글자 자리를 **빠짐없이** 모읍니다.
+       ★ 맨 글자(<text x= y=>)만 보면 안 됩니다. '*코너캡' 처럼 <g transform> 안에
+         들어 있는 글자를 놓쳐, 한참 아래 표를 칸의 끝으로 잘못 잡고 26mm 나
+         내려보낸 일이 있었습니다(2026-09-15). */
+    const labels = [], others = [];
+    const tRe = /<text x="([\d.]+)" y="([\d.]+)" font-size="([\d.]+)"([^>]*)>([^<]*)<\/text>/g;
+    while((m = tRe.exec(tpl))){
+      const x=+m[1], y=+m[2], fs=+m[3];
+      const near = groups.some(g => Math.abs(g.x - x) < 12 && (g.y - y) > 0 && (g.y - y) < 6);
+      if(near) labels.push({ x, y, fs, raw:`<text x="${m[1]}" y="${m[2]}"` });
+      else others.push({ x, y, fs });
+    }
+    // <g transform> 안에 든 글자 — 덩어리의 자리 + 글자의 y 를 더해 실제 자리를 냅니다
+    const gAll = /<g transform="translate\(([\d.]+),([\d.]+)\)"[^>]*>((?:(?!<\/g>)[\s\S])*?)<\/g>/g;
+    while((m = gAll.exec(tpl))){
+      if(/\{\{F\d\}\}/.test(m[3])) continue;          // 옮길 덩어리는 뺍니다
+      const gx=+m[1], gy=+m[2];
+      const iRe = /<text[^>]*\sy="([\d.]+)"[^>]*font-size="([\d.]+)"/g; let n;
+      while((n = iRe.exec(m[3]))) others.push({ x:gx, y:gy + (+n[1]), fs:+n[2] });
+    }
+
+    // ③ 덩어리의 위·아래 끝 (글자 높이까지 셈)
+    const FS = 6.81, ASC = FS*0.8, DESC = FS*0.25;
+    let top = Math.min.apply(null, groups.map(g=>g.y+5.006).concat(labels.map(l=>l.y))) - ASC;
+    let bot = Math.max.apply(null, groups.map(g=>g.y+13.016)) + grew + DESC;
+
+    // ④ 빈 칸의 위·아래
+    let bandY = 0, lRe = /<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"/g;
+    while((m = lRe.exec(tpl))){
+      const y1=+m[2], y2=+m[4];
+      if(Math.abs(y1-y2)<0.01 && Math.min(+m[1],+m[3])<12 && y1>75 && y1<95) bandY = y1;
+    }
+    if(!bandY) return s;
+    const below = others.filter(o => o.y > bot && Math.abs(o.x - groups[0].x) < 60)
+                        .sort((a,b)=>a.y-b.y)[0];
+    if(!below) return s;                       // 아래 끝을 모르면 건드리지 않습니다
+    const regTop = bandY, regBot = below.y - below.fs*0.8;
+
+    const dy = ((regTop + regBot) / 2) - ((top + bot) / 2);
+    if(!isFinite(dy) || Math.abs(dy) < 0.5) return s;      // 이미 가운데면 그대로
+    if(bot + dy > regBot || top + dy < regTop) return s;    // 넘치면 건드리지 않습니다
+
+    // ⑤ 옮기기 — 덩어리와 이름표만
+    groups.forEach(g => { s = s.split(g.raw).join(`translate(${g.x.toFixed(3)},${(g.y+dy).toFixed(3)})`); });
+    labels.forEach(l => { s = s.split(l.raw).join(`<text x="${l.x.toFixed(3)}" y="${(l.y+dy).toFixed(3)}"`); });
+    return s;
+  }catch(e){ console.warn('[수납도어] 가운데 정렬 실패 — 원래대로 그립니다', e); return s; }
 }
 
 /* 발주일 고르는 칸 채우기. 탭을 열 때와 [날짜 다시 읽기]에서 부른다.
