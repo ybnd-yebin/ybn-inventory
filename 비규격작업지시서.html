@@ -3439,6 +3439,7 @@ function cadBlockSVG(b, xL, yTop){
   let hpmTop=null;                                   // 베일(HPM) 색상 묶음의 시작 y — 박스 치려고 기억
   let segTop=null;                                   // 합적 조각 줄의 시작 y — 세트 꺾쇠용
   let colTop=null, colName='', colSet='';            // 색상 묶음의 시작 y·이름·세트 수 — 색상 꺾쇠용
+  let colRight=0;                                    // 색이름이 끝나는 x — 베일 보라 상자 너비에 씁니다
   let prevKind=null;                                 // 바로 앞에 그린 줄의 종류 — 쌍 사이 틈 판정용
   /* 꺾쇠 자리는 **블록 안에서 한 번만** 잡는다 — 줄마다 재면 꺾쇠가 들쭉날쭉해진다.
      가장 긴 글자줄 오른쪽에 세트 꺾쇠, 그 바깥에 색상 꺾쇠를 세운다. */
@@ -3457,10 +3458,21 @@ function cadBlockSVG(b, xL, yTop){
        (앞 동그라미는 그전에 뺐고, 이번에 상자까지 뺐습니다) */
     const FS=6;
     const tx=BX_COL+2.6, ty2=cy+FS*0.34;
-    s+=`<path d="M${(BX_COL-1.8).toFixed(2)} ${y0.toFixed(2)} H${BX_COL.toFixed(2)} V${y1.toFixed(2)} H${(BX_COL-1.8).toFixed(2)}"`
-     + ` fill="none" stroke="${isH?'#7a3fb0':c.line}" stroke-width="0.5"/>`
-     + `<text x="${tx.toFixed(2)}" y="${ty2.toFixed(2)}" font-family="${F}" font-size="${FS}"`
+    /* ★ 베일(HPM)은 꺾쇠를 안 그립니다 (사용자 지적 2026-09-15).
+       베일은 보라 상자로 이미 색깔별로 묶이는데, 그 안에 꺾쇠까지 그리니
+       상자·꺾쇠·글씨가 겹쳐 어수선했습니다. 묶는 일을 상자가 하므로 꺾쇠는
+       군더더기입니다. 상자가 없는 색(에토프·웜코튼)은 꺾쇠가 묶어 줘야 하니
+       그대로 둡니다. */
+    if(!isH){
+      s+=`<path d="M${(BX_COL-1.8).toFixed(2)} ${y0.toFixed(2)} H${BX_COL.toFixed(2)} V${y1.toFixed(2)} H${(BX_COL-1.8).toFixed(2)}"`
+       + ` fill="none" stroke="${c.line}" stroke-width="0.5"/>`;
+    }
+    s+=`<text x="${tx.toFixed(2)}" y="${ty2.toFixed(2)}" font-family="${F}" font-size="${FS}"`
      + ` font-weight="700" fill="${isH?'#7a3fb0':c.text}">${esc(colName)}</text>`;
+    /* 상자를 색이름 끝에 맞추려고 오른쪽 끝을 적어 둡니다 —
+       예전에는 상자 너비가 88 로 박혀 있어 색이름이 짧으면 허전하게 넓었습니다. */
+    const nameW=[...String(colName)].reduce((w,ch)=>w+(/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(ch)?FS:FS*0.55), 0);
+    colRight=tx+nameW+(colSet?14:0);
     // 색마다 세트 수가 다를 때만 색이름 뒤에 적는다 (모두 같으면 코드 옆에 이미 있다)
     if(colSet){
       const tw=[...String(colName)].reduce((w,ch)=>w+(/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(ch)?FS:FS*0.55), 0);
@@ -3471,14 +3483,18 @@ function cadBlockSVG(b, xL, yTop){
   };
   const closeHpm=()=>{                               // 베일 묶음이 끝나면 보라 박스로 두른다
     if(hpmTop==null) return;
-    box+=`<rect x="${(txX-2).toFixed(2)}" y="${(hpmTop-lh*0.85).toFixed(2)}" width="${(88).toFixed(2)}" height="${(ty-hpmTop+lh*1.1).toFixed(2)}" rx="1.6" fill="none" stroke="#7a3fb0" stroke-width="0.5"/>`;
-    hpmTop=null;
+    /* 상자 너비를 색이름 끝에 맞춥니다. 예전에는 88 로 박혀 있어 색이름이
+       짧으면 오른쪽이 허전하게 넓었습니다. closeColor 가 적어 둔 끝자리를 씁니다
+       (그래서 closeColor 를 먼저 부릅니다). 못 받았으면 예전 값으로 둡니다. */
+    const w = (colRight ? (colRight - (txX-2) + 2.5) : 88);
+    box+=`<rect x="${(txX-2).toFixed(2)}" y="${(hpmTop-lh*0.85).toFixed(2)}" width="${w.toFixed(2)}" height="${(ty-hpmTop+lh*1.1).toFixed(2)}" rx="1.6" fill="none" stroke="#7a3fb0" stroke-width="0.5"/>`;
+    hpmTop=null; colRight=0;
   };
   rows.forEach(row=>{
     if(row.k==='color'){
       // 색상 동그라미는 **실제 제품 색**으로 칠한다(에토프=오렌지 톤, 웜코튼=흰 바탕 등).
       // 색은 작업지시서 색상칸과 같은 표(COLOR_CHIP)를 쓴다 — 두 곳이 어긋나지 않게.
-      closeHpm(); closeColor();
+      closeColor(); closeHpm();
       /* cadTextH 는 색상 줄을 rs 에 그대로 두고 세므로, 색 바로 뒤의 검정은 '쌍 시작'이 아닙니다.
          렌더러도 같게 보려면 여기서 prevKind 를 색으로 바꿔 둬야 합니다.
          (안 바꾸면 렌더러만 틈을 더 넣어 계산과 어긋납니다) */
@@ -3532,7 +3548,7 @@ function cadBlockSVG(b, xL, yTop){
     if(row.seg){ if(segTop==null) segTop=ty; }
     else segTop=null;
   });
-  closeHpm(); closeColor();
+  closeColor(); closeHpm();
   const height=Math.max(span+dropDoor, textH+dropText);   // 쪽 나누기(cadBlockH)와 같은 값
   return {svg:door+box+s, height};
 }
