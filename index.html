@@ -35,7 +35,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 .sub-nav-btn .ico{font-size:13px;display:block;margin-bottom:1px}
 .sub-nav-btn.on{color:var(--acc);border-bottom-color:var(--acc)}
 /* PAGES */
-.sec-pg{display:none;padding:14px 14px 80px}
+/* 넓은 화면에서 줄이 끝까지 늘어나지 않게 폭을 묶습니다 (사장님 지적 2026-09-15).
+   휴대폰에서는 괜찮은데 컴퓨터로 보면 왼쪽 모델명과 오른쪽 수량이 화면 양끝으로
+   벌어져, 한 줄인데도 눈이 좌우로 크게 움직여야 했습니다. 읽는 줄은 길어도
+   한눈에 들어오는 폭이 있습니다. 좁은 화면에서는 예전 그대로입니다. */
+.sec-pg{display:none;padding:14px 14px 80px;max-width:1100px;margin:0 auto}
 .sec-pg.on{display:block}
 /* CARDS */
 .card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px;margin-bottom:12px}
@@ -326,21 +330,24 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div class="hdr-meta"><span id="hdr-now"></span> <span id="hdr-gs"></span></div>
   </div>
   <nav class="main-nav">
+    <!-- 차례는 '요즘 제일 많이 쓰는 것'을 앞에 둡니다 (사장님 지시 2026-09-15).
+         발주 · 에토프재고 · 비규격 작업지시서가 지금 손이 제일 많이 가는 셋입니다.
+         에토프재고가 맨 끝에 있어 멀다는 지적이 있어 앞으로 당겼습니다. -->
     <button class="main-nav-btn on" onclick="showMain('home')">🏠 홈</button>
-    <button class="main-nav-btn" onclick="showMain('worklog')">✏️ 작업일지</button>
-    <button class="main-nav-btn" onclick="showMain('stock')">📋 재고관리</button>
     <button class="main-nav-btn" onclick="showMain('order')">🧾 발주</button>
-    <button class="main-nav-btn" onclick="showMain('order-analysis')">📊 발주분석</button>
-    <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
-    <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
-    <button class="main-nav-btn" onclick="showMain('delivery')">📦 납품서</button>
-    <button class="main-nav-btn" onclick="showMain('glassneed')">🖨️ 인쇄유리소요</button>
     <button class="main-nav-btn" onclick="showMain('etp')">🟠 에토프재고</button>
     <!-- 비규격 작업지시서 — 이 앱 안의 탭이 아니라 같은 주소의 다른 페이지다(새 창).
          상대경로라 홈페이지에서도, 바탕화면에서도 그대로 열린다.
          같은 출처(ybnd-yebin.github.io)이므로 두 페이지가 브라우저 저장함을 나눠 쓴다. -->
     <a class="main-nav-btn ext" href="비규격작업지시서.html" target="_blank" rel="noopener"
        title="새 창에서 열립니다 — 납품서를 올리면 비규격 도어의 프레임·유리 치수와 작업지시서가 나옵니다">🔲 비규격 작업지시서<span class="ext-mark">↗</span></a>
+    <button class="main-nav-btn" onclick="showMain('delivery')">📦 납품서</button>
+    <button class="main-nav-btn" onclick="showMain('worklog')">✏️ 작업일지</button>
+    <button class="main-nav-btn" onclick="showMain('stock')">📋 재고관리</button>
+    <button class="main-nav-btn" onclick="showMain('glassneed')">🖨️ 인쇄유리소요</button>
+    <button class="main-nav-btn" onclick="showMain('order-analysis')">📊 발주분석</button>
+    <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
+    <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
     <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
   </nav>
 </div>
@@ -2260,7 +2267,7 @@ let orderDeleted=J(localStorage.getItem('ybn-order-del-v1'))||{}; // {id: 삭제
    날짜 통째로 막지 않고 '그때 있던 항목'만 막습니다.
    날짜로만 막으면 나중에 그 날짜에 진짜 작업이 들어올 때 같이 막혀 버립니다. */
 let wlTombs=J(localStorage.getItem('ybn-wl-tombs-v1'))||{};
-function saveWlTombs(){ try{ localStorage.setItem('ybn-wl-tombs-v1',JSON.stringify(wlTombs)); }catch(e){} }
+function saveWlTombs(){ try{ _put('ybn-wl-tombs-v1', wlTombs); }catch(e){} }
 // 항목 하나를 가리키는 표시. 수량까지 넣어야 같은 품목의 새 작업을 잘못 막지 않습니다.
 // ※ 보조 수단입니다. 주 열쇠는 아래 eventIds 입니다.
 function wlSig(it){
@@ -2371,7 +2378,7 @@ if(!soonap.ins) soonap.ins={};       // 코드 -> [{qty,at,by}] 입고 이력 (�
 if(!soonap.onorder) soonap.onorder={}; // 코드 -> 발주중 수량
 if(!soonap.active) soonap.active={};
 if(!soonap.base) soonap.base={};     // 'YYYY-MM' -> {코드: 원재고}  월 격자에서 손으로 넣은 월초 재고만
-function saveSoonap(){ localStorage.setItem('ybn-soonap-v1', JSON.stringify(soonap)); }
+function saveSoonap(){ _put('ybn-soonap-v1', soonap); }
 function soonapActive(code){ return soonap.active[code]!==undefined ? !!soonap.active[code] : (SOONAP_DEFAULT_INACTIVE.indexOf(code)<0); }
 function soonapName(code){ try{ return (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[code]) ? HANSAEM_CATALOG[code][0] : code; }catch(e){ return code; } }
 let soonapCat='all';
@@ -3689,6 +3696,35 @@ function _formatActorTime(iso){
   }catch(e){ return ''; }
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   저장 한 칸 — 실패를 삼키지 않습니다                          2026-09-15
+
+   예전에는 saveAll 이 localStorage.setItem 을 스무 번 넘게 맨몸으로 불렀습니다.
+   저장함이 차면 **첫 줄에서 예외가 터지고 뒤의 것은 아예 저장되지 않는데,
+   화면에는 아무 말도 안 나왔습니다.** 재고를 고치고 창을 닫으면 그대로 날아갑니다.
+   이제 한 칸씩 감싸서, 하나가 실패해도 나머지는 저장하고 무엇이 실패했는지
+   한 번만 크게 알립니다(같은 말을 스무 번 띄우지 않으려고 모아서 한 번).   */
+var _saveFail = [];
+function _put(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); return true; }
+  catch(e){ _saveFail.push(key); console.warn('[저장 실패]', key, e); return false; }
+}
+var _saveAlertAt = 0;
+function _saveReport(){
+  if(!_saveFail.length) return;
+  const keys = [...new Set(_saveFail)];
+  _saveFail = [];
+  const now = Date.now();
+  if(now - _saveAlertAt < 60000){ console.warn('[저장 실패] 1분 안에 또 실패:', keys); return; }
+  _saveAlertAt = now;
+  alert('⚠ 저장하지 못한 것이 있습니다 (' + keys.length + '가지)\n\n'
+    + keys.slice(0,6).join('\n') + (keys.length>6 ? '\n…' : '') + '\n\n'
+    + '브라우저 저장 공간이 찼거나 막혀 있습니다.\n'
+    + '설정 탭에서 [💾 전체 백업 JSON] 을 먼저 내려받아 두시고,\n'
+    + '오래된 납품서를 정리해 주십시오.\n\n'
+    + '지금 넣으신 내용은 창을 닫으면 사라질 수 있습니다.');
+}
+
 function saveAll(){
   if(typeof invalidateDelivAgg==='function') invalidateDelivAgg();
   if(typeof invalidateTrendAgg==="function") invalidateTrendAgg();
@@ -3698,28 +3734,29 @@ function saveAll(){
     meta.lastLocalChange = new Date().toISOString();
     if(getActor()) meta.lastActor = getActor();
   }
-  localStorage.setItem(LS.stock,JSON.stringify(stock));
-  localStorage.setItem(LS.meta,JSON.stringify(meta));
-  localStorage.setItem(LS.work,JSON.stringify(workLog));
-  localStorage.setItem(LS.ink,JSON.stringify(inkLog));
-  localStorage.setItem(LS.inkRate,JSON.stringify(inkRates));
-  localStorage.setItem(LS.notices,JSON.stringify(notices));
-  localStorage.setItem(LS.schedules,JSON.stringify(schedules));
-  localStorage.setItem(LS.todos,JSON.stringify(todos));
-  localStorage.setItem(LS.delivLog,JSON.stringify(delivLog));
-  localStorage.setItem('ybn-deliv-del-v1',JSON.stringify(delivDeleted));
-  localStorage.setItem('ybn-ledger-v1',JSON.stringify(ledgerLog));
-  if(typeof orderLog!=='undefined') localStorage.setItem('ybn-order-v1',JSON.stringify(orderLog));
-  localStorage.setItem('ybn-order-del-v1',JSON.stringify(orderDeleted));
-  localStorage.setItem('ybn-notice-state-v1',JSON.stringify(noticeState));
-  localStorage.setItem('ybn-vendors-v1',JSON.stringify(vendorBook));
-  localStorage.setItem('ybn-od-vendors-v1',JSON.stringify(odCustomVendors));
-  localStorage.setItem(LS.stockEvents,JSON.stringify(stockEvents));
-  if(typeof soonap!=='undefined') localStorage.setItem('ybn-soonap-v1',JSON.stringify(soonap)); // 수납유리재고
-  if(typeof assemblyStock!=='undefined') localStorage.setItem('ybn-asm-v1',JSON.stringify(assemblyStock));
-  if(typeof matStock!=='undefined') localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
-  if(typeof matLog!=='undefined') localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
-  if(typeof sheetLog!=='undefined') localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
+  _put(LS.stock, stock);
+  _put(LS.meta, meta);
+  _put(LS.work, workLog);
+  _put(LS.ink, inkLog);
+  _put(LS.inkRate, inkRates);
+  _put(LS.notices, notices);
+  _put(LS.schedules, schedules);
+  _put(LS.todos, todos);
+  _put(LS.delivLog, delivLog);
+  _put('ybn-deliv-del-v1', delivDeleted);
+  _put('ybn-ledger-v1', ledgerLog);
+  if(typeof orderLog!=='undefined') _put('ybn-order-v1', orderLog);
+  _put('ybn-order-del-v1', orderDeleted);
+  _put('ybn-notice-state-v1', noticeState);
+  _put('ybn-vendors-v1', vendorBook);
+  _put('ybn-od-vendors-v1', odCustomVendors);
+  _put(LS.stockEvents, stockEvents);
+  if(typeof soonap!=='undefined') _put('ybn-soonap-v1', soonap); // 수납유리재고
+  if(typeof assemblyStock!=='undefined') _put('ybn-asm-v1', assemblyStock);
+  if(typeof matStock!=='undefined') _put('ybn-mat-v1', matStock);
+  if(typeof matLog!=='undefined') _put('ybn-matlog-v1', matLog);
+  if(typeof sheetLog!=='undefined') _put('ybn-sheet-v1', sheetLog);
+  _saveReport();                 // 저장 못 한 것이 있으면 한 번만 크게 알립니다
   // 설정 화면이 열려 있으면 용량 바 갱신
   if(typeof renderStorageBar==='function' && document.getElementById('storage-bar-host')) renderStorageBar();
 }
@@ -3803,7 +3840,7 @@ const INITIAL_BREAKS=[
   {id:'br-ybnd-202608',    name:'와이비앤디', from:'2026-08-01', to:'2026-08-04', self:true}
 ];
 let vendorBreaks=J(localStorage.getItem('ybn-breaks-v1'))||INITIAL_BREAKS.map(b=>({...b}));
-function saveBreaks(){ try{ localStorage.setItem('ybn-breaks-v1',JSON.stringify(vendorBreaks)); }catch(e){} }
+function saveBreaks(){ try{ _put('ybn-breaks-v1', vendorBreaks); }catch(e){} }
 // 지운 휴무는 묘비(deleted)로 남겨두고 화면에서만 뺍니다. 목록을 볼 때는 항상 이 함수를 씁니다.
 function activeBreaks(){ return vendorBreaks.filter(b=>b&&!b.deleted&&b.name&&b.from&&b.to); }
 // 그 날짜에 걸린 휴무 목록 (문자열 비교라 YYYY-MM-DD 형식이어야 합니다)
@@ -7195,7 +7232,7 @@ let assemblyStock = (typeof J==='function' ? J(localStorage.getItem('ybn-asm-v1'
     const before=assemblyStock.length;
     assemblyStock=assemblyStock.filter(a=>a && a.id && a.id!=='euro');
     if(assemblyStock.length!==before){
-      localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock));
+      _put('ybn-asm-v1', assemblyStock);
       console.warn('[조립실] 잘못 만들어진 항목 '+(before-assemblyStock.length)+'건을 지웠습니다');
     }
   }catch(e){}
@@ -7218,13 +7255,13 @@ function asmMergeLrGlass(){
     a.glass=0; moved++; sum+=q;
   });
   if(moved){
-    try{ localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock)); }catch(e){}
+    try{ _put('ybn-asm-v1', assemblyStock); }catch(e){}
     console.warn('[조립실] 인쇄유리 '+moved+'건 · '+sum+'장을 대표 항목으로 모았습니다');
   }
   return {moved, sum};
 }
 function saveAssembly(){
-  try{ localStorage.setItem('ybn-asm-v1', JSON.stringify(assemblyStock)); }catch(e){}
+  try{ _put('ybn-asm-v1', assemblyStock); }catch(e){}
   if(typeof asmQuickIndexReset==='function') asmQuickIndexReset();   // 새 규격이 생겼을 수 있음
   if(typeof saveAll==='function') saveAll();
 }
@@ -8556,8 +8593,8 @@ function applyMergedFromSheet(data){
   if(data.vendorBook!==undefined) vendorBook=mergeById(vendorBook, data.vendorBook, 'id');
   if(data.stockEvents!==undefined) stockEvents=mergeStockEventsLocal(stockEvents, data.stockEvents);
   if(data.odCustomVendors!==undefined) odCustomVendors=mergeOdVendorsLocal(odCustomVendors, data.odCustomVendors);
-  if(data.wkExamples!==undefined && Array.isArray(data.wkExamples)){ wkExamples=mergeById(wkExamples, data.wkExamples, 'id'); localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples)); }
-  if(data.assemblyStock!==undefined && Array.isArray(data.assemblyStock)){ assemblyStock=mergeById(assemblyStock, data.assemblyStock, 'id'); localStorage.setItem('ybn-asm-v1',JSON.stringify(assemblyStock)); }
+  if(data.wkExamples!==undefined && Array.isArray(data.wkExamples)){ wkExamples=mergeById(wkExamples, data.wkExamples, 'id'); _put('ybn-wk-examples-v1', wkExamples); }
+  if(data.assemblyStock!==undefined && Array.isArray(data.assemblyStock)){ assemblyStock=mergeById(assemblyStock, data.assemblyStock, 'id'); _put('ybn-asm-v1', assemblyStock); }
   if(data.ledgerLog!==undefined) mergeLedgerFromSheet(data.ledgerLog);
   // ── 완제품 재고 병합 (id 기준 최신 우선) ──
   if(data.finishedStock!==undefined && Array.isArray(data.finishedStock) && typeof finishedStock!=='undefined'){
@@ -8572,7 +8609,7 @@ function applyMergedFromSheet(data){
   if(data.wlPostponed!==undefined && Array.isArray(data.wlPostponed) && typeof wlPostponed!=='undefined'){
     wlPostponed=mergeById(wlPostponed, data.wlPostponed, 'id');
     if(typeof prunePostponed==='function') prunePostponed();   // 시트에 남은 옛 항목이 다시 실려오지 않게
-    localStorage.setItem('ybn-wl-postponed',JSON.stringify(wlPostponed));
+    _put('ybn-wl-postponed', wlPostponed);
   }
   // ── 발주(orderLog) 병합: id 기준 최신 우선, 삭제 묘비로 부활 방지 ──
   if(data.orderDeleted!==undefined && data.orderDeleted && typeof data.orderDeleted==='object'){
@@ -8851,7 +8888,26 @@ function exportTodoCSV(){
   const h=['할일','담당자','업체','우선순위','상태','날짜','마감일'];
   dl('\uFEFF'+[h,...todos.map(t=>[t.content,t.assignee||'',t.company||'',t.priority,t.status,t.date,t.dueDate||''])].map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n'),'할일목록_'+todayStr()+'.csv','text/csv;charset=utf-8');showToast('✅ 할일 저장됨');
 }
-function exportBackup(){dl(JSON.stringify({stock,meta,workLog,inkLog,inkRates,notices,schedules,todos},null,2),'ybn_backup_'+todayStr()+'.json','application/json');showToast('💾 백업 저장됨');}
+/* 전체 백업 — 저장함에 든 것을 **하나도 빠뜨리지 않고** 담습니다 (2026-09-15).
+   예전에는 stock·meta·workLog 등 여덟 가지만 담았습니다. 정작 제일 큰 것이자
+   제일 아까운 **납품서(1MB)와 재고 장부(0.7MB)가 통째로 빠져 있어**,
+   '전체 백업'이라는 이름과 달리 되살릴 수 있는 게 얼마 없었습니다.
+   이제 localStorage 를 통째로 훑습니다 — 앞으로 키를 새로 만들어도 저절로 들어갑니다. */
+function exportBackup(){
+  const all = {}; let n = 0, bytes = 0;
+  try{
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      const v = localStorage.getItem(k);
+      if(v == null) continue;
+      try{ all[k] = JSON.parse(v); }catch(e){ all[k] = v; }   // 글자 그대로인 것도 담습니다
+      n++; bytes += (k.length + v.length);
+    }
+  }catch(e){ alert('백업을 만들지 못했습니다 — ' + (e.message||'')); return; }
+  const body = JSON.stringify({ _backup:'ybn', _at:new Date().toISOString(), _keys:n, data:all }, null, 2);
+  dl(body, 'ybn_backup_' + todayStr() + '.json', 'application/json');
+  showToast('💾 백업 저장됨 — ' + n + '가지 · ' + Math.round(bytes/1024) + 'KB');
+}
 function importBackup(e){
   const f=e.target.files[0];if(!f)return;
   const r=new FileReader();
@@ -9329,7 +9385,7 @@ function confirmOrderUpload(){
   parsed.newRows.forEach(({code,poNo,delivDate})=>{
     orderHistory.push({poNo,code,delivDate,processedAt:new Date().toISOString()});
   });
-  localStorage.setItem('ybn-order-history',JSON.stringify(orderHistory));
+  _put('ybn-order-history', orderHistory);
 
   meta.lastStock=new Date().toISOString();
   saveAll(); closeM('order-upload-modal');
@@ -9548,7 +9604,7 @@ function calcSheetNeeds(){
 }
 
 function saveSheetData(){
-  localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
+  _put('ybn-sheet-v1', sheetLog);
   saveAll();
 }
 
@@ -10237,7 +10293,7 @@ function confirmWkExample(){
   if(!items.length){ showToast('예시표를 붙여넣어 주세요'); return; }
   const qty=items.reduce((a,i)=>a+i.qty,0);
   wkExamples.push({id:'wke_'+Date.now(), ym, week, qty, note, items});
-  localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples));
+  _put('ybn-wk-examples-v1', wkExamples);
   closeM('wk-example-modal');
   renderWkExample();
   showToast('🎯 예시표 저장됨 ('+items.length+'품목)');
@@ -10246,7 +10302,7 @@ function confirmWkExample(){
 function delWkExample(id){
   if(!confirm('이 예시표를 삭제할까요?')) return;
   wkExamples=wkExamples.filter(e=>e.id!==id);
-  localStorage.setItem('ybn-wk-examples-v1',JSON.stringify(wkExamples));
+  _put('ybn-wk-examples-v1', wkExamples);
   renderWkExample();
   if(typeof autoSync==='function') autoSync();
 }
@@ -10496,7 +10552,7 @@ function prunePostponed(){
   wlPostponed=wlPostponed.filter(p=>p && p.targetDate && p.targetDate>=td);
   const cut=before-wlPostponed.length;
   if(cut>0){
-    try{ localStorage.setItem('ybn-wl-postponed', JSON.stringify(wlPostponed)); }catch(e){}
+    try{ _put('ybn-wl-postponed', wlPostponed); }catch(e){}
     console.warn('[미룬항목] 지난 날짜 '+cut+'건을 정리했습니다 (남은 '+wlPostponed.length+'건)');
   }
   return cut;
@@ -10504,7 +10560,7 @@ function prunePostponed(){
 prunePostponed();
 
 function savePostponed(){
-  localStorage.setItem('ybn-wl-postponed', JSON.stringify(wlPostponed));
+  _put('ybn-wl-postponed', wlPostponed);
 }
 
 function setWlRoom(room, btn){
@@ -11854,9 +11910,9 @@ var matStock=JSON.parse(localStorage.getItem('ybn-mat-v1')||'{}');
 var matLog=JSON.parse(localStorage.getItem('ybn-matlog-v1')||'[]');
 var sheetLog=JSON.parse(localStorage.getItem('ybn-sheet-v1')||'[]');
 function saveMatData(){
-  localStorage.setItem('ybn-mat-v1',JSON.stringify(matStock));
-  localStorage.setItem('ybn-matlog-v1',JSON.stringify(matLog));
-  localStorage.setItem('ybn-sheet-v1',JSON.stringify(sheetLog));
+  _put('ybn-mat-v1', matStock);
+  _put('ybn-matlog-v1', matLog);
+  _put('ybn-sheet-v1', sheetLog);
 }
 // ── 자재탭 포함 네비게이션 재정의 ──
 const MAINS_EXT=['home','todo','board','stock','mat','settings'];
@@ -11896,7 +11952,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
 // 발주 (Order) 기능
 // ════════════════════════════════════════════
 var orderLog = JSON.parse(localStorage.getItem('ybn-order-v1')||'[]');
-function saveOrderLog(){ localStorage.setItem('ybn-order-v1', JSON.stringify(orderLog)); }
+function saveOrderLog(){ _put('ybn-order-v1', orderLog); }
 
 // 발주처별 종류 프리셋
 //  thick: 유리 두께표시 / title: 발주서 제목 / bigo: 비고 자동 / pname: 품명 기본값
@@ -13545,7 +13601,7 @@ function odDeleteOrder(orderId, opts){
   const o=orderLog.find(x=>x.id===orderId); if(!o)return;
   if(!opts.skipConfirm && !confirm('이 발주 기록을 삭제할까요? (이미 입고 처리한 항목의 재고는 그대로 유지됩니다)')) return;
   orderDeleted[orderId]=new Date().toISOString(); // 묘비: 다른 기기 병합 시 부활 방지
-  localStorage.setItem('ybn-order-del-v1',JSON.stringify(orderDeleted));
+  _put('ybn-order-del-v1', orderDeleted);
   orderLog=orderLog.filter(x=>x.id!==orderId);
   saveOrderLog();
   renderOrderList();
@@ -15013,7 +15069,7 @@ async function handleDelivPdf(ev){
    몇 건인지만 알려주고 무엇인지는 안 남아, 뭘 놓쳤는지 알 수 없었습니다(2026-07-31).
    이제 남겨서 '기존 것과 연결' 또는 '새 품목'으로 정리하실 수 있게 합니다. */
 let delivUnmatched = J(localStorage.getItem('ybn-deliv-unmatched-v1')) || [];
-function saveUnmatched(){ try{ localStorage.setItem('ybn-deliv-unmatched-v1', JSON.stringify(delivUnmatched)); }catch(e){} }
+function saveUnmatched(){ try{ _put('ybn-deliv-unmatched-v1', delivUnmatched); }catch(e){} }
 function unmatchedAdd(it, d){
   const code=it.code||'';
   const nm=(it.name||it.short||'');
