@@ -12476,30 +12476,40 @@ function odCollect(){
 }
 
 // ── 발주서 행렬(AOA) 생성 — 양식 구조 그대로 ──
+/* 우리 엑셀 발주서 양식 그대로입니다 (사장님 양식 2026-09-15 확인).
+   ⚠ 자리를 옮기지 마십시오 — 「📥 발주서 불러오기」가 아래 자리에서 읽습니다.
+     발주처 D4 · 발주일 D5 · 종류 B9 · 표 머리 11행 · 품목 12행부터
+     품명 C열 · 규격 F열 · 수량 J열 · 납기 K열
+   그래서 여기서 내려받은 엑셀을 그대로 다시 올려도 읽힙니다.
+   예전에는 한 줄·여러 칸이 어긋나 있어 우리가 만든 엑셀을 못 읽었습니다. */
 function odBuildAOA(o){
   const rows=[];
-  rows.push(['','         발 주 서 (PURCHASE ORDER)']);
-  rows.push([]);
-  rows.push(['','수      신 :','','대원유리'===o.vendor?o.vendor:o.vendor,'','','','','㈜ 와이비 앤 디 YB & D']);
-  rows.push(['','발 주  일 :','',o.date,'','','','','인천시 남동구  남동대로 370번지 57-51']);
-  rows.push(['','참      조 :','','','','','','','남동공단 35블럭7롯트 신원 휄트 내 5동']);
-  rows.push(['','F   a   x :','','','','','','','TEL  032) 821-0247~8  FAX  032) 821-0249']);
-  rows.push([]);
-  rows.push(['', o.title]);
-  rows.push([]);
-  const hasClient=!!o.client;
-  const hdr=['','NO','품       명','','규       격','','','수량','납기','비고'];
-  if(hasClient) hdr.push('업체명');
-  rows.push(hdr);
+  const R=n=>{ const a=[]; for(let i=0;i<13;i++) a.push(''); return a; };
+  const put=(r,c,v)=>{ rows[r-1][c-1]=v; };
+  for(let i=0;i<11;i++) rows.push(R());
+
+  put(2,4,'발 주 서 (PURCHASE ORDER)');
+  put(4,2,'수      신 :');   put(4,4,o.vendor);              put(4,7,'㈜ 와이비 앤 디 YB & D');
+  put(5,2,'발 주  일 :');   put(5,4,odShortDate(o.date));   put(5,7,'인천시 남동구  남동대로 370번지 57-51');
+  put(6,2,'참      조 :');                                   put(6,7,'남동공단 35블럭7롯트 신원 휄트 내 5동');
+  put(7,2,'F   a   x :');                                    put(7,7,'TEL 032) 821-0247~8  FAX 032) 821-0249');
+  put(8,7,'결재'); put(8,8,'담당'); put(8,9,'차장'); put(8,10,'이사'); put(8,11,'사장');
+  const part = odTitleParts(o);
+  put(9,2,part.title);       put(9,6,part.bigo);             // ← 불러오기가 B9 에서 종류를 읽습니다
+  put(11,2,'NO'); put(11,3,'품       명'); put(11,6,'규       격');
+  put(11,10,'수량'); put(11,11,'납기'); put(11,12,'비고'); put(11,13,'업체명');
+
   let tot=0;
   o.items.forEach((it,i)=>{
     tot+=it.qty;
-    const r=['',i+1,it.pname,'',(it.w&&it.h)?`${it.w}*${it.h}`:'','','',it.qty,o.due,it.bigo];
-    if(hasClient) r.push(o.client);
+    const r=R();
+    r[1]=i+1; r[2]=it.pname||''; r[5]=(it.w&&it.h)?`${it.w}×${it.h}`:'';
+    r[9]=it.qty; r[10]=o.due||''; r[11]=it.bigo||''; r[12]=o.client||'';
     rows.push(r);
   });
-  rows.push([]);
-  rows.push(['','총 수량','','','','','',tot]);
+  // 엑셀 양식처럼 빈 줄을 채웁니다 — 표 모양이 늘 같도록
+  for(let i=o.items.length;i<OD_CAP_MIN_ROWS;i++){ const r=R(); r[1]=i+1; rows.push(r); }
+  const f=R(); f[1]='총 수량'; f[9]=tot; rows.push(f);
   return rows;
 }
 
@@ -12511,31 +12521,68 @@ function odMakeExcel(){
 }
 
 // ── 카톡용 이미지: 발주서를 HTML 표로 그려 클립보드에 복사 ──
+/* 엑셀 양식의 종류 박스는 두 칸입니다 — [3.2백사틴][각면/강화].
+   그런데 발주서를 불러온 건은 둘이 붙어 '3.2백사틴 각면/강화' 한 덩어리로 들어옵니다.
+   가공 표기(각면/강화 · 휠/반강화 · 각면/후면시트지)는 모두 '/' 를 품고 있으므로,
+   끝에 붙은 '/' 토막을 떼어 오른쪽 칸으로 보냅니다. */
+function odTitleParts(o){
+  let title=String(o.title||o.type||'').trim();
+  let bigo =String(o.bigo||'').trim();
+  if(bigo && title.endsWith(bigo)) title=title.slice(0, -bigo.length).trim();
+  if(!bigo){
+    const m=title.match(/^(.*?)\s+(\S*\/\S*)$/);     // 끝 토막에 '/' 가 있을 때만
+    if(m){ title=m[1].trim(); bigo=m[2]; }
+  }
+  return { title, bigo };
+}
+
+/* 엑셀 양식은 연도를 두 자리로 적습니다 — 26-09-15 (사장님 양식 2026-09-15 확인) */
+function odShortDate(d){
+  const s=String(d||'');
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? (m[1].slice(2)+'-'+m[2]+'-'+m[3]) : s;
+}
+
+/* 카톡용 발주서 — 우리 엑셀 양식을 그대로 옮긴 것입니다 (사장님 2026-09-15).
+   엑셀과 달랐던 자리 넷을 맞췄습니다:
+     ① 종류·비고를 가운데 한 줄이 아니라 왼쪽 두 칸 박스로 (3.2백사틴 | 각면/강화)
+     ② 발주일을 두 자리 연도로 (26-09-15)
+     ③ 규격 구분자를 × 로 (엑셀은 595×507)
+     ④ 업체명 칸을 늘 두고, 품목이 적으면 빈 줄을 채워 표 높이를 맞춤
+   빈 줄 수는 OD_CAP_MIN_ROWS 한 곳에서 정합니다. 0 으로 두면 빈 줄 없이 나옵니다. */
+const OD_CAP_MIN_ROWS = 12;
+
 function odRenderCapture(o){
   const tot=o.items.reduce((s,it)=>s+it.qty,0);
-  const hasClient=!!o.client;
+  const part = odTitleParts(o);
   const host=document.getElementById('od-capture-host');
   const td='border:1px solid #333;padding:7px';
   const rowsHtml=o.items.map((it,i)=>`
     <tr>
       <td style="${td}">${i+1}</td>
       <td style="${td}">${it.pname||''}</td>
-      <td style="${td};font-weight:700">${(it.w&&it.h)?`${it.w}*${it.h}`:''}</td>
+      <td style="${td};font-weight:700">${(it.w&&it.h)?`${it.w}×${it.h}`:''}</td>
       <td style="${td};font-weight:700">${it.qty}</td>
       <td style="${td}">${o.due||''}</td>
       <td style="${td}">${it.bigo||''}</td>
-      ${hasClient?`<td style="${td}">${o.client}</td>`:''}
+      <td style="${td}">${o.client||''}</td>
     </tr>`).join('');
-  const titleLine=o.thick?`${o.title}`:o.title;
+  // 엑셀은 빈 줄이 미리 그려져 있습니다. 품목이 적어도 표 모양이 같도록 채웁니다.
+  let fillHtml='';
+  for(let i=o.items.length; i<OD_CAP_MIN_ROWS; i++){
+    fillHtml+=`<tr><td style="${td}">${i+1}</td>`+
+      `<td style="${td}">&nbsp;</td><td style="${td}">&nbsp;</td><td style="${td}">&nbsp;</td>`+
+      `<td style="${td}">&nbsp;</td><td style="${td}">&nbsp;</td><td style="${td}">&nbsp;</td></tr>`;
+  }
   host.innerHTML=`
    <div id="od-capture" style="width:720px;padding:28px 32px;background:#fff;color:#111;font-family:'Noto Sans KR',sans-serif">
      <div style="text-align:center;font-size:26px;font-weight:900;letter-spacing:6px;margin-bottom:18px">발 주 서 (PURCHASE ORDER)</div>
      <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:14px;line-height:1.9">
        <div>
          <div><b>수　신 :</b> ${o.vendor}</div>
-         <div><b>발주일 :</b> ${o.date}</div>
+         <div><b>발 주 일 :</b> ${odShortDate(o.date)}</div>
          <div><b>참　조 :</b> </div>
-         <div><b>Fax　 :</b> </div>
+         <div><b>F a x :</b> </div>
        </div>
        <div style="text-align:right">
          <div style="font-size:18px;font-weight:800">㈜ 와이비 앤 디 YB & D</div>
@@ -12561,7 +12608,12 @@ function odRenderCapture(o){
          </div>
        </div>
      </div>
-     <div style="font-size:20px;font-weight:700;text-align:center;margin:6px 0 12px">${titleLine}</div>
+     <table style="border-collapse:collapse;font-size:17px;font-weight:700;text-align:center;margin:10px 0 0">
+       <tr>
+         <td style="${td};padding:9px 0;width:248px">${part.title}</td>
+         <td style="${td};padding:9px 0;width:200px">${part.bigo}</td>
+       </tr>
+     </table>
      <table style="width:100%;border-collapse:collapse;font-size:15px;text-align:center">
        <thead>
          <tr style="background:#f0f0f0">
@@ -12571,15 +12623,15 @@ function odRenderCapture(o){
            <th style="${td};width:64px">수량</th>
            <th style="${td};width:90px">납기</th>
            <th style="${td}">비고</th>
-           ${hasClient?`<th style="${td}">업체명</th>`:''}
+           <th style="${td};width:86px">업체명</th>
          </tr>
        </thead>
-       <tbody>${rowsHtml}</tbody>
+       <tbody>${rowsHtml}${fillHtml}</tbody>
        <tfoot>
          <tr style="background:#f7f7f7;font-weight:800">
            <td style="${td}" colspan="3">총 수량</td>
            <td style="${td}">${tot}</td>
-           <td style="${td}" colspan="${hasClient?3:2}"></td>
+           <td style="${td}" colspan="3"></td>
          </tr>
        </tfoot>
      </table>
@@ -12616,8 +12668,21 @@ function odExcelSaved(orderId){
 
 // 엑셀 한 부를 만들어 내려받습니다 — 새로 쓰는 쪽과 리스트 쪽이 같이 씁니다
 function odWriteExcel(o){
-  const ws=XLSX.utils.aoa_to_sheet(odBuildAOA(o));
-  ws['!cols']=[{wch:3},{wch:11},{wch:11},{wch:11},{wch:11},{wch:8},{wch:4},{wch:7},{wch:11},{wch:14},{wch:10}];
+  const aoa=odBuildAOA(o);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  //        A      B(NO)   C(품명)  D       E       F(규격)  G      H      I      J(수량) K(납기)  L(비고)  M(업체명)
+  ws['!cols']=[{wch:2},{wch:5},{wch:14},{wch:7},{wch:7},{wch:9},{wch:5},{wch:5},{wch:5},{wch:6},{wch:8},{wch:11},{wch:10}];
+  // 합친 칸 — 엑셀 양식과 같은 모양이 되게 합니다 (품명 C~E · 규격 F~I)
+  const mg=[];
+  mg.push({s:{r:1,c:3},e:{r:1,c:9}});                       // 제목
+  [3,4,5,6].forEach(r=>{ mg.push({s:{r,c:3},e:{r,c:5}}); mg.push({s:{r,c:6},e:{r,c:12}}); });
+  mg.push({s:{r:8,c:1},e:{r:8,c:4}});                       // 종류
+  mg.push({s:{r:8,c:5},e:{r:8,c:8}});                       // 비고(각면/강화)
+  for(let r=10; r<aoa.length; r++){                          // 표 머리 + 품목 + 총수량
+    mg.push({s:{r,c:2},e:{r,c:4}});
+    mg.push({s:{r,c:5},e:{r,c:8}});
+  }
+  ws['!merges']=mg;
   const wb=XLSX.utils.book_new();
   const safeName=`${o.vendor}(${o.type||''})`.replace(/[\\\/\*\?\[\]:]/g,'').slice(0,31) || '발주서';
   XLSX.utils.book_append_sheet(wb,ws,safeName);
@@ -12699,7 +12764,7 @@ function odSaveOrder(){
   const order={
     id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
     vendor:o.vendor, type:o.type, thick:o.thick||'', title:o.title,
-    date:o.date, due:o.due, client:o.client,
+    date:o.date, due:o.due, client:o.client, bigo:o.bigo||'',
     createdAt:new Date().toISOString(),
     by:getActor()||'',
     items:o.items.map(it=>({...it, received:false, recvAt:null, eventId:null}))
