@@ -2244,18 +2244,28 @@ function ybnImport(){
   if(ybnPickDate) docs = docs.filter(d => (d.orderDate || '') === ybnPickDate);
   if(!docs.length){ alert('가져올 납품서가 없습니다.'); return; }
 
-  // 이미 들어와 있는 납품번호는 건너뜁니다 — 두 번 눌러도 부풀지 않게
-  const have = new Set(ROWS.map(r => r.delivNo).filter(Boolean));
-  let added = 0, dup = 0, skipped = [];
-  const newRows = [];
+  /* 이미 들어와 있는 납품번호는 건너뜁니다 — 두 번 눌러도 부풀지 않게.
+     ⚠ 예전에는 **왜 안 들어왔는지 말해 주지 않았습니다.** 비규격이 하나도 없는
+        납품서는 조용히 빠지고, 이미 있는 것은 건수만 적혀서
+        "가져왔는데 미리보기에 안 따라온다"는 말을 들었습니다(2026-09-16).
+        이제 건마다 까닭을 모아 화면에 적습니다. */
+  const have = {};
+  ROWS.forEach(r => { if(r.delivNo && !have[r.delivNo]) have[r.delivNo] = r; });
+  let added = 0, skipped = [];
+  const newRows = [], dupList = [], emptyList = [];
   docs.forEach(d => {
-    if(have.has(d.delivNo)){ dup++; return; }
+    if(have[d.delivNo]){
+      const old = have[d.delivNo];
+      dupList.push({ no:d.delivNo, at:chkOrderDate(old) });
+      return;
+    }
     const r = ybnDocToRows(d);
-    if(!r.rows.length) return;
+    if(!r.rows.length){ emptyList.push(d.delivNo); return; }
     r.rows.forEach(x => newRows.push(x));
     skipped = skipped.concat(r.skipped);
     added++;
   });
+  const dup = dupList.length;
 
   /* 한 번에 많이 들어올 때는 먼저 여쭙니다 (2026-09-15).
      '전체'를 누르면 앱에 쌓인 6개월치가 통째로 들어옵니다. 지난 것까지
@@ -2267,12 +2277,22 @@ function ybnImport(){
       '보통은 위에서 **발주일을 고르고** 그 날짜만 가져오시는 편이 좋습니다.\n\n' +
       '그래도 다 가져올까요?')) return;
   if(!newRows.length){
-    setStatus('가져올 새 납품서가 없습니다' + (dup ? ' · 이미 있는 것 ' + dup + '건' : ''));
+    /* 왜 한 줄도 안 들어왔는지 적습니다. 건수만 적으면 사장님이 알 수 없습니다. */
+    const bits = [];
+    if(dup){
+      const at = [...new Set(dupList.map(x => x.at))];
+      bits.push('이미 들어와 있는 것 ' + dup + '건' +
+        (at.length ? ' (미리보기의 발주 ' + at.join(' · ') + ' 밑에 있습니다)' : ''));
+    }
+    if(emptyList.length) bits.push('비규격이 없어 건너뛴 것 ' + emptyList.length + '건');
+    setStatus('가져올 새 납품서가 없습니다' + (bits.length ? ' — ' + bits.join(' · ') : '') + '.');
+    console.warn('[앱에서 가져오기] 안 들어온 까닭', { 이미있음:dupList, 비규격없음:emptyList });
     return;
   }
   newRows.forEach(x => ROWS.push(x));
   let msg = '🔗 앱에서 ' + added + '건 가져옴 · 비규격 ' + newRows.reduce((s, x) => s + (x.qty || 1), 0) + '장';
   if(dup) msg += ' · 이미 있던 것 ' + dup + '건 건너뜀';
+  if(emptyList.length) msg += ' · 비규격 없어 건너뜀 ' + emptyList.length + '건';
   if(skipped.length) msg += ' · ⚠ 규격 못 읽음 ' + skipped.length + '건';
   setStatus(msg);
   if(skipped.length) console.warn('[앱에서 가져오기] 규격을 못 읽은 품목:', skipped);
