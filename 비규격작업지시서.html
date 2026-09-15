@@ -1504,14 +1504,159 @@ const SPLIT={
   BD2R:{HD:[{label:'상마이다',v:380,n:1},{label:'하마이다',v:380,n:1}],OB:[{label:'상마이다',v:350,n:1},{label:'하마이다',v:350,n:1}]},
 };
 
-/* 구형(사하라·미드나잇) 정규격 사이즈표 — 모델번호 → 프레임·유리 재단.
+/* 구형(사하라·미드나잇·포레스트·화이트) 정규격 사이즈표 — 약어+번호 → 프레임.
    구형은 프레임 자체가 달라 표준 계산이 안 통한다. 여기 등록된 것만 작업지시서에 태운다.
-   ※ 값은 사용자가 실측표로 채운다. 지금은 오늘분(6062)만. 없는 모델은 태우지 않고 건너뛴다. */
-// fw/fh=프레임, gw/gh=유리.  mokdae=이 도어에 딸려 들어가는 목대마이다 개수(사이즈는 별도·미정).
+
+   ■ 출처: 「메인 작업양식/EO700_그레이스_규격_드림하이텍(210423) 구형모델
+     사하라_미드나잇_포레스트_화이트.xlsx」 의 **700규격** 시트 (2026-09-15 이식).
+     시트의 '제품 사이즈(SizeH×SizeV)' 가 곧 **프레임**이다 (= 납품 −5 × −4).
+     유리는 **프레임 −4 × −4** — 시트 111줄 전부가 이 관계와 일치한다(어긋난 줄 0).
+     그래서 유리값은 적어 두지 않고 계산해 쓴다. 숫자를 두 곳에 두면 어긋난다.
+
+   ■ ⚠ 키는 반드시 **약어+번호**다. 번호만 쓰면 6군데가 충돌한다 —
+     6091 만 해도 BAD 595×586 · BD3U 595×173 · BLD1R 595×250 · BD2R 595×350.
+     예전에는 번호만으로 잡고 있었다(등록된 것이 2줄뿐이라 드러나지 않았을 뿐). */
 const OLD_STD_SIZE={
-  '6062':{fw:595, fh:350, gw:591, gh:346, mokdae:2},  // BLD2R 6062: 유리도어1 + 목대마이다2(사이즈 미정)
-  '3565':{fw:345, fh:652, gw:341, gh:648}             // WU 3565 (2026-07-23 등록)
+  'BAD 6091':{fw:595, fh:586},
+  'BD2R 12091':{fw:1195, fh:350},
+  'BD2R 6091':{fw:595, fh:350},
+  'BD2R 9091':{fw:895, fh:350},
+  'BD3U 4591':{fw:445, fh:173},
+  'BD3U 6091':{fw:595, fh:173},
+  'BDI1R 4591':{fw:445, fh:732},
+  'BLD1R 4591':{fw:445, fh:250},
+  'BLD1R 6091':{fw:595, fh:250},
+  'BLD1UA 4591':{fw:445, fh:250},
+  'BLD1UA 6091':{fw:595, fh:250},
+  'BLD2R 6062':{fw:595, fh:350, mokdae:2},   // 유리도어1 + 목대마이다2(사이즈 별도)
+  'BLDA 6015':{fw:595, fh:151},
+  'BNDB2N 2091':{fw:195, fh:732},
+  'BNDC2N 3091':{fw:295, fh:732},
+  'BRO1R 6091':{fw:595, fh:250},
+  'BRWTI 6091':{fw:595, fh:350},
+  'BTARG 6070':{fw:592, fh:696},
+  'BUIF 3034':{fw:296, fh:348},
+  'M 2073':{fw:195, fh:732},
+  'M 2086':{fw:195, fh:860},
+  'M 2573':{fw:245, fh:732},
+  'M 2586':{fw:245, fh:860},
+  'M 3065':{fw:295, fh:652},
+  'M 3073':{fw:295, fh:732},
+  'M 3086':{fw:295, fh:860},
+  'M 3565':{fw:345, fh:652},
+  'M 3573':{fw:345, fh:732},
+  'M 3586':{fw:345, fh:860},
+  'M 4065':{fw:395, fh:652},
+  'M 4073':{fw:395, fh:732},
+  'M 4086':{fw:395, fh:860},
+  'M 4565':{fw:445, fh:652},
+  'M 4573':{fw:445, fh:732},
+  'M 4586':{fw:445, fh:860},
+  'M 5065':{fw:495, fh:652},
+  'M 5073':{fw:495, fh:732},
+  'M 5086':{fw:495, fh:860},
+  'M 5573':{fw:545, fh:732},
+  'M 5586':{fw:545, fh:860},
+  'M 6052':{fw:595, fh:516},
+  'M 6073':{fw:595, fh:732},
+  'M 6086':{fw:595, fh:860},
+  'W2U 4042':{fw:395, fh:420},
+  'W2U 4542':{fw:445, fh:420},
+  'WF 10037':{fw:995, fh:372},
+  'WF 6030':{fw:595, fh:305},
+  'WF 6043':{fw:595, fh:433},
+  'WF 8037':{fw:795, fh:372},
+  'WF 8044':{fw:795, fh:436},
+  'WF 9033':{fw:895, fh:332},
+  'WF 9037':{fw:895, fh:372},
+  'WF 9044':{fw:895, fh:436},
+  'WFED 10053':{fw:995, fh:532},
+  'WFED 6053':{fw:595, fh:532},
+  'WFED 7053':{fw:695, fh:532},
+  'WFED 8053':{fw:795, fh:532},
+  'WFED 9053':{fw:895, fh:532},
+  'WFMD 6035':{fw:595, fh:352},
+  'WFMD 6048':{fw:595, fh:480},
+  'WFMD 9035':{fw:895, fh:352},
+  'WFMD 9048':{fw:895, fh:480},
+  'WFUP 10032':{fw:995, fh:316},
+  'WFUP 10036':{fw:995, fh:356},
+  'WFUP 8032':{fw:795, fh:316},
+  'WFUP 8036':{fw:795, fh:356},
+  'WFUP 9032':{fw:895, fh:316},
+  'WFUP 9036':{fw:895, fh:356},
+  'WHFM 6027':{fw:595, fh:272},
+  'WHFM 9027':{fw:895, fh:272},
+  'WHM 6061':{fw:595, fh:606},
+  'WHMH 6065':{fw:595, fh:652},
+  'WHMH 6073':{fw:595, fh:732},
+  'WLDL 6051':{fw:595, fh:510},
+  'WLDL 9051':{fw:895, fh:510},
+  'WMLDT 4583':{fw:445, fh:830},
+  'WMLDT 4596':{fw:445, fh:958},
+  'WMLDT 6083':{fw:595, fh:830},
+  'WMLDT 6096':{fw:595, fh:958},
+  'WRMB 10033':{fw:995, fh:327},
+  'WRMB 10045':{fw:995, fh:455},
+  'WRMB 4735':{fw:465, fh:352},
+  'WRMB 4748':{fw:465, fh:480},
+  'WRMB 6135':{fw:605, fh:352},
+  'WRMB 6148':{fw:605, fh:480},
+  'WRMB 7135':{fw:710, fh:352},
+  'WRMB 7148':{fw:710, fh:480},
+  'WRMB 8033':{fw:795, fh:327},
+  'WRMB 8045':{fw:795, fh:455},
+  'WRMB 9335':{fw:925, fh:352},
+  'WRMB 9348':{fw:925, fh:480},
+  'WRMB 9533':{fw:945, fh:327},
+  'WRMB 9545':{fw:945, fh:455},
+  'WRMBS 10035':{fw:995, fh:352},
+  'WRMBS 10048':{fw:995, fh:480},
+  'WRMBS 8035':{fw:795, fh:352},
+  'WRMBS 8048':{fw:795, fh:480},
+  'WRMBS 9035':{fw:895, fh:352},
+  'WRMBS 9048':{fw:895, fh:480},
+  'WT 30134':{fw:295, fh:1345},
+  'WT 30147':{fw:295, fh:1473},
+  'WT 40134':{fw:395, fh:1345},
+  'WT 40147':{fw:395, fh:1473},
+  'WT 45134':{fw:445, fh:1345},
+  'WT 45147':{fw:445, fh:1473},
+  'WT 60134':{fw:595, fh:1345},
+  'WT 60147':{fw:595, fh:1473},
+  'WTARG 60141':{fw:592, fh:1413},
+  'WTARG 60154':{fw:592, fh:1541},
+  'WTP 60134':{fw:595, fh:1345},
+  'WTP 60147':{fw:595, fh:1473}
 };
+
+/* 약어+번호로 찾아 프레임·유리를 돌려준다. 유리는 늘 프레임 −4 × −4 로 계산한다.
+   번호만으로도 한 번 더 찾아본다 — 옛 기록이 '6062' 처럼 번호만 들고 있을 수 있다.
+   그때는 그 번호를 쓰는 약어가 하나뿐일 때만 쓴다(여럿이면 어느 것인지 알 수 없다). */
+let _oldByNum=null;
+function oldStdOf(abbr, num){
+  const hit = (abbr && num) ? OLD_STD_SIZE[abbr+' '+num] : null;
+  let s = hit;
+  if(!s && num){
+    if(!_oldByNum){
+      _oldByNum={};
+      Object.keys(OLD_STD_SIZE).forEach(k=>{
+        const n=k.split(' ')[1];
+        (_oldByNum[n]=_oldByNum[n]||[]).push(OLD_STD_SIZE[k]);
+      });
+    }
+    const list=_oldByNum[num]||[];
+    const uniq=[...new Set(list.map(x=>x.fw+'x'+x.fh))];
+    if(list.length && uniq.length===1) s=list[0];      // 값이 하나로 모이면 써도 된다
+  }
+  if(!s) return null;
+  return { fw:s.fw, fh:s.fh, gw:s.fw-4, gh:s.fh-4, mokdae:s.mokdae };
+}
+/* 'M 3073' 처럼 붙여 둔 이름으로 다시 찾는다. 옛 기록의 '6062'(번호만)도 받는다. */
+function oldStdFromModel(model){
+  const p=String(model||'').trim().split(/\s+/);
+  return p.length>1 ? oldStdOf(p[0],p[1]) : oldStdOf('',p[0]);
+}
 
 /* ════════════════════════════════════════════════
    2. 날짜 유틸 (옛 파일)
@@ -1571,11 +1716,24 @@ function asmNoteFor(short){
 // 구형 유로700(사하라·미드나잇 등): 프레임은 신형과 같은데(−5×−4) 유리 재단만 다르다(−4×−4).
 //   r.old 가 명시돼 있으면 그 값을, 없으면 색상·제품명으로 구형 색을 자동 감지한다.
 //   (확인·수정 미리보기에서 체크로 켜고 끌 수 있다)
+/* 구형 4색 — 사하라 · 미드나잇 · 포레스트 · 화이트 (사장님 확정 2026-09-15).
+   ⚠ '화이트'는 신형 'Off WH'(오프화이트)와 헷갈립니다. 구형 라인 표기인
+      'Grace White' 만 구형으로 봅니다 — 'Off WH' 를 구형으로 잡으면
+      신형 오프화이트가 통째로 구형 계산으로 넘어갑니다.
+   제품코드가 있으면 그쪽이 더 정확합니다 — 구형은 MRT*(사하라) · MRS*(포레스트)
+   처럼 MR 로 시작합니다. 이름 표기가 흔들려도 코드는 흔들리지 않습니다. */
+const OLD_COLOR_RE=/사하라|미드나잇|포레스트|sahara|midnight|forest|grace\s*white|그레이스\s*화이트/i;
+const OLD_CODE_RE =/^MR/i;
+function isOldText(s, code){
+  if(code && OLD_CODE_RE.test(String(code).trim())) return true;
+  return OLD_COLOR_RE.test(String(s||''));
+}
+
 function isOldFrame(r){
   if(!r || r.euro) return false;   // EURO500은 알판이라 '유리 −4×−4' 규칙과 무관
   if(r.old!==undefined) return !!r.old;
   const s=(r.color||'')+' '+(r.name||'')+' '+(r.short||'');
-  return /사하라|미드나잇|sahara|midnight/i.test(s);
+  return isOldText(s, r.prodCode);
 }
 
 /* WHBT 힌지 구간표 — 장(납품서) 세로 기준. mid = 상부변환 아래에 들어가는 고정 구간들.
@@ -1613,7 +1771,7 @@ function calc(r){
   // 구형 정규격: 사이즈표에 등록된 프레임·유리를 그대로 쓴다(표준 계산·마이다 분할 건너뜀).
   if(r.oldStd){
     // 사이즈표를 즉석에서 다시 본다(최신). 표를 고치면 다시 올리지 않아도 [생성]에 반영됨.
-    const s = OLD_STD_SIZE[r.oldStd.model] || r.oldStd;
+    const s = oldStdFromModel(r.oldStd.model) || r.oldStd;
     const mk = s.mokdae ? ` · 목대마이다 ${s.mokdae}개 별도(사이즈 확인)` : '';
     return {fw:s.fw, fh:s.fh,
       glass:[{label:'유리', gw:s.gw, gh:s.gh, n:1}],
@@ -2344,6 +2502,7 @@ const COLOR_KO_BUILTIN=[
   [/graphite/i,'그라파이트'],[/charcoal/i,'차콜'],
   [/sahara|사하라/i,'사하라'],       // 구형색 — 연한 살구색
   [/midnight|미드나잇/i,'미드나잇'],  // 구형색 — 연한 남색
+  [/forest|포레스트/i,'포레스트'],    // 구형색 — 연한 초록 (2026-09-15 추가)
   [/black|블랙/i,'블랙'],[/white|화이트/i,'화이트'],
   [/grey|gray|그레이/i,'그레이'],[/sand|샌드/i,'샌드']
 ];
@@ -2395,6 +2554,7 @@ const COLOR_CHIP={
   '에토프'    :['#fadcae','#e9b877','#6b3a06'],  // 오렌지 톤
   '사하라'    :['#fbe3d0','#f0c5a4','#7a4622'],  // 연한 살구색 (구형색)
   '미드나잇'  :['#dbe0ee','#b6c0da','#26304e'],  // 연한 남색 (구형색)
+  '포레스트'  :['#dde8dc','#b4c9b3','#22402a'],  // 연한 초록 (구형색) — 쉐이드보다 차분하게
   '브리즈'    :['#e5e8ec','#c8ced6','#2f3742'],  // 연회색
   '쉐이드'    :['#d9edd3','#aed3a4','#204a19'],  // 연초록
   '브론즈'    :['#e8d5bd','#cfb392','#573413'],
@@ -2550,10 +2710,15 @@ async function handleFiles(files){
         // it.euro 는 '어느 페이지로 보낼지' 표시일 뿐, 수집 여부와 무관.
         let oldStd=null;
         if(!it.isBig){
-          const oc=/사하라|미드나잇|sahara|midnight/i.test(nameAll+' '+(it.color||''));
-          const mm=nameAll.match(/(\d{3,4})\s*M\b/);
-          const model=(oc&&mm)?mm[1]:'';
-          if(model && OLD_STD_SIZE[model]) oldStd={model, ...OLD_STD_SIZE[model]};
+          const oc=isOldText(nameAll+' '+(it.color||''), it.code);
+          // 약어+번호로 찾는다 — 번호만으로는 6091 처럼 약어마다 사이즈가 갈린다.
+          // 번호는 '약어 바로 뒤의 숫자'다: 'CH M 3073( 공용 ) M' → M + 3073
+          const ab=codeFromShort(it.short)||codeFromShort(it.name);
+          let num='';
+          if(ab){ const m2=nameAll.match(new RegExp('\\b'+ab+'\\s+(\\d{3,5})')); if(m2) num=m2[1]; }
+          if(!num){ const m3=nameAll.match(/(\d{3,5})\s*\(?\s*공용/) || nameAll.match(/(\d{3,4})\s*M\b/); if(m3) num=m3[1]; }
+          const s=oc ? oldStdOf(ab, num) : null;
+          if(s) oldStd={model:(ab?ab+' ':'')+num, ...s};
           else { if(oc) oldStdMissing++; continue; }   // 구형인데 사이즈 미등록이면 세어만 둔다
         }
         bigN+=it.qty;
@@ -4159,7 +4324,7 @@ function generate(){
       // 왼쪽 칸에는 도면만 남아 한 줄로 쫙 맞고, 오른쪽은 [약어 → 내용 → 사이즈] 순으로 읽힌다.
       const cntAll=list.reduce((s,r)=>s+(r.qty||1),0);
       // 목대마이다(딸림 부재) 안내 — 사이즈표를 즉석에서 다시 봐서 개수 확인(다시 올릴 필요 없음).
-      const mkCnt = (rep.oldStd && OLD_STD_SIZE[rep.oldStd.model]) ? (OLD_STD_SIZE[rep.oldStd.model].mokdae||0) : 0;
+      const mkCnt = rep.oldStd ? ((oldStdFromModel(rep.oldStd.model)||{}).mokdae||0) : 0;
       const mokdaeNote = mkCnt
         ? `<div class="mokdae-note">🪵 목대마이다 ${mkCnt}개 별도 · 사이즈 확인 필요</div>`
         : '';
