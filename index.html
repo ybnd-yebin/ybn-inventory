@@ -16232,6 +16232,21 @@ function etpLrSizes(){
 // ── 장부 집계 ────────────────────────────────────────────────────────
 function etpRows(){ return etpLedger.filter(r => r && r.id && !etpDeleted[r.id]); }
 
+/* 비규격만 오간 사이즈. 「한 달에 몇 장 쓰는지」를 물으면 안 되는 자리입니다 —
+   비규격은 건별 발주라 그 치수가 다시 올 일이 없기 때문입니다.
+   같은 치수로 정규격도 오간 적이 있으면 빼지 않습니다(그때는 진짜 물어야 합니다). */
+var _etpNsCache = null, _etpNsKey = '';
+function etpNonStdSizes(){
+  // 줄마다 불리는 자리라 장부가 그대로면 앞서 센 것을 씁니다
+  const key = etpLedger.length + '|' + Object.keys(etpDeleted).length;
+  if(_etpNsCache && _etpNsKey === key) return _etpNsCache;
+  const yes = {}, no = {};
+  etpRows().forEach(r => { (r.nonstd ? yes : no)[r.size] = 1; });
+  Object.keys(no).forEach(s => { delete yes[s]; });
+  _etpNsCache = yes; _etpNsKey = key;
+  return yes;
+}
+
 function etpStockMap(){
   const m = {};
   const take = s => (m[s] || (m[s] = { size:s, in:0, out:0, adj:0, cur:0 }));
@@ -16263,6 +16278,9 @@ function etpSafetyOf(size){
   if(etpSafetyOvr && etpSafetyOvr[size] != null){
     return { n: Math.max(0, Number(etpSafetyOvr[size]) || 0), manual:true };
   }
+  /* 비규격은 채워둘 양이 없습니다 — 그 치수가 다시 올 일이 없기 때문입니다.
+     하한 3장을 그대로 두면 받은 즉시 '부족'으로 잡혀 발주 초안에 올라갑니다. */
+  if(etpNonStdSizes()[size]) return { n:0, manual:false };
   const avg = etpAvgOf(size);
   return { n: Math.max(ETP_SAFETY_MIN, Math.round(avg / ETP_BIZ_PER_M * etpSafetyDays)), manual:false };
 }
@@ -16300,6 +16318,7 @@ function etpOpenQtyOf(size){
    장부에만 있는 사이즈(마스터에 없는 새 사이즈)도 빠짐없이 나오게 하려는 것입니다. */
 function etpBuildRows(){
   const stock = etpStockMap();
+  const ns = etpNonStdSizes();          // 비규격만 오간 사이즈 — 월평균을 묻지 않습니다
   const seen = {};
   const out = [];
   const push = size => {
@@ -16318,7 +16337,8 @@ function etpBuildRows(){
       onOrder: etpOpenQtyOf(size),
       short: st.cur < sf.n,
       over:  st.cur >= sf.n && ((cov != null && cov > ETP_OVER_COVER) || (avg <= 0 && st.cur > 0)),
-      noMaster: !etpInMaster(size),
+      noMaster: !etpInMaster(size) && !ns[size],
+      nonstd: !!ns[size],
       avgSet: !!(typeof etpAvgOvr !== 'undefined' && etpAvgOvr && etpAvgOvr[size] != null),
       noBom:    !etpInBom(size),
       lr: etpKeyLr(size),
@@ -16572,6 +16592,70 @@ function etpSeedOnce(){
   return ETP_SEED.length;
 }
 
+/* ── 이어 받은 인수증 심기 ────────────────────────────────────────────
+   첫 입고(ETP_SEED) 뒤로 들어오는 인수증은 여기에 한 벌씩 더합니다.
+   표식(flag)은 건마다 따로 둡니다 — 하나로 두면 앞 것이 이미 들어간
+   기기에서 뒤에 더한 것이 영영 안 들어갑니다(발주 시드와 같은 이유).
+   id 를 고정해 두어야 다른 기기와 합칠 때 같은 줄이 두 벌로 늘지 않습니다.
+
+   ■ 2026-09-14 현성 인수증 두 장 (9/15 인수) — 모두 55장
+     정규격 44장 · 비규격 11장. 합계 평(115.72 · 35.18)으로 판독을 맞췄습니다.
+     · 정규격 4품목은 발주일이 09/09 인데 앱에 그 발주 기록이 없습니다.
+       발주서를 받으면 po 를 이어 붙입니다 (확인대기 A5).
+     · 비규격은 건별 발주라 자동차감 대상이 아닙니다(etpExpandDoc 참고).
+       그대로 두면 재고에 영영 남으므로 들어온 날 그대로 빼서 0으로 둡니다
+       (사장님 확정 2026-09-15). 받은 기록은 입고 줄로 남습니다.            */
+const ETP_IN_260915 = {
+  flag:'etpInSeed260915', idBase:'etp_i260915_',
+  d:'2026-09-15', src:'현성 인수증 26.09.14',
+  stdMemo:'정규격 · 발주 09/09',
+  std:[                                    // 정규격 44장
+    { size:'345x761', qty:11 },
+    { size:'445x247', qty:11 },
+    { size:'710x351', qty:11 },
+    { size:'925x351', qty:11 }
+  ],
+  non:[                                    // 비규격 11장 — 입고와 동시에 소진
+    { size:'345x759', qty:1, od:'09/08' },
+    { size:'415x761', qty:2, od:'09/11' },
+    { size:'410x729', qty:4, od:'09/11' },
+    { size:'365x729', qty:1, od:'09/11' },
+    { size:'335x729', qty:1, od:'09/11' },
+    { size:'895x326', qty:1, od:'09/11' },
+    { size:'845x326', qty:1, od:'09/11' }
+  ]
+};
+
+function etpSeedIn(seed){
+  if(etpLoad(seed.flag, false)) return 0;
+  const have = {};
+  (etpLedger || []).forEach(r => { if(r && r.id) have[r.id] = true; });
+  const ts = new Date().toISOString();
+  let rows = 0, got = 0;
+  const push = (id, o) => {
+    if(have[id] || etpDeleted[id]) return;   // 이미 있거나 지우신 줄은 되살리지 않습니다
+    etpLedger.push(Object.assign({
+      id, d:seed.d, t:'in', size:'', qty:0, src:seed.src,
+      po:'', poId:'', reason:'', memo:'', ts, at:ts, by:'시드'
+    }, o));
+    rows++;
+    if(o.t === 'in') got += Number(o.qty) || 0;
+  };
+  let i = 0;
+  (seed.std || []).forEach(x => push(seed.idBase + String(++i).padStart(2, '0'),
+    { t:'in', size:x.size, qty:x.qty, memo:seed.stdMemo || '' }));
+  (seed.non || []).forEach(x => push(seed.idBase + String(++i).padStart(2, '0'),
+    { t:'in', size:x.size, qty:x.qty, nonstd:true, memo:'비규격 · 발주 ' + (x.od || '—') }));
+  (seed.non || []).forEach((x, k) => push(seed.idBase + 'out' + String(k + 1).padStart(2, '0'),
+    { t:'out', size:x.size, qty:x.qty, nonstd:true, reason:'비규격 소진',
+      memo:'비규격은 건별 발주라 들어온 날 그대로 나갑니다' }));
+  etpStore(seed.flag, true);
+  if(!rows) return 0;
+  etpSaveLedger();
+  console.log('[에토프] ' + seed.src + ' — ' + rows + '줄 · 입고 ' + got + '장을 넣었습니다.');
+  return got;
+}
+
 // ── 화면 ─────────────────────────────────────────────────────────────
 /* 기존 앱의 3단 구조를 따릅니다: 헤드라인 → 필터칩 → 리스트.
    색은 빨강(부족)·주황(밀림) 둘뿐입니다. 늘리면 어느 것이 급한지 안 보입니다. */
@@ -16704,7 +16788,8 @@ function etpRowHtml(r){
     : r.avgSet
       ? '<span title="마스터에는 없지만 월평균을 손으로 정해 두셨습니다" style="font-size:9px;font-weight:700;color:var(--acc3);border:1px solid var(--acc3);border-radius:8px;padding:1px 5px;margin-left:5px">월평균 정함</span>'
       : '<span title="월평균을 모릅니다. 안전재고는 하한 3장으로 둡니다 — 아래 「확인 필요」에서 채워 주십시오" style="font-size:9px;font-weight:700;color:var(--acc2);border:1px solid var(--acc2);border-radius:8px;padding:1px 5px;margin-left:5px">확인 필요</span>';
-  const nobom = r.noBom    ? '<span title="어느 모델이 쓰는지 매핑이 없습니다. 재고 관리는 그대로 됩니다" style="font-size:9px;font-weight:700;color:var(--tx3);border:1px solid var(--b2);border-radius:8px;padding:1px 5px;margin-left:5px">BOM 미등록</span>' : '';
+  const nobom = (r.noBom && !r.nonstd) ? '<span title="어느 모델이 쓰는지 매핑이 없습니다. 재고 관리는 그대로 됩니다" style="font-size:9px;font-weight:700;color:var(--tx3);border:1px solid var(--b2);border-radius:8px;padding:1px 5px;margin-left:5px">BOM 미등록</span>' : '';
+  const nstd  = r.nonstd   ? '<span title="비규격은 건별 발주라 들어온 날 그대로 나갑니다. 채워둘 양을 정하지 않습니다" style="font-size:9px;font-weight:700;color:var(--tx3);border:1px solid var(--b2);border-radius:8px;padding:1px 5px;margin-left:5px">비규격</span>' : '';
   const gapTx = (r.gap > 0 ? '+' : '') + r.gap;
   const gapCol = r.gap < 0 ? 'var(--acc4)' : 'var(--tx3)';
 
@@ -16712,6 +16797,7 @@ function etpRowHtml(r){
   let tail = '';
   // '월 0장'(마스터에 있고 실제로 0) 과 '월평균 모름'(마스터에 아예 없음)은 다른 말입니다
   if(r.avg > 0)        tail = '한 달 ' + etpDot(r.avg) + '장';
+  else if(r.nonstd)    tail = '건별로 받아 바로 씁니다';
   else if(r.noMaster)  tail = '한 달에 몇 장 쓰는지 모름';
   else                 tail = '한 달 0장';
   if(r.cur < 0)            tail += ' · <b style="color:var(--acc4)">모자랍니다</b>';
@@ -16733,7 +16819,7 @@ function etpRowHtml(r){
         '<div style="font-family:\'JetBrains Mono\',monospace;font-size:15px;font-weight:800;color:' + (r.short ? 'var(--acc4)' : r.over ? 'var(--tx3)' : 'var(--tx1)') + '">' +
           etpBaseSize(r.size).replace('x', '<span style="color:var(--tx3);font-weight:400">×</span>') +
           (r.lr ? '<span title="관통보링이라 좌우를 따로 셉니다 — 서로 바꿔 쓸 수 없습니다" style="font-size:11px;font-weight:900;color:var(--acc5);margin-left:4px">' + r.lr + '</span>' : '') +
-          badge + flag + nobom +
+          badge + flag + nobom + nstd +
         '</div>' +
         '<div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + tail + '</div>' +
       '</div>' +
@@ -17939,8 +18025,9 @@ function etpSaveAvgOvr(){ etpStore('etpAvgOverride', etpAvgOvr); }
 function etpCheckSizes(){
   const st = etpStockMap();
   const seen = {}, out = [];
+  const ns = etpNonStdSizes();          // 비규격은 건별이라 월평균을 물을 자리가 아닙니다
   const add = size => {
-    if(seen[size] || etpInMaster(size)) return;
+    if(seen[size] || etpInMaster(size) || ns[size]) return;
     seen[size] = 1;
     const base = etpBaseSize(size);
     out.push({
@@ -18361,6 +18448,9 @@ function etpPoDraftHtml(){
   catch(e){ console.warn('[에토프] 첫 자료를 못 넣었습니다', e); }
   try{ etpSeedPOOnce(); }
   catch(e){ console.warn('[에토프] 첫 발주를 못 넣었습니다', e); }
+  // 이어 받은 인수증 — 건마다 한 줄씩 더합니다
+  try{ etpSeedIn(ETP_IN_260915); }
+  catch(e){ console.warn('[에토프] 인수증을 못 넣었습니다', e); }
   // 켤 때 한 번 자동으로 뺍니다 (정오더만 · AS 는 손으로)
   try{ etpAutoDeduct(); }
   catch(e){ console.warn('[에토프] 자동 차감 실패', e); }
