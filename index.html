@@ -17836,7 +17836,7 @@ function etpApplyDeduct(){
   const neg = Object.keys(need).filter(s => ((st[s] || {cur:0}).cur - need[s]) < 0);
 
   if(!confirm(`납품서 ${take.length}건 · 에토프 유리 ${total}장을 빼겠습니까?\n\n` +
-      (neg.length ? `${neg.length}개 사이즈가 마이너스로 내려갑니다.\n지우지 않고 그대로 보여 드립니다 — 자체 인쇄분으로 만든 몫일 수 있습니다.\n\n` : '') +
+      (neg.length ? `${neg.length}개 사이즈가 마이너스로 내려갑니다.\n지우지 않고 그대로 보여 드립니다 — 받은 기록보다 더 나간 몫입니다.\n\n` : '') +
       `되돌릴 수 있습니다.`)) return;
 
   take.forEach(x => {
@@ -17991,7 +17991,7 @@ function etpDeductCardHtml(){
             '<span style="font-size:11px;color:var(--tx3);flex:none">' + r.cur + ' − ' + r.need + ' =</span>' +
             '<span style="font-family:\'JetBrains Mono\',monospace;font-size:13px;font-weight:900;width:44px;text-align:right;flex:none;color:' + (r.after < 0 ? 'var(--acc4)' : 'var(--tx1)') + '">' + r.after + '</span>' +
           '</div>').join('') + '</div>' +
-        (negRows.length ? '<div style="margin-top:6px;font-size:10.5px;color:var(--tx2)">마이너스는 지우지 않고 그대로 둡니다. <b>자체 인쇄분으로 만든 몫</b>일 수 있어, 개시 실사를 넣으시면 메워집니다.</div>' : '');
+        (negRows.length ? '<div style="margin-top:6px;font-size:10.5px;color:var(--tx2)"><b>받은 기록보다 더 나간 몫</b>입니다. 지우지 않고 그대로 둡니다 — 현성 발주에서 빠졌거나, 인수증을 아직 안 넣었거나 둘 중 하나입니다. <b>실사로는 메워지지 않습니다</b>(자체 인쇄분은 색이 아예 달라 섞어 쓸 수 없습니다 — 사장님 2026-09-15).</div>' : '');
     }
   }
 
