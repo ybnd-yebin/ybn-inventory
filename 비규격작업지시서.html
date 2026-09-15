@@ -2099,6 +2099,11 @@ function delivSizeLR(rawName){
     }
   }
   if(!lr){ const ml=name.match(/\b([LR])\)/); if(ml) lr=ml[1]; }
+  /* 마지막 수단 — **이름 맨 끝에 붙은 L·R** (사장님 지적 2026-09-16).
+     `유리장식키큰장 AL도어 … L` 처럼 괄호 없이 끝에만 붙어 오는 것이 있어
+     좌우가 안 읽혀 수량이 `L1` 이 아니라 `1 EA` 로 나갔습니다.
+     `M`(공용)은 좌우가 아니므로 잡지 않습니다. */
+  if(!lr){ const me=name.match(/\s([LR])\s*$/); if(me) lr=me[1]; }
   return {size,lr};
 }
 function isAggregateDeliv(t){ t=(t||'').replace(/\s+/g,''); return t.includes('납품번호')&&t.includes('묶음번호')&&t.includes('수량')&&t.includes('오더번호'); }
@@ -2381,6 +2386,8 @@ function parseDelivText(text){
     else { const mE=rawName.match(/(\d{3,4})(?:\(공용\))?\s+M\s*$/); if(mE) lineSize=mE[1]; }
     // 좌우(L/R)는 "비규격" 표기가 없어도 "L)"/"R)"로 항상 잡기 (브리즈 등 형식 차이 대응)
     if(!lr){ const ml=rawName.match(/\b([LR])\s*\)/); if(ml) lr=ml[1]; }
+    // 이름 맨 끝에 붙은 L·R 도 좌우입니다 (2026-09-16 — 유리장식키큰장 AL도어)
+    if(!lr){ const me=rawName.match(/\s([LR])\s*$/); if(me) lr=me[1]; }
     const info=delivLookup(code);
     const nameForJudge=(rawName||'')+' '+(info.short||'');
     const isBig=isNonStdName(nameForJudge);
