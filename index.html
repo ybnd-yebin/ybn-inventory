@@ -12871,6 +12871,153 @@ function odFixApproval(wb, ws){
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   카톡 이미지를 **엑셀 양식 그대로** 그립니다                 2026-09-15
+   "카톡 이미지 붙여넣는 것도 완전 엑셀을 활용해서 넣는 건 힘들까요?"
+
+   엑셀 파일을 그림으로 바꾸는 라이브러리는 무겁고 느립니다. 대신
+   **양식의 실제 치수를 읽어 그대로 그립니다** — 칸 너비·줄 높이·합친 칸·
+   테두리·글꼴·맞춤·그림까지. 값은 엑셀 내려받기와 같은 것을 씁니다.
+
+   그래서 양식 파일을 갈아 끼우면 **카톡 이미지도 저절로 따라갑니다.**
+   ══════════════════════════════════════════════════════════════════ */
+const OD_PX_PER_CHAR = 7.5;   // 엑셀 칸너비(글자수) → 화면 픽셀
+const OD_PX_PER_PT   = 96/72; // 줄높이(포인트) → 화면 픽셀
+
+function odColPx(w){ return Math.round((Number(w) || 8.43) * OD_PX_PER_CHAR + 5); }
+function odRowPx(h){ return Math.round((Number(h) || 18) * OD_PX_PER_PT); }
+
+function odBorderCss(b, side){
+  const e = b && b[side];
+  if(!e || !e.style) return '0';
+  const w = /thick|double/.test(e.style) ? 2 : 1;
+  return w + 'px solid #000';
+}
+
+/* 시트의 값이 든 범위를 찾습니다 — 빈 칸만 있는 바깥쪽은 안 그립니다. */
+function odSheetBounds(ws){
+  let r1 = 1, r2 = 1, c1 = 16384, c2 = 1;
+  ws.eachRow({ includeEmpty:true }, (row, r) => {
+    let has = false;
+    row.eachCell({ includeEmpty:true }, (cell, c) => {
+      const v = cell.value, bd = cell.border;
+      if((v != null && v !== '') || (bd && (bd.top || bd.left || bd.bottom || bd.right))){
+        has = true; if(c < c1) c1 = c; if(c > c2) c2 = c;
+      }
+    });
+    if(has){ if(r2 < r) r2 = r; }
+  });
+  if(c1 > c2) { c1 = 1; c2 = 1; }
+  return { r1, r2, c1, c2 };
+}
+
+function odSheetToHtml(wb, ws){
+  const B = odSheetBounds(ws);
+  // 합친 칸 — 시작칸에는 span 을, 덮인 칸에는 '그리지 말라'를 적어 둡니다
+  const span = {}, hide = {};
+  Object.keys(ws._merges || {}).forEach(k => {
+    const m = ws._merges[k]; if(!m || !m.model) return;
+    const { top, left, bottom, right } = m.model;
+    span[top + ',' + left] = { rs:bottom - top + 1, cs:right - left + 1 };
+    for(let r = top; r <= bottom; r++) for(let c = left; c <= right; c++){
+      if(!(r === top && c === left)) hide[r + ',' + c] = 1;
+    }
+  });
+  let w = 0;
+  const cols = [];
+  for(let c = B.c1; c <= B.c2; c++){ const px = odColPx(ws.getColumn(c).width); cols.push(px); w += px; }
+
+  let html = '<table style="border-collapse:collapse;table-layout:fixed;width:' + w + 'px;background:#fff">' +
+    '<colgroup>' + cols.map(px => '<col style="width:' + px + 'px">').join('') + '</colgroup>';
+  for(let r = B.r1; r <= B.r2; r++){
+    const row = ws.getRow(r);
+    html += '<tr style="height:' + odRowPx(row.height) + 'px">';
+    for(let c = B.c1; c <= B.c2; c++){
+      if(hide[r + ',' + c]) continue;
+      const cell = row.getCell(c), sp = span[r + ',' + c];
+      const f = cell.font || {}, a = cell.alignment || {}, bd = cell.border;
+      let v = cell.value;
+      if(v && typeof v === 'object'){
+        if(v.formula !== undefined) v = (v.result !== undefined && v.result !== null) ? v.result : '';
+        else if(v.richText) v = v.richText.map(t => t.text).join('');
+        else if(v.text !== undefined) v = v.text;
+        else if(v instanceof Date) v = odShortDate(_ymdLocal ? _ymdLocal(v) : '');
+        else v = '';
+      }
+      const st = [
+        'border-top:'    + odBorderCss(bd, 'top'),
+        'border-left:'   + odBorderCss(bd, 'left'),
+        'border-bottom:' + odBorderCss(bd, 'bottom'),
+        'border-right:'  + odBorderCss(bd, 'right'),
+        // ⚠ style="..." 안이라 **큰따옴표를 쓰면 속성이 거기서 끊깁니다.**
+        //    실제로 서식이 통째로 안 먹었습니다 (2026-09-15). 홑따옴표를 씁니다.
+        "font-family:'" + (f.name || OD_FONT) + "',sans-serif",
+        'font-size:' + Math.round((f.size || 11) * 1.32) + 'px',
+        f.bold ? 'font-weight:700' : 'font-weight:400',
+        'color:#111',
+        'text-align:' + (a.horizontal || (typeof v === 'number' ? 'right' : 'left')),
+        'vertical-align:' + (a.vertical === 'top' ? 'top' : a.vertical === 'bottom' ? 'bottom' : 'middle'),
+        'padding:0 3px', 'overflow:hidden',
+        a.wrapText ? 'white-space:pre-wrap' : 'white-space:pre'
+      ].join(';');
+      html += '<td data-rc="' + r + ',' + c + '"' + (sp ? ' rowspan="' + sp.rs + '" colspan="' + sp.cs + '"' : '') +
+              ' style="' + st + '">' + odEsc(v == null ? '' : String(v)) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+
+  // 그림(도장·사인)은 칸 위에 얹습니다 — 엑셀이 적어 둔 자리 그대로
+  let imgs = '';
+  (ws.getImages() || []).forEach(im => {
+    const m = wb.getImage(Number(im.imageId));
+    if(!m || !/jpe?g|png/i.test(m.extension || '')) return;   // emf 는 못 그립니다
+    const b = new Uint8Array(m.buffer); let s = '';
+    for(let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    const src = 'data:image/' + (m.extension === 'png' ? 'png' : 'jpeg') + ';base64,' + btoa(s);
+    const tl = im.range && im.range.tl; if(!tl) return;
+    const ext = im.range.ext || { width:60, height:60 };
+    /* 줄 높이를 더해 자리를 잡으면 조금씩 어긋나 **사인이 「담당」 글자와 겹쳤습니다**
+       (2026-09-15). 그래서 자리는 안 적고, 어느 칸인지만 적어 둡니다 —
+       화면에 붙인 뒤 그 칸을 실제로 재어 얹습니다(odPlaceImages). */
+    imgs += '<img data-cell="' + (Math.floor(tl.row) + 1) + ',' + (Math.floor(tl.col) + 1) + '"' +
+            ' data-off="' + (tl.row % 1).toFixed(3) + ',' + (tl.col % 1).toFixed(3) + '"' +
+            ' src="' + src + '" style="position:absolute;visibility:hidden;width:' + Math.round(ext.width) +
+            'px;height:' + Math.round(ext.height) + 'px">';
+  });
+
+  return '<div id="od-capture" style="position:relative;display:inline-block;padding:18px;background:#fff;color:#111">' +
+         html + imgs + '</div>';
+}
+
+function odEsc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* 그림을 제 칸 위에 얹습니다 — 화면에 붙인 뒤에 불러야 칸을 잴 수 있습니다.
+   칸이 합쳐져 있으면 그 칸을 덮는 시작칸을 찾아 씁니다. */
+function odPlaceImages(node){
+  if(!node) return;
+  const base = node.getBoundingClientRect();
+  node.querySelectorAll('img[data-cell]').forEach(img => {
+    const [r, c]   = img.dataset.cell.split(',').map(Number);
+    const [or, oc] = img.dataset.off.split(',').map(Number);
+    let td = node.querySelector('td[data-rc="' + r + ',' + c + '"]');
+    if(!td){                                  // 합쳐진 칸에 덮여 있으면 그 줄에서 가장 가까운 앞칸
+      const tds = [...node.querySelectorAll('td[data-rc]')].filter(t => {
+        const [tr, tc] = t.dataset.rc.split(',').map(Number);
+        return tr <= r && tc <= c && tr + t.rowSpan > r && tc + t.colSpan > c;
+      });
+      td = tds[tds.length - 1];
+    }
+    if(!td){ img.remove(); return; }
+    const b = td.getBoundingClientRect();
+    img.style.left = Math.round(b.left - base.left + oc * b.width) + 'px';
+    img.style.top  = Math.round(b.top  - base.top  + or * b.height) + 'px';
+    img.style.visibility = 'visible';
+  });
+}
+
 /* 카톡 발주서에 쓰는 사인 그림을 바이트로 돌려줍니다 (없으면 null). */
 var _odSigBuf = null;
 function odSignatureBuf(){
@@ -12892,7 +13039,10 @@ function odSignatureBuf(){
   return _odSigBuf;
 }
 
-async function odWriteExcelForm(o){
+/* 양식을 한 부 열어 값까지 채워 돌려줍니다.
+   엑셀 내려받기와 카톡 이미지가 **같은 것을 보게** 하려고 한 곳으로 모았습니다.
+   두 곳에서 따로 채우면 언젠가 서로 다른 발주서가 나갑니다. */
+async function odFilledSheet(o){
   await odLoadExcelJs();
   if(!_odTplBuf){
     const r = await fetch(OD_TPL_URL);
@@ -12903,7 +13053,11 @@ async function odWriteExcelForm(o){
   await wb.xlsx.load(_odTplBuf.slice(0));      // 원본은 그대로 두고 복사본을 씁니다
   const ws = wb.worksheets[0];
   odFixApproval(wb, ws);                        // 결재란·글씨체를 우리 것으로
+  odFillSheet(ws, o);
+  return { wb, ws };
+}
 
+function odFillSheet(ws, o){
   const part = odTitleParts(o);
   ws.getCell('D4').value = o.vendor || '';
   ws.getCell('D5').value = odShortDate(o.date);
@@ -12926,7 +13080,10 @@ async function odWriteExcelForm(o){
     ws.getCell('K' + r).value = it ? (o.due || '') : null;
     ws.getCell('L' + r).value = it ? (it.bigo || '') : null;
   }
+}
 
+async function odWriteExcelForm(o){
+  const { wb } = await odFilledSheet(o);
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
@@ -12970,9 +13127,26 @@ function odWriteExcelPlain(o){
   showToast('📊 엑셀로 내려받았습니다 (서식 없음)');
 }
 
+/* 양식 그대로 그려 봅니다. 못 하면 손으로 그린 옛 모양으로 떨어집니다. */
+async function odMakeCaptureNode(o){
+  if(OD_CAP_FROM_FORM){
+    try{
+      const { wb, ws } = await odFilledSheet(o);
+      const host = document.getElementById('od-capture-host');
+      host.innerHTML = odSheetToHtml(wb, ws);
+      const node = document.getElementById('od-capture');
+      if(node){ odPlaceImages(node); return node; }
+    }catch(e){
+      console.warn('[발주서] 양식으로 못 그려 옛 모양으로 갑니다', e);
+    }
+  }
+  await odLoadSeal();
+  return odRenderCapture(o);
+}
+const OD_CAP_FROM_FORM = true;   // false 로 두면 예전처럼 손으로 그립니다
+
 async function odCopyImageFrom(o){
-  await odLoadSeal();          // 양식 파일에서 도장을 먼저 꺼내 옵니다 (한 번만)
-  const node=odRenderCapture(o);
+  const node = await odMakeCaptureNode(o);
 
   // 손글씨 폰트(사인)가 로드된 뒤 캡처 — 폰트 미로드 시 기본체로 찍히는 것 방지
   const fontReady = (document.fonts && document.fonts.load)
