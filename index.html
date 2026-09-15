@@ -12165,10 +12165,14 @@ function odVendorChanged(keep){
 }
 
 function odTypeChanged(){
-  const {p}=curPreset();
+  const {p,vendor}=curPreset();
   if(p){
     document.getElementById('od-bigo').value=p.bigo||'';
-    document.getElementById('od-type-hint').textContent=p.hint||'';
+    // 에토프재고로 이어지는 종류면 그 사실을 화면에 적습니다 — 두 번 넣지 않으시게
+    const linked = vendor===ETP_PO_LINK_VENDOR && ETP_PO_LINK_THICK.test(String(p.thick||p.type||''));
+    document.getElementById('od-type-hint').textContent =
+      (p.hint||'') + (linked ? '\n🟠 저장하면 에토프재고의 발주 기록에도 같이 들어갑니다 — 거기서 따로 넣지 않으셔도 됩니다.' : '');
+    document.getElementById('od-type-hint').style.whiteSpace = 'pre-line';
     document.getElementById('od-line-hint').textContent=p.modelMode?'모델명 입력 → 사이즈 자동':'규격은 가로*세로 (mm)';
   }
   renderOdLines();
@@ -12684,6 +12688,8 @@ function odSaveOrder(){
   };
   orderLog.unshift(order);
   saveOrderLog();
+  // 현성유리 3.2T 백사틴이면 에토프재고의 발주 기록에도 같이 넣습니다 — 두 번 넣지 않으시게
+  try{ etpPoFromOrder(order); }catch(e){ console.warn('[에토프] 발주 잇기 실패', e); }
   // 입력 초기화 (발주처/종류는 유지)
   odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}];
   document.getElementById('od-due').value='';
@@ -12973,7 +12979,7 @@ function odImportApply(){
   const cks=[...document.querySelectorAll('.od-imp-ck:checked')];
   if(!cks.length){ showToast('기록할 발주서를 선택하세요'); return; }
   const picks=cks.map(ck=>odImportParsed[parseInt(ck.dataset.i)]);
-  let added=0;
+  let added=0, etpLinked=0;
   picks.forEach(s=>{
     const isPdf = /\.pdf\b/i.test(s.sheet||'');
     const order={
@@ -12989,9 +12995,12 @@ function odImportApply(){
         received:false, recvAt:null, eventId:null }))
     };
     orderLog.unshift(order);
+    // 올리신 발주서가 현성 3.2T 백사틴이면 에토프 발주 기록에도 같이 넣습니다
+    try{ etpLinked += etpPoFromOrder(order, true); }catch(e){ console.warn('[에토프] 발주 잇기 실패', e); }
     added++;
   });
   saveOrderLog();
+  if(etpLinked && typeof showToast === 'function') showToast('🟠 에토프 발주에도 ' + etpLinked + '품목 넣었습니다');
   renderOrderList();
   const last=picks[picks.length-1];
   odFillFormFromImport(last);
@@ -18411,6 +18420,58 @@ function etpPoDraftSave(){
   showToast('발주 ' + d.items.length + '품목 · ' + d.total + '장 넣었습니다');
   etpPoDraft = null;
   renderEtp();
+}
+
+/* ── 발주 탭에서 만든 발주를 에토프 발주 기록으로 잇기 ────────────
+   "현성에 발주한 내역은 사이트로 직접 넣을까?" (사장님 2026-09-15)
+
+   발주서를 만드는 곳(🧾 발주 탭)과 재고를 세는 곳(🟠 에토프재고)이 따로
+   있었습니다. 그대로 두면 발주서는 만들었는데 재고 화면은 모르는 상태가
+   되고, 같은 것을 두 번 넣으셔야 합니다. 한 번만 넣으시게 잇습니다.
+
+   ■ 무엇만 잇는가 — 현성유리의 3.2T 백사틴뿐입니다.
+     5T 백유리나 다른 거래처는 에토프 인쇄유리가 아니라 대상이 아닙니다.
+   ■ 사이즈는 옮겨 적지 않습니다 — 발주 탭이 이미 유리 치수를 들고 있습니다.
+     정규격은 모델명을 넣으면 BOM 에서 유리 사이즈가 채워지고(HD B 4591 L
+     → 445×761), 비규격은 직접 넣으신 값이 곧 유리 사이즈입니다.
+   ■ id 를 발주 줄의 id 에서 만듭니다. 같은 발주를 고쳐 저장해도 두 벌로
+     늘지 않고, 어느 발주에서 온 것인지 되짚을 수 있습니다.            */
+const ETP_PO_LINK_VENDOR = '현성유리';
+const ETP_PO_LINK_THICK  = /3\.2\s*[Tt]\s*백\s*[사샤]틴/;
+
+function etpPoFromOrder(order, quiet){
+  if(!order || order.vendor !== ETP_PO_LINK_VENDOR) return 0;
+  if(!ETP_PO_LINK_THICK.test(String(order.thick || order.type || ''))) return 0;
+
+  const items = [];
+  (order.items || []).forEach(it => {
+    const w = Math.round(Number(it.w) || 0), h = Math.round(Number(it.h) || 0);
+    const q = Number(it.qty) || 0;
+    if(w <= 0 || h <= 0 || q <= 0) return;      // 덜 채운 줄은 조용히 넘깁니다
+    // etpNormSize 는 글자가 아니라 꾸러미를 돌려줍니다 — .size 를 꺼내 써야 합니다
+    const norm = etpNormSize(w + 'x' + h);
+    const size = norm.ok ? norm.size : (w + 'x' + h);
+    const hit = items.find(x => x.size === size);
+    if(hit) hit.qty += q;                        // 같은 사이즈는 한 줄로 모읍니다
+    else items.push({ size, qty:q, name:it.pname || '' });
+  });
+  if(!items.length) return 0;
+
+  const id = 'etppo_' + order.id;
+  const rec = {
+    id, no:String(order.date || '').replace(/-/g, '').slice(2),
+    date:order.date || todayStr(), vendor:order.vendor, due:order.due || '',
+    memo:'발주 탭에서 만든 발주 (' + (order.type || '') + ')',
+    fromOrder:order.id, at:new Date().toISOString(), items
+  };
+  const at = etpPOs.findIndex(p => p && p.id === id);
+  if(at >= 0) etpPOs[at] = Object.assign({}, etpPOs[at], rec);   // 고쳐 저장하면 갈아끼웁니다
+  else etpPOs.push(rec);
+  etpSavePOs();
+  if(typeof meta !== 'undefined') meta.lastLocalChange = new Date().toISOString();
+  const q = items.reduce((s, x) => s + x.qty, 0);
+  if(!quiet && typeof showToast === 'function') showToast('🟠 에토프 발주에도 넣었습니다 — ' + items.length + '품목 ' + q + '장');
+  return items.length;
 }
 
 function etpPoDraftHtml(){
