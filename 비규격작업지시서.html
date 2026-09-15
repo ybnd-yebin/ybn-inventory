@@ -1716,24 +1716,31 @@ function asmNoteFor(short){
 // 구형 유로700(사하라·미드나잇 등): 프레임은 신형과 같은데(−5×−4) 유리 재단만 다르다(−4×−4).
 //   r.old 가 명시돼 있으면 그 값을, 없으면 색상·제품명으로 구형 색을 자동 감지한다.
 //   (확인·수정 미리보기에서 체크로 켜고 끌 수 있다)
-/* 구형 4색 — 사하라 · 미드나잇 · 포레스트 · 화이트 (사장님 확정 2026-09-15).
-   ⚠ '화이트'는 신형 'Off WH'(오프화이트)와 헷갈립니다. 구형 라인 표기인
-      'Grace White' 만 구형으로 봅니다 — 'Off WH' 를 구형으로 잡으면
-      신형 오프화이트가 통째로 구형 계산으로 넘어갑니다.
-   제품코드가 있으면 그쪽이 더 정확합니다 — 구형은 MRT*(사하라) · MRS*(포레스트)
-   처럼 MR 로 시작합니다. 이름 표기가 흔들려도 코드는 흔들리지 않습니다. */
-const OLD_COLOR_RE=/사하라|미드나잇|포레스트|sahara|midnight|forest|grace\s*white|그레이스\s*화이트/i;
-const OLD_CODE_RE =/^MR/i;
-function isOldText(s, code){
-  if(code && OLD_CODE_RE.test(String(code).trim())) return true;
-  return OLD_COLOR_RE.test(String(s||''));
+/* 구형 4색 — 사하라 · 미드나잇 · 포레스트 · 화이트.
+   **넷 다 EURO700 으로 나옵니다.** 오프화이트는 EURO500 입니다 (사장님 확정 2026-09-15).
+   그래서 판별은 두 가지만 봅니다: ① EURO500 이 아닐 것 ② 색이 네 가지 중 하나일 것.
+
+   ⚠ **제품코드 접두로 가리지 마십시오.** 한때 '구형은 MR 로 시작한다'고 잡았는데
+      납품서 465장을 세어 보니 이렇습니다(2026-09-15):
+        MRS 포레스트(700) · MRT 사하라(700) ← 구형
+        MRN 베일/러프우드(700) · MRU 오프화이트(500) · MRV 아보카도(500) · MRW 로즈그레이(500) ← 구형 아님
+      `/^MR/` 로 잡으면 **EURO500 오프화이트 264건이 통째로 구형 치수로 실립니다.**
+
+   ⚠ '화이트'를 넓게 잡아도 안전한 이유: EURO700 색은 여덟 가지뿐이고
+      (Grace ETP · W/Cotton · Sahara · Forest · Veil Shade · BRZ · PT/BK · RW)
+      그중 'white' 가 들어가는 신형 색이 없습니다. 오프화이트는 EURO500 쪽입니다. */
+const OLD_COLOR_RE=/사하라|미드나잇|포레스트|화이트|sahara|midnight|forest|white/i;
+function isOldText(s, isEuro){
+  const t=String(s||'');
+  if(isEuro || /Euro\s*500|유로\s*500/i.test(t)) return false;   // EURO500 은 구형이 아닙니다
+  return OLD_COLOR_RE.test(t);
 }
 
 function isOldFrame(r){
   if(!r || r.euro) return false;   // EURO500은 알판이라 '유리 −4×−4' 규칙과 무관
   if(r.old!==undefined) return !!r.old;
   const s=(r.color||'')+' '+(r.name||'')+' '+(r.short||'');
-  return isOldText(s, r.prodCode);
+  return isOldText(s, r.euro);
 }
 
 /* WHBT 힌지 구간표 — 장(납품서) 세로 기준. mid = 상부변환 아래에 들어가는 고정 구간들.
@@ -2710,7 +2717,7 @@ async function handleFiles(files){
         // it.euro 는 '어느 페이지로 보낼지' 표시일 뿐, 수집 여부와 무관.
         let oldStd=null;
         if(!it.isBig){
-          const oc=isOldText(nameAll+' '+(it.color||''), it.code);
+          const oc=isOldText(nameAll+' '+(it.color||''), it.euro);
           // 약어+번호로 찾는다 — 번호만으로는 6091 처럼 약어마다 사이즈가 갈린다.
           // 번호는 '약어 바로 뒤의 숫자'다: 'CH M 3073( 공용 ) M' → M + 3073
           const ab=codeFromShort(it.short)||codeFromShort(it.name);
