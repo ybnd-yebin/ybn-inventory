@@ -2184,16 +2184,39 @@ function ybnDelivDates(log){
    ★ 이 파일이 PDF 를 직접 읽을 때 만드는 행과 같은 모양이어야 합니다.
      한쪽만 다르면 계산이 어긋납니다. parseDelivText 아래쪽과 같은 차례로 짭니다. */
 function ybnDocToRows(d){
-  const rows = [], skipped = [];
+  const rows = [], skipped = [], oldMissing = [];
   const reqD = d.delivReqDate || '';
   const isAS = /^54/.test(String(d.refNo || '')) || (typeof isASDeliv === 'function' && isASDeliv(d.delivNo));
   (d.items || []).forEach(it => {
     const nameAll = (it.name || '') + ' ' + (it.short || '');
-    if(!isNonStdName(nameAll)) return;                  // 비규격만 — 정규격은 이 화면 대상이 아닙니다
+    /* EURO500 은 알판이라 계산이 다릅니다. 앱이 넘겨주는 품목에는 이 표시가 없어
+       **이름에서 봅니다** — 예전에는 euro:false 로 박혀 있어 EURO500 비규격이
+       EURO700 계산으로 흘렀습니다 (2026-09-16). */
+    const isEuro = /Euro\s*500|유로\s*500/i.test(nameAll);
+
+    /* 비규격만 태우되, **구형(사하라·미드나잇·포레스트·화이트) 정규격은 함께 태웁니다.**
+       구형은 프레임이 신형과 달라 정규격이라도 치수를 찍어 줘야 하기 때문입니다
+       (CLAUDE.md 12-8-1). PDF 를 직접 올리는 길에는 이 처리가 있었는데
+       **이 길에만 빠져 있어, 앱에서 가져오면 구형이 통째로 사라졌습니다**
+       (사장님 지적 2026-09-16 — "15일 AS 포레스트가 리스트에 안 들어온다"). */
+    let oldStd = null;
+    if(!isNonStdName(nameAll)){
+      const oc = (typeof isOldText === 'function') && isOldText(nameAll + ' ' + (it.color || ''), isEuro);
+      if(!oc) return;                                   // 신형 정규격은 이 화면 대상이 아닙니다
+      const ab = codeFromShort(it.short) || codeFromShort(it.name);
+      let num = '';
+      if(ab){ const m2 = nameAll.match(new RegExp('\\b' + ab + '\\s+(\\d{3,5})')); if(m2) num = m2[1]; }
+      if(!num){ const m3 = nameAll.match(/(\d{3,5})\s*\(?\s*공용/) || nameAll.match(/(\d{3,4})\s*M\b/); if(m3) num = m3[1]; }
+      const s = (typeof oldStdOf === 'function') ? oldStdOf(ab, num) : null;
+      if(!s){ oldMissing.push((it.short || it.name || '') + (num ? ' (' + (ab ? ab + ' ' : '') + num + ')' : '')); return; }
+      oldStd = Object.assign({ model:(ab ? ab + ' ' : '') + num }, s);
+    }
+
     const code = codeFromShort(it.short) || codeFromShort(it.name);
     const type = /\bHD\b/.test(nameAll) ? 'HD' : (/\bCH\b/.test(nameAll) ? 'CH' : 'OB');
     const { w, h } = parseSizeWH(it.size);
-    if(!w || !h){ skipped.push((it.short || it.name || it.code)); }   // 버리지 않고 알립니다
+    // 구형 정규격은 사이즈표에서 치수를 얻으므로 규격이 비어도 알릴 일이 아닙니다
+    if((!w || !h) && !oldStd){ skipped.push((it.short || it.name || it.code)); }
     const rule = (typeof RULES !== 'undefined' && RULES[code]) ? RULES[code] : {};
     const ser = (typeof seriesOf === 'function') ? seriesOf(nameAll) : { key:'', label:'' };
     const colr = colorKo(it.color) || (typeof colorFromName === 'function' ? colorFromName(nameAll) : '');
@@ -2202,8 +2225,8 @@ function ybnDocToRows(d){
       lr: it.lr || '',
       color: colr,
       series: ser.key, seriesLabel: ser.label,
-      isAS, euro: false, name: it.name || '',
-      qty: it.qty || 1, oldStd: null,
+      isAS, euro: isEuro, name: it.name || '',
+      qty: it.qty || 1, oldStd,
       handle: rule.handle || 'both',
       short: it.short, prodCode: it.code,
       delivNo: d.delivNo, refNo: d.refNo || '',
@@ -2211,7 +2234,7 @@ function ybnDocToRows(d){
       fromApp: true                                      // 앱에서 온 행이라는 표시
     });
   });
-  return { rows, skipped };
+  return { rows, skipped, oldMissing };
 }
 
 const ETP_BULK_ASK = 5;    // 한 번에 이 건수를 넘게 들어오면 먼저 여쭙니다
@@ -2261,7 +2284,7 @@ function ybnImport(){
         이제 건마다 까닭을 모아 화면에 적습니다. */
   const have = {};
   ROWS.forEach(r => { if(r.delivNo && !have[r.delivNo]) have[r.delivNo] = r; });
-  let added = 0, skipped = [];
+  let added = 0, skipped = [], oldMiss = [];
   const newRows = [], dupList = [], emptyList = [];
   docs.forEach(d => {
     if(have[d.delivNo]){
@@ -2270,6 +2293,7 @@ function ybnImport(){
       return;
     }
     const r = ybnDocToRows(d);
+    oldMiss = oldMiss.concat(r.oldMissing || []);
     if(!r.rows.length){ emptyList.push(d.delivNo); return; }
     r.rows.forEach(x => newRows.push(x));
     skipped = skipped.concat(r.skipped);
@@ -2295,14 +2319,19 @@ function ybnImport(){
         (at.length ? ' (미리보기의 발주 ' + at.join(' · ') + ' 밑에 있습니다)' : ''));
     }
     if(emptyList.length) bits.push('비규격이 없어 건너뛴 것 ' + emptyList.length + '건');
+    if(oldMiss.length) bits.push('⚠ 구형인데 사이즈표에 없는 것 ' + oldMiss.length + '건');
     setStatus('가져올 새 납품서가 없습니다' + (bits.length ? ' — ' + bits.join(' · ') : '') + '.');
-    console.warn('[앱에서 가져오기] 안 들어온 까닭', { 이미있음:dupList, 비규격없음:emptyList });
+    console.warn('[앱에서 가져오기] 안 들어온 까닭', { 이미있음:dupList, 비규격없음:emptyList, 구형미등록:oldMiss });
     return;
   }
   newRows.forEach(x => ROWS.push(x));
   let msg = '🔗 앱에서 ' + added + '건 가져옴 · 비규격 ' + newRows.reduce((s, x) => s + (x.qty || 1), 0) + '장';
   if(dup) msg += ' · 이미 있던 것 ' + dup + '건 건너뜀';
   if(emptyList.length) msg += ' · 비규격 없어 건너뜀 ' + emptyList.length + '건';
+  if(oldMiss.length){
+    msg += ' · ⚠ 구형 사이즈표에 없음 ' + oldMiss.length + '건';
+    console.warn('[앱에서 가져오기] 구형인데 사이즈표에 없는 것:', oldMiss);
+  }
   if(skipped.length) msg += ' · ⚠ 규격 못 읽음 ' + skipped.length + '건';
   setStatus(msg);
   if(skipped.length) console.warn('[앱에서 가져오기] 규격을 못 읽은 품목:', skipped);
