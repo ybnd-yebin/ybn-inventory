@@ -328,6 +328,16 @@
          걸치면 자연스럽게 이어지고, 도면(.code-door)과 배너(.type-banner)만 안 쪼개지게 보호한다. */
     .page-block{page-break-before:always}
     .page-block:first-child{page-break-before:auto}
+    /* 프레임(조립1) 물량표 — 날짜마다 장을 넘기지 않고 죽 이어 붙입니다
+       (사장님 요청 2026-09-15). 종이가 아까울 뿐 아니라, 이어 봐야 오늘
+       만들 것이 한눈에 들어옵니다. 표가 장을 걸칠 때 줄 가운데서 잘리지만
+       않게 합니다. 화면에서 고르신 발주일만 종이에 나갑니다. */
+    .frm-block{page-break-before:auto!important;break-before:auto!important;
+      border:none!important;border-radius:0!important;padding:0 0 6px!important;margin:0 0 10px!important}
+    .frm-block table{break-inside:auto;page-break-inside:auto}
+    .frm-block tr{break-inside:avoid;page-break-inside:avoid}
+    .frm-od-bar{display:none!important}
+    .frm-print-head{display:block!important;font-size:15px;font-weight:800;margin:0 0 10px;color:#000}
     .type-banner,.code-door{break-inside:avoid;page-break-inside:avoid}
   }
 </style>
@@ -3672,14 +3682,24 @@ function frmRender(){
       style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;
              border:1px solid ${frmPickOd===v?'#1560c0':'#d5dae0'};background:${frmPickOd===v?'#1560c0':'#fff'};
              color:${frmPickOd===v?'#fff':'#5a6270'};font-weight:${frmPickOd===v?'700':'500'}">${label}${n!=null?` <span style="opacity:.75">${n}</span>`:''}</button>`;
-  const bar=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+  const bar=`<div class="frm-od-bar" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
       <span style="font-size:12px;color:#6b7280;margin-right:2px">발주일</span>
       ${chip('','전체',all.reduce((s,x)=>s+x.total,0))}
       ${ods.map(o=>chip(o, fmtDate(o)||o, all.filter(s=>(s.od||'(미지정)')===o).reduce((s,x)=>s+x.total,0))).join('')}
     </div>`;
 
-  el.innerHTML=bar+sheets.map(s=>`
-    <div class="page-block" style="background:#fff;border:1px solid #dfe3e8;border-radius:10px;padding:14px 16px;margin-bottom:14px">
+  /* 인쇄 머리글 — 종이에만 나옵니다. 어느 발주일을 뽑은 것인지 남아야
+     여러 장을 쌓아 두었을 때 헷갈리지 않습니다. */
+  const head=`<div class="frm-print-head" style="display:none">
+      🔧 프레임 조립 물량 — ${frmPickOd? '발주일 '+esc(fmtDate(frmPickOd)) : '올린 납품서 전체'}
+      · 총 ${sheets.reduce((s,x)=>s+x.total,0)}장
+    </div>`;
+
+  /* ★ 인쇄에서 날짜마다 장을 넘기지 않습니다 (사장님 요청 2026-09-15).
+     .page-block 은 작업지시서용이라 '앞에서 장 끊기'가 걸려 있습니다.
+     조립1팀 물량표는 죽 이어 붙여 봐야 편하므로 frm-block 으로 따로 둡니다. */
+  el.innerHTML=head+bar+sheets.map(s=>`
+    <div class="page-block frm-block" style="background:#fff;border:1px solid #dfe3e8;border-radius:10px;padding:14px 16px;margin-bottom:14px">
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
         <div style="font-size:15px;font-weight:800">📅 납품 ${fmtDate(warehouseOutDate(s.ship))}</div>
         <div style="font-size:12px;color:#6b7280">D-2 ${fmtDate(s.ship)} · 발주 ${fmtDate(s.od)}</div>
