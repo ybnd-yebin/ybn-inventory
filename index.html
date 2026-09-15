@@ -612,31 +612,21 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     📦 납품서 PDF를 올리면 <b>공장 출고일(납품요청일 + 2영업일, 주말 제외)</b> 기준으로 정리됩니다.<br>
     오늘 출고할 것만 보이고, 출고일이 지난 건은 자동으로 접혀요. 발주 이력은 계속 누적됩니다.
   </div>
+  <!-- 올리기 + 날짜별 삭제를 한 줄에 둡니다 (사장님 2026-09-15).
+       예전에는 단추 셋이 한 줄씩 세 줄을 먹어, 정작 먼저 보셔야 할
+       일일 작업 브리핑이 화면 아래로 밀려 있었습니다.
+       전체 초기화는 거의 안 누르는 것이라 맨 아래로 내렸습니다. -->
   <input type="file" id="deliv-pdf-input" accept="application/pdf" multiple style="display:none" onchange="handleDelivPdf(event)">
-  <button onclick="document.getElementById('deliv-pdf-input').click()" style="width:100%;padding:13px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">
-    📄 납품서 PDF 올리기 (여러 장 가능)
-  </button>
-  <div id="deliv-upload-status" style="font-size:11px;color:var(--tx2);margin-bottom:8px;min-height:14px"></div>
-  <button onclick="clearDelivLog()" style="width:100%;padding:9px;background:none;border:1px solid var(--b2);border-radius:8px;color:#f85149;font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">
-    🗑 납품서 자료 전체 초기화
-  </button>
-  <button onclick="openDelivDateDelete()" style="width:100%;padding:9px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--acc2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:12px">
-    📅 업로드 날짜별 골라서 삭제
-  </button>
-  <div id="deliv-datedel-modal"></div>
-
-  <!-- 월별 정리 — 엑셀로 뽑아 두고 이 기기에서는 덜어냅니다 -->
-  <div class="card">
-    <div class="card-ttl"><span>🗂 월별 정리 (엑셀로 뽑고 덜어내기)</span></div>
-    <div class="info-note" style="margin-top:6px">
-      납품서는 건당 2KB 남짓 쌓여 시간이 지나면 브라우저 저장함이 찹니다.
-      <b>엑셀로 먼저 뽑은 다음</b> 이 기기에서 덜어냅니다 — 나중에 찾으실 일은 그 엑셀에서 보시면 됩니다
-      (한 줄에 한 품목이라 필터·검색이 됩니다).<br>
-      <b>내보내기가 안 되면 지우지 않습니다.</b> 재고 숫자도 안 바뀝니다 — 차감 기록은 따로 남아 있습니다.
-      <b>이번 달은 정리 대상에서 뺍니다</b>(아직 쓰는 중이라서요).
-    </div>
-    <div id="deliv-archive" style="margin-top:8px"></div>
+  <div style="display:flex;gap:7px;margin-bottom:6px">
+    <button onclick="document.getElementById('deliv-pdf-input').click()" style="flex:1;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">
+      📄 납품서 PDF 올리기 <span style="font-weight:400;opacity:.8">(여러 장)</span>
+    </button>
+    <button onclick="openDelivDateDelete()" style="flex:none;padding:11px 13px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--acc2);font-size:11.5px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap">
+      📅 날짜별 삭제
+    </button>
   </div>
+  <div id="deliv-upload-status" style="font-size:11px;color:var(--tx2);margin-bottom:10px;min-height:14px"></div>
+  <div id="deliv-datedel-modal"></div>
 
   <input id="deliv-search" type="text" oninput="delivSearchKey=this.value.trim();renderDelivery()" placeholder="🔍 납품번호 · 참조문서번호 · 오더번호 · 제품 검색" style="width:100%;box-sizing:border-box;padding:10px;font-size:12px;border:1px solid var(--b2);border-radius:8px;background:var(--s2);color:var(--tx1);margin-bottom:12px;font-family:'Noto Sans KR',sans-serif">
 
@@ -664,6 +654,28 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
   <!-- 지난(밀린·완료) 출고 접이식 -->
   <div id="deliv-archive"></div>
+
+  <!-- ── 아래는 가끔 쓰는 것들 (사장님 2026-09-15: 맨 밑으로) ───────── -->
+
+  <!-- 월별 정리 — 엑셀로 뽑아 두고 이 기기에서는 덜어냅니다 -->
+  <div class="card" style="margin-top:18px">
+    <div class="card-ttl"><span>🗂 월별 정리 (엑셀로 뽑고 덜어내기)</span></div>
+    <div class="info-note" style="margin-top:6px">
+      납품서는 건당 2KB 남짓 쌓여 시간이 지나면 브라우저 저장함이 찹니다.
+      <b>엑셀로 먼저 뽑은 다음</b> 이 기기에서 덜어냅니다 — 나중에 찾으실 일은 그 엑셀에서 보시면 됩니다
+      (한 줄에 한 품목이라 필터·검색이 됩니다).<br>
+      <b>내보내기가 안 되면 지우지 않습니다.</b> 재고 숫자도 안 바뀝니다 — 차감 기록은 따로 남아 있습니다.
+      <b>이번 달은 정리 대상에서 뺍니다</b>(아직 쓰는 중이라서요).
+    </div>
+    <div id="deliv-monthly" style="margin-top:8px"></div>
+  </div>
+
+  <button onclick="clearDelivLog()" style="width:100%;padding:9px;background:none;border:1px solid var(--b2);border-radius:8px;color:#f85149;font-size:11.5px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-top:4px;opacity:.75">
+    🗑 납품서 자료 전체 초기화
+  </button>
+  <div style="font-size:10px;color:var(--tx3);text-align:center;margin-top:5px;line-height:1.5">
+    앞으로는 위 <b>월별 정리</b>로 덜어내시면 됩니다. 이 단추는 통째로 비울 때만 쓰십시오.
+  </div>
 </div>
 
 
@@ -13485,9 +13497,16 @@ function renderOrderList(){
 
   host.innerHTML=autoBanner+yms.map(ym=>{
     const orders=groups[ym];
-    // 월 합계
-    let ordTot=0, recvTot=0;
-    orders.forEach(o=>o.items.forEach(it=>{ ordTot+=it.qty; if(it.received) recvTot+=it.qty; }));
+    /* 월 합계 — 입고를 '확인'과 '자동'으로 가릅니다 (사장님 2026-09-15).
+       자동은 납기일이 지났다고 앱이 찍은 것이라 **실물을 본 숫자가 아닙니다.**
+       한 덩어리로 보여 주면 「발주합계 vs 입고합계」가 늘 맞아떨어져
+       월말마감이 아무것도 걸러내지 못합니다. 그래서 갈라 적습니다. */
+    let ordTot=0, recvTot=0, autoTot=0, autoCnt=0;
+    orders.forEach(o=>o.items.forEach(it=>{
+      ordTot+=it.qty;
+      if(it.received){ recvTot+=it.qty; if(it.auto){ autoTot+=it.qty; autoCnt++; } }
+    }));
+    const okTot=recvTot-autoTot;          // 손으로 확인한 입고
     const diff=ordTot-recvTot;
     const ymLabel=ym==='기타'?'기타':`${ym.slice(0,4)}년 ${parseInt(ym.slice(5,7))}월`;
 
@@ -13565,6 +13584,7 @@ function renderOrderList(){
           </div>
           <div style="text-align:right">
             ${editing?'':`<div class="status-tag ${allDone?'st-완료':recv>0?'st-진행중':'st-시작전'}">${allDone?'입고완료':recv>0?recv+'/'+total+' 입고':'미입고'}</div>`}
+            ${editing?'':(o.items.filter(x=>x.received&&x.auto).length?`<div class="status-tag" title="납기일이 지나 앱이 찍은 것입니다 — 실물을 확인한 것이 아닙니다" style="background:rgba(234,108,0,.12);color:var(--acc2)">자동 ${o.items.filter(x=>x.received&&x.auto).length}</div>`:'')}
             <button onclick="odEditToggle('${o.id}')" class="icon-btn" title="${editing?'수정 마치기':'납기·품목 고치기'}" style="font-size:12px;margin-left:4px${editing?';color:var(--acc3);font-weight:700':''}">${editing?'✓ 마침':'✏️ 수정'}</button>
             ${editing?'':`<button onclick="odCopySaved('${o.id}')" class="icon-btn" title="이 발주서를 카톡용 이미지로 복사" style="font-size:12px;margin-left:4px">📋 카톡</button>`}
             ${editing?'':`<button onclick="odExcelSaved('${o.id}')" class="icon-btn" title="이 발주서를 엑셀로 내려받기" style="font-size:12px;margin-left:4px">📊 엑셀</button>`}
@@ -13580,13 +13600,47 @@ function renderOrderList(){
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--s3);border-radius:8px;margin-bottom:8px">
         <div style="font-size:13px;font-weight:800">📅 ${ymLabel} <span style="font-size:10px;color:var(--tx3);font-weight:400">(${orders.length}건)</span></div>
         <div style="text-align:right;font-size:10px;line-height:1.5">
-          <div>발주 <b style="font-family:'JetBrains Mono',monospace;font-size:13px">${ordTot}</b> · 입고 <b style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--acc3)">${recvTot}</b></div>
+          <div>발주 <b style="font-family:'JetBrains Mono',monospace;font-size:13px">${ordTot}</b> · 입고 <b style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--acc3)">${recvTot}</b>${autoTot?` <span style="color:var(--tx3)">(확인 ${okTot} · <b style="color:var(--acc2)">자동 ${autoTot}</b>)</span>`:''}</div>
           <div style="color:${diff===0?'var(--acc3)':'var(--acc2)'};font-weight:700">${diff===0?'✓ 정산 일치':'미입고 '+diff+'장'}</div>
         </div>
       </div>
+      ${autoTot?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin:-4px 0 8px;background:rgba(234,108,0,.07);border:1px solid var(--acc2);border-radius:8px;font-size:11px;line-height:1.6;color:var(--tx2)">
+        <span style="flex:1;min-width:220px">⚠ 이 달 입고 <b style="color:var(--acc2)">${autoTot}장(${autoCnt}품목)</b>은 <b>자동으로 잡힌 것</b>입니다 — 납기일이 지나 앱이 찍은 숫자라 <b>실물을 확인한 것이 아닙니다.</b> 마감에 쓰시려면 풀고 손으로 확인해 주십시오.</span>
+        <button onclick="odAutoRevertMonth('${ym}')" style="flex:none;padding:6px 11px;background:var(--s2);border:1px solid var(--acc2);border-radius:7px;color:var(--acc2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">자동 ${autoTot}장 풀기</button>
+      </div>`:''}
       ${ordersHtml}
     </div>`;
   }).join('');
+}
+
+/* 한 달치 자동 입고를 한꺼번에 되돌립니다 (사장님 2026-09-15).
+   품목마다 체크를 눌러 푸는 것은 수십 번 눌러야 해서 손이 안 갑니다.
+   푼 품목은 '되돌림'으로 남아 자동이 다시 잡지 않습니다(odToggleRecv 와 같은 규칙).
+   재고 이벤트도 같이 걷어냅니다 — 안 그러면 원유리 재고가 부풀어 남습니다. */
+function odAutoRevertMonth(ym){
+  const hits=[];
+  orderLog.forEach(o=>{
+    if(((o.date||'').slice(0,7)||'기타')!==ym) return;
+    (o.items||[]).forEach((it,i)=>{ if(it.received && it.auto) hits.push({o,it,i}); });
+  });
+  if(!hits.length){ showToast('풀 것이 없습니다'); return; }
+  const q=hits.reduce((s,x)=>s+(Number(x.it.qty)||0),0);
+  if(!confirm(`${ym} 의 자동 입고 ${hits.length}품목 ${q}장을 풀까요?\n\n` +
+    `입고 표시를 지우고 원유리 재고에서도 그만큼 걷어냅니다.\n` +
+    `푼 것은 자동이 다시 잡지 않습니다 — 실물을 보시고 손으로 체크해 주십시오.`)) return;
+  const evIds=[];
+  hits.forEach(({o,it})=>{
+    if(it.eventId) evIds.push(it.eventId);
+    it.received=false; it.recvAt=null; it.recvDate=null; it.eventId=null; it.auto=false;
+    it.recvHeld=true;
+    o.updatedAt=new Date().toISOString();
+  });
+  if(evIds.length && typeof removeStockEventsByIds==='function') removeStockEventsByIds(evIds);
+  hits.forEach(({it})=>{ if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h); });
+  saveAll(); saveOrderLog(); renderOrderList();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`자동 입고 ${hits.length}품목 ${q}장을 풀었습니다`);
 }
 
 function odToggleRecv(orderId, idx){
@@ -15657,7 +15711,11 @@ function delivArchiveMonth(ym){
 function delivExportOnly(ym){ delivExportMonth(ym); }
 
 function renderDelivArchive(){
-  const host = document.getElementById('deliv-archive');
+  /* ⚠ 자리 이름이 'deliv-monthly' 입니다 — 예전에는 '지난 출고 보관함'과
+     **같은 id(deliv-archive)를 쓰고 있었습니다.** getElementById 는 먼저 나온 것만
+     찾으므로 둘이 같은 칸을 다투었고, 월별 정리가 나중에 그려지며 덮어써
+     **「지난 출고 보관함」 단추가 아예 안 보였습니다** (2026-09-15 발견). */
+  const host = document.getElementById('deliv-monthly');
   if(!host) return;
   const ms = delivMonths();
   if(!ms.length){ host.innerHTML = '<div style="font-size:12px;color:var(--tx3)">올라온 납품서가 없습니다.</div>'; return; }
