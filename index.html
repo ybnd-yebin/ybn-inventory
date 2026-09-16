@@ -12075,7 +12075,7 @@ const OD_CATALOG = {
          hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
       {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화', pname:'비규격', sizeMode:true,
          hint:'3.2T 백사틴 비규격 · 비고 각면/강화'},
-      {type:'5T 백유리', thick:'5T 백유리', title:'5T 백유리', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 · 사이즈 직접 입력'}
+      {type:'5T 백유리', pick:'5T 백유리 (유리장식장)', thick:'5T 백유리', title:'5T 백유리', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 · 유리장식장에 들어갑니다 · 사이즈 직접 입력'}
     ],
     '명그라스': [
       {type:'3.2T 백사틴 정규격 (모델명 자동)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'', modelMode:true,
@@ -12191,7 +12191,11 @@ function odVendorChanged(keep){
   const vendor=document.getElementById('od-vendor').value;
   const sel=document.getElementById('od-type');
   const presets=curCatVendors()[vendor]||[];
-  sel.innerHTML=presets.map((p,i)=>`<option value="${i}">${p.type}</option>`).join('');
+  /* 고르는 칸에 보이는 이름은 `pick` 이 있으면 그것을 씁니다 (사장님 2026-09-16
+     "5T 백유리(유리장식장) 이라고 표기해 줄 수 있을까").
+     ⚠ `type` 은 **손대지 않습니다** — 발주 기록·엑셀·비고 기억이 모두 그 이름을 씁니다.
+       쓰임새를 덧붙이려면 종류마다 `pick:` 한 줄만 더하면 됩니다. */
+  sel.innerHTML=presets.map((p,i)=>`<option value="${i}">${p.pick||p.type}</option>`).join('');
   odTypeChanged();
 }
 

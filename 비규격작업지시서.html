@@ -906,6 +906,30 @@ function libDoor(code, type){
 }
 function libHasDoor(code, type){ return !!libDoor(code, type); }
 
+/* ── 블록을 묶는 열쇠 — **코드가 아니라 그림** (사장님 2026-09-16) ──────────────
+   캐드 원본부터 여러 코드가 도면 한 장을 함께 씁니다.
+   예: WF · WFED · WFMD · WFUP · WHFM · WHMH · WRMB · WRMBS 여덟 코드가 한 도면.
+   코드로 나누면 **똑같은 그림이 코드 수만큼 되풀이**됩니다.
+   구형 정규격이 모델번호(M 3073 · M 4573)마다 갈리던 것도 같은 뿌리였습니다.
+   그래서 그림이 같으면 한 덩어리로 묶고, 그림은 한 번만 그립니다.
+   대신 **줄마다 그것이 무엇인지**(코드 · 구형이면 모델명)를 적습니다 → cadBlockRows.
+   ⚠ 라이브러리 도면이 없는 코드는 그릴 때 코드별 파라메트릭 도면이 나오므로
+     예전처럼 코드로 가릅니다(묶으면 서로 다른 그림이 한 덩어리가 됩니다). */
+function cadDrawKey(r){
+  const d = libDoor(r.code, r.type);
+  return d ? 'LIB:' + ((d.codes||[]).join(',') || r.code) + '|' + (d.series||'')
+           : 'CODE:' + (r.code||'');
+}
+/* 색 차례 — COLOR_CHIP 에 적힌 순서를 그대로 씁니다 (사장님 2026-09-16
+   "같은 계열끼리인데 색이 다르면 색순으로 나열").
+   화면 색칩과 **같은 표**라 두 곳이 어긋나지 않습니다. 표에 없는 색은 뒤에 가나다순. */
+function cadColorOrder(names){
+  const ord = (typeof COLOR_CHIP!=='undefined') ? Object.keys(COLOR_CHIP) : [];
+  const ko  = n => (typeof colorKo==='function') ? colorKo(n) : n;
+  const ix  = n => { const i = ord.indexOf(ko(n)); return i<0 ? ord.length : i; };
+  return names.slice().sort((a,b)=> (ix(a)-ix(b)) || String(ko(a)).localeCompare(String(ko(b)),'ko'));
+}
+
 // ── 3c: 라이브러리 도면의 변수 텍스트 노드(X)를 앱 계산값으로 치환. DOM 노드 단위(정규식 문자열 치환 금지). ──
 // 코드별 X 값 공급원(기존 계산). 확정: BHBU=하부변환 · WTAP=변환값. WHBT·B·BDI1R은 확인 후 추가.
 // 11-7 보류 코드 — X 매핑이 확정되지 않은 코드(WHBT·B·BDI1R·TH).
@@ -3613,8 +3637,16 @@ function glassLinesOf(c){
 // 한 블록(코드묶음)의 렌더용 행: 코드 / 색상 / (완성치수=수량) / 재단치수(빨강)
 function cadBlockRows(list){
   const rows=[{k:'code'}];
+  /* 줄머리 표시 — 그림으로 묶으면서 한 덩어리에 여러 코드가 들어올 수 있습니다.
+       · 비규격      : 코드가 **둘 이상일 때만** 적습니다(하나뿐이면 제목줄과 겹칩니다).
+       · 구형 정규격 : **늘 모델명을 적습니다** (사장님 2026-09-16
+         "정규격은 모델명도 같이 내려줘야 함"). 규격표 몇 번 줄인지가 종이에 남아야 합니다.
+     ⚠ 줄머리는 **줄을 새로 쓰지 않습니다** — 치수줄 왼쪽 칸에 적습니다.
+       줄 수가 그대로여야 cadTextH(장 나누기)와 어긋나지 않습니다. */
+  const multiCode = new Set(list.map(r=>r.code)).size > 1;
+  const labOf = r => r.oldStd ? String(r.oldStd.model||'') : (multiCode ? String(r.code||'') : '');
   const byColor={}; list.forEach(r=>{ const c=r.color||'미지정'; (byColor[c]=byColor[c]||[]).push(r); });
-  Object.keys(byColor).forEach(color=>{
+  cadColorOrder(Object.keys(byColor)).forEach(color=>{
     rows.push({k:'color', text:colorKo(color)});
     const agg={};
     byColor[color].forEach(r=>{
@@ -3630,8 +3662,10 @@ function cadBlockRows(list){
       // 좌우를 나눠 세는 코드 — 같은 사이즈라도 L·R을 합치지 않고 따로 센다.
       //   여기 코드를 더하면 그 코드도 좌우로 갈린다. (사용자 요청 2026-09-04: WHBT)
       const side=LR_SPLIT_CODES.has(r.code) ? String(r.lr||'').trim().toUpperCase() : '';
-      const key=frameTxt+'|'+glassTxt;
-      if(!agg[key]) agg[key]={frameLines, glassLines, segLines, isSet, isSide, setSheets, qty:0, lr:{L:0,R:0,'':0}};
+      // 줄머리(코드·모델명)를 열쇠에 넣습니다 — 안 넣으면 서로 다른 코드가 한 줄로 뭉칩니다
+      const lab=labOf(r);
+      const key=lab+'|'+frameTxt+'|'+glassTxt;
+      if(!agg[key]) agg[key]={lab, frameLines, glassLines, segLines, isSet, isSide, setSheets, qty:0, lr:{L:0,R:0,'':0}};
       agg[key].qty+=(r.qty||1);
       agg[key].lr[(side==='L'||side==='R')?side:''] += (r.qty||1);
     });
@@ -3650,8 +3684,8 @@ function cadBlockRows(list){
         /* 합적(마이다) — 조각마다 완성치수와 재단치수를 **짝지어** 놓습니다.
            조각별 장수는 `그 조각의 개수 × SET 수` 입니다. (사용자 확정 2026-09-09)
            SET 이 몇 벌인지는 오른쪽 세로 꺾쇠로 알립니다(setMark). */
-        a.segLines.forEach(s=>{
-          rows.push({k:'frame', text:`${s.frame} = ${s.n*a.qty}EA`, seg:true});
+        a.segLines.forEach((s,i)=>{
+          rows.push({k:'frame', text:`${s.frame} = ${s.n*a.qty}EA`, seg:true, lab:(i===0?a.lab:'')});
           if(s.glass) rows.push({k:'glass', text:s.glass, seg:true});
         });
         /* 한 벌(1SET)도 **반드시 내보냅니다.** 안 내보내면 렌더러가 '색마다 같은지'를 잘못 봅니다 —
@@ -3662,7 +3696,7 @@ function cadBlockRows(list){
         // 완성치수는 줄마다 한 행. 수량은 **마지막 줄 뒤에** 붙입니다.
         a.frameLines.forEach((ln,i)=>{
           const last = i===a.frameLines.length-1;
-          rows.push({k:'frame', text: last ? `${ln} = ${qt}` : ln});
+          rows.push({k:'frame', text: last ? `${ln} = ${qt}` : ln, lab:(i===0?a.lab:'')});
         });
         a.glassLines.forEach(ln=>rows.push({k:'glass', text:ln}));  // EURO500은 유리가 없어 줄이 안 생긴다
       }
@@ -4018,7 +4052,8 @@ function cadBlockSVG(b, xL, yTop){
   ty+=lh;
   {
     // 코드줄. 세트 수가 블록 안에서 모두 같으면 여기에 `×2SET`을 빨강으로 덧붙인다.
-    const codeTxt=`${esc(b.code)}${b.type==='HD'?' (HD)':''}${b.isCont?' (계속)':''}`;
+    // 제목줄 — 한 도면을 여러 코드가 쓰면 그 코드를 모두 적습니다 (`WFUP · WF`)
+    const codeTxt=`${esc(b.codeLabel||b.code)}${b.type==='HD'?' (HD)':''}${b.isCont?' (계속)':''}`;
     s+=`<text x="${txX}" y="${ty.toFixed(2)}" font-family="${F}" font-size="7.5" font-weight="700" fill="#1560c0">${codeTxt}`
      + (titleSet ? `<tspan fill="#e00000" font-size="6.6"> ×${esc(titleSet)}</tspan>` : '')
      + `</text>`;
@@ -4032,7 +4067,13 @@ function cadBlockSVG(b, xL, yTop){
      가장 긴 글자줄 오른쪽에 세트 꺾쇠, 그 바깥에 색상 꺾쇠를 세운다. */
   const rowW = r => String(r.text||'').length*5.6*0.55;
   const maxRowW = rows.filter(r=>r.k==='frame'||r.k==='glass').reduce((m,r)=>Math.max(m,rowW(r)), 0);
-  const BX_SET = txX+4+maxRowW+3;                    // 꺾쇠 x
+  /* 줄머리(코드·모델명) 칸 — 있으면 그 폭만큼 치수줄을 **들여 씁니다.**
+     빨간 재단치수도 같이 들여 써야 완성치수와 왼쪽이 맞습니다.
+     칸이 없으면(LABW=0) 예전과 글자 하나 다르지 않습니다. */
+  const LAB_FS = 5.0;
+  const labW = t => String(t||'').length*LAB_FS*0.58;
+  const LABW = (()=>{ const m=rows.reduce((x,r)=>Math.max(x, r.lab?labW(r.lab):0), 0); return m ? m+2.5 : 0; })();
+  const BX_SET = txX+4+LABW+maxRowW+3;               // 꺾쇠 x
   const BX_COL = BX_SET;                             // 색상 꺾쇠 (세트 꺾쇠를 없애 같은 자리)
   const closeColor=()=>{                             // 색상 묶음이 끝나면 오른쪽에 꺾쇠를 세운다
     if(colTop==null || !CAD_COLOR_AS_BRACKET) { colTop=null; return; }
@@ -4135,8 +4176,12 @@ function cadBlockSVG(b, xL, yTop){
     if(row.k==='frame' && prevKind==='glass') ty+=lh*CAD_PAIR_GAP_R;
     prevKind=row.k;
     ty+=lh;                         // 여기서부터 진짜 한 줄을 쓴다
-    if(row.k==='frame') s+=`<text x="${(txX+4)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#000">${esc(row.text)}</text>`;
-    else if(row.k==='glass') s+=`<text x="${(txX+4)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#d00000">${esc(row.text)}</text>`;
+    if(row.k==='frame'){
+      // 줄머리는 코드줄과 같은 파랑으로 조금 작게 — 치수 숫자와 안 헷갈리게
+      if(row.lab) s+=`<text x="${(txX+4).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="${LAB_FS}" font-weight="700" fill="#1560c0">${esc(row.lab)}</text>`;
+      s+=`<text x="${(txX+4+LABW).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#000">${esc(row.text)}</text>`;
+    }
+    else if(row.k==='glass') s+=`<text x="${(txX+4+LABW).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#d00000">${esc(row.text)}</text>`;
     // 합적 조각 줄이 시작한 자리를 기억해 둔다(세트 꺾쇠를 그리려고)
     if(row.seg){ if(segTop==null) segTop=ty; }
     else segTop=null;
@@ -4385,10 +4430,20 @@ function cadGenerate(){
     const blocks=[];
     ['HD','OB','E500'].forEach(tp=>{
       const rows=byType[tp]; if(!rows.length) return;
-      const byCode={}; rows.forEach(r=>{ const k=r.oldStd?`${r.code}|정규|${r.oldStd.model}`:`${r.code}|비규`; (byCode[k]=byCode[k]||[]).push(r); });
-      Object.keys(byCode).sort().forEach(gk=>{
+      /* 묶는 기준은 **그림**입니다 (cadDrawKey 설명 참고).
+         ⚠ 정규격(구형)과 비규격은 그림이 같아도 절대 안 묶습니다 —
+           같은 코드 M 이라도 3565(구형 정규격)와 520×736(비규격)은 다른 물건입니다. */
+      const byCode={}; rows.forEach(r=>{
+        const k = cadDrawKey(r) + (r.oldStd ? '|정규' : '|비규');
+        (byCode[k]=byCode[k]||[]).push(r);
+      });
+      // 장 안의 차례는 예전대로 **코드 가나다순** — 열쇠(그림)로 정렬하면 차례가 뒤죽박죽이 됩니다
+      Object.keys(byCode).sort((a,b)=>String(byCode[a][0].code||'').localeCompare(String(byCode[b][0].code||'')))
+        .forEach(gk=>{
         const list=byCode[gk], rep=list[0];
-        blocks.push({code:rep.code, type:(tp==='E500'?'OB':tp), rep, rows:cadBlockRows(list), banner:BANNER[tp]});
+        const codes=[...new Set(list.map(r=>r.code))];   // 제목줄에 이 도면을 쓰는 코드를 모두 적습니다
+        blocks.push({code:rep.code, codeLabel:codes.join(' · '),
+                     type:(tp==='E500'?'OB':tp), rep, rows:cadBlockRows(list), banner:BANNER[tp]});
       });
     });
     const pages=cadSplitToPages(blocks);
