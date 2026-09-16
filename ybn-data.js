@@ -508,6 +508,32 @@ const SIZE_TO_MODELS = {
   "995x531": ["OB WFED 10053 M"],
 };
 
+/* 사이즈→모델 표의 빈자리를 MODELS 로 메웁니다 (2026-09-16).
+   ── 왜
+     이 표는 MODEL_BOM 으로 만든 것이라, MODEL_BOM 에 없는 WFMD 네 줄의 사이즈가
+     통째로 빠져 있었습니다. 그래서 에토프재고에서 `595×351` 이 「마스터에 없음」
+     — 즉 **앱이 모르는 사이즈** — 으로 빨갛게 떴습니다. 모르는 게 아니라
+     MODELS 에 버젓이 있었습니다(`OB WFMD 6035 M` → 595×351).
+   ── 무엇이 달라지나
+     · 「마스터에 없음」 배지가 사라집니다 — 아는 사이즈이므로.
+     · 그 사이즈가 **어느 모델 것인지** 화면에 나옵니다.
+     · 월평균은 이것과 별개입니다. 26년 1~8월 출고정리에 이 사이즈가 없으면
+       월평균은 여전히 없고, 「확인 필요」로 남습니다(그게 맞습니다 — 지어내지 않습니다).
+   ⚠ 이미 적힌 사이즈는 건드리지 않습니다. 빈자리만 메웁니다. */
+(function(){
+  try{
+    if(typeof MODELS === 'undefined') return;
+    MODELS.forEach(function(m){
+      if(!m || !m.short) return;
+      if(!(m.glass_w > 0) || !(m.glass_h > 0)) return;
+      if(MODEL_BOM[m.short] || MODEL_BOM[m.short + ' L'] || MODEL_BOM[m.short + ' R']) return;  // BOM 이 있으면 그쪽이 정본
+      var k = m.glass_w + 'x' + m.glass_h;
+      if(!SIZE_TO_MODELS[k]) SIZE_TO_MODELS[k] = [];
+      if(SIZE_TO_MODELS[k].indexOf(m.short) < 0) SIZE_TO_MODELS[k].push(m.short);
+    });
+  }catch(e){ /* 표가 없으면 메우지 않습니다 */ }
+})();
+
 /* ── 붙음 표식 ────────────────────────────────────────────────
    이 파일이 실제로 읽혔는지 화면 쪽에서 확인하려고 남기는 표식입니다.
    예전에 이 파일이 안 붙어도 아무 말 없이 넘어가, 모델 주의사항만 조용히
@@ -518,8 +544,9 @@ const SIZE_TO_MODELS = {
   /* v를 올릴 때: 이 파일에 값이 새로 들어오면 올립니다. 화면 쪽이 판을 보고
      '낡은 파일이 캐시에 남았다'를 알아챕니다(깃허브 Pages에서 흔합니다).
      v2 = 2026-09-14, 에토프 외주 인쇄유리용 ETP_SIZE_MASTER · SIZE_TO_MODELS 추가
-     v3 = 2026-09-16, bomOf 가 MODEL_BOM 빈자리를 MODELS 사이즈로 메웁니다 */
-  P['data'] = { v:3, file:'ybn-data.js',
+     v3 = 2026-09-16, bomOf 가 MODEL_BOM 빈자리를 MODELS 사이즈로 메웁니다
+     v4 = 2026-09-16, SIZE_TO_MODELS 빈자리도 MODELS 로 메웁니다 (595x351 등) */
+  P['data'] = { v:4, file:'ybn-data.js',
     models:(typeof MODELS!=='undefined'?MODELS.length:0),
     etpSizes:(typeof ETP_SIZE_MASTER!=='undefined'?ETP_SIZE_MASTER.length:0),
     sizeModels:(typeof SIZE_TO_MODELS!=='undefined'?Object.keys(SIZE_TO_MODELS).length:0) };
