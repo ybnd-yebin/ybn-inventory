@@ -1087,6 +1087,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     (엑셀 저장은 필요할 때만)
   </div>
 
+  <!-- 🧊 비규격에서 넘어온 유리 — 색마다 한 장씩 (2026-09-16) -->
+  <div id="od-handoff" style="display:none"></div>
+
   <div class="card">
     <div class="card-ttl">📝 새 발주서 작성</div>
 
@@ -12176,7 +12179,77 @@ function odCatChanged(){
   odVendorChanged();
 }
 
+/* ════════════════════════════════════════════════════════════════
+   🧊 비규격에서 넘어온 유리 (사장님 2026-09-16 "하나로 통일되게")
+   ── 역할 나누기
+     비규격 작업지시서 = **치수를 푸는 곳** · 이 발주탭 = **발주를 내는 곳**.
+     비규격 쪽 발주서는 걷어냈습니다. 거기서 [📤 앱 발주탭으로 보내기]를 누르면
+     유리 사이즈가 **색마다 갈려** 인계함에 담기고, 여기에 띠로 뜹니다.
+   ── 색마다 한 장 (사장님 확정 2026-09-16)
+     에토프는 현성, 나머지는 대원처럼 **거래처가 갈리므로** 한 발주서에 섞지 않습니다.
+     색 하나를 넣어 발주서를 만들고 기록하면, 띠에 **남은 색**이 그대로 보입니다.
+   ── 창을 오갈 필요 없음
+     같은 주소라 다른 창에서 담아도 **storage 신호**로 이 창에 바로 뜹니다(새로고침 없이).
+   ════════════════════════════════════════════════════════════════ */
+const LS_OD_HANDOFF = 'ybn-order-handoff-v1';
+function odHandoffRead(){
+  try{ const o=JSON.parse(localStorage.getItem(LS_OD_HANDOFF)||'null');
+       return (o && Array.isArray(o.groups) && o.groups.length) ? o : null; }
+  catch(e){ return null; }
+}
+function odHandoffBanner(){
+  const box=document.getElementById('od-handoff'); if(!box) return;
+  const o=odHandoffRead();
+  if(!o){ box.style.display='none'; box.innerHTML=''; return; }
+  const tot=o.groups.reduce((s,g)=>s+(g.qty||0),0);
+  const btns=o.groups.map((g,i)=>
+    `<button onclick="odHandoffTake(${i})" style="padding:7px 12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;margin:0 6px 6px 0">`
+    + `${brEsc(g.color)} ${g.qty}장 넣기</button>`).join('');
+  box.style.display='';
+  box.innerHTML =
+    `<div class="card" style="border:1px solid #93c5fd;background:#eff6ff">
+       <div style="font-size:13px;font-weight:800;color:#1d4ed8;margin-bottom:4px">🧊 비규격에서 넘어온 유리 ${tot}장 · ${o.groups.length}색</div>
+       <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:8px">
+         <b>색마다 한 장씩</b> 냅니다. 색을 하나 넣고 발주서를 만든 뒤, 돌아오시면 남은 색이 여기 그대로 있습니다.<br>
+         ${o.groups.map(g=>`${brEsc(g.color)} ${g.qty}장${g.ship?` <span style="color:var(--tx3)">(D-2 ${brEsc(g.ship)})</span>`:''}`).join(' · ')}
+       </div>
+       <div>${btns}</div>
+       <button onclick="odHandoffClear()" style="padding:6px 10px;background:var(--s3);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:11px;cursor:pointer">전부 지우기</button>
+     </div>`;
+}
+/* 한 색을 발주 품목으로 넣습니다. 지금 적고 계시던 품목이 있으면 덮지 않고 **뒤에 붙입니다** —
+   적던 것을 말없이 지우는 것이 제일 위험합니다. */
+function odHandoffTake(i){
+  const o=odHandoffRead(); if(!o) return odHandoffBanner();
+  const g=o.groups[i]; if(!g) return odHandoffBanner();
+  const cur=odLines.filter(l=>String(l.w||'').trim()||String(l.h||'').trim());
+  /* 색을 섞지 않게 막습니다 — 발주서는 **색마다 한 장**입니다.
+     앞 색을 [발주 리스트에 기록]하면 품목이 저절로 비워지므로, 비어 있지 않은데
+     다른 색이 들어 있다면 아직 기록을 안 하신 것입니다. 말없이 붙이지 않고 여쭙니다. */
+  const other=[...new Set(cur.map(l=>String(l.pname||'').trim()).filter(p=>p && p!==g.color))];
+  if(other.length && !confirm(
+      `지금 발주 품목에 「${other.join(' · ')}」 이 들어 있습니다.\n`
+    + `발주서는 색마다 한 장씩이라 섞으면 안 됩니다.\n\n`
+    + `먼저 [발주 리스트에 기록]을 누르시면 품목이 비워집니다.\n`
+    + `그래도 「${g.color}」 을 뒤에 붙일까요?`)) return;
+  const add=(g.items||[]).map(it=>({w:it.w, h:it.h, qty:it.qty, pname:g.color, bigo:''}));
+  odLines = cur.concat(add);
+  o.groups.splice(i,1);
+  try{ if(o.groups.length) localStorage.setItem(LS_OD_HANDOFF, JSON.stringify(o));
+       else localStorage.removeItem(LS_OD_HANDOFF); }catch(e){}
+  renderOdLines(); odHandoffBanner();
+  showToast(`🧊 ${g.color} ${g.qty}장을 발주 품목에 넣었습니다 — 발주처·종류를 고르고 만드십시오.`);
+}
+function odHandoffClear(){
+  if(!confirm('비규격에서 넘어온 유리를 전부 지웁니다. 계속할까요?')) return;
+  try{ localStorage.removeItem(LS_OD_HANDOFF); }catch(e){}
+  odHandoffBanner();
+}
+// 다른 창(비규격)에서 담으면 새로고침 없이 바로 뜹니다
+window.addEventListener('storage', e=>{ if(e.key===LS_OD_HANDOFF) odHandoffBanner(); });
+
 function renderOrderPage(){
+  odHandoffBanner();
   // 대분류 → 발주처 → 종류 채우기
   odCatChanged();
   // 날짜 기본 오늘
