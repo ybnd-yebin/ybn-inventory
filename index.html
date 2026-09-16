@@ -12806,6 +12806,10 @@ function odLoadExcelJs(){
 const OD_APPROVAL = ['담당', '이사', '대표'];
 const OD_FONT     = '맑은 고딕';
 const OD_APPROVAL_SIZE = 16;      // 결재란 글자 크기 — 작아서 키웠습니다(사장님 2026-09-15)
+const OD_SEAL_SCALE  = 1.10;      // 도장 크기 (사장님 2026-09-16 — 10% 키움)
+/* 도장을 글씨 쪽으로 당기는 거리(mm).
+   7mm 로 했더니 주소 글자 한가운데를 덮었습니다(2026-09-16). 3mm 가 알맞습니다. */
+const OD_SEAL_DX_MM  = 3;
 
 function odFixApproval(wb, ws){
   // ① 결재란 그림(emf) 걷어내기 — 도장(jpeg)은 남깁니다
@@ -12826,13 +12830,23 @@ function odFixApproval(wb, ws){
   const F    = { name:OD_FONT, size:OD_APPROVAL_SIZE };
   const thin = { style:'thin', color:{ argb:'FF000000' } };
   const box  = { top:thin, left:thin, bottom:thin, right:thin };
-  /* 결재란은 원래 K~O 다섯 칸을 채우고 있었습니다. 이름이 셋이라고 세 칸만 쓰면
-     **오른쪽 두 칸(O8·O9)의 선이 지워져** 상자가 이 빠진 것처럼 보입니다
-     (사장님 지적 2026-09-15). 그래서 마지막 이름이 남은 칸을 합쳐 씁니다 —
-     이름이 몇이든 상자의 오른쪽 끝은 늘 O 입니다. */
-  const cols = ['L','M','N','O'];
-  try{ ws.mergeCells('K8:K9'); }catch(e){}          // 이미 합쳐져 있으면 그냥 넘어갑니다
-  const k = ws.getCell('K8');
+  /* 결재란 자리 (사장님 2026-09-16)
+       ① 담당·이사·대표를 **같은 폭**으로
+       ② 상자 왼쪽을 위 명판(㈜ 와이비 앤 디)의 왼쪽 줄에 맞춰 당기기
+
+     명판은 J 부터 시작하므로 상자도 **J 부터** 놓습니다.
+     ⚠ 이름 셋을 같은 폭으로 만들려면 칸 너비를 건드려야 하는데,
+        J(수량)·K(납기)를 건드리면 **아래 표가 같이 바뀝니다.**
+        그래서 결재를 J+K 로 묶고, 이름 셋은 **비고 칸(L·M·N) 안에서만**
+        똑같이 나눕니다 — 비고는 L~N 을 합쳐 쓰므로 안에서 어떻게 나누든
+        표는 그대로입니다. 표를 한 칸도 안 건드리고 뜻을 이룹니다. */
+  const cols = ['L','M','N'];
+  const NAME_W = 41.625 / 3;                        // 비고(L~N) 를 셋으로 고르게
+  cols.forEach(c => { ws.getColumn(c).width = NAME_W; });
+  ['J8:K9','K8:K9','L8:L9','M8:M9','N8:N9','N8:O8','N9:O9']
+    .forEach(a => { try{ ws.unMergeCells(a); }catch(e){} });
+  try{ ws.mergeCells('J8:K9'); }catch(e){}
+  const k = ws.getCell('J8');
   k.value = '결\n재';
   k.alignment = { vertical:'middle', horizontal:'center', wrapText:true };
   k.font = Object.assign({}, F, { bold:true });
@@ -12841,25 +12855,46 @@ function odFixApproval(wb, ws){
   const nm = OD_APPROVAL.slice(0, cols.length);
   nm.forEach((name, i) => {
     const c = cols[i];
-    const last = (i === nm.length - 1);
-    const end  = last ? cols[cols.length - 1] : c;   // 마지막 이름이 남은 칸까지 먹습니다
-    if(last && end !== c){
-      try{ ws.mergeCells(c + '8:' + end + '8'); }catch(e){}
-      try{ ws.mergeCells(c + '9:' + end + '9'); }catch(e){}
-    }
     const h = ws.getCell(c + '8'), s = ws.getCell(c + '9');
     h.value = name;
     h.alignment = { vertical:'middle', horizontal:'center' };
     h.font = Object.assign({}, F, { bold:true });
+    h.border = box;
     s.value = null;
     s.alignment = { vertical:'middle', horizontal:'center' };
     s.font = F;
-    // 합친 칸은 속칸에도 테두리를 둘러야 선이 온전히 나옵니다
-    for(let x = c.charCodeAt(0); x <= end.charCodeAt(0); x++){
-      const col = String.fromCharCode(x);
-      ws.getCell(col + '8').border = box;
-      ws.getCell(col + '9').border = box;
+    s.border = box;
+  });
+  // 합쳐진 결재 칸(J+K)은 속칸에도 테두리를 둘러야 선이 온전히 나옵니다
+  ['J','K'].forEach(c => { ws.getCell(c+'8').border = box; ws.getCell(c+'9').border = box; });
+  // O 는 이제 상자 밖입니다 — 옛 테두리가 남으면 오른쪽에 선이 하나 더 보입니다
+  ['O8','O9'].forEach(a => { const x = ws.getCell(a); x.value = null; x.border = undefined; });
+
+  /* ⑤ 도장 — 10% 키우고 글씨 쪽으로 당깁니다 (사장님 2026-09-16).
+     양식의 도장은 두 칸에 걸쳐 늘어나는 방식이라 크기를 못 정합니다.
+     크기를 픽셀로 못 박아 두면 엑셀과 카톡 그림이 같은 크기로 나옵니다. */
+  const colPx = c => Math.round((Number(ws.getColumn(c).width) || 8.43) * 7.5 + 5);
+  const rowPx = r => Math.round((Number(ws.getRow(r).height) || 18) * 96 / 72);
+  (ws._media || []).forEach(md => {
+    const img = wb.getImage(Number(md.imageId));
+    if(!img || !/jpe?g|png/i.test(img.extension || '')) return;
+    const rg = md.range; if(!rg || !rg.tl) return;
+    let w = 0, h = 0;
+    if(rg.ext){ w = rg.ext.width; h = rg.ext.height; }
+    else if(rg.br){
+      for(let c = Math.floor(rg.tl.col); c < Math.floor(rg.br.col); c++) w += colPx(c + 1);
+      for(let q = Math.floor(rg.tl.row); q < Math.floor(rg.br.row); q++) h += rowPx(q + 1);
+      h += (rg.br.row % 1) * rowPx(Math.floor(rg.br.row) + 1);
     }
+    if(!w || !h) return;
+    const cw = colPx(Math.floor(rg.tl.col) + 1) || 60;
+    const dx = (OD_SEAL_DX_MM * 96 / 25.4) / cw;          // mm → 칸 몇 개치인지
+    /* ⚠ 자리 꾸러미를 **새로 만들어 끼우면 안 됩니다.** ExcelJS 가 안쪽에 들고 있는
+       nativeCol 같은 값이 없어 저장할 때 죽습니다(2026-09-16).
+       원래 꾸러미의 값만 고칩니다. */
+    rg.tl.col = Math.max(0, rg.tl.col - dx);
+    rg.ext = { width: w * OD_SEAL_SCALE, height: h * OD_SEAL_SCALE };
+    delete rg.br;                                          // 한 칸 기준 + 크기로 바꿉니다
   });
   // ④ 담당 칸에 사인 — 앱이 이미 들고 있는 것을 그대로 씁니다
   const sig = odSignatureBuf();
