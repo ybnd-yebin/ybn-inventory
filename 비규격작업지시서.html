@@ -2237,6 +2237,62 @@ function ybnDocToRows(d){
   return { rows, skipped, oldMissing };
 }
 
+/* ── 🔎 왜 안 들어왔나 ──────────────────────────────────────────────
+   고른 발주일의 납품서를 **품목 한 줄씩** 훑어, 어느 문에서 걸렸는지 적습니다.
+   "가져왔는데 안 보인다"를 말로만 주고받으면 서로 못 좁힙니다 —
+   화면이 스스로 짚어 주게 합니다 (사장님 2026-09-16). */
+function ybnWhy(){
+  const got = ybnReadDelivs();
+  if(got.err){ alert(got.err); return; }
+  let docs = (got.log || []).filter(d => (d.items || []).length);
+  if(ybnPickDate) docs = docs.filter(d => (d.orderDate || '') === ybnPickDate);
+  if(!docs.length){ alert('고른 발주일에 납품서가 없습니다.'); return; }
+
+  const haveNo = new Set(ROWS.map(r => r.delivNo).filter(Boolean));
+  const out = [];
+  docs.forEach(d => {
+    (d.items || []).forEach(it => {
+      const nameAll = (it.name || '') + ' ' + (it.short || '');
+      const isEuro = /Euro\s*500|유로\s*500/i.test(nameAll);
+      const nonStd = isNonStdName(nameAll);
+      const oc = (typeof isOldText === 'function') && isOldText(nameAll + ' ' + (it.color || ''), isEuro);
+      let why = '', extra = '';
+      if(nonStd){ why = '✅ 비규격 — 들어옵니다'; }
+      else if(!oc){ why = '⛔ 신형 정규격 — 이 화면 대상이 아닙니다'; }
+      else {
+        const ab = codeFromShort(it.short) || codeFromShort(it.name);
+        let num = '';
+        if(ab){ const m2 = nameAll.match(new RegExp('\\b' + ab + '\\s+(\\d{3,5})')); if(m2) num = m2[1]; }
+        if(!num){ const m3 = nameAll.match(/(\d{3,5})\s*\(?\s*공용/) || nameAll.match(/(\d{3,4})\s*M\b/); if(m3) num = m3[1]; }
+        const s = (typeof oldStdOf === 'function') ? oldStdOf(ab, num) : null;
+        extra = '약어 "' + (ab || '못읽음') + '" · 번호 "' + (num || '못읽음') + '"';
+        why = s ? ('✅ 구형 정규격 — 들어옵니다 (' + s.fw + '×' + s.fh + ')')
+                : '⛔ 구형인데 사이즈표에 없습니다';
+      }
+      out.push({ 납품번호:d.delivNo, 이미있음:haveNo.has(d.delivNo) ? '예' : '아니오',
+                 제품명:(it.short || it.name || '').slice(0, 44), 까닭:why, 참고:extra });
+    });
+  });
+
+  console.table(out);
+  const bad = out.filter(x => x.까닭.startsWith('⛔'));
+  const ok  = out.length - bad.length;
+  const box = document.getElementById('ybnPickBox');
+  const rows = out.map(x =>
+    '<tr><td style="padding:3px 6px;border-bottom:1px solid #eee;white-space:nowrap">' + esc(x.납품번호) + '</td>' +
+    '<td style="padding:3px 6px;border-bottom:1px solid #eee">' + esc(x.제품명) + '</td>' +
+    '<td style="padding:3px 6px;border-bottom:1px solid #eee;white-space:nowrap;color:' +
+      (x.까닭.startsWith('⛔') ? '#b91c1c' : '#15803d') + '">' + esc(x.까닭) + '</td>' +
+    '<td style="padding:3px 6px;border-bottom:1px solid #eee;color:#6b7280;white-space:nowrap">' + esc(x.참고) + '</td></tr>').join('');
+  const html = '<div style="margin-top:10px;padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#fff">' +
+    '<div style="font-size:12px;font-weight:700;margin-bottom:6px">🔎 ' + (ybnPickDate || '전체') + ' — 품목 ' + out.length +
+      '개 중 <span style="color:#15803d">' + ok + '개 들어옴</span>' + (bad.length ? ' · <span style="color:#b91c1c">' + bad.length + '개 안 들어옴</span>' : '') + '</div>' +
+    '<div style="max-height:320px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">' + rows + '</table></div>' +
+    '<div style="margin-top:6px;font-size:10.5px;color:#6b7280">「이미있음 = 예」인 납품서는 <b>빠진 줄만</b> 채웁니다. 자세한 것은 개발자 도구 콘솔에도 표로 찍었습니다.</div>' +
+    '</div>';
+  if(box){ const d = document.createElement('div'); d.innerHTML = html; box.appendChild(d.firstChild); }
+}
+
 const ETP_BULK_ASK = 5;    // 한 번에 이 건수를 넘게 들어오면 먼저 여쭙니다
 var ybnPickDate = '';      // 고른 발주일 ('' = 전체)
 function ybnSetDate(v){ ybnPickDate = v; ybnRenderPick(); }
@@ -2267,6 +2323,7 @@ function ybnRenderPick(){
       dates.slice(0, 14).map(x => chip(x.od, fmtDate(x.od) || x.od, x.items)).join('') +
     '</div>' +
     '<button class="primary" onclick="ybnImport()" style="margin-top:2px">🔗 가져오기</button>' +
+    '<button onclick="ybnWhy()" style="margin-top:2px;margin-left:6px;padding:8px 12px;background:#fff;border:1px solid #d1d5db;border-radius:8px;color:#374151;font-size:12px;cursor:pointer;font-family:inherit">🔎 왜 안 들어왔나</button>' +
     '<span style="font-size:11px;color:#6b7280;margin-left:8px">앱에 올라온 납품서 ' + got.log.length + '건 · 비규격 ' + tot + '건</span>';
 }
 
