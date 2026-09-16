@@ -85,6 +85,12 @@
     border:1px solid #d1d5db;background:#fff;color:#9ca3af;font-size:11px;line-height:1;
     cursor:move;z-index:6;user-select:none}
   .cad-memo-grip:hover{border-color:#2563eb;color:#2563eb}
+  /* 크기 손잡이 — 끌면 상자와 글씨가 같이 커집니다 (사장님 2026-09-16) */
+  .cad-memo-size{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;
+    display:flex;align-items:center;justify-content:center;border-radius:3px;
+    border:1px solid #d1d5db;background:#fff;color:#9ca3af;font-size:9px;line-height:1;
+    cursor:nwse-resize;z-index:6;user-select:none}
+  .cad-memo-size:hover{border-color:#2563eb;color:#2563eb}
   /* ⚠ 전역 `button{padding:9px 16px;border-radius:9px}` 이 그대로 먹어
      알약처럼 늘어나고 × 가 한쪽으로 몰렸습니다(2026-09-16).
      여백을 0으로 누르고 flex 로 한가운데 놓습니다. */
@@ -339,7 +345,7 @@
     .cad-memo-text{padding:0 2px!important}
     .cad-memo:has(.cad-memo-text:empty){display:none!important}
     .cad-memo-text:empty:before{content:''!important}
-    .cad-memo-x,.cad-memo-add,.cad-memo-grip{display:none!important}
+    .cad-memo-x,.cad-memo-add,.cad-memo-grip,.cad-memo-size{display:none!important}
     .hpm-box{border:1.5px solid #7a3fb0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .sheet{background:#fff;border:2px solid #000;color:#000;-webkit-box-decoration-break:clone;box-decoration-break:clone}
     /* ★ 페이지마다 머리글 반복의 핵심 두 줄.
@@ -2284,6 +2290,7 @@ function ybnDocToRows(d){
      그때는 끌어서 옮기시면 됩니다(지우고 다시 적는 것보다 낫습니다).
    ■ 인쇄에는 **글자만** 나갑니다 — 점선 테두리와 단추는 화면에서만 봅니다.
    ══════════════════════════════════════════════════════════════════ */
+const CAD_MEMO_FS = 11;      // 메모 기본 글씨 크기(pt). 오른쪽 아래 손잡이로 바꿉니다.
 const LS_MEMO = 'nonspec-memo-v1';
 let CAD_MEMO = {};
 try{ CAD_MEMO = JSON.parse(localStorage.getItem(LS_MEMO) || '{}') || {}; }catch(e){ CAD_MEMO = {}; }
@@ -2320,6 +2327,10 @@ function cadMemoMake(page, m, i){
   txt.contentEditable = 'true';
   txt.spellcheck = false;
   txt.textContent = m.text || '';
+  /* 글씨 크기는 상자 크기와 함께 갑니다 (사장님 2026-09-16 —
+     "박스 크기를 조절할 수 있게 해주고 키우는 만큼 글씨가 같이 확대되어도 될 듯").
+     크기 하나만 기억하면 되니 다룰 것이 하나로 줄어듭니다. */
+  txt.style.fontSize = (m.fs || CAD_MEMO_FS) + 'pt';
   el.appendChild(txt);
 
   const del = document.createElement('button');
@@ -2373,6 +2384,40 @@ function cadMemoMake(page, m, i){
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', up);
   });
+  /* 오른쪽 아래 손잡이 — 끌면 **상자와 글씨가 함께** 커집니다.
+     넓힌 비율만큼 글씨도 키우므로, 한 번 끌면 줄바꿈이 그대로 유지됩니다. */
+  const size = document.createElement('div');
+  size.className = 'cad-memo-size'; size.textContent = '◢'; size.title = '끌어서 크기 바꾸기';
+  size.contentEditable = 'false';
+  el.appendChild(size);
+  size.addEventListener('mousedown', ev => {
+    ev.preventDefault(); ev.stopPropagation();
+    const pr = page.getBoundingClientRect();
+    const r0 = el.getBoundingClientRect();
+    const w0 = r0.width, x0 = ev.clientX;
+    const fs0 = parseFloat(getComputedStyle(txt).fontSize);   // px
+    const pt0 = (CAD_MEMO[cadMemoKey(page)] || [])[Number(el.dataset.idx)] ;
+    const basePt = (pt0 && pt0.fs) || CAD_MEMO_FS;
+    const move = e2 => {
+      const w = Math.max(60, w0 + (e2.clientX - x0));         // 너무 작아지지 않게
+      const k = w / w0;
+      el.style.width = (w / pr.width * 100).toFixed(2) + '%';
+      txt.style.fontSize = Math.max(6, Math.min(40, basePt * k)).toFixed(1) + 'pt';
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      const key = cadMemoKey(page); CAD_MEMO[key] = CAD_MEMO[key] || [];
+      const o = (CAD_MEMO[key][Number(el.dataset.idx)] = CAD_MEMO[key][Number(el.dataset.idx)] || {});
+      o.w  = parseFloat(el.style.width);
+      o.fs = parseFloat(txt.style.fontSize);
+      o.text = txt.textContent;
+      cadMemoSave();
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+
   return el;
 }
 
