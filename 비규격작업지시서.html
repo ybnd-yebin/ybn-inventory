@@ -73,11 +73,18 @@
      저장해 다시 뽑아도 따라옵니다. 자리는 **비율(%)** 로 적어 두므로
      화면 크기가 달라도 같은 데 붙습니다. */
   .cad-memo{position:absolute;z-index:5;min-width:36mm;max-width:150mm;
-    font-family:'굴림','Gulim','Malgun Gothic',sans-serif;font-size:11pt;line-height:1.45;
-    color:#111;background:transparent;border:1px dashed #9ca3af;border-radius:3px;
-    padding:3px 6px;white-space:pre-wrap;word-break:break-word;cursor:move}
-  .cad-memo:focus{outline:2px solid #2563eb;border-style:solid}
-  .cad-memo:empty:before{content:'메모를 적으세요';color:#9ca3af}
+    border:1px dashed #9ca3af;border-radius:3px;background:transparent}
+  .cad-memo-text{font-family:'굴림','Gulim','Malgun Gothic',sans-serif;font-size:11pt;line-height:1.45;
+    color:#111;padding:3px 6px;white-space:pre-wrap;word-break:break-word;
+    cursor:text;min-height:1.45em;outline:none}
+  .cad-memo:focus-within{border-style:solid;border-color:#2563eb}
+  .cad-memo-text:empty:before{content:'메모를 적으세요';color:#9ca3af}
+  /* 옮기는 손잡이 — 몸통은 글 적는 자리로 두고 여기서만 끕니다 */
+  .cad-memo-grip{position:absolute;left:-9px;top:-9px;width:18px;height:18px;
+    display:flex;align-items:center;justify-content:center;border-radius:50%;
+    border:1px solid #d1d5db;background:#fff;color:#9ca3af;font-size:11px;line-height:1;
+    cursor:move;z-index:6;user-select:none}
+  .cad-memo-grip:hover{border-color:#2563eb;color:#2563eb}
   /* ⚠ 전역 `button{padding:9px 16px;border-radius:9px}` 이 그대로 먹어
      알약처럼 늘어나고 × 가 한쪽으로 몰렸습니다(2026-09-16).
      여백을 0으로 누르고 flex 로 한가운데 놓습니다. */
@@ -328,10 +335,11 @@
     .cad-page + .cad-page{break-before:page;page-break-before:always}
     .cad-page>svg{height:292mm!important;width:auto!important;max-width:210mm;display:block;margin:0 auto}
     /* 메모는 글자만 찍습니다 — 점선 테두리와 단추는 화면에서만 봅니다 */
-    .cad-memo{border:none!important;padding:0 2px!important;background:transparent!important}
-    .cad-memo:empty{display:none!important}
-    .cad-memo:empty:before{content:''!important}
-    .cad-memo-x,.cad-memo-add{display:none!important}
+    .cad-memo{border:none!important;background:transparent!important}
+    .cad-memo-text{padding:0 2px!important}
+    .cad-memo:has(.cad-memo-text:empty){display:none!important}
+    .cad-memo-text:empty:before{content:''!important}
+    .cad-memo-x,.cad-memo-add,.cad-memo-grip{display:none!important}
     .hpm-box{border:1.5px solid #7a3fb0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .sheet{background:#fff;border:2px solid #000;color:#000;-webkit-box-decoration-break:clone;box-decoration-break:clone}
     /* ★ 페이지마다 머리글 반복의 핵심 두 줄.
@@ -2296,15 +2304,23 @@ function cadMemoPrune(){
 function cadMemoKey(page){ return (page.dataset.memoKey || ''); }
 
 function cadMemoMake(page, m, i){
+  /* ⚠ 쪽지 자체를 편집칸으로 두면 **커서가 놓일 자리가 없습니다.**
+     안에 든 것이 단추(×)와 손잡이(⠿)뿐이라 글자 마디가 없어,
+     눌러도 커서가 안 생기고 한 글자도 못 적었습니다(2026-09-16).
+     그래서 **글 적는 칸을 따로** 두고, 쪽지는 그것을 담는 그릇으로 씁니다. */
   const el = document.createElement('div');
   el.className = 'cad-memo';
-  el.contentEditable = 'true';
-  el.spellcheck = false;
   el.style.left = (m.x || 8) + '%';
   el.style.top  = (m.y || 80) + '%';
   if(m.w) el.style.width = m.w + '%';
-  el.textContent = m.text || '';
   el.dataset.idx = i;
+
+  const txt = document.createElement('div');
+  txt.className = 'cad-memo-text';
+  txt.contentEditable = 'true';
+  txt.spellcheck = false;
+  txt.textContent = m.text || '';
+  el.appendChild(txt);
 
   const del = document.createElement('button');
   del.className = 'cad-memo-x'; del.textContent = '×'; del.title = '이 메모 지우기';
@@ -2318,25 +2334,27 @@ function cadMemoMake(page, m, i){
   };
   el.appendChild(del);
 
-  // 적은 것 저장 — 단추 글자(×)는 빼고 담습니다
-  const text = () => [...el.childNodes].filter(n => n.nodeType === 3 || !n.classList || !n.classList.contains('cad-memo-x'))
-                      .map(n => n.textContent).join('');
-  el.addEventListener('input', () => {
+  // 적은 것 저장 — 글 적는 칸만 봅니다(단추·손잡이는 그릇 쪽에 있습니다)
+  const text = () => txt.textContent;
+  txt.addEventListener('input', () => {
     const k = cadMemoKey(page); CAD_MEMO[k] = CAD_MEMO[k] || [];
     (CAD_MEMO[k][Number(el.dataset.idx)] = CAD_MEMO[k][Number(el.dataset.idx)] || {}).text = text();
     cadMemoSave();
   });
 
-  /* 끌어서 옮기기 — 글자를 고칠 때는 안 끌리게 **가장자리에서만** 잡습니다.
-     가운데를 잡으면 글자를 고르려 할 때마다 쪽지가 따라와 못 씁니다. */
-  el.addEventListener('mousedown', ev => {
-    if(ev.target !== el) return;                    // 단추는 제외
+  /* 끌어서 옮기기 — **왼쪽 위 손잡이(⠿)로만** 끕니다.
+     ⚠ 예전에는 쪽지 가장자리를 잡아 끌게 했는데, 끌기를 시작하며 부르는
+        preventDefault() 때문에 **초점이 안 잡혀 글자를 아예 못 적었습니다**
+        (사장님 2026-09-16 "커서도 안 생기고 아무것도 적을 수 없어").
+        게다가 빈 쪽지는 작아서 거의 전체가 '가장자리'로 잡혔습니다.
+        이제 쪽지 몸통은 **오직 글 적는 자리**이고, 옮기는 것은 손잡이뿐입니다. */
+  const grip = document.createElement('div');
+  grip.className = 'cad-memo-grip'; grip.textContent = '⠿'; grip.title = '잡아서 옮기기';
+  grip.contentEditable = 'false';
+  el.appendChild(grip);
+  grip.addEventListener('mousedown', ev => {
+    ev.preventDefault(); ev.stopPropagation();
     const r = el.getBoundingClientRect();
-    const edge = 10;
-    const onEdge = ev.clientX - r.left < edge || r.right - ev.clientX < edge ||
-                   ev.clientY - r.top  < edge || r.bottom - ev.clientY < edge;
-    if(!onEdge && document.activeElement === el) return;   // 글자 고르는 중이면 안 끕니다
-    ev.preventDefault();
     const pr = page.getBoundingClientRect();
     const dx = ev.clientX - r.left, dy = ev.clientY - r.top;
     const move = e2 => {
@@ -3442,7 +3460,24 @@ function cadSheetSVG(header, banner){
   /* 머리글에는 계열 이름만 넣습니다. 이어지는 장에 (계속)을 붙였다가 뺐습니다
      (사용자 확정 2026-09-10) — 장마다 계열 이름이 그대로 찍히니 굳이 필요 없습니다.
      다시 넣으려면 banner.cont 를 여기서 읽으면 됩니다(값은 계속 넘어옵니다). */
-  s+=T(105, bandTop, 6.0, esc(banner&&banner.text?banner.text:'EO700 신형(OB)'), {anchor:'middle', bold:true});
+  /* 구형이면 띠에 **빨간 (구형프레임)** 을 덧붙입니다 (사장님 2026-09-16).
+     구형은 프레임이 신형과 달라, 한눈에 갈려 보여야 현장에서 안 헷갈립니다.
+     두 조각을 이어 붙이므로 **글자 너비를 실제로 재서** 가운데를 맞춥니다
+     (어림하면 가운데가 틀어집니다 — 12-4 와 같은 이치). */
+  {
+    const bt = esc((banner && banner.text) ? banner.text : 'EO700 신형(OB)');
+    const tag = (banner && banner.oldTag) ? (' (' + banner.oldTag + ')') : '';
+    if(!tag){
+      s+=T(105, bandTop, 6.0, bt, {anchor:'middle', bold:true});
+    } else {
+      /* **한 글줄 안에 두 색**을 넣습니다 — 브라우저가 통째로 가운데를 잡아 주므로
+         너비를 재어 나눌 일이 없습니다. 재서 반 나누면 굴림의 글자 왼쪽 여백 때문에
+         0.5mm쯤 치우쳤습니다(2026-09-16 실측 104.48 / 105). */
+      const y = (bandTop + 6.0*K).toFixed(2);
+      s+=`<text x="105" y="${y}" font-family="${F}" font-size="6" font-weight="700"`
+       + ` text-anchor="middle" fill="#000">${bt}<tspan fill="#e00000">${esc(tag)}</tspan></text>`;
+    }
+  }
   s+=`</svg>`;
   return s;
 }
@@ -4316,7 +4351,11 @@ function cadGenerate(){
     pages.forEach(pageBlocks=>{
       // cont = 그룹이 앞 장에서 이어짐(groupCont) 또는 블록 자체가 잘려 이어짐(isCont)
       const b0=pageBlocks[0];
-      const banner={text:(b0?b0.banner:'EURO700 OB 도어'), cont:!!(b0&&(b0.groupCont||b0.isCont))};
+      /* 이 장이 구형인지 — 전부 구형이면 「구형프레임」, 섞이면 「구형프레임 포함」.
+         섞인 것을 모르고 내보내는 것이 제일 위험하므로 숨기지 않습니다. */
+      const oldN = pageBlocks.filter(b => b.rep && b.rep.oldStd).length;
+      const oldTag = !oldN ? '' : (oldN === pageBlocks.length ? '구형프레임' : '구형프레임 포함');
+      const banner={text:(b0?b0.banner:'EURO700 OB 도어'), cont:!!(b0&&(b0.groupCont||b0.isCont)), oldTag};
       // 메모 열쇠 = 발주일 + 장 번호. 다시 뽑아도 같은 장에 붙습니다.
       html+=`<div class="cad-page" data-memo-key="${esc(ship)}|${sheetCount - pages.length + (pages.indexOf(pageBlocks)+1)}">`
           + cadPageSVG(header, banner, pageBlocks) + `</div>`;
