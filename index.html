@@ -1127,7 +1127,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div class="f-row">
       <div>
         <span class="lbl">비고 (기본값)</span>
-        <input type="text" id="od-bigo" class="inp" placeholder="예: 각면/강화" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <input type="text" id="od-bigo" class="inp" placeholder="예: 각면/강화 (한 번 적으면 다음부터 저절로 들어갑니다)" onchange="odBigoRemember()" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
       </div>
       <div>
         <span class="lbl">업체명</span>
@@ -8530,6 +8530,7 @@ function metaForSync(){
      다른 기기는 끈 채로 남아 같은 앱이 서로 다른 재고를 보여줄 수 있었습니다. */
   put('inkCut',        typeof inkCut!=='undefined'        ? inkCut        : undefined);
   put('odAuto',        typeof odAuto!=='undefined'        ? odAuto        : undefined);
+  put('odBigoMemo',    typeof odBigoMemo!=='undefined'    ? odBigoMemo    : undefined);
   /* 에토프 외주 인쇄유리 (2026-09-14). 장부·발주·묘비를 함께 보냅니다 —
      묘비가 안 가면 한 기기에서 지운 줄이 다른 기기에서 되살아납니다. */
   put('etpLedger',     typeof etpLedger!=='undefined'     ? etpLedger     : undefined);
@@ -8687,6 +8688,13 @@ function applyMergedFromSheet(data){
   if(data.inkCut!==undefined && typeof inkCut!=='undefined' && _newer(data.inkCut, inkCut)){
     inkCut=Object.assign({on:false,date:'2026-08-18'}, data.inkCut);
     try{ localStorage.setItem(LS_INKCUT, JSON.stringify(inkCut)); }catch(e){}
+  }
+  /* 비고 기억은 **양쪽을 합칩니다** — 기기마다 다른 종류를 쓰실 수 있어
+     한쪽으로 덮으면 다른 기기에서 적어 둔 것이 사라집니다. */
+  if(data.odBigoMemo!==undefined && data.odBigoMemo && typeof odBigoMemo!=='undefined'){
+    let n=0;
+    for(const k in data.odBigoMemo){ if(!odBigoMemo[k]){ odBigoMemo[k]=data.odBigoMemo[k]; n++; } }
+    if(n) _put(LS_OD_BIGO, odBigoMemo);
   }
   if(data.odAuto!==undefined && typeof odAuto!=='undefined' && _newer(data.odAuto, odAuto)){
     odAuto=Object.assign({on:false,fallbackDays:3}, data.odAuto);
@@ -12190,7 +12198,12 @@ function odVendorChanged(keep){
 function odTypeChanged(){
   const {p,vendor}=curPreset();
   if(p){
-    document.getElementById('od-bigo').value=p.bigo||'';
+    /* 비고 — **마지막에 쓰신 것을 기억합니다** (사장님 2026-09-16
+       "비고에 기본값 안 들어가던데 한 번 넣으면 계속 넣어지는 걸까요?").
+       예전에는 종류마다 코드에 박힌 기본값뿐이라, 거기 없는 종류
+       (현성유리 5T 백유리 등)는 늘 비어 있었고 적어도 종류를 다시 고르면
+       지워졌습니다. 이제 적어 두신 것이 다음부터 저절로 들어갑니다. */
+    document.getElementById('od-bigo').value = odBigoGet(vendor, p) || p.bigo || '';
     // 에토프재고로 이어지는 종류면 그 사실을 화면에 적습니다 — 두 번 넣지 않으시게
     const linked = vendor===ETP_PO_LINK_VENDOR && ETP_PO_LINK_THICK.test(String(p.thick||p.type||''));
     document.getElementById('od-type-hint').textContent =
@@ -12199,6 +12212,24 @@ function odTypeChanged(){
     document.getElementById('od-line-hint').textContent=p.modelMode?'모델명 입력 → 사이즈 자동':'규격은 가로*세로 (mm)';
   }
   renderOdLines();
+}
+
+/* 비고 기억 — 대분류|발주처|종류 마다 마지막에 쓰신 값을 둡니다.
+   코드에 박힌 기본값보다 **사장님이 적으신 것이 먼저**입니다. */
+const LS_OD_BIGO = 'ybn-od-bigo-v1';
+let odBigoMemo = {};
+try{ odBigoMemo = J(localStorage.getItem(LS_OD_BIGO)) || {}; }catch(e){ odBigoMemo = {}; }
+function odBigoKey(vendor, p){
+  return [curCat(), vendor || '', (p && p.type) || ''].join('|');
+}
+function odBigoGet(vendor, p){ return odBigoMemo[odBigoKey(vendor, p)] || ''; }
+function odBigoRemember(){
+  const { p, vendor } = curPreset();
+  const v = (document.getElementById('od-bigo').value || '').trim();
+  const k = odBigoKey(vendor, p);
+  if(v) odBigoMemo[k] = v; else delete odBigoMemo[k];
+  _put(LS_OD_BIGO, odBigoMemo);
+  if(typeof meta !== 'undefined') meta.lastLocalChange = new Date().toISOString();
 }
 
 function curPreset(){
