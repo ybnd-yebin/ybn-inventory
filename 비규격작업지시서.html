@@ -2282,22 +2282,36 @@ function ybnImport(){
         납품서는 조용히 빠지고, 이미 있는 것은 건수만 적혀서
         "가져왔는데 미리보기에 안 따라온다"는 말을 들었습니다(2026-09-16).
         이제 건마다 까닭을 모아 화면에 적습니다. */
+  /* ⚠ **줄 단위로** 봅니다 (2026-09-16 고침).
+     예전에는 납품번호가 이미 있으면 그 납품서를 **통째로** 건너뛰었습니다.
+     그래서 읽는 규칙을 고쳐도(구형 정규격을 태우게 한 것처럼) 이미 들어온
+     납품서에는 영영 적용되지 않았습니다 — 사장님이 다시 가져오기를 눌러도
+     "이미 들어와 있는 것 3건"만 뜨고 포레스트는 안 들어왔습니다.
+     이제 **그 납품서에서 아직 안 들어온 줄만** 골라 채웁니다. */
   const have = {};
-  ROWS.forEach(r => { if(r.delivNo && !have[r.delivNo]) have[r.delivNo] = r; });
-  let added = 0, skipped = [], oldMiss = [];
+  const rowKey = r => [r.delivNo||'', r.code||'', r.w||0, r.h||0, r.lr||'',
+                       (r.oldStd && r.oldStd.model) || ''].join('|');
+  const haveRow = new Set();
+  ROWS.forEach(r => {
+    if(r.delivNo && !have[r.delivNo]) have[r.delivNo] = r;
+    haveRow.add(rowKey(r));
+  });
+  let added = 0, skipped = [], oldMiss = [], filled = 0;
   const newRows = [], dupList = [], emptyList = [];
   docs.forEach(d => {
-    if(have[d.delivNo]){
-      const old = have[d.delivNo];
-      dupList.push({ no:d.delivNo, at:chkOrderDate(old) });
-      return;
-    }
     const r = ybnDocToRows(d);
     oldMiss = oldMiss.concat(r.oldMissing || []);
     if(!r.rows.length){ emptyList.push(d.delivNo); return; }
-    r.rows.forEach(x => newRows.push(x));
+    const fresh = r.rows.filter(x => !haveRow.has(rowKey(x)));
+    if(!fresh.length){
+      const old = have[d.delivNo];
+      dupList.push({ no:d.delivNo, at: old ? chkOrderDate(old) : '' });
+      return;
+    }
+    if(have[d.delivNo]) filled++;            // 이미 있던 납품서에 줄만 채운 것
+    else added++;
+    fresh.forEach(x => { newRows.push(x); haveRow.add(rowKey(x)); });
     skipped = skipped.concat(r.skipped);
-    added++;
   });
   const dup = dupList.length;
 
@@ -2324,8 +2338,10 @@ function ybnImport(){
     console.warn('[앱에서 가져오기] 안 들어온 까닭', { 이미있음:dupList, 비규격없음:emptyList, 구형미등록:oldMiss });
     return;
   }
+  ybnFixOldRows();                     // 이미 들어와 있던 행도 이 참에 바로잡습니다
   newRows.forEach(x => ROWS.push(x));
   let msg = '🔗 앱에서 ' + added + '건 가져옴 · 비규격 ' + newRows.reduce((s, x) => s + (x.qty || 1), 0) + '장';
+  if(filled) msg += ' · 이미 있던 ' + filled + '건에 빠진 줄을 채움';
   if(dup) msg += ' · 이미 있던 것 ' + dup + '건 건너뜀';
   if(emptyList.length) msg += ' · 비규격 없어 건너뜀 ' + emptyList.length + '건';
   if(oldMiss.length){
@@ -2462,11 +2478,35 @@ function saveRows(){
     localStorage.setItem(LS_ROWS, JSON.stringify({v:1, rows:ROWS, seen:[...SEEN], at:new Date().toISOString()}));
   }catch(e){ console.warn('납품서 보관 실패(용량 초과일 수 있음)', e); }
 }
+/* 앱에서 가져온 행 가운데 **옛 판으로 들어와 값이 틀린 것**을 바로잡습니다.
+
+   ■ EURO500 이 EURO700 으로 계산되던 것 (2026-09-16)
+     ybnDocToRows 가 `euro:false` 로 박혀 있어, 앱에서 가져온 EURO500 비규격이
+     EURO700 규칙(−5×−4·유리 있음)으로 흘렀습니다. EURO500 은 폭만 −6 이고
+     유리가 없습니다(CLAUDE.md 12-1). 읽는 규칙만 고치면 **이미 들어와 있는
+     행은 그대로 틀린 채 남으므로** 불러올 때 한 번 훑어 고칩니다.
+   이름만 보고 고치는 것이라 몇 번 돌려도 같은 결과입니다. */
+function ybnFixOldRows(){
+  let n = 0;
+  (ROWS || []).forEach(r => {
+    if(!r || !r.fromApp) return;
+    const nameAll = (r.name || '') + ' ' + (r.short || '');
+    const isEuro = /Euro\s*500|유로\s*500/i.test(nameAll);
+    if(!!r.euro !== isEuro){ r.euro = isEuro; n++; }
+  });
+  if(n){
+    console.warn('[비규격] 앱에서 가져온 행 ' + n + '개의 EURO500 표시를 바로잡았습니다.');
+    try{ saveRows(); }catch(e){}
+  }
+  return n;
+}
+
 function loadRows(){
   let d=null;
   try{ d=JSON.parse(localStorage.getItem(LS_ROWS)); }catch(e){}
   if(!d || !Array.isArray(d.rows) || !d.rows.length) return;
   ROWS=d.rows; SEEN=new Set(d.seen||[]);
+  ybnFixOldRows();      // 옛 판으로 들어와 값이 틀린 행을 바로잡습니다
   const btn=document.getElementById('genBtn'); if(btn) btn.disabled=false;
   renderCheck();
   const when=String(d.at||'').slice(0,10);
