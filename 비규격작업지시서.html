@@ -65,8 +65,25 @@
      **장마다 빈 페이지가 하나씩 끼어듭니다**(2장짜리가 5장으로 나왔습니다).
      여백이 10mm였을 때는 브라우저가 통째로 줄여 넣어 드러나지 않던 것이,
      여백을 0으로 바꾸자 나타났습니다. block 으로 두고 줄높이를 0으로 눌러 막습니다. */
-  .cad-page{margin:10px auto;width:210mm;max-width:100%;box-shadow:0 1px 6px rgba(0,0,0,.25);background:#fff;line-height:0;font-size:0}
+  .cad-page{margin:10px auto;width:210mm;max-width:100%;box-shadow:0 1px 6px rgba(0,0,0,.25);background:#fff;line-height:0;font-size:0;position:relative}
   .cad-page>svg{display:block;width:100%;height:auto}
+
+  /* ── 메모 (사장님 2026-09-16) ─────────────────────────────────────
+     장 위에 얹는 쪽지입니다. 끌어서 옮기고, 적은 것은 발주일·장 번호로
+     저장해 다시 뽑아도 따라옵니다. 자리는 **비율(%)** 로 적어 두므로
+     화면 크기가 달라도 같은 데 붙습니다. */
+  .cad-memo{position:absolute;z-index:5;min-width:36mm;max-width:150mm;
+    font-family:'굴림','Gulim','Malgun Gothic',sans-serif;font-size:11pt;line-height:1.45;
+    color:#111;background:transparent;border:1px dashed #9ca3af;border-radius:3px;
+    padding:3px 6px;white-space:pre-wrap;word-break:break-word;cursor:move}
+  .cad-memo:focus{outline:2px solid #2563eb;border-style:solid}
+  .cad-memo:empty:before{content:'메모를 적으세요';color:#9ca3af}
+  .cad-memo-x{position:absolute;right:-9px;top:-9px;width:18px;height:18px;line-height:16px;
+    text-align:center;border-radius:9px;border:1px solid #d1d5db;background:#fff;color:#6b7280;
+    font-size:12px;cursor:pointer;z-index:6}
+  .cad-memo-add{position:absolute;right:6px;top:6px;z-index:6;padding:4px 9px;font-size:11px;
+    border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#374151;cursor:pointer;
+    font-family:inherit;opacity:.85}
 
   /* ── 작업지시서 시트 ── */
   .sheet{background:#fff;border:2px solid #333;padding:26px;margin-bottom:18px;color:#111}
@@ -304,6 +321,11 @@
        둘째 장부터 '앞에서' 끊으면 끊는 횟수가 장수보다 하나 적어 빈 장이 안 생깁니다. */
     .cad-page + .cad-page{break-before:page;page-break-before:always}
     .cad-page>svg{height:292mm!important;width:auto!important;max-width:210mm;display:block;margin:0 auto}
+    /* 메모는 글자만 찍습니다 — 점선 테두리와 단추는 화면에서만 봅니다 */
+    .cad-memo{border:none!important;padding:0 2px!important;background:transparent!important}
+    .cad-memo:empty{display:none!important}
+    .cad-memo:empty:before{content:''!important}
+    .cad-memo-x,.cad-memo-add{display:none!important}
     .hpm-box{border:1.5px solid #7a3fb0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .sheet{background:#fff;border:2px solid #000;color:#000;-webkit-box-decoration-break:clone;box-decoration-break:clone}
     /* ★ 페이지마다 머리글 반복의 핵심 두 줄.
@@ -2237,6 +2259,126 @@ function ybnDocToRows(d){
   return { rows, skipped, oldMissing };
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   📝 장 위 메모 — 끌어서 옮기고, 적은 것은 남습니다      2026-09-16
+   "밑에 공란에 적을 건데 메모 박스가 내 마음대로 이동할 수 있도록"
+
+   ■ 자리는 **비율(%)** 로 적어 둡니다. 화면 크기가 달라도 같은 데 붙고,
+     인쇄(210×292mm)에서도 같은 자리에 찍힙니다.
+   ■ 열쇠는 **발주일 + 장 번호** 입니다. 다시 뽑아도 따라옵니다.
+     물량이 바뀌어 장수가 달라지면 뒤 장의 메모가 어긋날 수 있는데,
+     그때는 끌어서 옮기시면 됩니다(지우고 다시 적는 것보다 낫습니다).
+   ■ 인쇄에는 **글자만** 나갑니다 — 점선 테두리와 단추는 화면에서만 봅니다.
+   ══════════════════════════════════════════════════════════════════ */
+const LS_MEMO = 'nonspec-memo-v1';
+let CAD_MEMO = {};
+try{ CAD_MEMO = JSON.parse(localStorage.getItem(LS_MEMO) || '{}') || {}; }catch(e){ CAD_MEMO = {}; }
+function cadMemoSave(){
+  try{ localStorage.setItem(LS_MEMO, JSON.stringify(CAD_MEMO)); }
+  catch(e){ console.warn('[메모] 저장 실패', e); }
+}
+/* 오래된 것은 덜어냅니다 — 발주일이 180일보다 오래되면 지웁니다 */
+function cadMemoPrune(){
+  const cut = bizBefore ? '' : '';
+  const lim = new Date(Date.now() - 180*86400000);
+  const ymd = lim.getFullYear()+'-'+String(lim.getMonth()+1).padStart(2,'0')+'-'+String(lim.getDate()).padStart(2,'0');
+  let n = 0;
+  Object.keys(CAD_MEMO).forEach(k => { const d = k.split('|')[0]; if(d && d < ymd){ delete CAD_MEMO[k]; n++; } });
+  if(n) cadMemoSave();
+}
+
+function cadMemoKey(page){ return (page.dataset.memoKey || ''); }
+
+function cadMemoMake(page, m, i){
+  const el = document.createElement('div');
+  el.className = 'cad-memo';
+  el.contentEditable = 'true';
+  el.spellcheck = false;
+  el.style.left = (m.x || 8) + '%';
+  el.style.top  = (m.y || 80) + '%';
+  if(m.w) el.style.width = m.w + '%';
+  el.textContent = m.text || '';
+  el.dataset.idx = i;
+
+  const del = document.createElement('button');
+  del.className = 'cad-memo-x'; del.textContent = '×'; del.title = '이 메모 지우기';
+  del.contentEditable = 'false';
+  del.onclick = ev => {
+    ev.stopPropagation();
+    const k = cadMemoKey(page), list = CAD_MEMO[k] || [];
+    list.splice(Number(el.dataset.idx), 1);
+    if(!list.length) delete CAD_MEMO[k]; else CAD_MEMO[k] = list;
+    cadMemoSave(); cadMemoPaint(page);
+  };
+  el.appendChild(del);
+
+  // 적은 것 저장 — 단추 글자(×)는 빼고 담습니다
+  const text = () => [...el.childNodes].filter(n => n.nodeType === 3 || !n.classList || !n.classList.contains('cad-memo-x'))
+                      .map(n => n.textContent).join('');
+  el.addEventListener('input', () => {
+    const k = cadMemoKey(page); CAD_MEMO[k] = CAD_MEMO[k] || [];
+    (CAD_MEMO[k][Number(el.dataset.idx)] = CAD_MEMO[k][Number(el.dataset.idx)] || {}).text = text();
+    cadMemoSave();
+  });
+
+  /* 끌어서 옮기기 — 글자를 고칠 때는 안 끌리게 **가장자리에서만** 잡습니다.
+     가운데를 잡으면 글자를 고르려 할 때마다 쪽지가 따라와 못 씁니다. */
+  el.addEventListener('mousedown', ev => {
+    if(ev.target !== el) return;                    // 단추는 제외
+    const r = el.getBoundingClientRect();
+    const edge = 10;
+    const onEdge = ev.clientX - r.left < edge || r.right - ev.clientX < edge ||
+                   ev.clientY - r.top  < edge || r.bottom - ev.clientY < edge;
+    if(!onEdge && document.activeElement === el) return;   // 글자 고르는 중이면 안 끕니다
+    ev.preventDefault();
+    const pr = page.getBoundingClientRect();
+    const dx = ev.clientX - r.left, dy = ev.clientY - r.top;
+    const move = e2 => {
+      const x = Math.max(0, Math.min(100, (e2.clientX - dx - pr.left) / pr.width  * 100));
+      const y = Math.max(0, Math.min(100, (e2.clientY - dy - pr.top ) / pr.height * 100));
+      el.style.left = x.toFixed(2) + '%'; el.style.top = y.toFixed(2) + '%';
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      const k = cadMemoKey(page); CAD_MEMO[k] = CAD_MEMO[k] || [];
+      const o = (CAD_MEMO[k][Number(el.dataset.idx)] = CAD_MEMO[k][Number(el.dataset.idx)] || {});
+      o.x = parseFloat(el.style.left); o.y = parseFloat(el.style.top); o.text = text();
+      cadMemoSave();
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+  return el;
+}
+
+function cadMemoPaint(page){
+  [...page.querySelectorAll('.cad-memo')].forEach(e => e.remove());
+  const list = CAD_MEMO[cadMemoKey(page)] || [];
+  list.forEach((m, i) => page.appendChild(cadMemoMake(page, m, i)));
+}
+
+/* 장마다 「＋ 메모」 단추를 달고, 저장해 둔 메모를 얹습니다. */
+function cadMemoAttach(){
+  cadMemoPrune();
+  document.querySelectorAll('.cad-page').forEach(page => {
+    if(page.querySelector('.cad-memo-add')) return;
+    const add = document.createElement('button');
+    add.className = 'cad-memo-add'; add.textContent = '＋ 메모';
+    add.title = '이 장에 메모를 답니다. 가장자리를 잡아 끌면 옮겨집니다.';
+    add.onclick = () => {
+      const k = cadMemoKey(page);
+      CAD_MEMO[k] = CAD_MEMO[k] || [];
+      CAD_MEMO[k].push({ x:8, y:80, text:'' });
+      cadMemoSave(); cadMemoPaint(page);
+      const last = page.querySelector('.cad-memo:last-of-type');
+      if(last) last.focus();
+    };
+    page.appendChild(add);
+    cadMemoPaint(page);
+  });
+}
+
 /* ── 🔎 왜 안 들어왔나 ──────────────────────────────────────────────
    고른 발주일의 납품서를 **품목 한 줄씩** 훑어, 어느 문에서 걸렸는지 적습니다.
    "가져왔는데 안 보인다"를 말로만 주고받으면 서로 못 좁힙니다 —
@@ -3274,7 +3416,18 @@ function cadSheetSVG(header, banner){
   s+=T(12.20,  HDR_MID, HDR_FS, `발주일 : ${esc(header.od||'')}`);
   s+=T(124.70, HDR_MID, HDR_FS, `납품일 : ${esc(header.deliv||'')}`);
   s+=T(12.20,  HDR_BOT, HDR_FS, `업체명 : ${esc(header.company||'')}`);
-  s+=T(124.70, HDR_BOT, HDR_FS, `현장명 : ${esc(header.site||'')}`);
+  /* 현장명 — AS 면 뒤에 빨간 굵은 글씨로 「AS건.」 을 붙입니다 (사장님 2026-09-16).
+     현장명을 적어 두셨으면 그 뒤에, 비었으면 그 자리에 바로 적힙니다. */
+  {
+    const site = String(header.site||'');
+    s+=T(124.70, HDR_BOT, HDR_FS, `현장명 : ${esc(site)}`);
+    if(header.asTag){
+      // 앞 글자를 **실제로 재서** 그 뒤에 붙입니다(어림하면 겹치거나 뜹니다 — 12-4 참고)
+      const head = `현장명 : ${site}` + (site ? ' ' : '');
+      const w = _dimTextW(head, HDR_FS);
+      s+=T(124.70 + w, HDR_BOT, HDR_FS, esc(header.asTag), {color:'#e00000', bold:true});
+    }
+  }
   // 내용 박스 + 제품명 띠 아래선 (기존대로 — 겹쳐보기로 선 일치 확인됨)
   s+=`<rect x="8.75" y="${top(227.60).toFixed(2)}" width="192.5" height="218.85" fill="none" stroke="#000" stroke-width="${sw}"/>`;
   s+=`<line x1="8.75" y1="${top(215.10).toFixed(2)}" x2="201.25" y2="${top(215.10).toFixed(2)}" stroke="#000" stroke-width="${sw}"/>`;
@@ -4131,9 +4284,14 @@ function cadGenerate(){
     const ship=rowsAll[0].ship||'(미지정)', isAS=!!rowsAll[0].isAS;
     const od=(rowsAll.filter(r=>r.po).map(r=>r.po).sort()[0])||bizBefore(ship,lead)||'';
     // ship = 납품요청일(D-2) · deliv = 요청일 + 2영업일 (실제 납품일) · CLAUDE.md 5번
+    /* AS 는 **현장명 자리에 빨간 굵은 글씨로 「AS건.」** (사장님 2026-09-16).
+       한 장에 AS 와 정오더가 섞이면 숨기지 않고 「AS건 포함.」 으로 드러냅니다
+       — 섞인 것을 모르고 내보내는 것이 제일 위험합니다. */
+    const asN = rowsAll.filter(r=>r.isAS).length;
+    const asTag = !asN ? '' : (asN===rowsAll.length ? 'AS건.' : 'AS건 포함.');
     const header={od:fmtDate(od), ship:fmtDate(ship), deliv:fmtDate(warehouseOutDate(ship)),
                   // 업체명 기본 '한샘 비규격' · 현장명은 안 적으면 공란으로 둡니다 (사용자 확정 2026-09-09)
-                  company:company||'한샘 비규격', site:site||''};
+                  company:company||'한샘 비규격', site:site||'', asTag};
     // 계열 묶음: EURO700 HD / EURO700 OB / EURO500. EURO500은 도면을 OB 것으로 쓰되 띠는 따로 붙인다.
     const byType={HD:[],OB:[],E500:[]};
     rowsAll.forEach(r=>byType[isEuro500(r)?'E500':(r.type==='HD'?'HD':'OB')].push(r));
@@ -4153,14 +4311,18 @@ function cadGenerate(){
       // cont = 그룹이 앞 장에서 이어짐(groupCont) 또는 블록 자체가 잘려 이어짐(isCont)
       const b0=pageBlocks[0];
       const banner={text:(b0?b0.banner:'EURO700 OB 도어'), cont:!!(b0&&(b0.groupCont||b0.isCont))};
-      html+=`<div class="cad-page">${cadPageSVG(header, banner, pageBlocks)}</div>`;
+      // 메모 열쇠 = 발주일 + 장 번호. 다시 뽑아도 같은 장에 붙습니다.
+      html+=`<div class="cad-page" data-memo-key="${esc(ship)}|${sheetCount - pages.length + (pages.indexOf(pageBlocks)+1)}">`
+          + cadPageSVG(header, banner, pageBlocks) + `</div>`;
     });
   });
   /* 장수를 적어 둡니다 — **인쇄 창의 '용지 N장'과 이 숫자가 같아야 정상입니다.**
      다르면 빈 장이 끼었다는 뜻이라, 어디가 어긋났는지 바로 알 수 있습니다. */
   out.innerHTML=`<div class="cad-note">📐 캐드 양식 · <b>총 ${sheetCount}장</b>`
     + ` <span style="color:#6b7280">(인쇄 창의 '용지 N장'이 이 숫자와 같아야 합니다)</span>`
-    + ` · 기존 [작업지시서 생성]과 별개 · 인쇄는 브라우저 인쇄(A4)</div>`+html;
+    + ` · 기존 [작업지시서 생성]과 별개 · 인쇄는 브라우저 인쇄(A4)`
+    + ` <span style="color:#6b7280">· 장마다 <b>＋ 메모</b>를 눌러 적고, 가장자리를 잡아 끌면 옮겨집니다</span></div>`+html;
+  try{ cadMemoAttach(); }catch(e){ console.warn('[메모] 못 얹었습니다', e); }
   // 유리발주 탭도 같이 채운다 — 캐드 양식으로만 뽑아도 유리 사이즈를 볼 수 있게(2026-09-07)
   try{
     const g=glassCollect();
