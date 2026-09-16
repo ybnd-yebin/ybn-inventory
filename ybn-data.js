@@ -265,12 +265,44 @@ const MODEL_BOM = {
 
 // 색상/제품 접두어 제거 후 BOM 조회. (인쇄유리는 색상 무관 = 사이즈 동일)
 // 예) "BRZ HD BD3U 6091 M" → "HD BD3U 6091 M" → MODEL_BOM 룩업
+/* MODEL_BOM 에 없으면 MODELS 의 glass_w × glass_h 로 메웁니다 (2026-09-16).
+   ── 왜
+     에토프재고 탭에 「전개 실패 — 유리 사이즈를 못 찾았습니다: OB WFMD 6048 M ·
+     OB WFMD 9035 M」 이 떴습니다. 자료가 없는 게 아니라 **다른 표에 있었습니다.**
+     MODEL_BOM 에 WFMD 네 줄(6035·6048·9035·9048)이 통째로 빠져 있고,
+     MODELS 에는 사이즈가 그대로 들어 있습니다.
+   ── 믿어도 되는 근거 (2026-09-16 전수 확인)
+     · 두 표에 다 있는 **유리 한 장짜리 148줄이 전부 일치**합니다 (어긋난 줄 0).
+     · WFMD 는 형제 코드 WRMBS 와 같은 도면을 씁니다(WF 계열 여덟 코드 · 12-8-2).
+       `OB WRMBS 9035 M → 895×351` · `9048 → 895×479` 로 **WFMD 값과 같습니다.**
+   ── 조심
+     MODELS 는 사이즈가 **한 벌뿐**이라 합적(유리 여러 장) 도어를 못 담습니다.
+     그래서 **MODEL_BOM 이 있으면 언제나 그쪽이 이깁니다.** 여기는 빈자리만 메웁니다.
+     MODELS 에도 사이즈가 없으면 그대로 null → 화면에 「전개 실패」로 드러납니다.
+   ⚠ 사이즈를 MODEL_BOM 에 옮겨 적지 마십시오 — 두 곳에 두면 어긋납니다(규칙 1). */
+var _MODEL_GLASS = null;
+function _modelGlassOf(s){
+  if(_MODEL_GLASS === null){
+    _MODEL_GLASS = {};
+    try{
+      (typeof MODELS !== 'undefined' ? MODELS : []).forEach(function(m){
+        if(!m || !m.short) return;
+        if(!(m.glass_w > 0) || !(m.glass_h > 0)) return;
+        if(!_MODEL_GLASS[m.short]) _MODEL_GLASS[m.short] = { w:m.glass_w, h:m.glass_h };
+      });
+    }catch(e){ /* 표가 안 붙었으면 폴백 없이 갑니다 */ }
+  }
+  return _MODEL_GLASS[s] || null;
+}
 function bomOf(shortName){
   if(!shortName) return null;
   let s = String(shortName).trim();
   const PFX = /^(BRZ|VEIL\s*BRZ|VEIL\s*SHADE|ETP|WC|\(P\)[^ ]*)\s+/;
   while(PFX.test(s)) s = s.replace(PFX, '');
-  return MODEL_BOM[s] || null;
+  if(MODEL_BOM[s]) return MODEL_BOM[s];
+  const g = _modelGlassOf(s);
+  // src 를 적어 둡니다 — 어디서 온 값인지 나중에 되짚을 수 있게
+  return g ? { glass:[{w:g.w, h:g.h, qty:1}], src:'MODELS' } : null;
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -485,8 +517,9 @@ const SIZE_TO_MODELS = {
   var P = (window.__YBN_PARTS = window.__YBN_PARTS || {});
   /* v를 올릴 때: 이 파일에 값이 새로 들어오면 올립니다. 화면 쪽이 판을 보고
      '낡은 파일이 캐시에 남았다'를 알아챕니다(깃허브 Pages에서 흔합니다).
-     v2 = 2026-09-14, 에토프 외주 인쇄유리용 ETP_SIZE_MASTER · SIZE_TO_MODELS 추가 */
-  P['data'] = { v:2, file:'ybn-data.js',
+     v2 = 2026-09-14, 에토프 외주 인쇄유리용 ETP_SIZE_MASTER · SIZE_TO_MODELS 추가
+     v3 = 2026-09-16, bomOf 가 MODEL_BOM 빈자리를 MODELS 사이즈로 메웁니다 */
+  P['data'] = { v:3, file:'ybn-data.js',
     models:(typeof MODELS!=='undefined'?MODELS.length:0),
     etpSizes:(typeof ETP_SIZE_MASTER!=='undefined'?ETP_SIZE_MASTER.length:0),
     sizeModels:(typeof SIZE_TO_MODELS!=='undefined'?Object.keys(SIZE_TO_MODELS).length:0) };
