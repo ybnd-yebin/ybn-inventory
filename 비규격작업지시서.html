@@ -596,6 +596,34 @@ const DOOR_LIB = {
  "drawings": [
   {
    "codes": [
+    "BLD1UA"
+   ],
+   "series": "OB",
+   "w": 655.0,
+   "h": 310.0,
+   "ratio": 2.113,
+   "dims": [],
+   "notes": [
+    "사장님 원본 DXF(2026-09-18) 실측 — 도어 595x250 · ø20 보링 2개 · 밑에서 100 · 양 옆에서 137.5"
+   ],
+   "svg": "<svg viewBox=\"0 0 655.00 310.00\" xmlns=\"http://www.w3.org/2000/svg\" preserveAspectRatio=\"xMidYMid meet\"><g fill=\"none\" stroke-width=\"2.816\" stroke-linecap=\"round\"><path d=\"M30.00 30.00 L625.00 30.00\" stroke=\"#000000\"/><path d=\"M30.00 280.00 L625.00 280.00\" stroke=\"#000000\"/><path d=\"M30.00 30.00 L30.00 280.00\" stroke=\"#000000\"/><path d=\"M625.00 30.00 L625.00 280.00\" stroke=\"#000000\"/><path d=\"M30.00 31.40 L625.00 31.40\" stroke=\"#000000\"/><path d=\"M30.00 278.60 L625.00 278.60\" stroke=\"#000000\"/><path d=\"M30.00 45.00 L625.00 45.00\" stroke=\"#000000\"/><path d=\"M30.00 265.00 L625.00 265.00\" stroke=\"#000000\"/><path d=\"M75.00 45.00 L75.00 265.00\" stroke=\"#000000\"/><path d=\"M580.00 45.00 L580.00 265.00\" stroke=\"#000000\"/><path d=\"M32.50 30.00 L32.50 45.00\" stroke=\"#000000\"/><path d=\"M32.50 265.00 L32.50 280.00\" stroke=\"#000000\"/><path d=\"M150.76 180.00 L184.24 180.00\" stroke=\"#00a0a0\"/><path d=\"M167.50 163.26 L167.50 196.74\" stroke=\"#00a0a0\"/><circle cx=\"167.50\" cy=\"180.00\" r=\"10.00\" stroke=\"#00a000\"/><path d=\"M470.76 180.00 L504.24 180.00\" stroke=\"#00a0a0\"/><path d=\"M487.50 163.26 L487.50 196.74\" stroke=\"#00a0a0\"/><circle cx=\"487.50\" cy=\"180.00\" r=\"10.00\" stroke=\"#00a000\"/></g></svg>"
+  },
+  {
+   "codes": [
+    "BNDC2N"
+   ],
+   "series": "OB",
+   "w": 355.0,
+   "h": 792.0,
+   "ratio": 0.448,
+   "dims": [],
+   "notes": [
+    "사장님 원본 DXF(2026-09-18) 실측 — 도어 295x732 · ø3 4개 · 가운데서 ±45 · 밑에서 165·485"
+   ],
+   "svg": "<svg viewBox=\"0 0 355.00 792.00\" xmlns=\"http://www.w3.org/2000/svg\" preserveAspectRatio=\"xMidYMid meet\"><g fill=\"none\" stroke-width=\"3.314\" stroke-linecap=\"round\"><path d=\"M30.00 30.00 L325.00 30.00\" stroke=\"#000000\"/><path d=\"M30.00 762.00 L325.00 762.00\" stroke=\"#000000\"/><path d=\"M30.00 30.00 L30.00 762.00\" stroke=\"#000000\"/><path d=\"M325.00 30.00 L325.00 762.00\" stroke=\"#000000\"/><path d=\"M30.00 31.40 L325.00 31.40\" stroke=\"#000000\"/><path d=\"M30.00 760.60 L325.00 760.60\" stroke=\"#000000\"/><path d=\"M30.00 45.00 L325.00 45.00\" stroke=\"#000000\"/><path d=\"M30.00 747.00 L325.00 747.00\" stroke=\"#000000\"/><path d=\"M75.00 45.00 L75.00 747.00\" stroke=\"#000000\"/><path d=\"M280.00 45.00 L280.00 747.00\" stroke=\"#000000\"/><path d=\"M32.50 30.00 L32.50 45.00\" stroke=\"#000000\"/><path d=\"M32.50 747.00 L32.50 762.00\" stroke=\"#000000\"/><path d=\"M127.50 597.00 L137.50 597.00\" stroke=\"#00a0a0\"/><path d=\"M132.50 592.00 L132.50 602.00\" stroke=\"#00a0a0\"/><circle cx=\"132.50\" cy=\"597.00\" r=\"1.50\" stroke=\"#000000\"/><path d=\"M127.50 277.00 L137.50 277.00\" stroke=\"#00a0a0\"/><path d=\"M132.50 272.00 L132.50 282.00\" stroke=\"#00a0a0\"/><circle cx=\"132.50\" cy=\"277.00\" r=\"1.50\" stroke=\"#000000\"/><path d=\"M217.50 597.00 L227.50 597.00\" stroke=\"#00a0a0\"/><path d=\"M222.50 592.00 L222.50 602.00\" stroke=\"#00a0a0\"/><circle cx=\"222.50\" cy=\"597.00\" r=\"1.50\" stroke=\"#000000\"/><path d=\"M217.50 277.00 L227.50 277.00\" stroke=\"#00a0a0\"/><path d=\"M222.50 272.00 L222.50 282.00\" stroke=\"#00a0a0\"/><circle cx=\"222.50\" cy=\"277.00\" r=\"1.50\" stroke=\"#000000\"/></g></svg>"
+  },
+  {
+   "codes": [
     "WMLDT",
     "M"
    ],
@@ -1655,6 +1683,11 @@ const RULES={
   BDI1R:{handle:'both',hinge:'none',note:'마이다 / 보링위치(상하)·좌우 확인'},
   BADMIL:{handle:'both',hinge:'none',note:'마이다 / 후면 사전펀치(14개)'},
   BLD1R:{handle:'both',orient:'H',hinge:'none',note:'소마이다·목대 합적 / 불량률 多'},
+  /* BLD1UA — 2026-09-18 넣음. 그전에는 RULES 에 아예 없어 **계산조차 안 되고**
+     '미지 코드' 목록에만 떴습니다. 힌지 없는 마이다 도어이고, 합적이 아닙니다(1EA).
+     유리가 `0 × −3` 인 것은 사장님 원본 DXF 로 확인했습니다 —
+     445×220 → 445×217 · 595×220 → 595×217. 표준 규칙 그대로입니다. */
+  BLD1UA:{handle:'both',orient:'H',hinge:'none',note:'마이다 / 힌지 없음 / ø20 보링 2개'},
   BLD2R:{handle:'both',orient:'H',hinge:'none',note:'가로 서랍 마이다 · 목대 합적'},
   BNDB2N:{handle:'both',lr:true,note:'마이다 / 후면펀치·상하 확인'},BNDC2N:{handle:'both',lr:true,note:'마이다 / 후면펀치·상하 확인'},
   WMLDT:{handle:'both'},WHMH:{handle:'both',note:'후드문'},WT:{handle:'both'},
@@ -3787,22 +3820,27 @@ const SEG_LAB = { '상마이다':'상', '하마이다':'하', '소마이다':'�
 function setSegLinesOf(c){
   if(!c || !c.frameSegs) return null;
   const gs=c.glass||[], out=[], seen={};
-  /* ⚠ **크기가 같아도 합치지 않습니다** (사장님 확정 2026-09-18).
-     합치면 그 줄이 상인지 하인지 알 수 없습니다 — 줄머리를 붙일 수가 없습니다.
-     캐드 원본도 상·하를 따로 적습니다. 그래서 BD2R 910(상·하 둘 다 350)도
-     두 줄로 나옵니다. 몇 벌인지는 오른쪽 `SET` 꺾쇠가 알립니다.
-     ※ 좌우 짝 합적(W2HBT)만 예전처럼 묶습니다 — L/R 이라 상·하가 없습니다. */
-  const side=!!(c.frameSegs[0] && c.frameSegs[0].side);
+  /* **크기가 같은 조각은 한 줄로 합칩니다** (사장님 확정 2026-09-18).
+     910(상·하 둘 다 350)은 늘 나오는 기본 틀이라 `895×350 = 1SET(2EA)` 한 줄이면 압니다.
+     상세가 필요한 것은 **910이 아닌 것** — 아주 가끔 나와 헷갈리기 때문입니다.
+     그때는 크기가 갈려 저절로 두 줄이 되고, 줄머리 `상 -`·`하 -` 가 붙습니다.
+
+     ⚠ **줄머리는 안 합쳐졌을 때만** 붙입니다. 서로 다른 조각이 한 줄로 합쳐지면
+       그 줄이 상인지 하인지 가릴 수 없습니다 → 줄머리를 비웁니다.
+       같은 조각끼리 합쳐진 것은(BD3U 소마이다 2장) 줄머리를 그대로 답니다. */
   c.frameSegs.forEach((s,i)=>{
     const g=gs[i];
-    if(side){
-      const key=`${s.fw}×${s.fh}|${g?g.gw+'×'+g.gh:''}`;
-      if(seen[key]!=null){ out[seen[key]].n += (s.n||1); return; }
-      seen[key]=out.length;
+    const key=`${s.fw}×${s.fh}|${g?g.gw+'×'+g.gh:''}`;
+    if(seen[key]!=null){
+      const o=out[seen[key]];
+      o.n += (s.n||1);
+      if(o.label!==s.label) o.label=null;      // 다른 조각이 섞였다 → 줄머리 못 붙임
+      return;
     }
-    out.push({frame:`${s.fw}×${s.fh}`, glass:g?`${g.gw}×${g.gh}`:'', n:(s.n||1),
-              lab:(SEG_LAB[s.label] ? SEG_LAB[s.label]+' -' : '')});
+    seen[key]=out.length;
+    out.push({frame:`${s.fw}×${s.fh}`, glass:g?`${g.gw}×${g.gh}`:'', n:(s.n||1), label:s.label});
   });
+  out.forEach(o=>{ o.lab = (o.label && SEG_LAB[o.label]) ? SEG_LAB[o.label]+' -' : ''; });
   return out;
 }
 /* 재단치수(유리)도 같은 방식으로 줄바꿈. */
@@ -3876,15 +3914,22 @@ function cadBlockRows(list){
              BD3U     : 595×173 = 2EA / 595×350 = 1EA
            ⚠ 줄 수는 그대로입니다(cadTextH 와 어긋나지 않습니다). 다만 **글자가 길어져
              오른쪽 꺾쇠가 밀리므로**, 이 문구를 고치면 오른쪽 끝을 다시 재십시오(12-4-1). */
+        /* 조각이 **한 줄로 합쳐졌으면** 그 줄이 곧 한 벌입니다 → `1SET(2EA)` 를 줄에 적고
+           오른쪽 SET 꺾쇠는 그리지 않습니다(같은 말 두 번). 910 이 이 경우입니다.
+           크기가 갈려 줄이 둘 이상이면 줄마다 EA 만 적고, 몇 벌인지는 SET 꺾쇠가 말합니다. */
+        const oneLineSet = a.segLines.length===1;
         a.segLines.forEach((s,i)=>{
-          rows.push({k:'frame', text:`${s.frame} = ${s.n*a.qty}EA`, seg:true,
+          const qtyTxt = oneLineSet ? qt : `${s.n*a.qty}EA`;
+          rows.push({k:'frame', text:`${s.frame} = ${qtyTxt}`, seg:true,
                      lab:(s.lab || (i===0?a.lab:'')), labDark:!!s.lab});
           if(s.glass) rows.push({k:'glass', text:s.glass, seg:true});
         });
         /* 한 벌(1SET)도 **반드시 내보냅니다.** 안 내보내면 렌더러가 '색마다 같은지'를 잘못 봅니다 —
            웜코튼 2SET · 에토프 1SET 인데 표식이 하나뿐이라 제목에 ×2SET 이 찍힌 사고가 있었습니다.
            화면에 실제로 적을지는 렌더러가 정합니다(모두 1SET 이면 안 적습니다). */
-        rows.push({k:'setmark', text:`${a.qty}SET`, span:a.segLines.length});
+        /* 한 벌(1SET)도 **반드시 내보냅니다** — 안 내보내면 '색마다 세트 수가 같은지'를
+           잘못 봅니다. 줄에 이미 적힌 경우(inline)는 꺾쇠만 안 그립니다. */
+        rows.push({k:'setmark', text:`${a.qty}SET`, span:a.segLines.length, inline:oneLineSet});
       }else{
         // 완성치수는 줄마다 한 행. 수량은 **마지막 줄 뒤에** 붙입니다.
         a.frameLines.forEach((ln,i)=>{
@@ -4284,8 +4329,10 @@ function cadBlockSVG(b, xL, yTop){
                     + ((allSame||CAD_SET_BRACKET)?0:14);
   /* 세트 꺾쇠가 서면 그만큼 자리를 먹습니다 — 색 꺾쇠는 **그 바깥**에 섭니다.
      꺾쇠가 없으면(합적이 아니면) 0 이라 예전과 글자 하나 다르지 않습니다. */
-  const SETW = (CAD_SET_BRACKET && setMarks.length)
-             ? 2.6 + Math.max(...setMarks.map(t=>t.length*5.6*0.55)) + 4 : 0;
+  //   줄에 이미 적힌 표식(inline)은 꺾쇠를 안 그리므로 자리도 안 먹습니다.
+  const outMarks = rows.filter(r=>r.k==='setmark' && !r.inline).map(r=>String(r.text));
+  const SETW = (CAD_SET_BRACKET && outMarks.length)
+             ? 2.6 + Math.max(...outMarks.map(t=>t.length*5.6*0.55)) + 4 : 0;
   const BX_SET = Math.min(txX+4+LABW+maxRowW+CAD_BRACKET_GAP,
                           201.25-2.6-maxColW-SETW);  // 세트 꺾쇠 x
   const BX_COL = BX_SET + SETW;                      // 색상 꺾쇠 — 세트 꺾쇠 바깥
@@ -4383,6 +4430,7 @@ function cadBlockSVG(b, xL, yTop){
          한쪽만 적으면 나머지가 몇 벌인지 알 수 없어 헷갈립니다.
          모두 같으면 제목에 이미 있으므로 여기서는 안 적습니다. */
       if(CAD_SET_BRACKET){
+        if(row.inline){ segTop=null; return; }   // 줄에 이미 `1SET(2EA)` 로 적혔다 → 꺾쇠 없음
         /* 상·하 한 쌍을 꺾쇠로 묶고 `SET` 이라 적습니다 (캐드 원본과 같은 모양).
            바로 앞에 그린 합적 조각 줄들(segTop ~ ty)을 묶습니다.
            한 벌이면 `SET`, 두 벌 이상이면 `2SET` 처럼 수를 붙입니다. */
