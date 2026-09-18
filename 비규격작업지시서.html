@@ -1404,6 +1404,13 @@ const CAD_COLOR_AS_BRACKET = true;
    ⚠ 늘리면 오른쪽 끝이 그만큼 밀립니다. 내용 박스(201.25mm)를 넘지 않게
      `BX_SET` 에 상한이 걸려 있어, 넘칠 때는 자동으로 다시 당겨집니다. */
 const CAD_BRACKET_GAP = 8;
+/* 합적(마이다)은 **상·하 한 쌍을 꺾쇠로 묶고 `SET` 이라 적습니다** — 캐드 원본이 그렇습니다
+   (사장님이 주신 오늘자 원본 DXF 2026-09-18: BD2R 에 `SET` 이 두 번, 345 짝·895 짝마다 하나).
+   한 벌(1SET)이라도 그립니다. 몇 벌인지를 이 꺾쇠가 혼자 맡으므로
+   **제목 옆 `×2SET` 도, 색이름 뒤 `×2SET` 도 안 적습니다** — 같은 말을 세 번 하게 됩니다.
+   색 꺾쇠는 이 꺾쇠 **바깥**에 섭니다.
+   `false` 로 두면 예전(꺾쇠 없이 제목·색 옆에 적기)으로 돌아갑니다. */
+const CAD_SET_BRACKET = true;
 
 /* 베일(HPM) 색 표시 — 보라였는데 회색으로 바꿉니다 (사장님 요청 2026-09-15).
    보라가 도면 위에서 너무 튀었습니다. 상자와 글씨를 같은 회색 계열로 두되
@@ -1524,7 +1531,11 @@ function libDoorDropBottomDim(doc){
    ⚠ 표에 없는 코드는 **그리지 않고 null** 을 냅니다 → 예전처럼 라이브러리 도면으로
      떨어집니다. 모르는 단면을 지어 그리지 않습니다. */
 const SPLIT_PVC = {
-  BD2R: { inset:28.5, edge:1.4, rail:15, stile:45,
+  /* drawW — 도면은 **정해진 가로**로 그립니다 (사장님 확정 2026-09-18).
+     캐드 원본이 345 짜리든 895 짜리든 **똑같이 595 로** 그립니다. 라이브러리 도면 16종도
+     모두 고정 크기입니다. 실제 비율로 그리면 895 짜리가 납작해져 읽기 어렵습니다.
+     세로는 변하는 값이라 그대로 씁니다(320 / 350). */
+  BD2R: { drawW:595, inset:28.5, edge:1.4, rail:15, stile:45,
           gaps:{ '상마이다':[68,32,64], '하마이다':[68,32,128] } }
 };
 function splitVaryDoorSVG(r, c){
@@ -1536,9 +1547,10 @@ function splitVaryDoorSVG(r, c){
      안 되어 숫자가 제 칸보다 커집니다 — 읽히기는커녕 그림을 어지럽혔습니다.
      PVC 자리는 **초록 표시로만** 알립니다. 치수는 조각 이름줄(`상마이다 345×320`)이 대신합니다.
      ※ 왼쪽 여백이 비면서 도어가 그만큼 커집니다. */
-  const FS=25, TICK=6;
-  const PADL=14, PADR=14, PADT=34, PADB=44, GAP=64;
-  const W=+c.frameSegs[0].fw || 0; if(!W) return null;
+  const FS=25;
+  const PADL=14, PADR=14, PADT=34, PADB=16, GAP=64;   // PADT 는 조각 이름줄 자리
+  // 그림은 정해진 가로로. 실제 가로는 오른쪽 치수줄이 적습니다(위 drawW 설명 참고).
+  const W=+spec.drawW || +c.frameSegs[0].fw || 0; if(!W) return null;
   const hs=c.frameSegs.map(s=>+s.fh);
   const vbW=W+PADL+PADR, vbH=hs.reduce((a,b)=>a+b,0)+GAP*(hs.length-1)+PADT+PADB;
   const p=[];
@@ -1563,17 +1575,17 @@ function splitVaryDoorSVG(r, c){
       line(xx,yy-8.25,xx,yy+8.25,'#00a0a0'); line(xx-8.25,yy,xx+8.25,yy,'#00a0a0');
       p.push(`<circle cx="${xx.toFixed(2)}" cy="${yy.toFixed(2)}" r="5" fill="none" stroke="#00a000" stroke-width="2.6"/>`);
     }));
-    /* 조각 이름줄 — `상마이다 345×320` (사장님이 적어 주신 꼴 그대로).
+    /* 조각 이름만 적습니다 — **치수는 안 적습니다.**
+       그림이 고정 가로(595)라 거기에 가로를 적으면 틀립니다. 게다가 한 덩어리에
+       345 짜리와 895 짜리가 같이 들어오므로(오늘이 그랬습니다) 어느 한쪽을 적으면
+       나머지가 틀립니다. 치수는 오른쪽 `상 - 345×320 = 1EA` 줄이 맡습니다.
        세로가 변하는 조각은 빨강, 고정인 조각은 검정입니다. */
     const isVary = c.splitVary && seg.label===c.splitVary.vary;
-    txt(L+W/2, T-16, `${esc(seg.label)} ${W}×${H}`, isVary?'#d00000':'#000000');
+    txt(L+W/2, T-16, esc(seg.label), isVary?'#d00000':'#000000');
     y = B + GAP;
   });
-  {                                                                        // 가로 — 맨 아래 한 번
-    const B=y-GAP, L=PADL, R=PADL+W, yy=B+34;
-    line(L,yy,R,yy,'#000000',1.6); line(L,yy-TICK,L,yy+TICK,'#000000',1.6); line(R,yy-TICK,R,yy+TICK,'#000000',1.6);
-    txt((L+R)/2, yy-13, String(W));
-  }
+  /* 맨 아래 가로 치수도 **안 그립니다** — 그림이 고정 가로라 실제 값과 다릅니다.
+     캐드 원본도 도어에는 치수를 안 적습니다. (2026-09-18) */
   // data-gen="1" — 앱이 그린 도면이라는 표시. 캐드 후처리(치수 눕히기)를 건너뛰게 한다.
   return `<svg data-gen="1" viewBox="0 0 ${vbW.toFixed(2)} ${vbH.toFixed(2)}" xmlns="http://www.w3.org/2000/svg"`
        + ` preserveAspectRatio="xMidYMid meet"><g fill="none" stroke-linecap="round">${p.join('')}</g></svg>`;
@@ -3769,15 +3781,27 @@ function frameLinesOf(c){
 
    같은 크기 조각은 하나로 묶어 셉니다 — BD2R 은 380 이 상·하 두 장이라
    `770×380 = 2EA` 한 줄로 나옵니다(두 줄로 겹쳐 적지 않습니다). */
+/* 조각 줄머리 — 캐드 원본이 `상 - 345*320 = 1EA` 꼴로 적습니다
+   (사장님이 주신 오늘자 원본 DXF, 2026-09-18). 앱도 같게 맞춥니다. */
+const SEG_LAB = { '상마이다':'상', '하마이다':'하', '소마이다':'소', '대마이다':'대' };
 function setSegLinesOf(c){
   if(!c || !c.frameSegs) return null;
   const gs=c.glass||[], out=[], seen={};
+  /* ⚠ **크기가 같아도 합치지 않습니다** (사장님 확정 2026-09-18).
+     합치면 그 줄이 상인지 하인지 알 수 없습니다 — 줄머리를 붙일 수가 없습니다.
+     캐드 원본도 상·하를 따로 적습니다. 그래서 BD2R 910(상·하 둘 다 350)도
+     두 줄로 나옵니다. 몇 벌인지는 오른쪽 `SET` 꺾쇠가 알립니다.
+     ※ 좌우 짝 합적(W2HBT)만 예전처럼 묶습니다 — L/R 이라 상·하가 없습니다. */
+  const side=!!(c.frameSegs[0] && c.frameSegs[0].side);
   c.frameSegs.forEach((s,i)=>{
     const g=gs[i];
-    const key=`${s.fw}×${s.fh}|${g?g.gw+'×'+g.gh:''}`;
-    if(seen[key]!=null){ out[seen[key]].n += (s.n||1); return; }
-    seen[key]=out.length;
-    out.push({frame:`${s.fw}×${s.fh}`, glass:g?`${g.gw}×${g.gh}`:'', n:(s.n||1)});
+    if(side){
+      const key=`${s.fw}×${s.fh}|${g?g.gw+'×'+g.gh:''}`;
+      if(seen[key]!=null){ out[seen[key]].n += (s.n||1); return; }
+      seen[key]=out.length;
+    }
+    out.push({frame:`${s.fw}×${s.fh}`, glass:g?`${g.gw}×${g.gh}`:'', n:(s.n||1),
+              lab:(SEG_LAB[s.label] ? SEG_LAB[s.label]+' -' : '')});
   });
   return out;
 }
@@ -3852,16 +3876,15 @@ function cadBlockRows(list){
              BD3U     : 595×173 = 2EA / 595×350 = 1EA
            ⚠ 줄 수는 그대로입니다(cadTextH 와 어긋나지 않습니다). 다만 **글자가 길어져
              오른쪽 꺾쇠가 밀리므로**, 이 문구를 고치면 오른쪽 끝을 다시 재십시오(12-4-1). */
-        const oneLineSet = a.segLines.length===1 && !a.isSide;
         a.segLines.forEach((s,i)=>{
-          const qtyTxt = oneLineSet ? qt : `${s.n*a.qty}EA`;
-          rows.push({k:'frame', text:`${s.frame} = ${qtyTxt}`, seg:true, lab:(i===0?a.lab:'')});
+          rows.push({k:'frame', text:`${s.frame} = ${s.n*a.qty}EA`, seg:true,
+                     lab:(s.lab || (i===0?a.lab:'')), labDark:!!s.lab});
           if(s.glass) rows.push({k:'glass', text:s.glass, seg:true});
         });
         /* 한 벌(1SET)도 **반드시 내보냅니다.** 안 내보내면 렌더러가 '색마다 같은지'를 잘못 봅니다 —
            웜코튼 2SET · 에토프 1SET 인데 표식이 하나뿐이라 제목에 ×2SET 이 찍힌 사고가 있었습니다.
            화면에 실제로 적을지는 렌더러가 정합니다(모두 1SET 이면 안 적습니다). */
-        rows.push({k:'setmark', text:`${a.qty}SET`, span:a.segLines.length, inline:oneLineSet});
+        rows.push({k:'setmark', text:`${a.qty}SET`, span:a.segLines.length});
       }else{
         // 완성치수는 줄마다 한 행. 수량은 **마지막 줄 뒤에** 붙입니다.
         a.frameLines.forEach((ln,i)=>{
@@ -4223,9 +4246,8 @@ function cadBlockSVG(b, xL, yTop){
      ※ '색마다 세트 수가 같은지'(allSame)는 **inline 까지 모두 세서** 봅니다.
        빼고 세면 웜코튼 2SET · 에토프 1SET 인데 하나만 남아 잘못 봅니다
        (2026-09-09 의 '제목에 ×2SET 이 잘못 찍힌' 사고와 같은 뿌리). */
-  const outMarks = rows.filter(r=>r.k==='setmark' && !r.inline);
-  // 모두 같고 두 벌 이상이면 제목에. 모두 1SET 이거나 줄에 이미 적혔으면 굳이 안 적습니다.
-  const titleSet = (allSame && outMarks.length>0 && setMarks[0]!=='1SET') ? setMarks[0] : null;
+  // 세트 꺾쇠를 그리면 몇 벌인지는 거기 적힙니다 → 제목에는 안 적습니다(같은 말 두 번).
+  const titleSet = (!CAD_SET_BRACKET && allSame && setMarks[0]!=='1SET') ? setMarks[0] : null;
   ty+=lh;
   {
     // 코드줄. 세트 수가 블록 안에서 모두 같으면 여기에 `×2SET`을 빨강으로 덧붙인다.
@@ -4258,9 +4280,15 @@ function cadBlockSVG(b, xL, yTop){
   const COL_FS = 6;
   const colNameW = t => [...String(t||'')].reduce((w,ch)=>w+(/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(ch)?COL_FS:COL_FS*0.55), 0);
   const maxColW = rows.filter(r=>r.k==='color')
-                      .reduce((m,r)=>Math.max(m, colNameW(r.text)), 0) + (allSame?0:14);
-  const BX_SET = Math.min(txX+4+LABW+maxRowW+CAD_BRACKET_GAP, 201.25-2.6-maxColW);   // 꺾쇠 x
-  const BX_COL = BX_SET;                             // 색상 꺾쇠 (세트 꺾쇠를 없애 같은 자리)
+                      .reduce((m,r)=>Math.max(m, colNameW(r.text)), 0)
+                    + ((allSame||CAD_SET_BRACKET)?0:14);
+  /* 세트 꺾쇠가 서면 그만큼 자리를 먹습니다 — 색 꺾쇠는 **그 바깥**에 섭니다.
+     꺾쇠가 없으면(합적이 아니면) 0 이라 예전과 글자 하나 다르지 않습니다. */
+  const SETW = (CAD_SET_BRACKET && setMarks.length)
+             ? 2.6 + Math.max(...setMarks.map(t=>t.length*5.6*0.55)) + 4 : 0;
+  const BX_SET = Math.min(txX+4+LABW+maxRowW+CAD_BRACKET_GAP,
+                          201.25-2.6-maxColW-SETW);  // 세트 꺾쇠 x
+  const BX_COL = BX_SET + SETW;                      // 색상 꺾쇠 — 세트 꺾쇠 바깥
   const closeColor=()=>{                             // 색상 묶음이 끝나면 오른쪽에 꺾쇠를 세운다
     if(colTop==null || !CAD_COLOR_AS_BRACKET) { colTop=null; return; }
     const y0=colTop-lh*0.75, y1=ty+lh*0.20, cy=(y0+y1)/2;
@@ -4354,8 +4382,25 @@ function cadBlockSVG(b, xL, yTop){
       /* 색마다 세트 수가 **다를 때만** 칩 뒤에 적습니다. 이때는 1SET 인 색에도 적습니다 —
          한쪽만 적으면 나머지가 몇 벌인지 알 수 없어 헷갈립니다.
          모두 같으면 제목에 이미 있으므로 여기서는 안 적습니다. */
-      // 치수줄에 이미 적힌 표식(inline)은 여기서 또 적지 않습니다 — 위 outMarks 설명 참고.
-      if(!allSame && !row.inline) colSet=String(row.text);
+      if(CAD_SET_BRACKET){
+        /* 상·하 한 쌍을 꺾쇠로 묶고 `SET` 이라 적습니다 (캐드 원본과 같은 모양).
+           바로 앞에 그린 합적 조각 줄들(segTop ~ ty)을 묶습니다.
+           한 벌이면 `SET`, 두 벌 이상이면 `2SET` 처럼 수를 붙입니다. */
+        if(segTop!=null){
+          const y0=segTop-lh*0.75, y1=ty+lh*0.20, cy=(y0+y1)/2;
+          s+=`<path d="M${(BX_SET-1.8).toFixed(2)} ${y0.toFixed(2)} H${BX_SET.toFixed(2)}`
+           + ` V${y1.toFixed(2)} H${(BX_SET-1.8).toFixed(2)}" fill="none" stroke="#666" stroke-width="0.5"/>`;
+          const t=String(row.text).replace(/^1SET$/,'SET');
+          s+=`<text x="${(BX_SET+2.6).toFixed(2)}" y="${(cy+5.6*0.34).toFixed(2)}"`
+           + ` font-family="${F}" font-size="5.6" font-weight="700" fill="#000">${esc(t)}</text>`;
+        }
+        /* ⚠ **여기서 반드시 비웁니다.** 안 비우면 다음 쌍의 첫 줄이 '이미 시작했다'고 보고
+           segTop 을 안 고쳐, 두 번째 SET 꺾쇠가 **첫 쌍까지 통째로** 끌어안습니다.
+           오늘처럼 한 덩어리에 345 짝·895 짝이 같이 오면 바로 드러납니다. */
+        segTop=null;
+        return;                     // ty 를 올리지 않는다
+      }
+      if(!allSame) colSet=String(row.text);
       return;                       // ty 를 올리지 않는다
     }
     /* 쌍이 새로 시작하면(빨강 바로 뒤의 검정) 그 앞에만 틈을 준다.
@@ -4365,7 +4410,9 @@ function cadBlockSVG(b, xL, yTop){
     ty+=lh;                         // 여기서부터 진짜 한 줄을 쓴다
     if(row.k==='frame'){
       // 줄머리는 코드줄과 같은 파랑으로 조금 작게 — 치수 숫자와 안 헷갈리게
-      if(row.lab) s+=`<text x="${(txX+4).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="${LAB_FS}" font-weight="700" fill="#1560c0">${esc(row.lab)}</text>`;
+      /* 줄머리 — 코드·모델명은 파랑, **조각 이름(`상 -`·`하 -`)은 검정**입니다.
+         캐드 원본이 치수와 같은 검정으로 적습니다(한 줄로 이어 읽히게). */
+      if(row.lab) s+=`<text x="${(txX+4).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="${LAB_FS}" font-weight="700" fill="${row.labDark?'#000':'#1560c0'}">${esc(row.lab)}</text>`;
       s+=`<text x="${(txX+4+LABW).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#000">${esc(row.text)}</text>`;
     }
     else if(row.k==='glass') s+=`<text x="${(txX+4+LABW).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#d00000">${esc(row.text)}</text>`;
