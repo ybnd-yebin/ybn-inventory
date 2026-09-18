@@ -1398,6 +1398,12 @@ const CAD_DIM_ROTATE = true;
    false = 예전처럼 색상 줄을 따로 한 줄 씀
    되돌리려면 false 로만 바꾸면 됩니다. */
 const CAD_COLOR_AS_BRACKET = true;
+/* 꺾쇠와 수량 글자 사이 틈(mm). 예전에는 3 이라 **색이름이 수량에 딱 붙어** 답답했습니다
+   (사장님 지적 2026-09-18 "웜코튼 꺾쇠들이 전체적으로 수량에 너무 붙은 거 같네").
+   **이 숫자 하나만 바꾸면 모든 블록의 꺾쇠가 같이 움직입니다.**
+   ⚠ 늘리면 오른쪽 끝이 그만큼 밀립니다. 내용 박스(201.25mm)를 넘지 않게
+     `BX_SET` 에 상한이 걸려 있어, 넘칠 때는 자동으로 다시 당겨집니다. */
+const CAD_BRACKET_GAP = 8;
 
 /* 베일(HPM) 색 표시 — 보라였는데 회색으로 바꿉니다 (사장님 요청 2026-09-15).
    보라가 도면 위에서 너무 튀었습니다. 상자와 글씨를 같은 회색 계열로 두되
@@ -1525,8 +1531,13 @@ function splitVaryDoorSVG(r, c){
   const code=(c.rule&&c.rule.split)||'', spec=SPLIT_PVC[code];
   if(!spec || !c.frameSegs || !c.frameSegs.length) return null;
   if(c.frameSegs.some(s=>!spec.gaps[s.label])) return null;   // 모르는 조각이 섞였다 → 안 그린다
-  const FS=25, TICK=6, DIMX1=26, DIMX2=62;                    // 글자·눈금·치수줄 자리
-  const PADL=DIMX2+22, PADR=18, PADT=34, PADB=54, GAP=64;
+  /* 왼쪽 세로 치수는 **안 그립니다** (사장님 2026-09-18 "왼쪽치수는 빼줘").
+     종이에서 도면 칸이 30mm 남짓이라, 68·32·64 를 왼쪽에 세우면 가운데 32 칸이 1.4mm 밖에
+     안 되어 숫자가 제 칸보다 커집니다 — 읽히기는커녕 그림을 어지럽혔습니다.
+     PVC 자리는 **초록 표시로만** 알립니다. 치수는 조각 이름줄(`상마이다 345×320`)이 대신합니다.
+     ※ 왼쪽 여백이 비면서 도어가 그만큼 커집니다. */
+  const FS=25, TICK=6;
+  const PADL=14, PADR=14, PADT=34, PADB=44, GAP=64;
   const W=+c.frameSegs[0].fw || 0; if(!W) return null;
   const hs=c.frameSegs.map(s=>+s.fh);
   const vbW=W+PADL+PADR, vbH=hs.reduce((a,b)=>a+b,0)+GAP*(hs.length-1)+PADT+PADB;
@@ -1536,11 +1547,6 @@ function splitVaryDoorSVG(r, c){
     + (rot?` transform="rotate(-90 ${x.toFixed(2)} ${y.toFixed(2)})"`:'')
     + ` text-anchor="middle" dominant-baseline="central" font-family="굴림,Gulim"`
     + ` font-size="${FS}" fill="${col||'#000000'}">${t}</text>`);
-  const dimY=(x,y1,y2,t,col)=>{                               // 세로 치수 — 숫자는 눕힌다(12-4)
-    const cc=col||'#000000';
-    line(x,y1,x,y2,cc,1.6); line(x-TICK,y1,x+TICK,y1,cc,1.6); line(x-TICK,y2,x+TICK,y2,cc,1.6);
-    txt(x,(y1+y2)/2,t,cc,true);
-  };
   let y=PADT;
   c.frameSegs.forEach(seg=>{
     const H=+seg.fh, L=PADL, R=PADL+W, T=y, B=y+H;
@@ -1557,13 +1563,10 @@ function splitVaryDoorSVG(r, c){
       line(xx,yy-8.25,xx,yy+8.25,'#00a0a0'); line(xx-8.25,yy,xx+8.25,yy,'#00a0a0');
       p.push(`<circle cx="${xx.toFixed(2)}" cy="${yy.toFixed(2)}" r="5" fill="none" stroke="#00a000" stroke-width="2.6"/>`);
     }));
-    // 칸 치수 — 밑에서부터. 맨 위 칸은 나머지라 **빨강**(길이가 바뀌면 여기만 변한다)
+    /* 조각 이름줄 — `상마이다 345×320` (사장님이 적어 주신 꼴 그대로).
+       세로가 변하는 조각은 빨강, 고정인 조각은 검정입니다. */
     const isVary = c.splitVary && seg.label===c.splitVary.vary;
-    let prev=B;
-    gaps.forEach((g,i)=>{ dimY(L-DIMX1, prev, ys[i], String(g)); prev=ys[i]; });
-    dimY(L-DIMX1, prev, T, String(H-gaps.reduce((s,v)=>s+v,0)), isVary?'#d00000':'#000000');
-    dimY(L-DIMX2, B, T, String(H), isVary?'#d00000':'#000000');           // 그 조각의 전체 세로
-    txt(L+W/2, T-16, `${esc(seg.label)}  ${W}×${H}`, isVary?'#d00000':'#000000');
+    txt(L+W/2, T-16, `${esc(seg.label)} ${W}×${H}`, isVary?'#d00000':'#000000');
     y = B + GAP;
   });
   {                                                                        // 가로 — 맨 아래 한 번
@@ -4256,7 +4259,7 @@ function cadBlockSVG(b, xL, yTop){
   const colNameW = t => [...String(t||'')].reduce((w,ch)=>w+(/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(ch)?COL_FS:COL_FS*0.55), 0);
   const maxColW = rows.filter(r=>r.k==='color')
                       .reduce((m,r)=>Math.max(m, colNameW(r.text)), 0) + (allSame?0:14);
-  const BX_SET = Math.min(txX+4+LABW+maxRowW+3, 201.25-2.6-maxColW);   // 꺾쇠 x
+  const BX_SET = Math.min(txX+4+LABW+maxRowW+CAD_BRACKET_GAP, 201.25-2.6-maxColW);   // 꺾쇠 x
   const BX_COL = BX_SET;                             // 색상 꺾쇠 (세트 꺾쇠를 없애 같은 자리)
   const closeColor=()=>{                             // 색상 묶음이 끝나면 오른쪽에 꺾쇠를 세운다
     if(colTop==null || !CAD_COLOR_AS_BRACKET) { colTop=null; return; }
