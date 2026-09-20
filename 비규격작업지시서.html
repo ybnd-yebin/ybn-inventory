@@ -1683,7 +1683,16 @@ const RULES={
   // MS(EURO500) — 생산할 때 뒤에 덧방이 붙는 차이뿐이라 **M 과 똑같이 풉니다**
   //   (사용자 확정 2026-09-09). 도면도 M 것을 씁니다(DOOR_ALIAS).
   MS:{handle:'both'},B:{handle:'both',lr:true,hingeBase:764,doorHsub:146,glassHsub:149,topB:142,note:'핸들타입 / 보링위치 확인 / 상부 142 고정'},
-  BAD:{handle:'both',doorHsub:324,glassHsub:327,note:'상부고정부 있음 / 세로차감 큼 확인'},
+  /* BAD — **MDF 통판**입니다. 알루미늄 프레임이 아니라 **힌지가 없습니다**
+     (사장님 2026-09-21 "BAD는 힌지 없고 거의 정사각형 느낌이야. 그리고 mdf라고 적어줄래.
+      그때 상마이다 하마이다 적은거처럼 도면 중간에").
+     · `hinge:'none'`  → 힌지 표시를 안 그립니다.
+     · `centerTxt:'MDF'` → 도어 **한가운데에 `MDF`** 라고 적습니다(상마이다·하마이다와 같은 방식).
+     · `boxFromSize`  → 네모를 **실제 프레임 비율**로 그립니다. 납품 910 → 프레임 586(−324)
+       이라 595×586, **거의 정사각형**으로 나옵니다. 고정 비율로 두면 세로로 길쭉해 보입니다.
+     치수 계산(−324 · 유리 −327)은 그대로입니다. */
+  BAD:{handle:'both',hinge:'none',centerTxt:'MDF',boxFromSize:true,
+       doorHsub:324,glassHsub:327,note:'상부고정부 있음 / 세로차감 큼 확인 / MDF · 힌지 없음'},
   BHBU:{handle:'both',hingeTxt:r=>`상부고정 ${bhbuTopFix(r&&r.type)}·하부변환`,note:'힌지위치 다름(상부고정·하부변환) / 좌우 확인'},
   // BC1A·BC1B: 납품 세로가 910이면 프레임 세로를 고정값으로 푼다(−4 아님). 타입에 따라 갈린다 — HD 764 / OB 732.
   //   가로는 −5, 유리는 0×−3 그대로. 도면은 B 코드의 캐드도면을 같이 쓴다(전용 도면 만들지 말 것).
@@ -2198,9 +2207,17 @@ function doorSVG(r){
   const isMaida=!!rule.split||rule.hinge==='none';
   const c0=calc(r);
   const PAD=20,HG=110;
-  const dw=orient==='V'?78:118;
+  let dw=orient==='V'?78:118;
   let dh=orient==='V'?118:78;
-  if(orient==='V' && !isMaida){
+  /* 네모를 **실제 프레임 비율**로 그리는 코드(BAD 등 — `boxFromSize`).
+     통판 한 장이라 비율 자체가 뜻이 됩니다. 넓이는 고정 비율(78×118)과 비슷하게 맞춰
+     같은 장 안 다른 도면과 크기가 벌어지지 않게 합니다.
+     BAD 는 595×586 이라 거의 정사각형으로 나옵니다. (사장님 2026-09-21) */
+  if(rule.boxFromSize && +c0.fw>0 && +c0.fh>0){
+    const A=96, rt=(+c0.fw)/(+c0.fh);
+    dh=Math.round(Math.sqrt(A*A/rt)); dw=Math.round(dh*rt);
+  }
+  else if(orient==='V' && !isMaida){
     if(c0.wtap || c0.hingeSpecial || r.code==='TH') dh=175;   // 힌지 많은/긴 롱도어(WTAP·TH): 도어 길게 → 치수 안 겹치게
     else dh=Math.round(dh*0.9);              // 일반 도어: 세로 10%↓ (상단선 고정, 아래에서만 줄임)
   }
@@ -2235,12 +2252,12 @@ function doorSVG(r){
   };
   if(isMaida){
     const segs=(rule.split&&SPLIT[rule.split]&&SPLIT[rule.split][r.type])?SPLIT[rule.split][r.type]:null;
-    if(segs){
-      // 분할 점선은 제거 — 특이사항 문구로 충분히 전달됨
-      s+=`<text x="${x+dw/2}" y="${y+dh/2+4}" fill="#666" font-size="12" text-anchor="middle">마이다 합적</text>`;
-    }else{
-      s+=`<text x="${x+dw/2}" y="${y+dh/2+4}" fill="#666" font-size="12" text-anchor="middle">서랍(마이다)</text>`;
-    }
+    /* 도어 **한가운데** 글자. `centerTxt` 가 있으면 그것을 적습니다(BAD → `MDF`).
+       없으면 예전처럼 마이다 표시입니다. 새 코드에 글자를 넣으려면
+       **`RULES` 에 `centerTxt:'...'` 한 줄**만 더하면 됩니다 — 여기는 안 고칩니다.
+       (분할 점선은 예전에 뺐습니다 — 특이사항 문구로 충분히 전달됩니다) */
+    const ctxt = rule.centerTxt || (segs ? '마이다 합적' : '서랍(마이다)');
+    s+=`<text x="${x+dw/2}" y="${y+dh/2+4}" fill="#666" font-size="12" text-anchor="middle">${esc(ctxt)}</text>`;
     s+=handles();   // 마이다 서랍에도 손잡이 표시 (HD 등)
     return s+`</svg>`;
   }
@@ -5054,7 +5071,10 @@ function generate(){
       const list=byCode[gk]; const rep=list[0]; const code=rep.code; const rule=RULES[code]||{};
       const isMaida=!!rule.split||rule.hinge==='none';
       let infoTxt;
-      if(isMaida) infoTxt='마이다(서랍) · 힌지 없음 · 합적';
+      /* 힌지 없는 코드가 전부 마이다(서랍)는 아닙니다 — BAD 는 **MDF 통판**입니다.
+         `centerTxt` 가 있으면 그 말을 씁니다(2026-09-21). 없으면 예전 문구 그대로. */
+      if(rule.centerTxt) infoTxt=`힌지 없음 · ${rule.centerTxt} 통판`;
+      else if(isMaida) infoTxt='마이다(서랍) · 힌지 없음 · 합적';
       else if(rule.orient==='H') infoTxt='가로장 · 손잡이 하단 · 힌지 상단 110';
       else { const hand=rep.handle==='both'?'손잡이 상·하':'손잡이 하단'; const lr=list.some(x=>x.lr)?' · 좌우(L/R) 구분':''; const hinge=(typeof rule.hingeTxt==='function'?rule.hingeTxt(rep):rule.hingeTxt)||(rule.topB?`상부 ${rule.topB} 고정`:'힌지 측면 상하 110'); infoTxt=`${hand} · ${hinge}${lr}`; }
       const an=asmNoteFor(rep.short);
