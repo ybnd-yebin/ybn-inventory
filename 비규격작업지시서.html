@@ -596,6 +596,21 @@ const DOOR_LIB = {
  "drawings": [
   {
    "codes": [
+    "BAD"
+   ],
+   "series": "OB",
+   "w": 655.0,
+   "h": 646.0,
+   "ratio": 1.014,
+   "dims": [],
+   "notes": [
+    "사장님 보링도 DXF(2026-09-21) 실측 — 도어 595x586 · 모서리 R0.5 · 보링 표시 없음 · 힌지 없음",
+    "원본 비고: 프레임 19t x 45mm AL · 심재 9t MDF(허니컴 사양 아님) · 유리 3.2t 새틴백유리 후면 컬러실크인쇄 · 뒷판 2.7t MDF · 손잡이 19t x 15mm AL"
+   ],
+   "svg": "<svg viewBox=\"0 0 655.00 646.00\" xmlns=\"http://www.w3.org/2000/svg\" preserveAspectRatio=\"xMidYMid meet\"><g fill=\"none\" stroke-width=\"4.066\" stroke-linecap=\"round\"><path d=\"M30.00 30.00 L625.00 30.00\" stroke=\"#000000\"/><path d=\"M30.00 616.00 L625.00 616.00\" stroke=\"#000000\"/><path d=\"M30.00 30.00 L30.00 616.00\" stroke=\"#000000\"/><path d=\"M625.00 30.00 L625.00 616.00\" stroke=\"#000000\"/><path d=\"M30.00 31.40 L625.00 31.40\" stroke=\"#000000\"/><path d=\"M30.00 614.60 L625.00 614.60\" stroke=\"#000000\"/><path d=\"M30.00 45.00 L625.00 45.00\" stroke=\"#000000\"/><path d=\"M30.00 601.00 L625.00 601.00\" stroke=\"#000000\"/><path d=\"M75.00 45.00 L75.00 601.00\" stroke=\"#000000\"/><path d=\"M580.00 45.00 L580.00 601.00\" stroke=\"#000000\"/><path d=\"M32.50 30.00 L32.50 45.00\" stroke=\"#000000\"/><path d=\"M32.50 601.00 L32.50 616.00\" stroke=\"#000000\"/><path d=\"M622.50 30.00 L622.50 45.00\" stroke=\"#000000\"/><path d=\"M622.50 601.00 L622.50 616.00\" stroke=\"#000000\"/></g></svg>"
+  },
+  {
+   "codes": [
     "BLD1UA"
    ],
    "series": "OB",
@@ -1669,8 +1684,28 @@ function libDoorFilled(r){
       if(t.textContent.trim()==='X'){ t.textContent=String(xVal); t.setAttribute('fill','#d00000'); n++; }
     });
   }
+  /* 도어 한가운데 글자 — `RULES` 의 `centerTxt` (BAD → `MDF`).
+     파라메트릭 도면(`doorSVG`)과 **같은 값 한 곳**에서 나옵니다. 도면에 글자를 박아 두면
+     두 곳이 되어 어긋납니다(규칙 1). 새 코드에 글자를 넣으려면 `RULES` 에 한 줄만 더하십시오.
+     ⚠ 자리는 **viewBox 한가운데**입니다 — 앱이 그린 도면은 도어를 가운데에 놓습니다.
+       캐드에서 통째로 들여온 도면은 도어가 가운데가 아닐 수 있으니, 그런 코드에 쓸 때는
+       실제로 보고 자리를 확인하십시오. */
+  const rl=RULES[r.code]||{};
+  if(rl.centerTxt){
+    const vb=(doc.documentElement.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+    if(vb.length===4){
+      const cx=vb[0]+vb[2]/2, cy=vb[1]+vb[3]/2;
+      const t=doc.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',cx.toFixed(2)); t.setAttribute('y',cy.toFixed(2));
+      t.setAttribute('text-anchor','middle'); t.setAttribute('dominant-baseline','central');
+      t.setAttribute('font-family','굴림,Gulim'); t.setAttribute('font-size','25');
+      t.setAttribute('fill','#000000');
+      t.textContent=rl.centerTxt;
+      doc.documentElement.appendChild(t);
+    }
+  }
   return {svg:new XMLSerializer().serializeToString(doc.documentElement), replaced:n, xVal,
-          sig:`${xVal==null?'x':xVal}-${closed}-${hand}-${r.type||''}-${(c&&c.bhbu)?c.bhbu.topFix:''}`,
+          sig:`${xVal==null?'x':xVal}-${closed}-${hand}-${r.type||''}-${(c&&c.bhbu)?c.bhbu.topFix:''}-${rl.centerTxt||''}`,
           note:(xVal==null?'X 미확정 — 원본 유지':'')};
 }
 const RULES={
@@ -1683,14 +1718,19 @@ const RULES={
   // MS(EURO500) — 생산할 때 뒤에 덧방이 붙는 차이뿐이라 **M 과 똑같이 풉니다**
   //   (사용자 확정 2026-09-09). 도면도 M 것을 씁니다(DOOR_ALIAS).
   MS:{handle:'both'},B:{handle:'both',lr:true,hingeBase:764,doorHsub:146,glassHsub:149,topB:142,note:'핸들타입 / 보링위치 확인 / 상부 142 고정'},
-  /* BAD — **MDF 통판**입니다. 알루미늄 프레임이 아니라 **힌지가 없습니다**
+  /* BAD — **알루미늄 프레임 도어인데 속(심재)이 허니컴이 아니라 MDF** 입니다.
+     사장님 보링도 DXF(2026-09-21) 비고란 그대로:
+       프레임 19t×45mm AL · **심재 9t MDF(E0,35형)** · 「※ 심재 : 9t MDF 사양(허니컴 사양 아님)」
+       유리 3.2t 새틴백유리 + 후면 컬러실크인쇄 · 뒷판 2.7t MDF · 손잡이 19t×15mm AL
+     그래서 종이에 **`MDF` 를 적어 둬야** 합니다 — 안 적으면 허니컴으로 만들게 됩니다.
      (사장님 2026-09-21 "BAD는 힌지 없고 거의 정사각형 느낌이야. 그리고 mdf라고 적어줄래.
-      그때 상마이다 하마이다 적은거처럼 도면 중간에").
-     · `hinge:'none'`  → 힌지 표시를 안 그립니다.
-     · `centerTxt:'MDF'` → 도어 **한가운데에 `MDF`** 라고 적습니다(상마이다·하마이다와 같은 방식).
-     · `boxFromSize`  → 네모를 **실제 프레임 비율**로 그립니다. 납품 910 → 프레임 586(−324)
-       이라 595×586, **거의 정사각형**으로 나옵니다. 고정 비율로 두면 세로로 길쭉해 보입니다.
-     치수 계산(−324 · 유리 −327)은 그대로입니다. */
+      그때 상마이다 하마이다 적은거처럼 도면 중간에")
+     · `hinge:'none'`   → 힌지를 안 그립니다. 원본 도면에도 힌지·보링 표시가 없습니다.
+     · `centerTxt:'MDF'` → 도어 **한가운데**에 적습니다. **값은 여기 한 곳뿐**이고,
+        캐드 도면(`libDoorFilled`)과 파라메트릭 도면(`doorSVG`) 양쪽이 이것을 가져다 씁니다.
+     · `boxFromSize`    → 캐드 도면이 못 붙었을 때의 대비입니다. 네모를 실제 프레임 비율로
+        그려 595×586(거의 정사각형)으로 냅니다. 고정 비율로 두면 세로로 길쭉해 보입니다.
+     치수 계산(−324 · 유리 −327)은 그대로입니다 — 원본 도면의 595×586 과 맞습니다. */
   BAD:{handle:'both',hinge:'none',centerTxt:'MDF',boxFromSize:true,
        doorHsub:324,glassHsub:327,note:'상부고정부 있음 / 세로차감 큼 확인 / MDF · 힌지 없음'},
   BHBU:{handle:'both',hingeTxt:r=>`상부고정 ${bhbuTopFix(r&&r.type)}·하부변환`,note:'힌지위치 다름(상부고정·하부변환) / 좌우 확인'},
@@ -5073,7 +5113,7 @@ function generate(){
       let infoTxt;
       /* 힌지 없는 코드가 전부 마이다(서랍)는 아닙니다 — BAD 는 **MDF 통판**입니다.
          `centerTxt` 가 있으면 그 말을 씁니다(2026-09-21). 없으면 예전 문구 그대로. */
-      if(rule.centerTxt) infoTxt=`힌지 없음 · ${rule.centerTxt} 통판`;
+      if(rule.centerTxt) infoTxt=`힌지 없음 · 심재 ${rule.centerTxt}(허니컴 아님)`;
       else if(isMaida) infoTxt='마이다(서랍) · 힌지 없음 · 합적';
       else if(rule.orient==='H') infoTxt='가로장 · 손잡이 하단 · 힌지 상단 110';
       else { const hand=rep.handle==='both'?'손잡이 상·하':'손잡이 하단'; const lr=list.some(x=>x.lr)?' · 좌우(L/R) 구분':''; const hinge=(typeof rule.hingeTxt==='function'?rule.hingeTxt(rep):rule.hingeTxt)||(rule.topB?`상부 ${rule.topB} 고정`:'힌지 측면 상하 110'); infoTxt=`${hand} · ${hinge}${lr}`; }
