@@ -3492,6 +3492,19 @@ function _frameTxt(c){
 function _glassTxt(c){ return c.glass.map(gl=>`${gl.gw}×${gl.gh}${gl.n>1?'×'+gl.n:''}`).join(' / '); }
 let checkOpen=true, checkDateFilter='all';
 let chkOpenDates=new Set();   // 손으로 펼쳐 둔 '지난 발주' 날짜
+/* 「오늘 것만 펼치기」 — 켜면 **오늘 발주일 하나만** 펼치고 나머지는 전부 접습니다
+   (사장님 요청 2026-09-22 "오늘꺼 외에는 숨기기(접기)버튼 있었으면 좋겠어 스크롤이 넘 길어져").
+   평소에는 **납품요청일이 아직 안 지난 날짜**가 전부 펼쳐지는데, 그게 여러 날이면 길어집니다.
+   ⚠ **끈 상태가 예전 그대로**입니다. 한 번 켜면 그 선택을 기억하니 다음에 또 누르지 않아도 됩니다.
+   ⚠ localStorage 읽기는 반드시 try/catch — 저장함이 막힌 브라우저에서 화면이 통째로 멈춥니다(9-3). */
+const CHK_ONLY_TODAY_KEY='nonspec-chk-onlytoday-v1';
+let chkOnlyToday=(()=>{ try{ return localStorage.getItem(CHK_ONLY_TODAY_KEY)==='1'; }catch(e){ return false; } })();
+function chkToggleOnlyToday(){
+  chkOnlyToday=!chkOnlyToday;
+  chkOpenDates.clear();          // 손으로 펼쳐 둔 것도 같이 정리 — 안 그러면 켜도 안 접힙니다
+  try{ localStorage.setItem(CHK_ONLY_TODAY_KEY, chkOnlyToday?'1':'0'); }catch(e){}
+  renderCheck();
+}
 function setCheckDate(d){ checkDateFilter=d; renderCheck(); }
 function toggleCheckOpen(){ checkOpen=!checkOpen; renderCheck(); }
 function chkToggleDate(d){ if(chkOpenDates.has(d)) chkOpenDates.delete(d); else chkOpenDates.add(d); renderCheck(); }
@@ -3542,7 +3555,10 @@ function renderCheck(){
     const reqs=ROWS.filter(r=>r.code && chkOrderDate(r)===d).map(r=>r.req).filter(Boolean);
     return reqs.length ? reqs.every(x=>x<_today) : String(d)<_today;
   };
-  let liveDates=shownDates.filter(d=>!isDone(d));
+  /* 「오늘 것만」이 켜져 있으면 오늘 발주일 하나만 펼칩니다.
+     오늘 발주가 없으면 아래 되받이로 **가장 최신 하루**가 펼쳐지므로 화면이 비지 않습니다. */
+  let liveDates = chkOnlyToday ? shownDates.filter(d=>d===_today)
+                               : shownDates.filter(d=>!isDone(d));
   if(!liveDates.length && shownDates.length) liveDates=[shownDates[0]];
   const liveSet=new Set(liveDates);
   const isOpen=d=>liveSet.has(d)||chkOpenDates.has(d);
@@ -3598,7 +3614,7 @@ function renderCheck(){
     const openedN=(window.__chkPastDates||[]).filter(d=>chkOpenDates.has(d)).length;
     sections+=`<div style="display:flex;align-items:center;gap:8px;margin:16px 0 6px">
         <span style="flex:1;height:1px;background:#e5e7eb"></span>
-        <span style="font-size:11px;color:#9ca3af;white-space:nowrap">지난 발주 ${pastDates.length}일치 · ${pcnt}품목</span>
+        <span style="font-size:11px;color:#9ca3af;white-space:nowrap">${chkOnlyToday?'오늘 말고':'지난 발주'} ${pastDates.length}일치 · ${pcnt}품목</span>
         <button class="ck-toggle" style="font-size:11px" onclick="chkOpenAllPast()">▼ 모두 펼치기</button>
         ${openedN?`<button class="ck-toggle" style="font-size:11px" onclick="chkCloseAllPast()">▲ 모두 접기</button>`:''}
         <span style="flex:1;height:1px;background:#e5e7eb"></span>
@@ -3608,6 +3624,10 @@ function renderCheck(){
   const bulkbar=`<div class="ck-bulkbar" style="display:flex;gap:6px;align-items:center;margin:6px 0 2px">
     <button class="ck-toggle" onclick="chkAllShown(true)">✅ 전체 선택</button>
     <button class="ck-toggle" onclick="chkAllShown(false)">⬜ 전체 해제</button>
+    <button class="ck-toggle" onclick="chkToggleOnlyToday()"
+      title="오늘 발주만 펼치고 나머지는 접습니다. 접힌 날짜도 제목을 누르면 열립니다."
+      style="${chkOnlyToday?'background:#eef4ff;border-color:#9dbbf0;color:#1560c0;font-weight:800':''}"
+      >${chkOnlyToday?'📌 오늘 것만 펼침':'📌 오늘 것만 펼치기'}</button>
     <span style="font-size:11px;color:#9ca3af">${checkDateFilter==='all'?'모든 날짜 대상':'고른 날짜만 대상'}</span></div>`;
   area.innerHTML = head + bulkbar + `<div class="ckf-row">${chips}</div>` + sections;
 }
