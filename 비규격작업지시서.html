@@ -133,7 +133,7 @@
   .code-group{break-inside:avoid;page-break-inside:avoid}
   .ms-title{text-align:center;font-size:17px;font-weight:bold;border:1px solid #555;padding:5px;margin:14px 0 4px}
   .code-group{border-left:3px solid var(--blue);margin:8px 0 14px;padding-left:10px}
-  .code-tag{font-size:30px;font-weight:bold;color:#1560c0;padding:3px 0 2px;line-height:1.2}
+  .code-tag{font-size:30px;font-weight:bold;color:#111;padding:3px 0 2px;line-height:1.2}
   .code-cnt{font-size:12px;color:#6b7280;font-weight:normal}
   /* 설명(수량·내용)은 코드/모델명 아래 한 줄로. 전체 폭을 써서 중간에 끊기지 않는다. */
   .code-desc{font-size:12.5px;color:#6b7280;font-weight:normal;line-height:1.5;padding:0 0 5px}
@@ -359,7 +359,7 @@
     .sheet-title,.sl-frame{color:#000}
     .sl-glass{color:#c00}
     .sl-panel{color:#7a3fb0}
-    .code-tag{color:#1560c0}
+    .code-tag{color:#111}
     .sl-note{color:#a06000}
     .asm-note{color:#1a7a3a}
     .badge-as{background:#c0392b!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -4437,7 +4437,10 @@ function cadBlockSVG(b, xL, yTop){
     // 코드줄. 세트 수가 블록 안에서 모두 같으면 여기에 `×2SET`을 빨강으로 덧붙인다.
     // 제목줄 — 한 도면을 여러 코드가 쓰면 그 코드를 모두 적습니다 (`WFUP · WF`)
     const codeTxt=`${esc(b.codeLabel||b.code)}${b.type==='HD'?' (HD)':''}${b.isCont?' (계속)':''}`;
-    s+=`<text x="${txX}" y="${ty.toFixed(2)}" font-family="${F}" font-size="7.5" font-weight="700" fill="#1560c0">${codeTxt}`
+    /* 약어는 **검정**입니다 (사장님 요청 2026-09-22 "약어들 파란색으로 폰트가 지정되어있는데
+       검정색으로 바꿔줄래? BD2R, M, 등등 이런것들"). 색으로 뜻을 나누는 것은 **빨강(재단치수)**
+       하나뿐입니다 — 파랑까지 있으면 무엇이 급한지 흐려집니다. */
+    s+=`<text x="${txX}" y="${ty.toFixed(2)}" font-family="${F}" font-size="7.5" font-weight="700" fill="#000000">${codeTxt}`
      + (titleSet ? `<tspan fill="#e00000" font-size="6.6"> ×${esc(titleSet)}</tspan>` : '')
      + `</text>`;
   }
@@ -4599,9 +4602,10 @@ function cadBlockSVG(b, xL, yTop){
     ty+=lh;                         // 여기서부터 진짜 한 줄을 쓴다
     if(row.k==='frame'){
       // 줄머리는 코드줄과 같은 파랑으로 조금 작게 — 치수 숫자와 안 헷갈리게
-      /* 줄머리 — 코드·모델명은 파랑, **조각 이름(`상 -`·`하 -`)은 검정**입니다.
-         캐드 원본이 치수와 같은 검정으로 적습니다(한 줄로 이어 읽히게). */
-      if(row.lab) s+=`<text x="${(txX+4).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="${LAB_FS}" font-weight="700" fill="${row.labDark?'#000':'#1560c0'}">${esc(row.lab)}</text>`;
+      /* 줄머리(코드·모델명·조각 이름)는 **전부 검정**입니다 (사장님 요청 2026-09-22).
+         예전에는 코드·모델명만 파랑이었는데, 제목줄 약어를 검정으로 바꾸면서 같이 맞췄습니다 —
+         한 덩어리 안에서 같은 것(약어)이 자리에 따라 색이 달라지면 오히려 헷갈립니다. */
+      if(row.lab) s+=`<text x="${(txX+4).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="${LAB_FS}" font-weight="700" fill="#000000">${esc(row.lab)}</text>`;
       s+=`<text x="${(txX+4+LABW).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#000">${esc(row.text)}</text>`;
     }
     else if(row.k==='glass') s+=`<text x="${(txX+4+LABW).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" fill="#d00000">${esc(row.text)}</text>`;
@@ -4795,7 +4799,7 @@ function frmRender(){
         </tr></thead>
         <tbody>${s.list.map(a=>`<tr style="border-bottom:1px solid #f1f3f5">
           <td style="padding:5px 8px;color:#6b7280">${esc(a.type)}</td>
-          <td style="padding:5px 8px;font-weight:700;color:#1560c0">${esc(a.code)}</td>
+          <td style="padding:5px 8px;font-weight:700;color:#111">${esc(a.code)}</td>
           <td style="padding:5px 8px">${esc(a.frameTxt)}</td>
           <td style="padding:5px 8px;color:#c0392b;font-size:12px">${esc(a.glassTxt||'')}</td>
           <td style="padding:5px 8px;text-align:right;font-weight:700">${a.sheets}</td>
