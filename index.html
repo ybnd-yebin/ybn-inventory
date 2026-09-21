@@ -1379,14 +1379,14 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- 에토프재고 — 넣기 (수기 · 붙여넣기 · 실사) -->
 <div class="modal-bg" id="etp-input-modal">
   <div class="modal-sheet">
-    <button class="close-btn" onclick="closeM('etp-input-modal')">×</button>
+    <button class="close-btn" onclick="etpCloseInput()">×</button>
     <div class="modal-ttl">🟠 에토프 인쇄유리 — 넣기</div>
     <div class="modal-tabs">
       <button class="m-tab etp-in-tab on" data-tab="manual" onclick="etpSetTab('manual')">✍️ 수기</button>
       <button class="m-tab etp-in-tab" data-tab="paste" onclick="etpSetTab('paste')">📋 붙여넣기</button>
       <button class="m-tab etp-in-tab" data-tab="count" onclick="etpSetTab('count')">🔢 실사</button>
     </div>
-    <span class="lbl">날짜</span>
+    <span class="lbl" id="etp-in-date-lbl">날짜</span>
     <input type="date" id="etp-in-date" class="inp" style="margin-bottom:12px">
     <div id="etp-in-body"></div>
   </div>
@@ -12054,6 +12054,8 @@ const OD_CATALOG = {
     '대원유리': [
       {type:'비규격 (5T투명·한샘장식장)', thick:'5T 투명',   title:'5T 투명',        bigo:'휠/반강화',     pname:'5T 투명',  sizeMode:true,
          hint:'한샘 장식장에 들어가는 5T 투명유리 · 비고 휠/반강화'},
+      {type:'비규격 (5T브론즈)',           thick:'5T 브론즈', title:'5T 브론즈',      bigo:'휠/강화',       pname:'5T 브론즈', sizeMode:true,
+         hint:'5T 브론즈 비규격 · 비고 휠/강화'},
       {type:'3T 은경',                    thick:'3T 은경',   title:'3t 은경',        bigo:'각면/후면시트지', pname:'3t 은경', sizeMode:true,
          hint:'3T 은경 · 비고 각면/후면시트지'},
       {type:'3T 브론즈경',                 thick:'3T 브론즈경', title:'3t 브론즈경',   bigo:'각면/후면시트지', pname:'3t 브론즈경', sizeMode:true,
@@ -17540,14 +17542,33 @@ function etpSetDays(v){
 function etpToggleSize(size){ etpOpen[size] = !etpOpen[size]; renderEtp(); }
 function etpOnSearch(v){ etpSearchKey = String(v || '').trim().toLowerCase(); renderEtp(); }
 
+/* 띄어쓰기가 달라도 찾습니다 — 검색은 한 곳에서만 정합니다.
+   규격표에는 `HD B 4591 L` 인데 현장 쪽지에는 `HD4591` 로 적습니다
+   (2026-09-21 현성 불량표). 예전에는 글자 그대로만 견주어 못 찾았습니다.
+   글자뭉치·숫자뭉치로 쪼개 **차례만 맞으면** 찾습니다 —
+   `HD4591` → `hd` · `4591` → `HD B 4591 L` 안에 그 차례로 있으므로 맞습니다.
+   차례를 보므로 아무 데나 걸리지는 않습니다(`4591HD` 는 안 맞습니다). */
+function etpFuzzy(hay, q){
+  const h = String(hay || '').toLowerCase();
+  const k = String(q || '').trim().toLowerCase();
+  if(!k) return true;
+  if(h.includes(k)) return true;                  // 그대로 들어맞으면 끝
+  const parts = k.match(/[a-z]+|\d+/g);
+  if(!parts || !parts.length) return false;
+  /* 띄어쓰기를 뗀 것으로도 한 번 더 봅니다 — `HDB4591` 처럼 글자를 아예
+     붙여 적으신 경우가 있습니다. */
+  const seq = s => { let i=0; for(const p of parts){ const at=s.indexOf(p,i); if(at<0) return false; i=at+p.length; } return true; };
+  return seq(h) || seq(h.replace(/\s+/g,''));
+}
+
 /* 사이즈 검색창에서 모델명으로도 찾게 합니다.
    직원이 모델명만 알고 사이즈를 모르는 경우가 있습니다. */
 function etpMatchRow(r){
   if(!etpSearchKey) return true;
   const k = etpSearchKey;
-  if(r.size.toLowerCase().replace('x', '').includes(k.replace(/[x*×\s]/g, ''))) return true;
-  if(r.size.toLowerCase().includes(k)) return true;
-  return (r.models || []).some(m => String(m).toLowerCase().includes(k));
+  if(etpFuzzy(r.size.replace('x', ''), k.replace(/[x*×\s]/g, ''))) return true;
+  if(etpFuzzy(r.size, k)) return true;
+  return (r.models || []).some(m => etpFuzzy(m, k));
 }
 
 // ── 헤드라인 ─────────────────────────────────────────────────────────
@@ -17705,6 +17726,7 @@ function etpHistoryHtml(size){
       '<span style="font-family:\'JetBrains Mono\',monospace;color:var(--tx3);width:44px;flex:none">' + etpMd(r.d) + '</span>' +
       '<span style="font-weight:700;color:' + (col[r.t] || 'var(--tx2)') + ';width:28px;flex:none">' + (kor[r.t] || r.t) + '</span>' +
       '<span style="font-family:\'JetBrains Mono\',monospace;font-weight:800;width:40px;flex:none;text-align:right">' + q + '</span>' +
+      (r.od ? '<span title="발주일" style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--acc);border:1px solid var(--acc);border-radius:7px;padding:0 4px;flex:none">발주 ' + etpMd(r.od) + '</span>' : '') +
       '<span style="color:var(--tx2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + etpEsc(r.src || '') + (r.reason ? ' <span style="color:var(--acc2)">[' + etpEsc(r.reason) + ']</span>' : '') + (r.memo ? ' <span style="color:var(--tx3)">· ' + etpEsc(r.memo) + '</span>' : '') + '</span>' +
       '<span onclick="event.stopPropagation();etpDeleteRow(\'' + r.id + '\')" title="이 기록 지우기" style="flex:none;color:var(--tx3);cursor:pointer;padding:0 3px">🗑</span>' +
     '</div>';
@@ -17797,7 +17819,7 @@ function etpModelRows(){
 function etpModelListHtml(){
   let list = etpModelRows();
   const k = etpSearchKey;
-  if(k) list = list.filter(m => m.model.toLowerCase().includes(k) || m.glass.some(g => g.key.toLowerCase().includes(k.replace(/[x*×\s]/g, 'x'))));
+  if(k) list = list.filter(m => etpFuzzy(m.model, k) || m.glass.some(g => etpFuzzy(g.key, k.replace(/[x*×\s]/g, 'x'))));
   if(etpFilter === 'short') list = list.filter(m => m.short);
   if(etpFilter === 'over')  list = list.filter(m => !m.short && m.sets >= 20);
   if(etpFilter === 'nomaster') list = list.filter(m => m.glass.some(g => !etpInMaster(g.key)));
@@ -18166,16 +18188,21 @@ var etpCountDraft={};         // 실사 입력값 {size:실제수량}
 
 function etpOpenInput(tab){
   etpTab=tab||'manual'; etpPasteRows=null; etpSizePick=''; etpCountDraft={};
+  etpCart=[]; etpOd=''; etpSrc=null; etpMemo='';
   const el=document.getElementById('etp-input-modal');
   if(!el) return;
   el.classList.add('on');
   const d=document.getElementById('etp-in-date'); if(d) d.value=todayStr();
   etpRenderInput();
 }
-function etpSetTab(t){ etpTab=t; etpPasteRows=null; etpRenderInput(); }
+function etpSetTab(t){ etpKeepFields(); etpTab=t; etpPasteRows=null; etpRenderInput(); }
 
 function etpRenderInput(){
   document.querySelectorAll('.etp-in-tab').forEach(b=>b.classList.toggle('on', b.getAttribute('data-tab')===etpTab));
+  /* 수기 입고 때는 이 날짜가 '입고일'입니다 — 발주일 칸이 따로 있어
+     그냥 '날짜'로 두면 어느 날짜인지 헷갈립니다 */
+  const lb=document.getElementById('etp-in-date-lbl');
+  if(lb) lb.textContent=(etpTab==='manual' && etpManualType==='in') ? '입고일' : '날짜';
   const box=document.getElementById('etp-in-body');
   if(!box) return;
   if(etpTab==='manual')      box.innerHTML=etpManualHtml();
@@ -18184,10 +18211,117 @@ function etpRenderInput(){
 }
 
 /* ── ② 수기 입력 ─────────────────────────────────────────────────── */
+/* 인쇄실 작업일지와 같은 「담기 → 담기 → 한 번에 저장」 방식입니다
+   (사장님 2026-09-21 "한품목당 계속 날짜도 바꾸고 출처도 바꾸고 너무 번거로워").
+
+   예전에는 한 줄 저장할 때마다 창이 닫혀, 인수증 일곱 줄을 옮기려면 날짜·출처를
+   일곱 번 다시 쳐야 했습니다. 이제 담을 때 **사이즈·수량만 비우고** 날짜·발주일·
+   출처는 그대로 둡니다.
+   담긴 줄은 저마다 제 발주일을 지니므로, 한 인수증에 발주일이 섞여 와도
+   그 줄에서만 고치면 됩니다. */
 var etpManualType='in';      // 'in' | 'out' | 'adj'
 var etpManualReason='납품';
-function etpSetManualType(t){ etpManualType=t; etpRenderInput(); }
-function etpSetReason(r){ etpManualReason=r; etpRenderInput(); }
+var etpCart=[];              // 담아 둔 줄 — 저장 전까지만 있습니다
+var etpOd='';                // 발주일 — 다음 줄에도 그대로 남깁니다
+var etpSrc=null;             // 출처  — null 이면 기본값(현성 인수증 오늘)
+var etpMemo='';              // 비고
+function etpSetManualType(t){ etpManualType=t; etpKeepFields(); etpRenderInput(); }
+function etpSetReason(r){ etpManualReason=r; etpKeepFields(); etpRenderInput(); }
+/* 인쇄불량 한 번에 — 구분·사유를 같이 세우고 출처도 채워 둡니다 */
+function etpSetDefect(){
+  etpManualType='out'; etpManualReason='불량반품';
+  etpKeepFields();
+  // 입고 기본값이 그대로 남아 있으면 불량 것으로 바꿔 둡니다
+  if(!etpSrc || /^현성 인수증/.test(etpSrc)) etpSrc='현성 인쇄불량 ' + etpMd(todayStr());
+  etpRenderInput();
+  setTimeout(()=>{ const s=document.getElementById('etp-in-size'); if(s) s.focus(); }, 30);
+}
+
+/* 다시 그리기 전에 지금 칸에 적힌 것을 챙겨 둡니다.
+   안 챙기면 구분 단추만 눌러도 쳐 놓은 출처가 날아갑니다. */
+function etpKeepFields(){
+  const g=id=>{ const el=document.getElementById(id); return el?el.value:null; };
+  const od=g('etp-in-od');   if(od!=null) etpOd=od;
+  const sc=g('etp-in-src');  if(sc!=null) etpSrc=sc;
+  const mm=g('etp-in-memo'); if(mm!=null) etpMemo=mm;
+  const sz=g('etp-in-size'); if(sz!=null) etpSizePick=sz;
+}
+
+function etpCartSetQty(i,v){
+  if(!etpCart[i]) return;
+  const n=parseInt(v,10);
+  if(isNaN(n)||n===0){ showToast('수량을 넣어 주십시오'); return; }
+  etpCart[i].qty = (etpCart[i].t==='adj') ? n : Math.abs(n);
+  etpKeepFields(); etpRenderInput();
+}
+function etpCartSetOd(i,v){ if(!etpCart[i]) return; etpCart[i].od=v||''; etpKeepFields(); etpRenderInput(); }
+function etpCartDrop(i){ etpCart.splice(i,1); etpKeepFields(); etpRenderInput(); }
+function etpCartClear(){
+  if(etpCart.length && !confirm('담은 ' + etpCart.length + '건을 비울까요?')) return;
+  etpCart=[]; etpKeepFields(); etpRenderInput();
+}
+
+/* 칸에 적힌 것을 담습니다.
+   돌려주는 값: true 담았음 · 'empty' 칸이 비었음 · false 잘못 적으셨음 */
+function etpCartAdd(quiet){
+  etpKeepFields();
+  const d    = (document.getElementById('etp-in-date')||{}).value || todayStr();
+  const raw  = String(etpSizePick||'').trim();
+  const qs   = (document.getElementById('etp-in-qty')||{}).value;
+  const qty  = parseInt(qs,10);
+  if(!raw && (qs===''||qs==null)) return 'empty';
+
+  const norm = etpNormSize(raw);
+  if(!norm.ok){ showToast('사이즈를 못 읽었습니다 — ' + (norm.why||'')); return false; }
+  if(norm.needLr){ showToast('관통보링 사이즈입니다 — 좌우(L/R)를 적어 주십시오'); return false; }
+  if(isNaN(qty)){ showToast('수량을 넣어 주십시오'); return false; }
+  if(etpManualType!=='adj' && qty<=0){ showToast('입고·출고 수량은 0보다 커야 합니다'); return false; }
+  if(etpManualType==='adj' && qty===0){ showToast('조정 수량이 0입니다'); return false; }
+
+  etpCart.push({ d, od:(etpManualType==='in' ? (etpOd||'') : ''), t:etpManualType,
+                 size:norm.size, qty:(etpManualType==='adj' ? qty : Math.abs(qty)),
+                 src:(etpSrc==null?'':etpSrc), memo:etpMemo,
+                 reason:(etpManualType==='out' ? etpManualReason : '') });
+
+  /* 사이즈·수량만 비웁니다. 날짜·발주일·출처·비고는 그대로 둡니다.
+     칸도 바로 비웁니다 — 다시 그리기 전에 etpKeepFields 가 옛 값을 도로
+     주워 담는 일이 없게 하려는 것입니다. */
+  etpSizePick='';
+  const se=document.getElementById('etp-in-size'); if(se) se.value='';
+  const qe=document.getElementById('etp-in-qty');  if(qe) qe.value='';
+  const he=document.getElementById('etp-size-hint'); if(he) he.innerHTML='';
+  if(!quiet){
+    showToast('담았습니다 — ' + norm.size + ' ' + qty + '장  (담은 것 ' + etpCart.length + '건)');
+    etpRenderInput();
+    setTimeout(()=>{ const s=document.getElementById('etp-in-size'); if(s) s.focus(); }, 30);
+  }
+  return true;
+}
+
+function etpCartHtml(){
+  if(!etpCart.length) return '';
+  const kor={in:'입고', out:'출고', adj:'조정'};
+  const col={in:'var(--acc3)', out:'var(--acc4)', adj:'var(--acc5)'};
+  const tot=etpCart.reduce((s,c)=>s+Math.abs(c.qty),0);
+  return `<div style="margin-top:16px;border-top:2px solid var(--b2);padding-top:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="font-size:13px;font-weight:800;color:var(--acc3)">🧺 담은 것 <span style="color:var(--acc)">${etpCart.length}</span>건 · ${tot}장</span>
+      <span style="flex:1"></span>
+      <button class="f-btn" style="font-size:10px;padding:3px 9px" onclick="etpCartClear()">비우기</button>
+    </div>
+    ${etpCart.map((c,i)=>`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--b1)">
+      <span style="flex:none;width:26px;font-size:10px;font-weight:800;color:${col[c.t]}">${kor[c.t]}</span>
+      <span style="flex:1;min-width:88px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--tx1)">${etpEsc(c.size).replace('x','×')}</span>
+      ${c.t==='in' ? `<span style="flex:none;font-size:9.5px;color:var(--tx3)">발주일</span>
+      <input type="date" value="${c.od||''}" onchange="etpCartSetOd(${i},this.value)"
+        style="flex:none;width:132px;padding:3px 5px;font-size:11px;border:1px solid var(--b2);border-radius:5px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif">` : ''}
+      <input type="number" value="${c.qty}" onchange="etpCartSetQty(${i},this.value)"
+        style="flex:none;width:58px;padding:4px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;border:1px solid var(--b2);border-radius:5px;background:var(--s2);color:${col[c.t]}">
+      <button onclick="etpCartDrop(${i})" title="이 줄 빼기"
+        style="flex:none;width:27px;height:27px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.25);border-radius:5px;color:var(--acc4);font-size:12px;cursor:pointer">🗑</button>
+    </div>`).join('')}
+  </div>`;
+}
 
 function etpManualHtml(){
   const tbtn=(t,label,col)=>`<button class="q-btn" onclick="etpSetManualType('${t}')" style="${etpManualType===t?`background:${col};border-color:${col};color:#fff;font-weight:700`:''}">${label}</button>`;
@@ -18197,19 +18331,32 @@ function etpManualHtml(){
     <div class="quick-btns" style="margin-bottom:12px">
       ${tbtn('in','＋ 입고','var(--acc3)')}${tbtn('out','－ 출고','var(--acc4)')}${tbtn('adj','± 조정','var(--acc5)')}
     </div>
+    ${/* 인쇄불량은 「출고 → 사유 불량반품」 두 번 눌러야 나와 못 찾으셨습니다
+         (사장님 2026-09-21 "불량 뺄수있는 방법없음"). 한 번에 가는 길을 둡니다.
+         들어온 장수는 인수증대로 그대로 두고 불량만 따로 빼야 현성에 물어볼
+         근거가 남습니다 — 좋은 것만 넣으면 불량이 기록에서 사라집니다. */''}
+    <button class="q-btn" onclick="etpSetDefect()" style="width:100%;margin-bottom:12px;padding:10px;${etpManualType==='out'&&etpManualReason==='불량반품'?'background:var(--acc4);border-color:var(--acc4);color:#fff;font-weight:800':'font-weight:700'}">🚫 인쇄불량 빼기 <span style="font-weight:400;font-size:11px;opacity:.85">— 출고 · 사유 불량반품으로 바로</span></button>
     ${etpManualType==='out' ? `<span class="lbl">사유</span>
       <div class="quick-btns" style="margin-bottom:12px">${rbtn('납품')}${rbtn('파손')}${rbtn('불량반품')}</div>` : ''}
+    ${etpManualType==='in' ? `<span class="lbl">발주일 <span style="font-weight:400;color:var(--tx3)">— 인수증에 적힌 발주일. 담은 뒤 줄마다 고칠 수 있습니다</span></span>
+      <input class="inp" id="etp-in-od" type="date" value="${etpOd||''}" onchange="etpKeepFields()" style="margin-bottom:12px">` : ''}
     <span class="lbl">사이즈 찾기 <span style="font-weight:400;color:var(--tx3)">— 모델명으로도 찾습니다</span></span>
     <input class="inp" id="etp-in-size" value="${etpEsc(etpSizePick)}" placeholder="예) 895x347 · 347*895 · OB BD2R 9091 M"
            oninput="etpSizeSuggest(this.value)" style="font-family:'JetBrains Mono',monospace">
     <div id="etp-size-hint" style="margin-bottom:10px"></div>
     <span class="lbl">수량 ${etpManualType==='adj'?'<span style="font-weight:400;color:var(--tx3)">— 조정은 음수도 됩니다</span>':''}</span>
-    <input class="inp" id="etp-in-qty" type="number" value="" placeholder="0" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700">
-    <span class="lbl">출처</span>
-    <input class="inp" id="etp-in-src" value="${etpManualType==='in'?'현성 인수증 '+etpMd(todayStr()):''}" placeholder="예) 현성 인수증 26.09.14">
+    <input class="inp" id="etp-in-qty" type="number" value="" placeholder="0"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();etpCartAdd();}"
+           style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700">
+    <span class="lbl">출처 <span style="font-weight:400;color:var(--tx3)">— 담아도 그대로 남습니다</span></span>
+    <input class="inp" id="etp-in-src" onchange="etpKeepFields()"
+           value="${etpEsc(etpSrc!=null ? etpSrc : (etpManualType==='in' ? '현성 인수증 '+etpMd(todayStr()) : ''))}"
+           placeholder="예) 현성 인수증 26.09.14">
     <span class="lbl">비고</span>
-    <input class="inp" id="etp-in-memo" placeholder="(선택)">
-    <button class="act-btn blue" style="color:#fff" onclick="etpSaveManual()">✓ 저장</button>`;
+    <input class="inp" id="etp-in-memo" value="${etpEsc(etpMemo)}" onchange="etpKeepFields()" placeholder="(선택)">
+    <button class="act-btn green" style="color:#fff" onclick="etpCartAdd()">➕ 목록에 담기 <span style="font-weight:400;font-size:11px;opacity:.85">— 사이즈·수량만 비웁니다</span></button>
+    ${etpCartHtml()}
+    <button class="act-btn blue" style="color:#fff;margin-top:10px" onclick="etpSaveManual()">✓ ${etpCart.length ? etpCart.length+'건 한 번에 저장' : '저장'}</button>`;
 }
 
 /* 사이즈 또는 모델명으로 찾아 줍니다. 직원이 모델명만 알고 사이즈를 모르는
@@ -18228,12 +18375,29 @@ function etpSizeSuggest(v){
 
   if(norm.ok && !norm.unknown) add(norm.size, norm.flipped?'뒤집어 맞췄습니다':'');
   const lower=q.toLowerCase();
+  const qDigits=q.replace(/\D/g,'');
   if(typeof SIZE_TO_MODELS!=='undefined'){
+    /* 여덟 개에서 끊지 말고 **다 모은 뒤 점수로 세워** 자릅니다.
+       예전에는 모으는 도중에 끊어, 제일 잘 맞는 것이 뒤에 있으면 잘려 나갔습니다.
+       모델번호만 치셨을 때(`4591`) 걸리는 사이즈가 예닐곱은 되기 때문입니다. */
     Object.keys(SIZE_TO_MODELS).forEach(s=>{
-      if(cand.length>=8) return;
-      if(s.replace('x','').includes(lower.replace(/[x*×\s]/g,''))) add(s,'');
-      else if((SIZE_TO_MODELS[s]||[]).some(m=>m.toLowerCase().includes(lower))) add(s,'모델명으로 찾음');
+      const d=s.replace(/\D/g,'');
+      if(etpFuzzy(s.replace('x',''), lower.replace(/[x*×\s]/g,''))) add(s,'');
+      else if(qDigits.length>=4 && d.startsWith(qDigits)) add(s,'');   // 구분자 없이 445729
+      else if((SIZE_TO_MODELS[s]||[]).some(m=>etpFuzzy(m, lower))) add(s,'모델명으로 찾음');
     });
+  }
+  /* 세우는 잣대는 인쇄실 검색과 **같은 함수**(sizeMatchScore)를 씁니다.
+     두 곳에 따로 두면 어긋나고, 그쪽은 이미 모델번호 토막에 점수를 줍니다 —
+     `4591` 만 쳐도 그 번호를 쓰는 사이즈가 맨 위로 올라옵니다.
+     (사장님 2026-09-21 "재고관리 인쇄실에서 쓰고있는거 그대로 쓰면 될거같은데") */
+  if(typeof sizeMatchScore==='function'){
+    const qx=lower.replace(/[*×\s]+/g,'x').replace(/xx+/g,'x');
+    const sg=s=>{ const b=etpBaseSize(s).split('x');
+      return { w:Number(b[0]), h:Number(b[1]),
+               models:(typeof SIZE_TO_MODELS!=='undefined' && SIZE_TO_MODELS[etpBaseSize(s)]) || [] }; };
+    const sc={}; cand.forEach(c=>{ sc[c.size]=sizeMatchScore(sg(c.size), q, qx, qDigits); });
+    cand.sort((a,b)=>(sc[b.size]-sc[a.size]) || a.size.localeCompare(b.size));
   }
   if(!cand.length){
     el.innerHTML = norm.ok
@@ -18265,27 +18429,37 @@ function etpPickSize(s){
   const q=document.getElementById('etp-in-qty'); if(q) q.focus();
 }
 
+/* 담은 것을 한 번에 넣습니다. 칸에 아직 담지 않은 한 줄이 남아 있으면
+   그것부터 담으므로, 한 줄만 넣으실 때는 예전처럼 [저장] 한 번이면 됩니다. */
 function etpSaveManual(){
-  const d=(document.getElementById('etp-in-date')||{}).value||todayStr();
-  const rawSize=(document.getElementById('etp-in-size')||{}).value||'';
-  const qty=parseInt((document.getElementById('etp-in-qty')||{}).value,10);
-  const src=(document.getElementById('etp-in-src')||{}).value||'';
-  const memo=(document.getElementById('etp-in-memo')||{}).value||'';
+  const r=etpCartAdd(true);
+  if(r===false) return;                       // 잘못 적으신 것 — 안내는 이미 나갔습니다
+  if(!etpCart.length){ showToast('넣을 것이 없습니다'); return; }
 
-  const norm=etpNormSize(rawSize);
-  if(!norm.ok){ showToast('사이즈를 못 읽었습니다 — ' + (norm.why||'')); return; }
-  if(norm.needLr){ showToast('관통보링 사이즈입니다 — 좌우(L/R)를 적어 주십시오'); return; }
-  if(!qty && qty!==0){ showToast('수량을 넣어 주십시오'); return; }
-  if(etpManualType!=='adj' && qty<=0){ showToast('입고·출고 수량은 0보다 커야 합니다'); return; }
-  if(etpManualType==='adj' && qty===0){ showToast('조정 수량이 0입니다'); return; }
-  if(d>todayStr() && !confirm('날짜가 앞날(' + d + ')입니다. 그대로 넣을까요?')) return;
+  const td=todayStr();
+  const fut=etpCart.filter(c=>c.d>td);
+  if(fut.length && !confirm('날짜가 앞날인 줄이 ' + fut.length + '건 있습니다. 그대로 넣을까요?')) return;
 
-  etpAddRow({ d, t:etpManualType, size:norm.size, qty:Math.abs(qty)*(etpManualType==='adj'&&qty<0?-1:1),
-              src, memo, reason: etpManualType==='out' ? etpManualReason : '' });
+  const n=etpCart.length, q=etpCart.reduce((s,c)=>s+Math.abs(c.qty),0);
+  etpCart.forEach(c=>etpAddRow({ d:c.d, od:c.od, t:c.t, size:c.size, qty:c.qty,
+                                 src:c.src, memo:c.memo, reason:c.reason }));
   if(!etpCommit()) return;
-  showToast((etpManualType==='in'?'입고':etpManualType==='out'?'출고':'조정') + ' ' + qty + '장 — ' + norm.size);
+  showToast(n + '건 · ' + q + '장 넣었습니다');
+  etpCart=[]; etpSizePick=''; etpMemo=''; etpSrc=null;
   closeM('etp-input-modal');
   renderEtp();
+}
+
+/* 담은 것이 남아 있으면 그냥 닫지 않습니다 — 저장 전이라 닫으면 사라집니다.
+   실사 칸도 같습니다. */
+function etpCloseInput(){
+  const n=etpCart.length;
+  const c=Object.keys(etpCountDraft||{}).length;
+  if((n||c) && !confirm(
+      (n ? '담은 ' + n + '건' : '') + (n&&c ? ' 과 ' : '') + (c ? '실사 ' + c + '칸' : '') +
+      '이 아직 저장 전입니다.\n\n버리고 닫을까요?')) return;
+  etpCart=[]; etpCountDraft={};
+  closeM('etp-input-modal');
 }
 
 /* ── ③ 붙여넣기 ──────────────────────────────────────────────────── */
@@ -18384,20 +18558,45 @@ var etpPastePoId='', etpPastePoNo='';
 
 /* ── ④ 실사 조정 ─────────────────────────────────────────────────── */
 function etpCountHtml(){
-  const rows=etpBuildRows().filter(r=>r.cur!==0 || etpCountDraft[r.size]!=null);
+  /* 장부가 0인 정규격도 보여 줍니다. 예전에는 `r.cur!==0` 로 걸러, 창고에 실물이
+     있어도 넣을 칸이 아예 없었습니다 — 정규격 13종이 그랬습니다(2026-09-21).
+     비규격만 숨깁니다: 건별로 받아 그날 나가는 것이라 채워둘 양이 없습니다. */
+  const rows=etpBuildRows()
+    .filter(r=> r.cur!==0 || etpCountDraft[r.size]!=null || !r.nonstd)
+    /* 창고에는 유리가 가로 치수로 쌓여 있습니다. 월평균 차례로 두면 창고를
+       왔다 갔다 하게 되므로 실사 화면에서만 가로 묶음 차례로 다시 세웁니다.
+       다른 화면 차례(월평균 내림차순)는 그대로 둡니다. */
+    .sort((a,b)=>{
+      const A=etpBaseSize(a.size).split('x'), B=etpBaseSize(b.size).split('x');
+      return (Number(A[0])-Number(B[0])) || (Number(A[1])-Number(B[1])) || a.size.localeCompare(b.size);
+    });
+  const done=rows.filter(r=>etpCountDraft[r.size]!=null).length;
+  const pct=rows.length ? Math.round(done/rows.length*100) : 0;
+  let lastW='';
   return `
     <div class="info-note" style="margin-bottom:10px">
       세어 보신 <b>실제 수량</b>을 넣으십시오. 기존 기록은 고치지 않고 <b>차이만큼 조정 기록을 덧붙입니다</b> — 나중에 되돌릴 수 있습니다.<br>
-      안 넣은 칸은 건드리지 않습니다.
+      안 넣은 칸은 건드리지 않습니다. <b>한 번에 다 세지 않으셔도 됩니다</b> — 센 것만 넣고 저장, 나중에 또 하시면 됩니다.<br>
+      <span style="color:var(--acc4);font-weight:700">빨간 줄</span>은 장부가 마이너스라 확실히 틀린 것입니다. 이것부터 세십시오.
+    </div>
+    <div id="etp-count-prog" data-total="${rows.length}" style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+      <div style="flex:1;height:6px;border-radius:4px;background:var(--s2);overflow:hidden">
+        <div id="etp-count-bar" style="height:100%;width:${pct}%;background:var(--acc5);border-radius:4px"></div>
+      </div>
+      <span style="flex:none;font-size:11px;font-weight:700;color:var(--tx2)"><b id="etp-count-done" style="color:var(--tx1)">${done}</b> / ${rows.length}종</span>
     </div>
     <div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden;max-height:44vh;overflow-y:auto">
-      ${rows.map(r=>`<div style="display:flex;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--b1)">
-        <span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--tx1)">${r.size.replace('x','×')}</span>
-        <span style="font-size:11px;color:var(--tx3);flex:none">장부 ${r.cur}</span>
+      ${rows.map(r=>{
+        const w=etpBaseSize(r.size).split('x')[0];
+        const hdr = (w!==lastW) ? (lastW=w, `<div style="padding:4px 10px;background:var(--s2);border-bottom:1px solid var(--b1);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:var(--tx2)">가로 ${w}</div>`) : '';
+        const neg = r.cur<0;
+        return hdr + `<div style="display:flex;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--b1);${neg?'background:rgba(220,38,38,.06)':''}">
+        <span style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:${neg?'var(--acc4)':'var(--tx1)'}">${r.size.replace('x','×')}${r.avg>0?`<span style="font-family:'Noto Sans KR',sans-serif;font-size:9.5px;font-weight:400;color:var(--tx3);margin-left:6px">한 달 ${etpDot(r.avg)}장</span>`:''}</span>
+        <span style="font-size:11px;flex:none;color:${neg?'var(--acc4)':'var(--tx3)'};font-weight:${neg?'800':'400'}">장부 ${r.cur}</span>
         <input type="number" value="${etpCountDraft[r.size]!=null?etpCountDraft[r.size]:''}" placeholder="실제"
           oninput="etpCountSet('${r.size}', this.value)"
           style="width:74px;flex:none;padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx1);font-size:13px;font-family:'JetBrains Mono',monospace;text-align:right">
-      </div>`).join('')}
+      </div>`;}).join('')}
     </div>
     <div id="etp-count-sum" style="margin-top:10px">${etpCountSumHtml()}</div>`;
 }
@@ -18406,6 +18605,15 @@ function etpCountSet(size, v){
   else etpCountDraft[size]=parseInt(v,10);
   const el=document.getElementById('etp-count-sum');
   if(el) el.innerHTML=etpCountSumHtml();
+  /* 몇 종 넣었는지만 고쳐 씁니다. 줄 전체를 다시 그리면 치고 계신 칸에서
+     커서가 튕겨 나갑니다. */
+  const pg=document.getElementById('etp-count-prog');
+  if(pg){
+    const tot=Number(pg.getAttribute('data-total'))||0;
+    const n=Object.keys(etpCountDraft).length;
+    const d=document.getElementById('etp-count-done'); if(d) d.textContent=n;
+    const b=document.getElementById('etp-count-bar');  if(b) b.style.width=(tot?Math.round(n/tot*100):0)+'%';
+  }
 }
 function etpCountDiffs(){
   const stock=etpStockMap();
@@ -18445,10 +18653,13 @@ function etpSaveCount(){
 }
 
 /* ── 한 줄 넣기 · 저장 ───────────────────────────────────────────── */
+/* od = 발주일. 인수증에 품목마다 발주일이 따로 적혀 오기 때문입니다
+   (한 장 안에 9/14 것과 9/15 것이 섞입니다 — 사장님 2026-09-21).
+   d(입고일)와는 다른 날이라 한 칸으로 못 씁니다. 옛 줄은 비어 있어도 그대로 돕니다. */
 function etpAddRow(o){
   const now=new Date().toISOString();
   etpLedger.push({
-    id: etpUid('etp_'), d:o.d, t:o.t, size:o.size, qty:Number(o.qty)||0,
+    id: etpUid('etp_'), d:o.d, od:o.od||'', t:o.t, size:o.size, qty:Number(o.qty)||0,
     src:o.src||'', po:o.po||'', poId:o.poId||'', reason:o.reason||'', memo:o.memo||'',
     ts: now, at: now, by:(typeof getActor==='function'?getActor():'')||''
   });
@@ -18532,7 +18743,7 @@ function etpRecvApply(poId){
   const q = pick.reduce((s, x) => s + x.qty, 0);
   if(!confirm(`${po.date} 발주에서 ${pick.length}품목 ${q}장을 ${d} 입고로 넣겠습니까?\n\n되돌릴 수 있습니다.`)) return;
   pick.forEach(x => {
-    etpAddRow({ d, t:'in', size:x.size, qty:x.qty,
+    etpAddRow({ d, od:po.date || '', t:'in', size:x.size, qty:x.qty,
                 src:'현성 인수증 ' + etpMd(d), po:po.no || '', poId:po.id,
                 memo:'발주 ' + po.date + ' 입고 확인' });
   });
@@ -18658,8 +18869,8 @@ function etpRecvPanelHtml(po, missRows){
 function etpExport(){
   const rows=etpRows().slice().sort((a,b)=>String(a.d).localeCompare(String(b.d)) || String(a.ts||'').localeCompare(String(b.ts||'')));
   const kor={in:'입고', out:'출고', adj:'조정'};
-  const head=['날짜','구분','사이즈','수량','출처','비고'];
-  const body=rows.map(r=>[r.d, kor[r.t]||r.t, r.size, r.qty, r.src||'', [r.reason,r.memo].filter(Boolean).join(' / ')]);
+  const head=['날짜','발주일','구분','사이즈','수량','출처','비고'];
+  const body=rows.map(r=>[r.d, r.od||'', kor[r.t]||r.t, r.size, r.qty, r.src||'', [r.reason,r.memo].filter(Boolean).join(' / ')]);
   const name='에토프_인쇄유리_원장_'+todayStr().replace(/-/g,'')+'.xlsx';
   try{
     if(typeof XLSX!=='undefined'){
