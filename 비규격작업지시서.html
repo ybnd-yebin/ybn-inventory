@@ -3028,6 +3028,25 @@ function parseDelivText(text){
       }
       if(extra.trim()) rawName=(beforeToks.concat(nameToks).join(' ')+' '+extra).replace(/\s+/g,' ').trim();
     }
+    /* 품명이 칸 너비에 잘려 **닫는 괄호가 뒷줄로 넘어간** 것을 이어 붙입니다
+       (사장님 지적 2026-09-22 — 「유리장식키큰장 오늘꺼 LR 구분이 안되어있는데」).
+
+       실제 납품서(`CrystalReportViewer (44).pdf`)를 뜯어 보니 이렇습니다:
+         `ME1TMX001유리장식키큰장 AL도어 비규격(600*0*2255*0 `   ← 여기서 잘리고
+         `R)  600X0X2255X0 1`                                    ← 괄호와 R 이 뒷줄로
+
+       ⚠ **위 이어붙이기(`extra`)로는 안 잡힙니다.** 그 갈래는 `이름이 없거나 사이즈가
+          없을 때`만 도는데, 이 줄에는 '비규격' 글자가 있어 `hasSize` 가 참입니다.
+          그래서 **사이즈는 맞는데 좌우(L/R)만 빠졌습니다** — 키큰장이 `R1` 이 아니라 `1 EA`.
+          벽장(`비규격(450*0*736*0 L)`)은 짧아 안 잘리니 멀쩡했습니다.
+
+       **괄호가 안 닫혔을 때만, 다음 줄이 `L)`·`R)` 로 시작할 때만** 이어 붙입니다.
+       옆 품목의 값을 끌어올 수 없게 조건을 좁게 둡니다. */
+    if(/\([^)]*$/.test(rawName)){
+      const nx=(rawLines[li+1]||'').replace(/\s+/g,' ').trim();
+      const mt=nx.match(/^([LRMX])\s*\)/i);
+      if(mt) rawName=rawName.trim()+' '+mt[1].toUpperCase()+')';
+    }
     let lineSize='',lr='';
     const isEuro=/Euro500|유로500/i.test(rawName);
     if(isEuro){
