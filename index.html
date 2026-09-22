@@ -12247,16 +12247,21 @@ function odHandoffTake(i){
   const o=odHandoffRead(); if(!o) return odHandoffBanner();
   const g=o.groups[i]; if(!g) return odHandoffBanner();
   const cur=odLines.filter(l=>String(l.w||'').trim()||String(l.h||'').trim());
-  /* 색을 섞지 않게 막습니다 — 발주서는 **색마다 한 장**입니다.
-     앞 색을 [발주 리스트에 기록]하면 품목이 저절로 비워지므로, 비어 있지 않은데
-     다른 색이 들어 있다면 아직 기록을 안 하신 것입니다. 말없이 붙이지 않고 여쭙니다. */
-  const other=[...new Set(cur.map(l=>String(l.pname||'').trim()).filter(p=>p && p!==g.color))];
+  /* 색 섞임 막이 — 발주서는 **색마다 한 장**입니다.
+     ⚠ 예전에는 품명(`pname`)에 색을 넣어 두고 그것으로 견줬습니다. 이제 품명에는
+        종류의 기본값(대원 = `비규격`)이 들어가므로, **색은 `color` 칸에 따로** 둡니다.
+        옛 줄(색이 품명에 든 것)도 걸리도록 `pname` 도 같이 봅니다. */
+  const other=[...new Set(cur.map(l=>String(l.color||l.pname||'').trim()).filter(p=>p && p!==g.color))];
   if(other.length && !confirm(
       `지금 발주 품목에 「${other.join(' · ')}」 이 들어 있습니다.\n`
     + `발주서는 색마다 한 장씩이라 섞으면 안 됩니다.\n\n`
     + `먼저 [발주 리스트에 기록]을 누르시면 품목이 비워집니다.\n`
     + `그래도 「${g.color}」 을 뒤에 붙일까요?`)) return;
-  const add=(g.items||[]).map(it=>({w:it.w, h:it.h, qty:it.qty, pname:g.color, bigo:''}));
+  /* 품명은 **비워 둡니다** — `odCollect` 가 `l.pname || p.pname` 로 채우므로
+     고르신 종류의 기본값이 들어갑니다(대원유리 = `비규격`).
+     사장님 2026-09-23: "대원꺼는 웜코튼이라고 넣지말고 비규격이라고 넣어."
+     색은 종이에 안 찍고 `color` 칸에만 둡니다 — 위 「색 섞임 막이」가 그것을 봅니다. */
+  const add=(g.items||[]).map(it=>({w:it.w, h:it.h, qty:it.qty, pname:'', color:g.color, bigo:''}));
   odLines = cur.concat(add);
   o.groups.splice(i,1);
   try{ if(o.groups.length) localStorage.setItem(LS_OD_HANDOFF, JSON.stringify(o));
@@ -12727,7 +12732,9 @@ function odCollect(){
   const client=(document.getElementById('od-client').value||'').trim();
   const items=odLines.filter(odLineValid).map(l=>({
     w:parseInt(l.w)||0, h:parseInt(l.h)||0, qty:parseInt(l.qty)||0,
-    pname:((l.pname||p.pname||'')+'').trim(), bigo:bigo
+    // 품명이 비면 고르신 종류의 기본값을 씁니다(대원유리 = 비규격).
+    // 색은 종이에 안 찍지만 기록에는 남겨 둡니다 — 나중에 어느 색 발주였는지 되짚을 수 있게.
+    pname:((l.pname||p.pname||'')+'').trim(), color:((l.color||'')+'').trim(), bigo:bigo
   }));
   return {vendor, cat, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, items};
 }
@@ -13105,8 +13112,18 @@ function odFixApproval(wb, ws){
   });
   // 합쳐진 결재 칸(J+K)은 속칸에도 테두리를 둘러야 선이 온전히 나옵니다
   ['J','K'].forEach(c => { ws.getCell(c+'8').border = box; ws.getCell(c+'9').border = box; });
-  // O 는 이제 상자 밖입니다 — 옛 테두리가 남으면 오른쪽에 선이 하나 더 보입니다
-  ['O8','O9'].forEach(a => { const x = ws.getCell(a); x.value = null; x.border = undefined; });
+  /* O 는 상자 밖입니다 — 옛 상자 테두리만 지우고 **종이 바깥 오른쪽 선은 남깁니다.**
+
+     ⚠ 예전에는 `border = undefined` 로 **통째로** 지웠습니다(2026-09-16).
+        그런데 O열은 **종이 오른쪽 테두리**이기도 해서, 결재칸 높이인 8·9 두 줄만
+        선이 끊겨 나갔습니다 (사장님 지적 2026-09-23 "줄이 또 끊기고").
+        양식 원본을 열어 보니 O8·O9 에는 `right:thin` 하나뿐 —
+        **지울 옛 테두리가 애초에 없었습니다.** */
+  ['O8','O9'].forEach(a => {
+    const x = ws.getCell(a); x.value = null;
+    const b = x.border || {};
+    x.border = b.right ? { right:b.right } : undefined;
+  });
 
   /* ⑤ 도장 — 10% 키우고 글씨 쪽으로 당깁니다 (사장님 2026-09-16).
      양식의 도장은 두 칸에 걸쳐 늘어나는 방식이라 크기를 못 정합니다.
@@ -13330,6 +13347,26 @@ async function odFilledSheet(o){
   return { wb, ws };
 }
 
+/* 우리가 적는 칸은 **맞춤을 보장**합니다 (사장님 지적 2026-09-23 "왜이렇게 밀려 납기일 6-7번").
+
+   양식 `발주서양식.xlsx` 의 품목 줄(12~24) 가운데 **K17·K18·K19 만 가로맞춤이 빠져 있습니다**
+   (서식 `s=55` — 나머지는 `s=49` 로 `horizontal="center"`). 그래서 품목이 6개를 넘으면
+   그 줄의 **납기만 왼쪽으로 밀려** 찍혔습니다. 엑셀로 받아도 마찬가지였습니다.
+
+   양식 파일은 그대로 두고 **여기서 보정**합니다(사장님 확정) — 앞으로 구멍 난 양식이
+   또 와도 안전하고, 엑셀·PDF 가 한꺼번에 고쳐집니다.
+   ⚠ **이미 지정된 맞춤은 덮지 않습니다.** 양식이 일부러 왼쪽으로 둔 칸이 있을 수 있습니다. */
+function odPut(ws, addr, val){
+  const c = ws.getCell(addr);
+  c.value = val;
+  const a = c.alignment || {};
+  c.alignment = Object.assign({}, a, {
+    horizontal: a.horizontal || 'center',
+    vertical:   a.vertical   || 'middle'
+  });
+  return c;
+}
+
 function odFillSheet(ws, o){
   const part = odTitleParts(o);
   ws.getCell('D4').value = o.vendor || '';
@@ -13346,12 +13383,13 @@ function odFillSheet(ws, o){
   const rows = Math.max(n, OD_TPL_ROWS);
   for(let i = 0; i < rows; i++){
     const r = OD_TPL_ROW0 + i, it = o.items[i];
-    ws.getCell('B' + r).value = it ? (i + 1) : null;
-    ws.getCell('C' + r).value = it ? (it.pname || '') : null;
-    ws.getCell('F' + r).value = it ? ((it.w && it.h) ? `${it.w}×${it.h}` : '') : null;
-    ws.getCell('J' + r).value = it ? (Number(it.qty) || 0) : null;
-    ws.getCell('K' + r).value = it ? (o.due || '') : null;
-    ws.getCell('L' + r).value = it ? (it.bigo || '') : null;
+    // odPut — 양식에 맞춤이 빠진 칸이 있어도 가운데로 보정합니다 (K17·K18·K19)
+    odPut(ws, 'B' + r, it ? (i + 1) : null);
+    odPut(ws, 'C' + r, it ? (it.pname || '') : null);
+    odPut(ws, 'F' + r, it ? ((it.w && it.h) ? (it.w + '×' + it.h) : '') : null);
+    odPut(ws, 'J' + r, it ? (Number(it.qty) || 0) : null);
+    odPut(ws, 'K' + r, it ? (o.due || '') : null);
+    odPut(ws, 'L' + r, it ? (it.bigo || '') : null);
   }
 }
 
