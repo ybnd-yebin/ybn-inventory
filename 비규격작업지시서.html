@@ -6275,13 +6275,37 @@ function subdoorLineStep(svg){
   const f = yOf('\\{\\{F1\\}\\}'), g = yOf('\\{\\{G1\\}\\}');
   return (f!=null && g!=null && g-f > 0.5) ? (g-f) : 8;
 }
+/* ── 종이 가장자리 테두리 지우기 (사장님 요청 2026-09-22) ──────────────────
+   캐드 원본 맨 앞에 **종이 크기 그대로의 네모**(0,0 → 210,297)가 한 줄 들어 있습니다.
+   프린터는 종이 가장자리에 못 찍으므로 그 선이 **늘 잘려 나옵니다** — 특히 윗줄.
+   ("위에 라인은 잘려서 나와. 아예 겉에 라인 없애버려")
+
+   **도면 데이터는 손대지 않습니다 — 그릴 때만 뺍니다**(12-8). 캐드에서 다시 뽑아도
+   그대로 먹고, 되돌리려면 `SUBDOOR_DROP_PAGE_FRAME = false`.
+   ⚠ **안쪽 내용 박스(192.5 × 218.85)는 그대로 둡니다.** 지우는 것은 종이를 통째로
+     덮는 네모 하나뿐이라, 가로·세로를 **둘 다** 봐서 가립니다.
+   ⚠ 곡선(A)이 섞인 경로는 건드리지 않습니다 — 숫자가 좌표가 아니라 반지름일 수 있습니다. */
+const SUBDOOR_DROP_PAGE_FRAME = true;
+function subdoorDropPageFrame(svg){
+  if(!SUBDOOR_DROP_PAGE_FRAME) return svg;
+  return String(svg).replace(/<path\s+d="([^"]*)"[^>]*\/>/g, (m, d)=>{
+    if(/[^MLZmlz\d\s.,\-]/.test(d)) return m;          // 직선(M·L·Z)으로만 된 경로만 본다
+    const ns=(d.match(/-?\d+(?:\.\d+)?/g)||[]).map(Number);
+    if(ns.length<8) return m;                          // 네 점(여덟 숫자)은 되어야 네모
+    const xs=[], ys=[];
+    for(let i=0;i+1<ns.length;i+=2){ xs.push(ns[i]); ys.push(ns[i+1]); }
+    const w=Math.max(...xs)-Math.min(...xs), h=Math.max(...ys)-Math.min(...ys);
+    return (w>=205 && h>=290) ? '' : m;                // 종이를 거의 그대로 덮는 네모만
+  });
+}
 function subdoorPageSVG(p){
   const t = SUBDOOR_SHEETS[p.id];
   if(!t) return '';
   // ship = 납품요청일(D-2) · 납품일 = 요청일 + 2영업일 (CLAUDE.md 5번)
   const deliv = warehouseOutDate(p.ship) || '';
   const po    = p.po || bizBefore(p.ship, +val('leadDays')||2) || '';
-  let s = subdoorRoundSheet(t.svg)      // ㄱ자 꺾임 모서리 둥글리기(그릴 때만)
+  // 종이 가장자리 테두리를 먼저 뺍니다 — 둥글리기 전에 해야 곡선이 안 섞여 가려내기 쉽습니다.
+  let s = subdoorRoundSheet(subdoorDropPageFrame(t.svg))   // ㄱ자 꺾임 모서리 둥글리기(그릴 때만)
     .split('{{PO}}').join(esc(fmtDate(po)))
     .split('{{DELIV}}').join(esc(fmtDate(deliv)))
     .split('{{D2}}').join(esc(fmtDate(p.ship)))

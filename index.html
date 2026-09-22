@@ -1151,7 +1151,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
     <button class="act-btn blue" onclick="odCopyImage()" style="background:var(--acc)">📋 카톡용 이미지 복사</button>
     <button class="act-btn blue" onclick="odSaveOrder()" style="background:var(--acc5)">💾 발주 리스트에 기록</button>
-    <button onclick="odMakeExcel()" style="width:100%;padding:11px;background:none;border:1px solid var(--b2);border-radius:10px;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">📊 엑셀 발주서 저장 (선택)</button>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button onclick="odMakeExcel()" style="flex:1;padding:11px;background:none;border:1px solid var(--b2);border-radius:10px;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📊 엑셀로 저장</button>
+      <button onclick="odMakePdf()" style="flex:1;padding:11px;background:none;border:1px solid var(--b2);border-radius:10px;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📕 PDF로 저장</button>
+    </div>
     <button onclick="document.getElementById('od-import-pdf').click()" style="width:100%;padding:11px;background:none;border:1px dashed var(--acc5);border-radius:10px;color:var(--acc5);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:4px">📥 발주서 불러오기 — 엑셀·PDF (여러 장 가능)</button>
     <div style="font-size:10px;color:var(--tx2);line-height:1.6;margin-bottom:8px">
       읽은 것을 먼저 보여 드립니다. 거기서 고르시면 <b>발주 리스트에 바로 들어갑니다</b> — 아래 품목칸에 다시 옮겨 적지 않으셔도 됩니다.
@@ -12053,8 +12056,10 @@ const OD_CATALOG = {
   '유리': {
     '대원유리': [
       {type:'비규격 (5T투명·한샘장식장)', thick:'5T 투명',   title:'5T 투명',        bigo:'휠/반강화',     pname:'5T 투명',  sizeMode:true,
+         fname:'5T투명',
          hint:'한샘 장식장에 들어가는 5T 투명유리 · 비고 휠/반강화'},
       {type:'비규격 (5T브론즈)',           thick:'5T 브론즈', title:'5T 브론즈',      bigo:'휠/강화',       pname:'5T 브론즈', sizeMode:true,
+         fname:'5T브론즈',
          hint:'5T 브론즈 비규격 · 비고 휠/강화'},
       {type:'3T 은경',                    thick:'3T 은경',   title:'3t 은경',        bigo:'각면/후면시트지', pname:'3t 은경', sizeMode:true,
          hint:'3T 은경 · 비고 각면/후면시트지'},
@@ -12062,30 +12067,37 @@ const OD_CATALOG = {
          hint:'3T 브론즈경 · 비고 각면/후면시트지'},
       {type:'바스 정규격 (백사틴·한샘바스)', thick:'백사틴',    title:'백샤틴(정규격)',  bigo:'각면/강화',     pname:'한샘바스', sizeMode:true,
          sizes:['293*794','313*446','393*794'],
+         fname:'바스사틴',
          hint:'한샘바스에 들어가는 백사틴 · 비고 각면/강화'},
       {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화',     pname:'',        modelMode:true,
+         fname:'사틴',
          hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
       {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화',     pname:'비규격',  sizeMode:true,
+         fname:'사틴',
          hint:'3.2T 백사틴 비규격 · 비고 각면/강화'}
     ],
     '아름유리': [
       {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
-      {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T 투명(비산방지필름)', bigo:'비산방지필름', pname:'5T 투명', sizeMode:true, hint:'5T 투명 + 비산방지필름'},
-      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T 브론즈(비산방지필름)', bigo:'비산방지필름', pname:'5T 브론즈', sizeMode:true, hint:'5T 브론즈 + 비산방지필름'}
+      {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T 투명(비산방지필름)', bigo:'비산방지필름', pname:'5T 투명', sizeMode:true, fname:'5T투명 비산방지', hint:'5T 투명 + 비산방지필름'},
+      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T 브론즈(비산방지필름)', bigo:'비산방지필름', pname:'5T 브론즈', sizeMode:true, fname:'5T브론즈 비산방지', hint:'5T 브론즈 + 비산방지필름'}
     ],
     // 현성유리는 에토프 색상을 인쇄해 완성품으로 보내 줍니다(🟠 에토프재고 탭).
     // 3.2T 백사틴 두 줄은 대원유리 것을 그대로 옮긴 것입니다 — 사장님 지시 2026-09-15.
     '현성유리': [
       {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'',       modelMode:true,
+         fname:'사틴',
          hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
       {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화', pname:'비규격', sizeMode:true,
+         fname:'사틴',
          hint:'3.2T 백사틴 비규격 · 비고 각면/강화'},
       {type:'5T 백유리', pick:'5T 백유리 (유리장식장)', thick:'5T 백유리', title:'5T 백유리', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 · 유리장식장에 들어갑니다 · 사이즈 직접 입력'}
     ],
     '명그라스': [
       {type:'3.2T 백사틴 정규격 (모델명 자동)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'', modelMode:true,
+         fname:'사틴',
          hint:'품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
       {type:'3.2T 백사틴 비규격 (수기)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'각면/강화', pname:'비규격', sizeMode:true,
+         fname:'사틴',
          hint:'3.2T 백사틴 비규격 · 사이즈 직접 입력 · 비고 각면/강화'},
       {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'}
     ]
@@ -12751,6 +12763,60 @@ function odShortDate(d){
   return m ? (m[1].slice(2)+'-'+m[2]+'-'+m[3]) : s;
 }
 
+/* ══ 내려받는 파일 이름 — 한 곳에서만 짓습니다 ══════════  2026-09-22
+   엑셀·카톡 이미지·PDF 가 **같은 이름**으로 나오게 모았습니다. 예전에는
+   세 곳에 따로 적혀 있었고 `현성유리_발주서_20260910` 이라 이름만 봐서는
+   무엇을 시킨 발주인지 몰랐습니다.
+
+        틀:  발주처 · 종류 · 규격구분 · YYMMDD
+        예:  현성유리 사틴 비규격 260910
+
+   ⚠ 짧은 이름은 **종류 한 줄(OD_CATALOG)의 `fname:` 에만** 적습니다.
+     여기에 종류별 표를 또 두면 두 곳이 어긋납니다(규칙 1).
+     `fname` 이 없으면 종류 이름에서 괄호와 '비규격/정규격'을 떼어 씁니다 —
+     새 종류를 넣을 때 깜빡해도 그럴듯한 이름이 나옵니다. */
+function odPresetOf(vendor, type){
+  if(!type || typeof OD_CATALOG==='undefined') return null;
+  let hit=null;
+  Object.values(OD_CATALOG).forEach(vs=>{
+    Object.entries(vs||{}).forEach(([vn, list])=>{
+      (list||[]).forEach(p=>{
+        if(p.type!==type) return;
+        if(vn===vendor) hit=p;              // 같은 발주처 것이 우선입니다
+        else if(!hit) hit=p;
+      });
+    });
+  });
+  return hit;
+}
+
+function odKindName(o){
+  const p = odPresetOf(o.vendor, o.type);
+  if(p && p.fname) return p.fname;
+  /* '일반'(힌지·박스·목대 등)은 제목에서 '발주'를 뗀 것이 곧 대분류 이름입니다.
+     ⚠ 이때는 **발주 건의 제목을 먼저** 봅니다. 「(거래처 미설정)」 이라는 이름을
+        힌지·알판·알루미늄·브라켓·기타용품이 함께 쓰고 종류도 다 '일반'이라,
+        카탈로그에서 찾으면 마지막에 걸린 것(기타용품)이 전부를 덮습니다. */
+  if((o.type||'')==='일반')
+    return String(o.title||(p&&p.title)||'').replace(/\s*발주\s*$/,'').trim();
+  /* 불러온 발주서는 종류가 '3.2T 백사틴  각면/강화' 처럼 가공 표기까지 붙어
+     들어옵니다. 그때는 odTitleParts 가 갈라 준 앞토막만 씁니다. */
+  const src = p ? String(o.type||'') : String(odTitleParts(o).title || o.type || '');
+  return src.replace(/\([^)]*\)/g,' ')        // 괄호 안은 설명이라 뺍니다
+            .replace(/비규격|정규격/g,' ')     // 규격구분은 뒤에 따로 붙습니다
+            .replace(/\s+/g,'').trim();
+}
+
+function odFileBase(o){
+  const t    = String(o.type || o.title || '');
+  const spec = /비규격/.test(t) ? '비규격' : (/정규격/.test(t) ? '정규격' : '');
+  const ymd  = String(o.date||'').replace(/-/g,'').slice(2);   // 20260910 → 260910
+  return [String(o.vendor||'').trim(), odKindName(o), spec, ymd]
+           .filter(Boolean).join(' ')
+           .replace(/[\\\/:*?"<>|]/g,'')                       // 윈도가 못 쓰는 글자
+           .replace(/\s+/g,' ').trim() || '발주서';
+}
+
 /* 카톡용 발주서 — 우리 엑셀 양식을 그대로 옮긴 것입니다 (사장님 2026-09-15).
    엑셀과 달랐던 자리 넷을 맞췄습니다:
      ① 종류·비고를 가운데 한 줄이 아니라 왼쪽 두 칸 박스로 (3.2백사틴 | 각면/강화)
@@ -13232,7 +13298,7 @@ async function odWriteExcelForm(o){
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
-  a.href = url; a.download = `${o.vendor}_발주서_${String(o.date||'').replace(/-/g,'')}.xlsx`;
+  a.href = url; a.download = odFileBase(o) + '.xlsx';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
@@ -13268,8 +13334,101 @@ function odWriteExcelPlain(o){
   const wb=XLSX.utils.book_new();
   const safeName=`${o.vendor}(${o.type||''})`.replace(/[\\\/\*\?\[\]:]/g,'').slice(0,31) || '발주서';
   XLSX.utils.book_append_sheet(wb,ws,safeName);
-  XLSX.writeFile(wb, `${o.vendor}_발주서_${String(o.date||'').replace(/-/g,'')}.xlsx`);
+  XLSX.writeFile(wb, odFileBase(o) + '.xlsx');
   showToast('📊 엑셀로 내려받았습니다 (서식 없음)');
+}
+
+/* ══ PDF 발주서 ════════════════════════════════════════════  2026-09-22
+   엑셀·카톡 이미지와 **같은 것**을 봅니다 — odMakeCaptureNode 가 그려 둔
+   양식 그대로를 A4 에 앉힙니다. 따로 그리면 언젠가 다른 발주서가 나갑니다.
+   이름도 odFileBase 한 곳에서 받아 엑셀과 똑같이 나옵니다.
+
+   ⚠ 품목이 많아 한 장을 넘으면 **줄과 줄 사이에서** 자릅니다. 높이로만 자르면
+     숫자 한가운데가 잘려 무슨 치수인지 못 읽습니다.
+   ⚠ 인터넷이 없으면 라이브러리를 못 받아 안 됩니다. 그때는 조용히 넘어가지 말고
+     화면에 그렇게 적습니다 — 엑셀은 그대로 되니 그쪽으로 가시면 됩니다. */
+const OD_JSPDF_URL  = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const OD_PDF_MARGIN = 8;                      // A4 가장자리 여백(mm)
+
+function odLoadJsPdf(){
+  if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+  return new Promise((ok, ng) => {
+    const s = document.createElement('script');
+    s.src = OD_JSPDF_URL; s.onload = ok;
+    s.onerror = () => ng(new Error('PDF 라이브러리를 못 불러왔습니다 (인터넷 확인)'));
+    document.head.appendChild(s);
+  });
+}
+
+/* 자를 수 있는 자리 = 표의 줄 끝. 노드 위쪽에서 몇 px 내려온 자리인지 돌려줍니다. */
+function odRowCuts(node){
+  const top = node.getBoundingClientRect().top, cuts = [];
+  node.querySelectorAll('tr').forEach(tr => {
+    const b = tr.getBoundingClientRect().bottom - top;
+    if(b > 0) cuts.push(b);
+  });
+  return cuts.sort((a,b) => a-b);
+}
+
+async function odWritePdf(o){
+  await odLoadJsPdf();
+  const node = await odMakeCaptureNode(o);
+  // 손글씨 폰트(사인)가 올라온 뒤 찍습니다 — 카톡 이미지와 같은 까닭입니다
+  if(document.fonts && document.fonts.load){
+    await Promise.all([document.fonts.load("17px 'Hi Melody'"), document.fonts.ready]).catch(()=>{});
+  }
+  const cssH   = node.getBoundingClientRect().height;
+  const cuts   = odRowCuts(node);                 // 캡처 전에 재 둡니다
+  const canvas = await html2canvas(node, { scale:2, backgroundColor:'#fff' });
+  const host = document.getElementById('od-capture-host'); if(host) host.innerHTML = '';
+
+  const pdf = new window.jspdf.jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+  const M = OD_PDF_MARGIN, pw = 210 - M*2, ph = 297 - M*2;
+  const mmPerPx = pw / canvas.width;              // 가로를 종이에 맞춥니다
+  const pagePx  = Math.floor(ph / mmPerPx);       // 한 장에 담기는 캔버스 높이
+  const k       = canvas.height / (cssH || canvas.height);   // css px → 캔버스 px
+
+  let y = 0, first = true, pages = 0;
+  while(y < canvas.height - 1 && pages < 40){
+    let end = Math.min(y + pagePx, canvas.height);
+    if(end < canvas.height){                      // 마지막 장이 아니면 줄 경계로 당깁니다
+      const fit = cuts.map(c => Math.round(c*k)).filter(c => c > y + 20 && c <= end);
+      if(fit.length) end = fit[fit.length - 1];
+    }
+    const slice = document.createElement('canvas');
+    slice.width = canvas.width; slice.height = end - y;
+    slice.getContext('2d').drawImage(canvas, 0, y, canvas.width, end-y, 0, 0, canvas.width, end-y);
+    if(!first) pdf.addPage();
+    pdf.addImage(slice.toDataURL('image/png'), 'PNG', M, M, pw, (end-y)*mmPerPx);
+    first = false; y = end; pages++;
+  }
+  pdf.save(odFileBase(o) + '.pdf');
+  return pages;
+}
+
+function odRunPdf(o){
+  showToast('📕 PDF 만드는 중…');
+  odWritePdf(o)
+    .then(n => showToast('📕 PDF 로 내려받았습니다' + (n>1 ? ` (${n}장)` : '')))
+    .catch(e => {
+      console.warn('[발주서] PDF 실패', e);
+      const host = document.getElementById('od-capture-host'); if(host) host.innerHTML = '';
+      showToast('⚠ PDF 를 못 만들었습니다 — ' + (e.message || ''));
+    });
+}
+
+function odMakePdf(){
+  const o = odCollect();
+  if(!o.items.length){ showToast('품목을 입력하세요'); return; }
+  odRunPdf(o);
+}
+
+/* 발주 리스트에 쌓인 것도 PDF 로 다시 받습니다 — 엑셀·카톡과 같은 길입니다. */
+function odPdfSaved(orderId){
+  const o = (typeof orderLog!=='undefined' ? orderLog : []).find(x => x && x.id===orderId);
+  if(!o){ showToast('발주 기록을 찾지 못했어요'); return; }
+  if(!o.items || !o.items.length){ showToast('품목이 없는 기록이에요'); return; }
+  odRunPdf(o);
 }
 
 /* 양식 그대로 그려 봅니다. 못 하면 손으로 그린 옛 모양으로 떨어집니다. */
@@ -13333,7 +13492,7 @@ function odSaveImageFallback(blobP, o){
     // 1) 다운로드 시도
     try{
       const a=document.createElement('a');
-      a.href=url; a.download=`${o.vendor}_발주서_${o.date.replace(/-/g,'')}.png`;
+      a.href=url; a.download=odFileBase(o) + '.png';
       document.body.appendChild(a); a.click(); a.remove();
     }catch(e){}
     // 2) 화면에도 큰 이미지로 띄움 (길게 눌러 저장/복사 — 카톡 공유 가능)
@@ -14168,6 +14327,7 @@ function renderOrderList(){
             <button onclick="odEditToggle('${o.id}')" class="icon-btn" title="${editing?'수정 마치기':'납기·품목 고치기'}" style="font-size:12px;margin-left:4px${editing?';color:var(--acc3);font-weight:700':''}">${editing?'✓ 마침':'✏️ 수정'}</button>
             ${editing?'':`<button onclick="odCopySaved('${o.id}')" class="icon-btn" title="이 발주서를 카톡용 이미지로 복사" style="font-size:12px;margin-left:4px">📋 카톡</button>`}
             ${editing?'':`<button onclick="odExcelSaved('${o.id}')" class="icon-btn" title="이 발주서를 엑셀로 내려받기" style="font-size:12px;margin-left:4px">📊 엑셀</button>`}
+            ${editing?'':`<button onclick="odPdfSaved('${o.id}')" class="icon-btn" title="이 발주서를 PDF로 내려받기" style="font-size:12px;margin-left:4px">📕 PDF</button>`}
             <button onclick="odDeleteOrder('${o.id}')" class="icon-btn del" style="font-size:13px;margin-left:4px">🗑</button>
           </div>
         </div>
