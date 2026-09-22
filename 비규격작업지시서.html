@@ -191,7 +191,9 @@
   .badge-ser{display:inline-block;font-size:10px;font-weight:bold;padding:1px 6px;border-radius:8px;margin-left:6px;vertical-align:middle;border:1px solid currentColor}
   .asm-note{font-size:11px;color:#1a7a3a;padding:2px 0 4px}
   /* 목대마이다 딸림 부재 안내 (사이즈 미정) */
-  .mokdae-note{font-size:13px;color:#8a4b12;font-weight:700;padding:2px 0 4px}
+  .mokdae-note{font-size:13px;color:#8a4b12;font-weight:700;padding:2px 0 0}
+  /* 목대 보링 자리 — 안내 바로 아래 한 단 들여 적습니다(2026-09-22) */
+  .mokdae-bore{font-size:12px;color:#8a4b12;padding:0 0 4px 14px;line-height:1.5}
 
   /* HPM(Veil) 메모 박스 */
   .hpm-box{border:1.5px solid #7a3fb0;border-radius:8px;padding:5px 10px 3px;margin:4px 0;background:transparent;display:inline-block}
@@ -1840,6 +1842,20 @@ const SPLIT_VARY={
        BAD 와 같은 주의입니다, 12-18.) */
 const MOKDAE_CORE = '18t PB(E0,13형)';
 
+/* 목대 보링을 한 줄로 적습니다. 자료가 없으면 빈 글자를 돌려 **아무 말도 안 합니다**
+   (지어내지 않습니다). 목대가 여럿이고 높이가 서로 다르면 그대로 늘어놓습니다 —
+   BLD2R 처럼 `밑에서 40 · 71` 로 나옵니다. */
+function mokdaeBoreText(row){
+  const b = row && row.mokdaeBore;
+  if(!b || !b.x || !b.x.length) return '';
+  const ys = (b.y && b.y.length) ? b.y : [];
+  const yTxt = ys.length
+    ? ' / 밑에서 ' + ys.join(' · ') + (ys.length > 1 ? ' (목대마다 다름)' : '')
+    : '';
+  return `ø${b.dia}×${b.depth} 장부볼트보링 ${b.x.length}개 — 왼쪽에서 ${b.x.join(' · ')}${yTxt}`;
+}
+
+
 const OLD_STD_SIZE={
   'BAD 6091':{fw:595, fh:586},
   'BD2R 12091':{fw:1195, fh:350},
@@ -1853,12 +1869,23 @@ const OLD_STD_SIZE={
      도면 왼쪽 이름표가 조각마다 어느 사양인지 적어 둡니다 —
        **상부마이다 = 18t 목대사양**  ·  하부마이다 = 알판도어 사양(유리도어)
      그래서 `mokdae*` 는 **상부마이다**의 값입니다. `fw·fh` 는 하부마이다(유리도어)입니다.
-     목대 가로는 **도어 가로 − 40** 입니다(445→405 · 595→555). 세로는 표에 칸이 없어 고정입니다. */
-  'BLD1R 4591':{fw:445, fh:250, mokdae:1, mokdaeW:405, mokdaeH:60},
-  'BLD1R 6091':{fw:595, fh:250, mokdae:1, mokdaeW:555, mokdaeH:60},
-  'BLD1UA 4591':{fw:445, fh:250, mokdae:1, mokdaeW:405, mokdaeH:60},
-  'BLD1UA 6091':{fw:595, fh:250, mokdae:1, mokdaeW:555, mokdaeH:60},
-  'BLD2R 6062':{fw:595, fh:350, mokdae:2, mokdaeW:555, mokdaeH:80},   // 유리도어1 + 목대2
+     목대 가로는 **도어 가로 − 40** 입니다(445→405 · 595→555). 세로는 표에 칸이 없어 고정입니다.
+
+     `mokdaeBore` — 목대의 **`ø5 × 12.5` 장부볼트보링 3개** 자리입니다.
+       `x` = 목대 **왼쪽 끝에서**  ·  `y` = 목대 **밑에서**
+       x 는 도면 표의 `C · B · B · C` 체인 그대로입니다(6091 = 117.5+160+160+117.5 = 555).
+       ⚠ **`y` 는 목대 개수만큼 있습니다.** BLD2R 은 목대 2개의 높이가 **서로 달라**
+          `[40, 71]` 입니다. 어느 것이 어느 자리인지는 **도면에 이름이 없습니다** — 확인대기 B23. */
+  'BLD1R 4591':{fw:445, fh:250, mokdae:1, mokdaeW:405, mokdaeH:60,
+                mokdaeBore:{dia:5, depth:12.5, x:[74.5,202.5,330.5], y:[30]}},
+  'BLD1R 6091':{fw:595, fh:250, mokdae:1, mokdaeW:555, mokdaeH:60,
+                mokdaeBore:{dia:5, depth:12.5, x:[117.5,277.5,437.5], y:[30]}},
+  'BLD1UA 4591':{fw:445, fh:250, mokdae:1, mokdaeW:405, mokdaeH:60,
+                mokdaeBore:{dia:5, depth:12.5, x:[74.5,202.5,330.5], y:[30]}},
+  'BLD1UA 6091':{fw:595, fh:250, mokdae:1, mokdaeW:555, mokdaeH:60,
+                mokdaeBore:{dia:5, depth:12.5, x:[117.5,277.5,437.5], y:[30]}},
+  'BLD2R 6062':{fw:595, fh:350, mokdae:2, mokdaeW:555, mokdaeH:80,
+                mokdaeBore:{dia:5, depth:12.5, x:[117.5,277.5,437.5], y:[40,71]}},
   'BLDA 6015':{fw:595, fh:151},
   'BNDB2N 2091':{fw:195, fh:732},
   'BNDC2N 3091':{fw:295, fh:732},
@@ -1981,7 +2008,8 @@ function oldStdOf(abbr, num){
   }
   if(!s) return null;
   return { fw:s.fw, fh:s.fh, gw:s.fw-4, gh:s.fh-4,
-           mokdae:s.mokdae, mokdaeW:s.mokdaeW, mokdaeH:s.mokdaeH };
+           mokdae:s.mokdae, mokdaeW:s.mokdaeW, mokdaeH:s.mokdaeH,
+           mokdaeBore:s.mokdaeBore };   // 보링 자리까지 넘깁니다 — 여기서 빠뜨리면 화면이 조용히 빕니다
 }
 /* 'M 3073' 처럼 붙여 둔 이름으로 다시 찾는다. 옛 기록의 '6062'(번호만)도 받는다. */
 function oldStdFromModel(model){
@@ -5306,6 +5334,8 @@ function generate(){
             (mkRow.mokdaeW && mkRow.mokdaeH)
               ? `${mkRow.mokdaeW} × ${mkRow.mokdaeH} · 코어 ${MOKDAE_CORE}`
               : `사이즈 확인 필요`) + `</div>`
+          + (mokdaeBoreText(mkRow)
+              ? `<div class="mokdae-bore">↳ ${esc(mokdaeBoreText(mkRow))}</div>` : '')
         : '';
       // 코드·모델명은 첫 줄, 설명(수량·내용)은 항상 그 아래 새 줄로 내려 중간에 끊기지 않게 한다.
       const headHTML=`<div class="code-tag">${headMain}${asBadge}</div>`
