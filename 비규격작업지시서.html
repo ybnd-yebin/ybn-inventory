@@ -2569,9 +2569,22 @@ function ybnDocToRows(d){
     const rule = (typeof RULES !== 'undefined' && RULES[code]) ? RULES[code] : {};
     const ser = (typeof seriesOf === 'function') ? seriesOf(nameAll) : { key:'', label:'' };
     const colr = colorKo(it.color) || (typeof colorFromName === 'function' ? colorFromName(nameAll) : '');
+    /* 좌우(L/R) — 앱이 담아 준 값이 없으면 **품명에서 직접 읽습니다** (2026-09-22).
+       이 길(앱에서 가져오기)만 `delivSizeLR` 을 안 불러, 앱이 좌우를 안 담아 준 품목은
+       그대로 비어 나갔습니다. 그래서 수납도어 키큰장이 `R1` 이 아니라 `1 EA` 로 찍혔습니다.
+
+       실제 납품서(2026-09-22)를 풀어 보니 품명이 **칸 너비에 잘려 두 조각**이었습니다:
+         `… 비규격(600*0*2255*0 `  +  `R)  600X0X2255X0`
+       닫는 괄호와 `R` 이 뒷조각 맨 앞으로 넘어갑니다. `delivSizeLR` 은 이런 꼴도
+       읽게 되어 있으니(홀로 선 `R)` 규칙), 부르기만 하면 됩니다.
+       ⚠ **앱이 담아 준 값이 언제나 먼저입니다** — 읽어 낸 값은 비었을 때의 되받이입니다. */
+    let lrv = it.lr || '';
+    if(!lrv && typeof delivSizeLR === 'function'){
+      try{ lrv = (delivSizeLR(nameAll) || {}).lr || ''; }catch(e){}
+    }
     rows.push({
       code, type, w, h,
-      lr: it.lr || '',
+      lr: lrv,
       color: colr,
       series: ser.key, seriesLabel: ser.label,
       isAS, euro: isEuro, name: it.name || '',
