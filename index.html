@@ -1119,11 +1119,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div class="f-row">
       <div>
         <span class="lbl">발주일</span>
-        <input type="date" id="od-date" class="inp" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <input type="date" id="od-date" class="inp" onchange="odFillDue()" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
       </div>
       <div>
         <span class="lbl">납기</span>
-        <input type="text" id="od-due" class="inp" placeholder="예: 5/27 또는 긴급" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <input type="text" id="od-due" class="inp" oninput="delete this.dataset.auto" placeholder="예: 5/27 또는 긴급" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
       </div>
     </div>
 
@@ -1145,19 +1145,26 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="od-preset-sizes" style="margin-bottom:8px"></div>
     <div id="od-lines"></div>
     <datalist id="od-model-list"></datalist>
-    <button onclick="odAddLine()" style="width:100%;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:6px">＋ 품목 추가</button>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <button onclick="odAddLine()" style="flex:1;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">＋ 품목 추가</button>
+      <button id="od-clear-lines" onclick="odClearLines()" style="display:none;width:120px;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">🧹 전부 비우기</button>
+    </div>
 
     <div id="od-livecount" style="font-size:11px;color:var(--tx2);text-align:right;margin-bottom:12px"></div>
 
     <button class="act-btn blue" onclick="odCopyImage()" style="background:var(--acc)">📋 카톡용 이미지 복사</button>
-    <button class="act-btn blue" onclick="odSaveOrder()" style="background:var(--acc5)">💾 발주 리스트에 기록</button>
-    <div style="display:flex;gap:6px;margin-bottom:8px">
-      <button onclick="odMakeExcel()" style="flex:1;padding:11px;background:none;border:1px solid var(--b2);border-radius:10px;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📊 엑셀로 저장</button>
-      <button onclick="odMakePdf()" style="flex:1;padding:11px;background:none;border:1px solid var(--b2);border-radius:10px;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📕 PDF로 저장</button>
+    <!-- 기록이 먼저입니다. 엑셀·PDF 는 기록한 뒤 아래 목록에서 받는 편이 안전해
+         여기서는 작은 칸 둘로 줄였습니다 (사장님 2026-09-22). -->
+    <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:8px">
+      <button class="act-btn blue" onclick="odSaveOrder()" style="background:var(--acc5);flex:1;margin:0">💾 발주 리스트에 기록</button>
+      <button onclick="odMakeExcel()" title="지금 적은 것을 엑셀 발주서로 내려받기" style="width:62px;padding:6px 0;background:none;border:1px solid var(--b2);border-radius:10px;color:var(--tx2);font-size:11px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;line-height:1.4">📊<br>엑셀</button>
+      <button onclick="odMakePdf()" title="지금 적은 것을 PDF 발주서로 내려받기" style="width:62px;padding:6px 0;background:none;border:1px solid var(--b2);border-radius:10px;color:var(--tx2);font-size:11px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;line-height:1.4">📕<br>PDF</button>
     </div>
-    <button onclick="document.getElementById('od-import-pdf').click()" style="width:100%;padding:11px;background:none;border:1px dashed var(--acc5);border-radius:10px;color:var(--acc5);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:4px">📥 발주서 불러오기 — 엑셀·PDF (여러 장 가능)</button>
+    <button onclick="odImportPick(true)" style="width:100%;padding:11px;background:none;border:1px dashed var(--acc5);border-radius:10px;color:var(--acc5);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:5px">📥 발주서 불러오기 — 기록하고 품목칸에도 채우기</button>
+    <button onclick="odImportPick(false)" style="width:100%;padding:11px;background:none;border:1px dashed var(--b2);border-radius:10px;color:var(--tx2);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:4px">📝 발주서 넣기 — 기록만 (품목칸은 그대로)</button>
     <div style="font-size:10px;color:var(--tx2);line-height:1.6;margin-bottom:8px">
-      읽은 것을 먼저 보여 드립니다. 거기서 고르시면 <b>발주 리스트에 바로 들어갑니다</b> — 아래 품목칸에 다시 옮겨 적지 않으셔도 됩니다.
+      읽은 것을 먼저 보여 드립니다. 둘 다 <b>발주 리스트에 들어갑니다</b>.
+      이미 내신 발주를 앱에 남기실 때는 <b>넣기</b>를, 그 발주서를 바탕으로 고쳐 새로 내실 때는 <b>불러오기</b>를 쓰십시오.
     </div>
     <input type="file" id="od-import-pdf" accept=".xlsx,.xls,.pdf,application/pdf" multiple style="display:none" onchange="odImportAny(this)">
     <input type="file" id="od-import-file" accept=".xlsx,.xls" style="display:none" onchange="odImportExcel(this)">
@@ -1180,10 +1187,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <div class="modal-bg" id="od-import-modal">
   <div class="modal-sheet" style="max-width:600px;margin:0 auto">
     <button class="close-btn" onclick="closeM('od-import-modal')">×</button>
-    <div class="modal-ttl">📥 발주서 선택</div>
-    <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:12px">
+    <div class="modal-ttl" id="od-import-ttl">📥 발주서 선택</div>
+    <div id="od-import-desc" style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:12px">
       발주서에서 <b>발주처·종류·품목</b>을 읽었어요.<br>
-      발주 리스트에 넣을 항목을 고르세요. (작성 폼에도 자동으로 채워집니다)
+      발주 리스트에 넣을 항목을 고르세요.
     </div>
     <div id="od-import-list" style="margin-bottom:12px"></div>
     <div style="display:flex;gap:8px">
@@ -12072,7 +12079,10 @@ const OD_CATALOG = {
       {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화',     pname:'',        modelMode:true,
          fname:'사틴',
          hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
-      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화',     pname:'비규격',  sizeMode:true,
+      /* 대원유리에서 **제일 많이 쓰는 종류**라 기본으로 골라 둡니다 (사장님 2026-09-22
+         "그걸 제일 많이 쓰는데 매번 클릭하려니 귀찮아서"). 목록 차례는 그대로 두고
+         고르는 값만 여기로 옵니다 — `def:true` 한 줄이면 다른 발주처에도 똑같이 됩니다. */
+      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화',     pname:'비규격',  sizeMode:true, def:true,
          fname:'사틴',
          hint:'3.2T 백사틴 비규격 · 비고 각면/강화'}
     ],
@@ -12269,6 +12279,7 @@ function renderOrderPage(){
   // 날짜 기본 오늘
   const d=document.getElementById('od-date');
   if(!d.value) d.value=todayStr();
+  odFillDue();                  // 발주처 기본 납기(대원유리 = 다음 영업일)
   if(!odLines.length){ odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}]; }
   renderOdLines();
   renderOrderList();
@@ -12283,7 +12294,43 @@ function odVendorChanged(keep){
      ⚠ `type` 은 **손대지 않습니다** — 발주 기록·엑셀·비고 기억이 모두 그 이름을 씁니다.
        쓰임새를 덧붙이려면 종류마다 `pick:` 한 줄만 더하면 됩니다. */
   sel.innerHTML=presets.map((p,i)=>`<option value="${i}">${p.pick||p.type}</option>`).join('');
+  /* 발주처마다 **제일 많이 쓰는 종류**를 기본으로 골라 둡니다 (사장님 2026-09-22).
+     종류에 `def:true` 한 줄만 더하면 됩니다. 없으면 예전처럼 맨 위가 골라집니다. */
+  const di = presets.findIndex(p=>p.def);
+  if(di >= 0) sel.value = String(di);
   odTypeChanged();
+  odFillDue();            // 발주처가 바뀌면 기본 납기도 다시 잡습니다
+}
+
+
+/* ── 발주처별 기본 납기 ────────────────────────────────────────────
+   사장님 2026-09-22: "대원유리 납기는 발주일 바로 다음날(영업일) 기준으로
+   되어있는게 기본으로 그렇게 하게 해주고 아님 수정하도록."
+
+   값은 **발주일에서 영업일 며칠 뒤**인지입니다. 주말·공휴일은 `_addBizDays` 가
+   알아서 건너뜁니다(`KR_HOLIDAYS`). 다른 발주처를 더하려면 여기 한 줄만 더하십시오. */
+const OD_VENDOR_DUE = { '대원유리': 1 };
+
+/* 납기 칸을 채웁니다.
+   ⚠ **손으로 적어 두신 것은 건드리지 않습니다.** 우리가 넣어 둔 값일 때만 다시 씁니다
+      (`dataset.auto`). 칸에 글자를 넣으시는 순간 그 표시가 지워지므로,
+      「긴급」처럼 직접 적으신 것이 발주일을 바꿔도 살아남습니다. */
+function odFillDue(force){
+  const due = document.getElementById('od-due'); if(!due) return;
+  const vsel = document.getElementById('od-vendor');
+  const n = OD_VENDOR_DUE[(vsel && vsel.value) || ''];
+  if(!force && due.value && due.dataset.auto !== '1') return;   // 사장님이 적으신 값 — 그대로 둡니다
+  if(n == null){                                                // 기본 납기가 없는 발주처
+    if(due.dataset.auto === '1'){ due.value = ''; delete due.dataset.auto; }
+    return;
+  }
+  const dsel = document.getElementById('od-date');
+  const base = (dsel && dsel.value) || todayStr();
+  const ymd  = _addBizDays(base, n);
+  const d    = new Date(ymd + 'T00:00:00');
+  if(isNaN(d.getTime())) return;
+  due.value = (d.getMonth()+1) + '/' + d.getDate();             // 「5/27」 꼴 — 칸 안내와 같은 표기
+  due.dataset.auto = '1';
 }
 
 function odTypeChanged(){
@@ -12643,10 +12690,23 @@ function odAddPresetSize(sz){
   renderOdLines();
 }
 function odDelLine(i){ odLines.splice(i,1); if(!odLines.length)odLines.push({w:'',h:'',qty:1}); renderOdLines(); }
+
+/* 품목칸을 한 번에 비웁니다 (사장님 2026-09-22 — 목록이 길면 ✕ 를 하나씩 누르기 번거롭다).
+   발주처·종류·날짜·비고는 그대로 둡니다. 되돌릴 수 없으니 먼저 여쭙습니다. */
+function odClearLines(){
+  const n = odLines.filter(odLineValid).length;
+  if(n > 1 && !confirm(`품목 ${n}건을 모두 지울까요?\n(발주처·종류·날짜는 그대로 둡니다)`)) return;
+  odLines = [{w:'',h:'',qty:1,pname:'',bigo:''}];
+  renderOdLines();
+  showToast('🧹 품목칸을 비웠습니다');
+}
 function odUpdateCount(){
   const valid=odLines.filter(odLineValid);
   const tot=valid.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
   document.getElementById('od-livecount').textContent=`품목 ${valid.length}건 · 총수량 ${tot}장`;
+  // 줄이 둘 이상일 때만 「전부 비우기」를 보입니다 — 한 줄이면 ✕ 로 충분합니다
+  const clr=document.getElementById('od-clear-lines');
+  if(clr) clr.style.display = (odLines.length>1) ? '' : 'none';
 }
 // 유효한 줄: 수량>0 이고 (가로·세로가 있거나 OR 품명이 있음 → 기타용품 대응)
 function odLineValid(l){
@@ -13548,6 +13608,22 @@ function odSaveOrder(){
 // ══════════════════════════════════════════════════════════
 let odImportParsed = [];  // [{sheet, vendor, type, date, items:[{w,h,qty,pname,due,bigo}]}]
 
+/* 읽은 발주서를 **품목칸에도 채울지** (사장님 2026-09-22).
+   「📥 불러오기」 = true — 그 발주서를 바탕으로 고쳐 새로 내실 때.
+   「📝 넣기」    = false — 이미 낸 발주를 앱에 남기기만 할 때.
+     이미 낸 것을 품목칸에 올려 두면 ✕ 를 하나씩 눌러 지우셔야 했습니다.
+   ⚠ 기본값은 true 로 둡니다 — 옛 길(숨은 파일칸을 바로 누르는 곳)이 남아 있어
+     그쪽으로 들어와도 예전처럼 움직여야 합니다. */
+let odImportFill = true;
+
+function odImportPick(fill){
+  odImportFill = (fill !== false);
+  const el = document.getElementById('od-import-pdf');
+  if(!el) return;
+  el.value = '';          // 같은 파일을 다시 고르셔도 열리도록 비웁니다
+  el.click();
+}
+
 function odXlsxDate(v){
   if(v==null || v==='') return '';
   if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
@@ -13868,6 +13944,16 @@ async function odImportPdf(input){
 }
 
 function renderOdImportList(){
+  // 창의 글씨는 어느 단추로 들어왔는지에 따라 달라집니다
+  const ttl=document.getElementById('od-import-ttl');
+  const dsc=document.getElementById('od-import-desc');
+  const btn=document.getElementById('od-import-apply');
+  if(ttl) ttl.textContent = odImportFill ? '📥 발주서 불러오기' : '📝 발주서 넣기 (기록만)';
+  if(dsc) dsc.innerHTML = '발주서에서 <b>발주처·종류·품목</b>을 읽었어요.<br>'
+    + '발주 리스트에 넣을 항목을 고르세요. '
+    + (odImportFill ? '<b>아래 품목칸에도 채워 드립니다.</b>'
+                    : '<b>아래 품목칸은 건드리지 않습니다.</b>');
+  if(btn) btn.textContent = odImportFill ? '선택한 발주서 기록 + 불러오기' : '선택한 발주서 기록만';
   const host=document.getElementById('od-import-list');
   host.innerHTML=odImportParsed.map((s,i)=>{
     const tot=s.items.reduce((a,b)=>a+(b.qty||0),0);
@@ -13912,11 +13998,11 @@ function odImportApply(){
   saveOrderLog();
   if(etpLinked && typeof showToast === 'function') showToast('🟠 에토프 발주에도 ' + etpLinked + '품목 넣었습니다');
   renderOrderList();
-  const last=picks[picks.length-1];
-  odFillFormFromImport(last);
+  // 「넣기」로 들어왔으면 품목칸은 그대로 둡니다 (사장님 2026-09-22)
+  if(odImportFill) odFillFormFromImport(picks[picks.length-1]);
   closeM('od-import-modal');
   if(typeof autoSync==='function') autoSync();
-  showToast(`📥 ${added}개 발주 기록됨`);
+  showToast(`${odImportFill?'📥':'📝'} ${added}개 발주 기록됨`);
 }
 
 function odFillFormFromImport(s){
