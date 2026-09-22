@@ -3931,7 +3931,8 @@ function cadSheetSVG(header, banner){
      두 조각을 이어 붙이므로 **글자 너비를 실제로 재서** 가운데를 맞춥니다
      (어림하면 가운데가 틀어집니다 — 12-4 와 같은 이치). */
   {
-    const bt = esc((banner && banner.text) ? banner.text : 'EO700 신형(OB)');
+    // 계열(HD·OB)만 도드라지게 — 셋이 같은 함수를 씁니다(cadBannerTspans)
+    const bt = cadBannerTspans((banner && banner.text) ? banner.text : 'EO700 신형(OB)', 6.0);
     const tag = (banner && banner.oldTag) ? (' (' + banner.oldTag + ')') : '';
     if(!tag){
       s+=T(105, bandTop, 6.0, bt, {anchor:'middle', bold:true});
@@ -4274,6 +4275,28 @@ function cadBlockH(b, lh){ return Math.max(cadDoorSpan(b, lh), cadTextH(b.rows, 
         **뒤에서 들어가는 블록을 끌어와 자리를 메운다.** 코드 순서보다 낭비를 줄이는 쪽을 택한다.
      ③ 상한은 그대로 — 높이 206.35mm, 서로 다른 코드 MAX_DRAWINGS개. */
 const CAD_BANNER_H=13;   // 한 페이지 안 타입(HD/OB) 전환 헤더 밴드 높이(mm)
+
+/* 띠에서 계열(HD·OB)만 도드라지게 (사장님 요청 2026-09-23
+   "유로700 HD 도어랑 OB 도어 있는거에서 HD랑 OB 만 강조하게 볼드처리하고 글씨크기 10% 확대").
+
+   ⚠ 띠 글자는 **이미 통째로 `font-weight:700`** 입니다. 굴림에는 중간 굵기가 없어
+      그 위로 더 굵게 갈 수 없습니다(12-4-3 — 치수 숫자에서 겪은 것과 같습니다).
+      그래서 **글자를 키우고 제 색으로 얇은 테두리**를 둘러 두껍게 보이게 합니다.
+   글자 크기만 바꾸시려면 `CAD_BANNER_EM_SCALE`, 굵기는 `CAD_BANNER_EM_STROKE` 한 곳입니다.
+   되돌리려면 둘 다 1 과 0 으로 두면 됩니다. */
+const CAD_BANNER_EM_SCALE  = 1.10;    // 계열 글자 확대 배수 (6 → 6.6)
+const CAD_BANNER_EM_STROKE = 0.055;   // 테두리 두께 (글자크기 대비)
+
+/* 띠 글자를 `<text>` 안에 넣을 조각으로 바꿉니다. **띠를 그리는 곳 셋이 모두 이걸 씁니다** —
+   위 띠(`cadSheetSVG`) · 구형 표시가 붙은 위 띠 · 페이지 중간 띠(`cadMidBanner`).
+   한 곳에서만 고치면 셋이 어긋납니다. */
+function cadBannerTspans(text, fs){
+  const big = (fs*CAD_BANNER_EM_SCALE).toFixed(3);
+  const sw  = (fs*CAD_BANNER_EM_SCALE*CAD_BANNER_EM_STROKE).toFixed(3);
+  // 먼저 글자를 안전하게 바꾼 뒤에 조각을 넣습니다(차례가 바뀌면 조각이 글자로 새어 나옵니다).
+  return esc(String(text||'')).replace(/\b(HD|OB)\b/g,
+    `<tspan font-size="${big}" stroke="#000" stroke-width="${sw}" paint-order="stroke">$1</tspan>`);
+}
 /* ════════════════════════════════════════════════════════════════
    페이지 나누기 — 그룹(계열)을 되도록 온전히 한 장에 (2026-09-09 전면 개정)
 
@@ -4715,7 +4738,7 @@ function cadBlockSVG(b, xL, yTop){
 function cadMidBanner(text, yTop){
   const F="'굴림','Gulim','Malgun Gothic',sans-serif";
   return `<line x1="8.75" y1="${yTop.toFixed(2)}" x2="201.25" y2="${yTop.toFixed(2)}" stroke="#000" stroke-width="0.18"/>`
-    +`<text x="105" y="${(yTop+8).toFixed(2)}" font-family="${F}" font-size="6" font-weight="700" fill="#000" text-anchor="middle">${esc(text)}</text>`
+    +`<text x="105" y="${(yTop+8).toFixed(2)}" font-family="${F}" font-size="6" font-weight="700" fill="#000" text-anchor="middle">${cadBannerTspans(text,6)}</text>`
     +`<line x1="8.75" y1="${(yTop+10.5).toFixed(2)}" x2="201.25" y2="${(yTop+10.5).toFixed(2)}" stroke="#000" stroke-width="0.18"/>`;
 }
 // A4 한 장 = 틀+헤더+상단 제품명 띠 + (타입 바뀌면 중간 밴드) + 배치된 블록들
