@@ -510,7 +510,7 @@
       <div class="of-hint">[📄 납품서 처리] 탭에 올린 납품서에서 시그니처 글래스도어 · 유리장식장 · 에어힌지 · 빗면 프레임을 골라냅니다. 검정은 프레임 치수, 빨강은 유리 치수입니다. 날짜를 고르지 않으면 올린 납품서가 전부 나옵니다.</div>
       <div class="meta-bar">
         <label>발주일<select id="subdoorDate" style="min-width:190px"><option value="">전체</option></select></label>
-        <button onclick="subdoorFillDates()">🔄 날짜 다시 읽기</button>
+        <button onclick="subdoorFillDates(true)">🔄 날짜 다시 읽기</button>
       </div>
       <div class="foot">
         <button class="primary" onclick="subdoorGenerate()">📐 수납도어 작업지시서 생성</button>
@@ -6480,17 +6480,23 @@ function subdoorCenterBlock(t, s, grew, empty){
 }
 
 /* 발주일 고르는 칸 채우기. 탭을 열 때와 [날짜 다시 읽기]에서 부른다.
-   장수를 같이 보여 줘, 고르기 전에 몇 장 나올지 알 수 있게 한다. */
-function subdoorFillDates(){
+   장수를 같이 보여 줘, 고르기 전에 몇 장 나올지 알 수 있게 한다.
+   · 차례는 **최신이 맨 위**입니다(사장님 요청 2026-09-22). 날짜 없는 것은 맨 아래.
+   · 탭을 열 때는 **늘 가장 최근 날짜**를 고릅니다 — 열자마자 오늘 것이 보이게.
+   · `keepPick` 을 주면(「날짜 다시 읽기」) 골라 두신 것을 지킵니다. 보시던 중에 튀면 곤란합니다. */
+function subdoorFillDates(keepPick){
   const sel = document.getElementById('subdoorDate'); if(!sel) return;
   const keep = sel.value;
   const all = subdoorCollect('').pages;
   const cnt = {};
   all.forEach(p=>{ const k=p.po||''; cnt[k]=(cnt[k]||0)+1; });   // 발주일별로 센다
-  const days = Object.keys(cnt).sort();
+  const days = Object.keys(cnt).sort().reverse();                // 최신 → 옛날
   sel.innerHTML = '<option value="">전체 · '+all.length+'장</option>'
     + days.map(d=>'<option value="'+esc(d)+'">'+esc(d ? fmtDate(d) : '(발주일 없음)')+' · '+cnt[d]+'장</option>').join('');
-  if(days.indexOf(keep) >= 0) sel.value = keep;
+  const newest = days.find(d=>d) || '';                          // 빈 값(날짜 없음)은 건너뛴다
+  // 「다시 읽기」는 고르신 것을 그대로 둡니다 — 전체('')도 고르신 것입니다.
+  const stay = keepPick && (keep === '' || days.indexOf(keep) >= 0);
+  sel.value = stay ? keep : newest;
 }
 
 function subdoorGenerate(){
