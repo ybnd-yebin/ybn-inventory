@@ -3764,6 +3764,59 @@ function _formatActorTime(iso){
    이제 한 칸씩 감싸서, 하나가 실패해도 나머지는 저장하고 무엇이 실패했는지
    한 번만 크게 알립니다(같은 말을 스무 번 띄우지 않으려고 모아서 한 번).   */
 var _saveFail = [];
+
+/* ══════════════════════════════════════════════════════════════════
+   반쪽 기기가 시트를 덮어쓰지 못하게 막습니다              2026-09-23
+
+   시트 저장은 **합치기가 아니라 통째로 덮어쓰기**입니다. 그래서 저장함이
+   차서 납품서를 못 쓴 기기가, 새로고침 뒤(= 메모리가 그 반쪽으로 다시 참)
+   무엇이든 저장하면 **시트의 납품서가 그 반쪽으로 덮입니다.**
+   `_isLocalEmpty()` 가드는 **전부 비었을 때만** 막아 이 경우를 놓칩니다.
+
+   그래서 **저장이 한 줄이라도 실패한 기기**는 표식을 남겨 둡니다.
+   표식은 `saveAll` **맨 앞**에서 심습니다 — 자리가 제일 넉넉할 때라야
+   12바이트짜리가 들어갑니다. 다 무사히 쓰면 지웁니다.
+
+   다만 **시트에서 막 받아 합친 뒤**라면 메모리는 온전하므로 올려도 됩니다.
+   그래야 저장함이 빠듯한 휴대폰이 '읽기 전용'으로 굳지 않습니다.
+   ══════════════════════════════════════════════════════════════════ */
+const LS_PARTIAL='ybn-part-v1';
+var _diskPartial = false;       // 이 기기의 저장본이 반쪽인가
+var _mergedOk    = false;       // 이번에 시트에서 받아 합쳤는가
+try{ _diskPartial = !!localStorage.getItem(LS_PARTIAL); }catch(e){}
+
+// 올려도 되는가 — 안 되면 왜 안 되는지 글로 돌려줍니다
+function uploadBlockReason(){
+  if(_diskPartial && !_mergedOk)
+    return '이 기기에 자료가 온전히 저장되지 못했습니다(저장함이 찼습니다).\n'
+         + '이대로 올리면 시트의 자료가 반쪽으로 덮입니다.\n\n'
+         + '인터넷이 되는 곳에서 앱을 새로 여시면 시트에서 다시 받아 온전해집니다.';
+  return '';
+}
+
+/* 올리기 전 관문 — **올리는 길 셋이 전부 여기를 지납니다**
+   (`autoSync` · `syncToSheet` · `scheduleAutoPush`).
+   한 곳만 막으면 나머지 둘로 새 나갑니다 — 실제로 셋이었습니다.
+   돌려주는 값: 올려도 되면 meta, 안 되면 null. */
+function syncGateMeta(quiet){
+  const r = uploadBlockReason();
+  if(r){
+    console.warn('[동기화] 반쪽 저장본이라 올리지 않습니다.');
+    if(typeof updateGsStatus==='function') updateGsStatus('error');
+    if(!quiet && typeof syncBar==='function')
+      syncBar('error','⚠ 이 기기는 자료가 온전하지 않아 <b>시트에 올리지 않습니다</b> — 새로고침하면 시트에서 다시 받습니다');
+    return null;
+  }
+  const m = metaForSync();       // 여기서 넘치면 window._extOverflow 가 섭니다
+  if(window._extOverflow){
+    console.warn('[동기화] 딸림자료가 칸 수를 넘어 올리지 않습니다:', window._extOverflow);
+    if(typeof updateGsStatus==='function') updateGsStatus('error');
+    if(!quiet && typeof syncBar==='function')
+      syncBar('error','⚠ 자료가 시트 칸을 넘었습니다 — <b>올리기를 멈췄습니다</b> (' + window._extOverflow.msg + ')');
+    return null;
+  }
+  return m;
+}
 function _put(key, val){
   try{ localStorage.setItem(key, JSON.stringify(val)); return true; }
   catch(e){ _saveFail.push(key); console.warn('[저장 실패]', key, e); return false; }
@@ -3800,6 +3853,9 @@ function saveAll(){
      납품서·재고이력은 덩치가 커서 **맨 뒤**로 보냅니다. 못 써도 시트에서 다시 받습니다.
      ⚠ 새 항목을 더할 때도 **크기를 보고 자리를 고르십시오.** 그냥 맨 아래에 붙이면
        큰 것 뒤에 놓여 제일 먼저 희생됩니다. */
+  /* 반쪽 표식을 **맨 앞에** 심습니다 — 자리가 제일 넉넉할 때라야 들어갑니다.
+     아래를 다 무사히 쓰면 끝에서 지웁니다. */
+  try{ localStorage.setItem(LS_PARTIAL,'1'); }catch(e){ _diskPartial = true; }
   // ── 작고 중요한 것 ─────────────────────────────────────────────
   _put(LS.meta, meta);
   if(typeof orderLog!=='undefined') _put('ybn-order-v1', orderLog);
@@ -3824,6 +3880,10 @@ function saveAll(){
   // ── 덩치 큰 것 (자리가 모자라면 여기부터 못 씁니다 — 시트에서 다시 받습니다)
   _put(LS.stockEvents, stockEvents);
   _put(LS.delivLog, delivLog);
+  /* 다 무사히 썼으면 표식을 지웁니다. 하나라도 못 썼으면 **남겨 두어**
+     다음에 이 기기가 켜졌을 때 시트를 덮지 못하게 합니다. */
+  if(_saveFail.length){ _diskPartial = true; }
+  else { _diskPartial = false; try{ localStorage.removeItem(LS_PARTIAL); }catch(e){} }
   _saveReport();                 // 저장 못 한 것이 있으면 한 번만 크게 알립니다
   // 설정 화면이 열려 있으면 용량 바 갱신
   if(typeof renderStorageBar==='function' && document.getElementById('storage-bar-host')) renderStorageBar();
@@ -8381,6 +8441,23 @@ function initGsUI(){
 }
 
 // ── 저장 용량 배터리 바 ──
+/* 시트 칸(_ext) 여유 — 저장 용량 바 밑에 한 줄 덧붙입니다.
+   여기가 차면 에토프 장부·발주·조립재고가 **시트에 안 올라갑니다.**
+   예전에는 넘쳐도 토스트 한 번 뜨고 사라져 아무도 몰랐습니다(2026-09-23).
+   벼랑은 **보여야** 미리 손씁니다. */
+function _extGaugeHtml(){
+  try{
+    if(typeof metaForSync!=='function') return '';
+    metaForSync();                                   // window._extUse 를 채웁니다
+    const u=window._extUse; if(!u||!u.cap) return '';
+    const pc=Math.round(u.chars/u.cap*100);
+    const col=pc<60?'var(--tx3)':pc<80?'#e3a008':'var(--acc4)';
+    return `<br><span style="color:${col}">📄 시트 칸 <b>${pc}%</b> `
+         + `(${Math.round(u.chars/1000)}k / ${Math.round(u.cap/1000)}k)`
+         + (pc>=80?' — 넘으면 에토프 장부·발주가 시트에 안 올라갑니다':'') + `</span>`;
+  }catch(e){ return ''; }
+}
+
 function renderStorageBar(){
   const host=document.getElementById('storage-bar-host');
   if(!host) return;
@@ -8423,7 +8500,7 @@ function renderStorageBar(){
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--tx1);mix-blend-mode:difference">${pct>=8?'':''}</div>
     </div>
     <div style="margin-top:10px">${rows||'<div style="font-size:11px;color:var(--tx3)">저장된 데이터가 거의 없어요</div>'}</div>
-    <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.6">브라우저 저장 공간 기준이며, 구글 시트에는 별도로 백업됩니다. 80%를 넘으면 오래된 납품서를 정리하는 걸 권장해요.</div>`;
+    <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.6">브라우저 저장 공간 기준이며, 구글 시트에는 별도로 백업됩니다. 80%를 넘으면 오래된 납품서를 정리하는 걸 권장해요.${_extGaugeHtml()}</div>`;
 }
 function updateGsStatus(state){
   const dot=document.getElementById('gs-dot');
@@ -8575,17 +8652,22 @@ function metaForSync(){
   const out=Object.assign({}, meta);
   out._ext='';                     // 옛 한 칸 방식은 비워둡니다 (아래 여러 칸이 정본)
   const n=Math.ceil(s.length/GS_EXT_LIMIT);
+  window._extOverflow = null;
+  window._extUse = { chars:s.length, cap:GS_EXT_LIMIT*GS_EXT_MAX_PARTS, parts:n };
   if(n>GS_EXT_MAX_PARTS){
-    // 여기까지 오면 진짜로 손봐야 합니다. 무엇이 큰지 같이 알려줍니다.
+    /* ⚠ 예전에는 여기서 **여덟 칸을 전부 빈칸으로 덮어** 보냈습니다.
+       그러면 시트에 있던 에토프 장부·발주·조립재고가 통째로 사라집니다 —
+       토스트 한 번 뜨고 사라지니 **백업이 끊긴 줄도 모릅니다** (2026-09-23).
+       이제 **지우지 않고, 아예 안 올립니다.** 올리는 길 셋이 모두
+       `syncGateMeta` 에서 이 표식을 보고 멈춥니다. 시트의 옛 값은 그대로 남습니다. */
     const big=Object.keys(ext).map(k=>{
       let len=0; try{ len=JSON.stringify(ext[k]).length; }catch(e){}
       return {k,len};
     }).sort((a,b)=>b.len-a.len).slice(0,3).map(x=>`${x.k} ${Math.round(x.len/1000)}k`).join(' / ');
-    console.warn('[동기화] 딸려보낼 자료가 칸 수를 넘어 보내지 않습니다:', s.length, '가장 큰 것:', big);
-    if(typeof showToast==='function') showToast(`⚠️ 자료가 너무 커 일부가 동기화에서 빠졌습니다 (${Math.round(s.length/1000)}k · ${big})`);
-    out._extN=0;
-    for(let i=1;i<=GS_EXT_MAX_PARTS;i++) out['_ext'+i]='';
-    return out;
+    const msg=`${Math.round(s.length/1000)}k / ${Math.round(GS_EXT_LIMIT*GS_EXT_MAX_PARTS/1000)}k · 큰 것 ${big}`;
+    console.warn('[동기화] 딸림자료가 칸 수를 넘었습니다 — 올리지 않습니다:', msg);
+    window._extOverflow = { chars:s.length, msg, big };
+    return out;                  // _ext* 를 아예 안 실어 보냅니다 (안 올라가므로 무해)
   }
   out._extN=n;
   // 안 쓰는 칸도 빈 값으로 덮어 시트에 남은 옛 조각을 지웁니다
@@ -8853,6 +8935,9 @@ async function autoSync(){
     showToast('⚠️ 데이터 없음 - 자동 동기화 보류');
     return;
   }
+  // ── 핵심 가드 1-2: 반쪽 저장본·칸 넘침이면 올리지 않습니다 ──
+  const _metaOut = syncGateMeta();
+  if(!_metaOut) return;
 
   _syncBusy = true;
   try{
@@ -8863,7 +8948,7 @@ async function autoSync(){
       clientLastSync: meta.lastGsSync || null,
       clientTs: ts,
       actor: getActor(),
-      data:{stock,worklog:workLog,inklog:inkLog,meta:metaForSync(),notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
+      data:{stock,worklog:workLog,inklog:inkLog,meta:_metaOut,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
     });
     // 서버가 충돌을 알려주면 result.conflict === true (서버 가드 추가 시)
     if(result && result.conflict){
@@ -8900,6 +8985,18 @@ async function syncToSheet(){
     }
   }
 
+  /* ── 핵심 가드 4: 반쪽 저장본·칸 넘침 ──
+     손으로 누르신 것이라 **이유를 창으로 알려 드립니다.** 그래도 올리겠다고
+     하셔도 안 올립니다 — 여기서 올리면 시트가 반쪽으로 덮여 되돌릴 수 없습니다. */
+  const _metaOut = syncGateMeta(true);
+  if(!_metaOut){
+    const why = uploadBlockReason()
+      || ('딸림자료가 시트 칸을 넘었습니다 (' + ((window._extOverflow||{}).msg||'') + ').');
+    alert('⚠ 시트에 올리지 않았습니다.\n\n' + why);
+    updateGsStatus('error');
+    return;
+  }
+
   _syncBusy = true;
   updateGsStatus('syncing');
   try{
@@ -8909,7 +9006,7 @@ async function syncToSheet(){
       clientTs: new Date().toISOString(),
       actor: getActor(),
       force: true, // 사용자가 직접 누른 경우 force 플래그
-      data:{stock,worklog:workLog,inklog:inkLog,meta:metaForSync(),notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
+      data:{stock,worklog:workLog,inklog:inkLog,meta:_metaOut,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
     });
     if(result && result.conflict && !result.forced){
       updateGsStatus('error');
@@ -8961,6 +9058,9 @@ async function syncFromSheet(){
   try{
     const data=await gsFetch('GET',null,'?action=read');
     applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
+    /* 시트 것을 합쳤으니 **메모리는 온전합니다.** 저장함이 빠듯해 디스크가
+       반쪽이어도 이번 판에는 올려도 됩니다 — 안 그러면 휴대폰이 읽기 전용으로 굳습니다. */
+    _mergedOk = true;
     meta.lastGsSync=new Date().toISOString();
     meta.lastLocalChange=meta.lastGsSync; // 방금 받았으니 로컬변경=시트와 동일
     window._skipLocalChange = true;
@@ -15391,6 +15491,9 @@ async function autoSyncOnLoad(){
   try{
     const data=await gsFetch('GET',null,'?action=read');
     applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
+    /* 시트 것을 합쳤으니 **메모리는 온전합니다.** 저장함이 빠듯해 디스크가
+       반쪽이어도 이번 판에는 올려도 됩니다 — 안 그러면 휴대폰이 읽기 전용으로 굳습니다. */
+    _mergedOk = true;
     meta.lastGsSync=new Date().toISOString();
     window._skipLocalChange = true;
     saveAll();
@@ -20618,14 +20721,18 @@ function scheduleAutoPush(){
 // 창을 닫거나 새로고침할 때: 마지막으로 한 번 더 올림(동기 요청)
 window.addEventListener('beforeunload', function(){
   try{
-    if(gsUrl && _hasUnpushedChange()){
+    /* ⚠ 여기는 `force:true` 라 서버 가드도 건너뜁니다 — 반쪽 기기에게는 제일
+       위험한 길입니다. 창을 닫는 순간이라 띠를 띄워도 못 보시므로 조용히
+       거르되, 콘솔에는 남깁니다(`quiet`). */
+    const _metaOut = (typeof syncGateMeta==='function') ? syncGateMeta(true) : null;
+    if(gsUrl && _metaOut && _hasUnpushedChange()){
       const payload = JSON.stringify({
         action:'saveAll',
         clientLastSync: meta.lastGsSync || null,
         clientTs: new Date().toISOString(),
         actor: (typeof getActor==='function'?getActor():'') || '',
         force: true,
-        data:{stock,worklog:workLog,inklog:inkLog,meta:metaForSync(),notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
+        data:{stock,worklog:workLog,inklog:inkLog,meta:_metaOut,notices,schedules,todos,matStock,matLog,sheetLog,delivLog,delivDeleted,stockEvents,ledgerLog:ledgerForSync(),vendorBook,odCustomVendors,wkExamples,assemblyStock,orderLog:(typeof orderLog!=="undefined"?orderLog:[]),orderDeleted,noticeState,finishedStock,inkRates,wlPostponed:(typeof wlPostponed!=="undefined"?wlPostponed:[]),soonap:(typeof soonap!=="undefined"?soonap:{})}
       });
       // sendBeacon: 창이 닫혀도 백그라운드로 전송 보장
       if(navigator.sendBeacon){
