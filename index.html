@@ -3793,28 +3793,37 @@ function saveAll(){
     meta.lastLocalChange = new Date().toISOString();
     if(getActor()) meta.lastActor = getActor();
   }
-  _put(LS.stock, stock);
+  /* ⚠ 저장 차례가 곧 **살아남는 차례**입니다 (2026-09-23).
+     저장함이 차면 그때부터 `_put` 이 줄줄이 실패합니다. 그러니 **작고 중요한 것을
+     먼저** 씁니다 — 발주기록(0.13MB)이 납품서(2.03MB) 뒤에 있어, 자리가 모자라면
+     0.13MB 짜리가 2MB 때문에 밀려 못 써지는 차례였습니다.
+     납품서·재고이력은 덩치가 커서 **맨 뒤**로 보냅니다. 못 써도 시트에서 다시 받습니다.
+     ⚠ 새 항목을 더할 때도 **크기를 보고 자리를 고르십시오.** 그냥 맨 아래에 붙이면
+       큰 것 뒤에 놓여 제일 먼저 희생됩니다. */
+  // ── 작고 중요한 것 ─────────────────────────────────────────────
   _put(LS.meta, meta);
-  _put(LS.work, workLog);
-  _put(LS.ink, inkLog);
-  _put(LS.inkRate, inkRates);
-  _put(LS.notices, notices);
-  _put(LS.schedules, schedules);
-  _put(LS.todos, todos);
-  _put(LS.delivLog, delivLog);
-  _put('ybn-deliv-del-v1', delivDeleted);
-  _put('ybn-ledger-v1', ledgerLog);
   if(typeof orderLog!=='undefined') _put('ybn-order-v1', orderLog);
   _put('ybn-order-del-v1', orderDeleted);
+  _put(LS.stock, stock);
+  _put('ybn-deliv-del-v1', delivDeleted);
+  _put('ybn-ledger-v1', ledgerLog);
+  _put(LS.todos, todos);
+  _put(LS.notices, notices);
   _put('ybn-notice-state-v1', noticeState);
+  _put(LS.schedules, schedules);
+  _put(LS.inkRate, inkRates);
+  _put(LS.ink, inkLog);
   _put('ybn-vendors-v1', vendorBook);
   _put('ybn-od-vendors-v1', odCustomVendors);
-  _put(LS.stockEvents, stockEvents);
   if(typeof soonap!=='undefined') _put('ybn-soonap-v1', soonap); // 수납유리재고
   if(typeof assemblyStock!=='undefined') _put('ybn-asm-v1', assemblyStock);
   if(typeof matStock!=='undefined') _put('ybn-mat-v1', matStock);
   if(typeof matLog!=='undefined') _put('ybn-matlog-v1', matLog);
   if(typeof sheetLog!=='undefined') _put('ybn-sheet-v1', sheetLog);
+  _put(LS.work, workLog);
+  // ── 덩치 큰 것 (자리가 모자라면 여기부터 못 씁니다 — 시트에서 다시 받습니다)
+  _put(LS.stockEvents, stockEvents);
+  _put(LS.delivLog, delivLog);
   _saveReport();                 // 저장 못 한 것이 있으면 한 번만 크게 알립니다
   // 설정 화면이 열려 있으면 용량 바 갱신
   if(typeof renderStorageBar==='function' && document.getElementById('storage-bar-host')) renderStorageBar();
@@ -15349,8 +15358,36 @@ function vdMakeExcel(){
 
 
 // ── 자동 동기화 ──
+/* ── 받는 중 띠 ────────────────────────────────────────────────────
+   시트에서 받는 데 **2.4MB · 유선에서도 6~8초**가 걸립니다. 휴대폰 데이터면
+   더 걸립니다. 그런데 그동안 앱은 **다 그려진 빈 화면**을 보여 주어,
+   사장님이 "자료가 아예 안 따라온다"고 보셨습니다 (2026-09-23).
+   받는 중임을 화면에 드러내고, 실패하면 조용히 넘어가지 않습니다.
+   ⚠ 예전에는 다 받은 뒤에야 `updateGsStatus('ok')` 를 불러, 받는 동안
+     머리말 표시가 **빈 채로** 있었습니다. `syncing` 상태는 이미 있었는데 안 썼습니다. */
+function syncBar(state, msg){
+  let el=document.getElementById('sync-bar');
+  if(state==='hide'){ if(el) el.remove(); return; }
+  if(!el){
+    el=document.createElement('div');
+    el.id='sync-bar';
+    el.style.cssText='position:fixed;left:0;right:0;top:0;z-index:9999;padding:9px 14px;'
+      +'padding-top:calc(9px + env(safe-area-inset-top,0px));font-size:12.5px;font-weight:700;'
+      +'text-align:center;color:#fff;font-family:\'Noto Sans KR\',sans-serif;'
+      +'box-shadow:0 1px 6px rgba(0,0,0,.18)';
+    document.body.appendChild(el);
+  }
+  el.style.background = state==='error' ? 'var(--acc4)' : state==='done' ? 'var(--acc3)' : 'var(--acc)';
+  el.innerHTML = msg + (state==='error'
+    ? ' <button onclick="autoSyncOnLoad()" style="margin-left:8px;padding:3px 10px;background:#fff;border:none;border-radius:12px;color:var(--acc4);font-size:11px;font-weight:800;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif">다시 받기</button>'
+    : '');
+  if(state==='done') setTimeout(()=>syncBar('hide'), 3500);
+}
+
 async function autoSyncOnLoad(){
   if(!gsUrl) return;
+  syncBar('busy','⏳ 구글시트에서 받는 중입니다… 잠시만 기다려 주십시오');
+  updateGsStatus('syncing');
   try{
     const data=await gsFetch('GET',null,'?action=read');
     applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
@@ -15367,8 +15404,16 @@ async function autoSyncOnLoad(){
     // 현재 보고 있는 탭 전체 갱신 (납품서·재고 등도 함께 다시 그림)
     if(typeof rerenderAfterSync==='function'){ try{ rerenderAfterSync(); }catch(e){ renderHome(); } }
     else renderHome();
+    // 무엇이 얼마나 왔는지 적어 둡니다 — 숫자가 보여야 다 온 것을 아십니다
+    const n=a=>Array.isArray(a)?a.length:0;
+    syncBar('done','✅ 받았습니다 — 발주 ' + n(typeof orderLog!=='undefined'?orderLog:[]) + '건 · '
+      + '납품서 ' + n(typeof delivLog!=='undefined'?delivLog:[]) + '건');
   }catch(e){
     console.log('자동동기화 실패:', e.message);
+    updateGsStatus('error');
+    /* 조용히 넘어가면 사장님은 **낡은 자료를 새 자료로 아십니다.**
+       그것이 제일 위험하므로 화면에 남겨 둡니다(저절로 안 사라집니다). */
+    syncBar('error','⚠ 구글시트에서 못 받았습니다 — 지금 보이는 것은 이 기기에 남아 있던 자료입니다');
   }
 }
 
