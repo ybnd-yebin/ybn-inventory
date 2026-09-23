@@ -5002,7 +5002,11 @@ function cadGenerate(){
     // 계열 묶음: EURO700 HD / EURO700 OB / EURO500. EURO500은 도면을 OB 것으로 쓰되 띠는 따로 붙인다.
     const byType={HD:[],OB:[],E500:[]};
     rowsAll.forEach(r=>byType[isEuro500(r)?'E500':(r.type==='HD'?'HD':'OB')].push(r));
-    const BANNER={HD:'EURO700 HD 도어', OB:'EURO700 OB 도어', E500:'EURO500 (프레임만)'};
+    /* 띠에 적는 계열 이름. EURO500 은 **`(프레임만)` 을 뺐습니다** (사장님 2026-09-23
+       "유로 500은 (프레임만) 이라는 문구는 빼도되. 그냥 EURO500 으로 해줘").
+       ⚠ 유리가 없다는 안내는 **확인·수정 표의 메모**(`calc()` 의 `note`)에 그대로 있습니다 —
+          띠에서만 뺀 것이지 안내를 없앤 것이 아닙니다. */
+    const BANNER={HD:'EURO700 HD 도어', OB:'EURO700 OB 도어', E500:'EURO500'};
     const blocks=[];
     ['HD','OB','E500'].forEach(tp=>{
       const rows=byType[tp]; if(!rows.length) return;
