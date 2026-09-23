@@ -3921,8 +3921,14 @@ function cadSheetSVG(header, banner){
   // 내용 박스 + 제품명 띠 아래선 (기존대로 — 겹쳐보기로 선 일치 확인됨)
   s+=`<rect x="8.75" y="${top(227.60).toFixed(2)}" width="192.5" height="218.85" fill="none" stroke="#000" stroke-width="${sw}"/>`;
   s+=`<line x1="8.75" y1="${top(215.10).toFixed(2)}" x2="201.25" y2="${top(215.10).toFixed(2)}" stroke="#000" stroke-width="${sw}"/>`;
-  // 제품명 띠 텍스트 — 가로중앙 105. 계열명만(수량은 블록 수량줄에). 문구는 호출부가 정규화해 넘김.
-  const bandTop = (top(227.60)+top(215.10))/2 - 3.0;
+  /* 제품명 띠 텍스트 — 가로중앙 105. 계열명만(수량은 블록 수량줄에). 문구는 호출부가 정규화해 넘김.
+     글자 크기는 **띠 높이에서 계산**합니다 (사장님 요청 2026-09-23 — 띠를 꽉 채우게).
+     밑줄 자리는 `bandTop + fs*K` 이므로, 글자 한가운데가 띠 한가운데에 오도록
+     `bandTop` 을 되짚어 구합니다. 숫자를 손으로 적지 않으므로 크기를 바꿔도 안 어긋납니다. */
+  const bandH   = top(215.10) - top(227.60);            // 띠 높이(위 띠 12.5mm)
+  const bandMid = (top(227.60) + top(215.10)) / 2;
+  const bandFS  = cadBannerFS(bandH);
+  const bandTop = bandMid - bandFS * (K - CAD_BANNER_MID);
   /* 머리글에는 계열 이름만 넣습니다. 이어지는 장에 (계속)을 붙였다가 뺐습니다
      (사용자 확정 2026-09-10) — 장마다 계열 이름이 그대로 찍히니 굳이 필요 없습니다.
      다시 넣으려면 banner.cont 를 여기서 읽으면 됩니다(값은 계속 넘어옵니다). */
@@ -3932,16 +3938,16 @@ function cadSheetSVG(header, banner){
      (어림하면 가운데가 틀어집니다 — 12-4 와 같은 이치). */
   {
     // 계열(HD·OB)만 도드라지게 — 셋이 같은 함수를 씁니다(cadBannerTspans)
-    const bt = cadBannerTspans((banner && banner.text) ? banner.text : 'EO700 신형(OB)', 6.0);
+    const bt = cadBannerTspans((banner && banner.text) ? banner.text : 'EO700 신형(OB)', bandFS);
     const tag = (banner && banner.oldTag) ? (' (' + banner.oldTag + ')') : '';
     if(!tag){
-      s+=T(105, bandTop, 6.0, bt, {anchor:'middle', bold:true});
+      s+=T(105, bandTop, bandFS, bt, {anchor:'middle', bold:true});
     } else {
       /* **한 글줄 안에 두 색**을 넣습니다 — 브라우저가 통째로 가운데를 잡아 주므로
          너비를 재어 나눌 일이 없습니다. 재서 반 나누면 굴림의 글자 왼쪽 여백 때문에
          0.5mm쯤 치우쳤습니다(2026-09-16 실측 104.48 / 105). */
-      const y = (bandTop + 6.0*K).toFixed(2);
-      s+=`<text x="105" y="${y}" font-family="${F}" font-size="6" font-weight="700"`
+      const y = (bandTop + bandFS*K).toFixed(2);
+      s+=`<text x="105" y="${y}" font-family="${F}" font-size="${bandFS}" font-weight="700"`
        + ` text-anchor="middle" fill="#000">${bt}<tspan fill="#e00000">${esc(tag)}</tspan></text>`;
     }
   }
@@ -4284,6 +4290,19 @@ const CAD_BANNER_H=13;   // 한 페이지 안 타입(HD/OB) 전환 헤더 밴드
       그래서 **글자를 키우고 제 색으로 얇은 테두리**를 둘러 두껍게 보이게 합니다.
    글자 크기만 바꾸시려면 `CAD_BANNER_EM_SCALE`, 굵기는 `CAD_BANNER_EM_STROKE` 한 곳입니다.
    되돌리려면 둘 다 1 과 0 으로 두면 됩니다. */
+
+/* 띠 글자 크기 — **띠 높이에 맞춰 계산합니다** (사장님 요청 2026-09-23
+   "헤드부분 … 그냥 전체적으로 다 키워줘 거의 그 박스 높이가 꽉찰정도로").
+
+   ⚠ **띠가 둘인데 높이가 다릅니다** — 위 띠 12.5mm · 중간 띠 10.5mm.
+      숫자를 손으로 적으면 둘이 어긋납니다. 그래서 **띠 높이에 비율을 곱해** 씁니다.
+      `CAD_BANNER_FILL` 한 곳만 고치면 둘이 같이 바뀝니다.
+   ⚠ 계열(HD·OB)에는 여기에 `CAD_BANNER_EM_SCALE`(1.10)이 **더 곱해집니다.**
+      그것까지 띠 안에 들어가야 하므로 비율은 그 몫을 빼고 잡았습니다. */
+const CAD_BANNER_FILL = 0.78;   // 띠 높이에서 글자가 차지할 몫
+const CAD_BANNER_MID  = 0.40;   // 글자 한가운데가 밑줄에서 몇 em 위인지 — **브라우저에서 실측**(2026-09-23)
+function cadBannerFS(bandH){ return +(bandH * CAD_BANNER_FILL).toFixed(2); }
+
 const CAD_BANNER_EM_SCALE  = 1.10;    // 계열 글자 확대 배수 (6 → 6.6)
 const CAD_BANNER_EM_STROKE = 0.055;   // 테두리 두께 (글자크기 대비)
 
@@ -4735,11 +4754,17 @@ function cadBlockSVG(b, xL, yTop){
   return {svg:door+box+s, height};
 }
 // 페이지 안 타입(HD/OB) 전환 헤더 밴드 — 선 / 가운데 굵은 글자 / 선
+/* 페이지 중간 띠 — 위 띠와 **같은 비율**로 채웁니다.
+   ⚠ 띠 높이가 위 띠(12.5)와 달라 **10.5** 입니다. 숫자를 손으로 적지 말고
+      `cadBannerFS(높이)` 로 구합니다 — `CAD_BANNER_FILL` 을 고치면 둘이 같이 바뀝니다. */
+const CAD_MID_BANNER_H = 10.5;         // 윗줄↔아랫줄 사이(mm)
 function cadMidBanner(text, yTop){
   const F="'굴림','Gulim','Malgun Gothic',sans-serif";
+  const fs = cadBannerFS(CAD_MID_BANNER_H);
+  const y  = yTop + CAD_MID_BANNER_H/2 + fs*CAD_BANNER_MID;   // 글자 한가운데를 띠 한가운데에
   return `<line x1="8.75" y1="${yTop.toFixed(2)}" x2="201.25" y2="${yTop.toFixed(2)}" stroke="#000" stroke-width="0.18"/>`
-    +`<text x="105" y="${(yTop+8).toFixed(2)}" font-family="${F}" font-size="6" font-weight="700" fill="#000" text-anchor="middle">${cadBannerTspans(text,6)}</text>`
-    +`<line x1="8.75" y1="${(yTop+10.5).toFixed(2)}" x2="201.25" y2="${(yTop+10.5).toFixed(2)}" stroke="#000" stroke-width="0.18"/>`;
+    +`<text x="105" y="${y.toFixed(2)}" font-family="${F}" font-size="${fs}" font-weight="700" fill="#000" text-anchor="middle">${cadBannerTspans(text,fs)}</text>`
+    +`<line x1="8.75" y1="${(yTop+CAD_MID_BANNER_H).toFixed(2)}" x2="201.25" y2="${(yTop+CAD_MID_BANNER_H).toFixed(2)}" stroke="#000" stroke-width="0.18"/>`;
 }
 // A4 한 장 = 틀+헤더+상단 제품명 띠 + (타입 바뀌면 중간 밴드) + 배치된 블록들
 /* 블록 시작 x(mm). 내용 박스는 8.75~201.25(폭 192.5).
