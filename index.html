@@ -17667,7 +17667,9 @@ function etpBuildRows(){
 // ── 마지막으로 반영된 날 ─────────────────────────────────────────────
 function etpLastDate(type){
   let d = '';
-  etpRows().forEach(r => { if(r.t === type && r.d > d) d = r.d; });
+  /* 불량은 출고로 적히지만 납품이 아닙니다. 세면 오늘 불량 한 장이
+     「납품서 업로드가 밀렸습니다」 경고를 가려 버립니다. */
+  etpRows().forEach(r => { if(r.t === type && r.d > d && !etpIsDefect(r)) d = r.d; });
   return d;
 }
 /* 두 날짜 사이가 몇 영업일인가. 주말·공휴일은 빼야 하므로 기존 _addBizDays 를
@@ -18170,7 +18172,7 @@ function etpHistoryHtml(size){
       '<span style="font-weight:700;color:' + (col[r.t] || 'var(--tx2)') + ';width:28px;flex:none">' + (kor[r.t] || r.t) + '</span>' +
       '<span style="font-family:\'JetBrains Mono\',monospace;font-weight:800;width:40px;flex:none;text-align:right">' + q + '</span>' +
       (r.od ? '<span title="발주일" style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--acc);border:1px solid var(--acc);border-radius:7px;padding:0 4px;flex:none">발주 ' + etpMd(r.od) + '</span>' : '') +
-      '<span style="color:var(--tx2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + etpEsc(r.src || '') + (r.reason ? ' <span style="color:var(--acc2)">[' + etpEsc(r.reason) + ']</span>' : '') + (r.memo ? ' <span style="color:var(--tx3)">· ' + etpEsc(r.memo) + '</span>' : '') + '</span>' +
+      '<span style="color:var(--tx2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + etpEsc(r.src || '') + (r.reason ? ' <span style="color:var(--acc2)">[' + etpEsc([r.reason, r.defType, etpIsDefect(r) ? etpDefExchOf(r) : ''].filter(Boolean).join(' · ')) + ']</span>' : '') + (r.memo ? ' <span style="color:var(--tx3)">· ' + etpEsc(r.memo) + '</span>' : '') + '</span>' +
       '<span onclick="event.stopPropagation();etpDeleteRow(\'' + r.id + '\')" title="이 기록 지우기" style="flex:none;color:var(--tx3);cursor:pointer;padding:0 3px">🗑</span>' +
     '</div>';
   }).join('') + '</div>';
@@ -18360,6 +18362,7 @@ function renderEtp(){
     etpCheckCardHtml() +
     etpDraftCardHtml() +
     etpPoCardHtml() +
+    etpDefectCardHtml() +
     etpLookupCardHtml() +
     etpMeasureCardHtml();
 
@@ -18721,10 +18724,12 @@ function etpCartAdd(quiet){
   if(etpManualType!=='adj' && qty<=0){ showToast('입고·출고 수량은 0보다 커야 합니다'); return false; }
   if(etpManualType==='adj' && qty===0){ showToast('조정 수량이 0입니다'); return false; }
 
+  const isDef = etpManualType==='out' && etpManualReason===ETP_DEF_REASON;
   etpCart.push({ d, od:(etpManualType==='in' ? (etpOd||'') : ''), t:etpManualType,
                  size:norm.size, qty:(etpManualType==='adj' ? qty : Math.abs(qty)),
                  src:(etpSrc==null?'':etpSrc), memo:etpMemo,
-                 reason:(etpManualType==='out' ? etpManualReason : '') });
+                 reason:(etpManualType==='out' ? etpManualReason : ''),
+                 defType:(isDef ? etpDefTypePick : ''), exch:(isDef ? etpDefExchPick : '') });
 
   /* 사이즈·수량만 비웁니다. 날짜·발주일·출처·비고는 그대로 둡니다.
      칸도 바로 비웁니다 — 다시 그리기 전에 etpKeepFields 가 옛 값을 도로
@@ -18754,7 +18759,7 @@ function etpCartHtml(){
     </div>
     ${etpCart.map((c,i)=>`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--b1)">
       <span style="flex:none;width:26px;font-size:10px;font-weight:800;color:${col[c.t]}">${kor[c.t]}</span>
-      <span style="flex:1;min-width:88px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--tx1)">${etpEsc(c.size).replace('x','×')}</span>
+      <span style="flex:1;min-width:88px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--tx1)">${etpEsc(c.size).replace('x','×')}${c.defType?`<span style="font-family:'Noto Sans KR',sans-serif;font-size:10px;font-weight:700;color:var(--acc4);margin-left:6px">🚫 ${etpEsc(c.defType)} · ${etpEsc(c.exch||'')}</span>`:''}</span>
       ${c.t==='in' ? `<span style="flex:none;font-size:9.5px;color:var(--tx3)">발주일</span>
       <input type="date" value="${c.od||''}" onchange="etpCartSetOd(${i},this.value)"
         style="flex:none;width:132px;padding:3px 5px;font-size:11px;border:1px solid var(--b2);border-radius:5px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif">` : ''}
@@ -18781,6 +18786,7 @@ function etpManualHtml(){
     <button class="q-btn" onclick="etpSetDefect()" style="width:100%;margin-bottom:12px;padding:10px;${etpManualType==='out'&&etpManualReason==='불량반품'?'background:var(--acc4);border-color:var(--acc4);color:#fff;font-weight:800':'font-weight:700'}">🚫 인쇄불량 빼기 <span style="font-weight:400;font-size:11px;opacity:.85">— 출고 · 사유 불량반품으로 바로</span></button>
     ${etpManualType==='out' ? `<span class="lbl">사유</span>
       <div class="quick-btns" style="margin-bottom:12px">${rbtn('납품')}${rbtn('파손')}${rbtn('불량반품')}</div>` : ''}
+    ${etpManualType==='out' && etpManualReason===ETP_DEF_REASON ? etpDefPickHtml() : ''}
     ${etpManualType==='in' ? `<span class="lbl">발주일 <span style="font-weight:400;color:var(--tx3)">— 인수증에 적힌 발주일. 담은 뒤 줄마다 고칠 수 있습니다</span></span>
       <input class="inp" id="etp-in-od" type="date" value="${etpOd||''}" onchange="etpKeepFields()" style="margin-bottom:12px">` : ''}
     <span class="lbl">사이즈 찾기 <span style="font-weight:400;color:var(--tx3)">— 모델명으로도 찾습니다</span></span>
@@ -18885,7 +18891,8 @@ function etpSaveManual(){
 
   const n=etpCart.length, q=etpCart.reduce((s,c)=>s+Math.abs(c.qty),0);
   etpCart.forEach(c=>etpAddRow({ d:c.d, od:c.od, t:c.t, size:c.size, qty:c.qty,
-                                 src:c.src, memo:c.memo, reason:c.reason }));
+                                 src:c.src, memo:c.memo, reason:c.reason,
+                                 defType:c.defType, exch:c.exch }));
   if(!etpCommit()) return;
   showToast(n + '건 · ' + q + '장 넣었습니다');
   etpCart=[]; etpSizePick=''; etpMemo=''; etpSrc=null;
@@ -19101,11 +19108,15 @@ function etpSaveCount(){
    d(입고일)와는 다른 날이라 한 칸으로 못 씁니다. 옛 줄은 비어 있어도 그대로 돕니다. */
 function etpAddRow(o){
   const now=new Date().toISOString();
-  etpLedger.push({
-    id: etpUid('etp_'), d:o.d, od:o.od||'', t:o.t, size:o.size, qty:Number(o.qty)||0,
+  const row={
+    id: o.id || etpUid('etp_'), d:o.d, od:o.od||'', t:o.t, size:o.size, qty:Number(o.qty)||0,
     src:o.src||'', po:o.po||'', poId:o.poId||'', reason:o.reason||'', memo:o.memo||'',
     ts: now, at: now, by:(typeof getActor==='function'?getActor():'')||''
-  });
+  };
+  // 불량이면 유형·교환 상태를 같이 둡니다 (아래 「🚫 불량 기록」 참고)
+  if(o.defType) row.defType=o.defType;
+  if(o.exch)    row.exch=o.exch;
+  etpLedger.push(row);
 }
 /* 저장이 실패하면 조용히 넘어가면 안 됩니다 — 넣으신 것이 날아갑니다.
    저장함이 막힌 브라우저(사생활 보호 창)에서 실제로 일어납니다. */
@@ -19132,6 +19143,293 @@ function etpDeleteRow(id){
   etpDeleted[id]=new Date().toISOString();
   if(!etpCommit()) return;
   showToast('지웠습니다');
+  renderEtp();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   🚫 불량 기록                                                  2026-09-29
+   직원이 관리하는 엑셀(정규격_유리_재고관리 · 「정규격_불량이력」 시트)과
+   같은 칸을 둡니다 — 불량 유형 · 교환 상태 · 모아보기 · 불량률.
+
+   ── 재고 셈은 그대로입니다 ─────────────────────────────────────────
+   불량은 예전처럼 「출고 · 사유 불량반품」 한 줄입니다. 유형(defType)과
+   교환 상태(exch)만 덧붙입니다. etpStockMap 은 고치지 않았습니다.
+
+   ── 교환 상태는 나중에 바꿉니다 ───────────────────────────────────
+   바꿀 때 updatedAt 을 찍습니다. 안 찍으면 다른 기기와 합칠 때(mergeById)
+   옛 값이 이겨 도로 돌아갑니다.
+
+   ── 교환으로 새로 받은 유리는 여기서 늘리지 않습니다 ─────────────
+   인수증대로 「입고」로 넣으십시오. 「교환완료」는 표시일 뿐입니다.
+   여기서도 늘리면 한 장이 두 번 늘어납니다.
+
+   ── 상태를 안 적은 줄 ─────────────────────────────────────────────
+   직원 엑셀은 교환 상태 칸이 대부분 비어 있습니다. 비어 있는 것을
+   「미처리」로 바꿔 넣지 않습니다 — 그러면 교환 안 끝난 불량이 수십 장으로
+   부풀어 보입니다. 비어 있으면 「상태 안 적음」으로 둡니다.
+   ══════════════════════════════════════════════════════════════════════ */
+const ETP_DEF_REASON = '불량반품';
+const ETP_DEF_TYPES  = ['스크래치', '깨짐', '사이즈불량', '이물질·기포', '기타'];   // 직원 엑셀과 같은 다섯 가지
+const ETP_DEF_EXCH   = ['미처리', '교환요청', '교환완료'];
+const ETP_DEF_SRC    = '직원 엑셀 불량이력';
+var etpDefTypePick = ETP_DEF_TYPES[0];   // 수기로 넣을 때 고른 유형
+var etpDefExchPick = ETP_DEF_EXCH[0];    // 수기로 넣을 때 고른 교환 상태
+var etpDefShowAll  = false;              // 교환 끝난 것까지 보기
+var etpDefImpOpen  = false;              // 들여오기 칸 펼침
+var etpDefImpRows  = null;               // 들여오기 미리보기
+
+function etpIsDefect(r){ return !!r && r.t === 'out' && (r.reason === ETP_DEF_REASON || !!r.defType); }
+function etpDefExchOf(r){ return (r && r.exch) || ''; }
+function etpDefRows(){ return etpRows().filter(etpIsDefect); }
+
+// 수기 넣기 창 — 사유가 「불량반품」일 때만 나옵니다
+function etpDefPickHtml(){
+  const b = (cur, v, fn) => `<button class="q-btn" onclick="${fn}('${v}')" style="${cur === v ? 'background:var(--acc4);border-color:var(--acc4);color:#fff;font-weight:700' : ''}">${v}</button>`;
+  return `<span class="lbl">불량 유형</span>
+    <div class="quick-btns" style="margin-bottom:12px">${ETP_DEF_TYPES.map(v => b(etpDefTypePick, v, 'etpSetDefType')).join('')}</div>
+    <span class="lbl">교환 상태 <span style="font-weight:400;color:var(--tx3)">— 나중에 아래 「🚫 불량 기록」에서 바꿀 수 있습니다</span></span>
+    <div class="quick-btns" style="margin-bottom:12px">${ETP_DEF_EXCH.map(v => b(etpDefExchPick, v, 'etpSetDefExch')).join('')}</div>`;
+}
+function etpSetDefType(v){ etpDefTypePick = v; etpKeepFields(); etpRenderInput(); }
+function etpSetDefExch(v){ etpDefExchPick = v; etpKeepFields(); etpRenderInput(); }
+
+// 교환 상태 바꾸기
+function etpDefSetExch(id, v){
+  const r = etpLedger.find(x => x && x.id === id);
+  if(!r) return;
+  r.exch = v || '';
+  r.updatedAt = new Date().toISOString();   // 다른 기기와 합칠 때 이 값이 이깁니다
+  if(!etpCommit()) return;
+  showToast(r.size.replace('x', '×') + ' 불량 — ' + (v || '상태 안 적음'));
+  renderEtp();
+}
+function etpDefToggleAll(){ etpDefShowAll = !etpDefShowAll; renderEtp(); }
+function etpDefNew(){ etpOpenInput('manual'); etpSetDefect(); }
+
+function etpDefectCardHtml(){
+  const all = etpDefRows().sort((a, b) => String(b.d).localeCompare(String(a.d)) || String(b.ts || '').localeCompare(String(a.ts || '')));
+  const q = r => Number(r.qty) || 0;
+  const sum = list => list.reduce((s, r) => s + q(r), 0);
+  const byEx = v => sum(all.filter(r => etpDefExchOf(r) === v));
+  const types = {};
+  all.forEach(r => { const t = r.defType || '유형 안 적음'; types[t] = (types[t] || 0) + q(r); });
+
+  // 사이즈별 불량률 = 불량 ÷ 받은 장수. 받은 것이 없으면 셀 수 없습니다
+  const st = etpStockMap(), bad = {};
+  all.forEach(r => { bad[r.size] = (bad[r.size] || 0) + q(r); });
+  const rate = Object.keys(bad).filter(s => bad[s] > 0)
+    .map(s => ({ s, bad:bad[s], got:(st[s] || { in:0 }).in }))
+    .map(x => Object.assign(x, { pct: x.got > 0 ? x.bad / x.got * 100 : null }))
+    .sort((a, b) => ((b.pct == null ? -1 : b.pct) - (a.pct == null ? -1 : a.pct)) || (b.bad - a.bad));
+
+  const shown = etpDefShowAll ? all : all.filter(r => etpDefExchOf(r) !== '교환완료');
+  const exSel = r => `<select onchange="etpDefSetExch('${r.id}', this.value)" onclick="event.stopPropagation()"
+      style="flex:none;padding:2px 4px;font-size:11px;border:1px solid var(--b2);border-radius:5px;background:var(--s2);color:${etpDefExchOf(r) === '교환완료' ? 'var(--tx3)' : etpDefExchOf(r) ? 'var(--acc4)' : 'var(--tx2)'};font-family:'Noto Sans KR',sans-serif">
+      <option value=""${etpDefExchOf(r) ? '' : ' selected'}>상태 안 적음</option>
+      ${ETP_DEF_EXCH.map(v => `<option value="${v}"${etpDefExchOf(r) === v ? ' selected' : ''}>${v}</option>`).join('')}
+    </select>`;
+  const stat = (t, v, col) => `<span style="font-size:12px;color:var(--tx2)">${t} <b style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:${col || 'var(--tx1)'}">${v}</b>장</span>`;
+
+  return `<div class="card" id="etp-defect" style="border-left:3px solid var(--acc4)">
+    <div class="card-ttl"><span>🚫 불량 기록</span></div>
+    <div class="info-note" style="margin-top:6px">
+      받은 유리 중 쓸 수 없는 것입니다. 기록하면 <b>그 장수만큼 재고에서 빠집니다</b>(출고 · 사유 불량반품).<br>
+      교환으로 새로 받은 유리는 여기서 늘리지 마시고 <b>인수증대로 「입고」로</b> 넣으십시오 — 두 번 늘어납니다.
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline;margin-top:10px">
+      ${stat('누적 불량', sum(all), all.length ? 'var(--acc4)' : '')}
+      ${stat('미처리', byEx('미처리'), byEx('미처리') ? 'var(--acc4)' : '')}
+      ${stat('교환요청', byEx('교환요청'), byEx('교환요청') ? 'var(--acc2)' : '')}
+      ${stat('교환완료', byEx('교환완료'))}
+    </div>
+    ${all.length ? `<div style="margin-top:6px;font-size:11px;color:var(--tx3)">${all.length}건 · 유형별 ${Object.keys(types).map(t => etpEsc(t) + ' ' + types[t]).join(' · ')}${byEx('') ? ' · 교환 상태 안 적음 ' + byEx('') + '장' : ''}</div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="f-btn" onclick="etpDefNew()" style="font-weight:700">＋ 불량 넣기</button>
+      <button class="f-btn${etpDefImpOpen ? ' on' : ''}" onclick="etpDefImpToggle()">📋 직원 엑셀에서 들여오기</button>
+      ${all.length ? `<button class="f-btn${etpDefShowAll ? ' on' : ''}" onclick="etpDefToggleAll()">교환 끝난 것도 보기</button>` : ''}
+    </div>
+    ${etpDefImpOpen ? etpDefImpHtml() : ''}
+    ${shown.length ? `<div style="margin-top:10px;border:1px solid var(--b1);border-radius:8px;overflow:hidden">` +
+      shown.map(r => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-bottom:1px solid var(--b1)">
+        <span style="flex:none;width:40px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3)">${etpMd(r.d)}</span>
+        <span style="flex:none;min-width:78px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--tx1)">${etpEsc(r.size).replace('x', '×')}</span>
+        <span style="flex:none;width:34px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:900;color:var(--acc4)">${q(r)}</span>
+        <span style="flex:none;font-size:11px;font-weight:700;color:var(--tx2)">${etpEsc(r.defType || '유형 안 적음')}</span>
+        ${exSel(r)}
+        <span style="flex:1;min-width:60px;font-size:10.5px;color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${etpEsc([r.src, r.memo].filter(Boolean).join(' · '))}</span>
+        <span onclick="etpDeleteRow('${r.id}')" title="이 기록 지우기" style="flex:none;color:var(--tx3);cursor:pointer;padding:0 3px">🗑</span>
+      </div>`).join('') + `</div>`
+      : `<div style="margin-top:10px;font-size:12px;color:var(--tx3)">${all.length ? '교환이 안 끝난 불량이 없습니다.' : '아직 불량 기록이 없습니다.'}</div>`}
+    ${rate.length ? `<div style="margin-top:10px;font-size:11px;color:var(--tx2);line-height:1.8"><b>사이즈별 불량률</b> <span style="color:var(--tx3)">(불량 ÷ 받은 장수)</span><br>` +
+      rate.slice(0, 10).map(x => `<span style="white-space:nowrap;margin-right:10px"><span style="font-family:'JetBrains Mono',monospace;font-weight:700">${etpEsc(x.s).replace('x', '×')}</span> ${x.bad}/${x.got}장 <b style="color:${x.pct != null && x.pct >= 10 ? 'var(--acc4)' : 'var(--tx1)'}">${x.pct == null ? '받은 기록 없음' : etpDot(x.pct) + '%'}</b></span>`).join('') +
+      (rate.length > 10 ? ` <span style="color:var(--tx3)">외 ${rate.length - 10}종</span>` : '') + `</div>` : ''}
+  </div>`;
+}
+
+/* ── 직원 엑셀에서 들여오기 ────────────────────────────────────────
+   「정규격_불량이력」 시트에서 표를 통째로 복사해 붙이면 됩니다.
+   칸 차례: 불량등록일자 · SKU코드 · 제품명 · 불량수량 · 불량유형 · 교환진행상태 · 비고 · 확인자
+
+   · 날짜 칸이 빈 줄은 **윗줄 날짜를 이어받습니다** — 직원 엑셀은 같은 날
+     여러 줄이면 첫 줄에만 날짜를 적습니다(2026-09-29 파일: 25줄 중 19줄).
+   · 몇 번을 붙여도 두 벌로 늘지 않습니다. 줄마다 id 를 내용으로 만들어,
+     이미 들여온 줄은 건너뛰고 교환 상태가 바뀐 것만 고칩니다.
+     직원 엑셀은 계속 갱신되므로 되풀이해 붙이시는 것을 전제로 했습니다.
+   · 앱에 따로 넣어 두신 같은 불량(같은 사이즈 · 같은 장수)이 있으면
+     겹칠 수 있어 **처음부터 체크를 꺼 둡니다.** 보시고 켜십시오.
+   · 관통보링 사이즈(592×693 · 592×1538 등)는 엑셀에 좌우가 없어 넣지 않습니다.
+     앱은 좌우를 따로 셉니다(서로 바꿔 쓸 수 없습니다). */
+function etpDefImpToggle(){ etpDefImpOpen = !etpDefImpOpen; etpDefImpRows = null; renderEtp(); }
+
+function etpDefDate(s){
+  s = String(s == null ? '' : s).trim();
+  if(!s) return '';
+  let m;
+  if(/^\d{5}$/.test(s)){                                   // 엑셀 날짜 번호 (CLAUDE.md 3-1 예외 — UTC 로 셉니다)
+    return new Date(Date.UTC(1899, 11, 30) + Number(s) * 86400000).toISOString().slice(0, 10);
+  }
+  const p = (y, mo, d) => {
+    y = Number(y); mo = Number(mo); d = Number(d);
+    const t = new Date(Date.UTC(y, mo - 1, d));            // 2/31 같은 것은 달이 넘어가 걸러집니다
+    if(t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return null;
+    return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  };
+  if((m = s.match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})/)))   return p(m[1], m[2], m[3]);
+  if((m = s.match(/^(\d{2})\D+(\d{1,2})\D+(\d{1,2})/)))   return p('20' + m[1], m[2], m[3]);
+  if((m = s.match(/^(\d{1,2})\s*[\/.\-월]\s*(\d{1,2})/))) return p(todayStr().slice(0, 4), m[1], m[2]);
+  return null;
+}
+function etpDefTypeOf(s){
+  s = String(s || '').trim();
+  if(!s) return '기타';
+  if(ETP_DEF_TYPES.includes(s)) return s;
+  if(/이물|기포/.test(s)) return '이물질·기포';
+  if(/스크|긁/.test(s))   return '스크래치';
+  if(/깨|파손|금/.test(s)) return '깨짐';
+  if(/사이즈|치수/.test(s)) return '사이즈불량';
+  return '기타';
+}
+
+function etpDefParse(txt){
+  const out = [], seenKey = {};
+  let lastD = '';
+  String(txt || '').split(/\r?\n/).forEach(line => {
+    if(!line.trim()) return;
+    if(/불량등록일자|SKU\s*코드/.test(line)) return;       // 머리글 줄
+    const c = line.split('\t').map(x => x.trim());
+    if(c.length < 4) { out.push({ raw:line, err:'칸이 모자랍니다 — 엑셀 표를 통째로 복사해 붙여 주십시오' }); return; }
+    let d = etpDefDate(c[0]), inherited = false;
+    if(d === null){ out.push({ raw:line, err:'날짜를 못 읽었습니다' }); return; }
+    if(!d){
+      if(!lastD){ out.push({ raw:line, err:'날짜가 비어 있고 윗줄도 없습니다' }); return; }
+      d = lastD; inherited = true;
+    }
+    lastD = d;
+    const norm = etpNormSize(c[1]);
+    if(!norm.ok){ out.push({ raw:line, err:'사이즈를 못 읽었습니다' }); return; }
+    if(norm.needLr){ out.push({ raw:line, err:'관통보링인데 좌우(L/R)가 없어 넣지 않습니다' }); return; }
+    const qty = parseInt(String(c[3]).replace(/[^\d\-]/g, ''), 10);
+    if(isNaN(qty) || qty < 0){ out.push({ raw:line, err:'수량을 못 읽었습니다' }); return; }
+    const defType = etpDefTypeOf(c[4]);
+    const exch = ETP_DEF_EXCH.includes(c[5]) ? c[5] : '';
+    const memo = [ (defType === '기타' && c[4] && c[4] !== '기타') ? c[4] : '',
+                   c[6] || '', c[7] ? '확인 ' + c[7] : '',
+                   inherited ? '날짜 빈칸 → 윗줄 날짜' : '' ].filter(Boolean).join(' · ');
+    // 같은 내용이 한 붙여넣기 안에 두 번 오면 차례를 붙여 따로 셉니다
+    const key = [d, norm.size.replace(/\s+/g, ''), qty, defType].join('_');
+    seenKey[key] = (seenKey[key] || 0) + 1;
+    out.push({ raw:line, d, inherited, size:norm.size, qty, defType, exch, memo,
+               unknown:norm.unknown, id:'etp_def_' + key + '_' + seenKey[key] });
+  });
+  // 앱 장부와 견줍니다
+  const mine = etpDefRows();
+  out.forEach(r => {
+    if(r.err) return;
+    const have = etpLedger.find(x => x && x.id === r.id);
+    if(etpDeleted[r.id]){ r.state = 'deleted'; r.on = false; return; }
+    if(have){ r.state = (etpDefExchOf(have) !== r.exch) ? 'upd' : 'have'; r.on = (r.state === 'upd'); r.was = etpDefExchOf(have); return; }
+    const twin = mine.filter(x => !String(x.id).startsWith('etp_def_') && x.size === r.size && (Number(x.qty) || 0) === r.qty);
+    if(twin.length){ r.state = 'twin'; r.on = false; r.twin = twin.map(x => etpMd(x.d) + ' ' + x.qty + '장').join(', '); return; }
+    r.state = 'new'; r.on = true;
+  });
+  return out;
+}
+
+function etpDefImpHtml(){
+  const rows = etpDefImpRows;
+  let prev = '';
+  if(rows){
+    const ok = rows.filter(r => !r.err), bad = rows.filter(r => r.err);
+    const picked = ok.filter(r => r.on);
+    const tag = r => ({
+      new:'<span style="color:var(--acc3);font-weight:700">새로 넣음</span>',
+      upd:'<span style="color:var(--acc);font-weight:700">교환 상태만 바꿈 (' + etpEsc(r.was || '안 적음') + ' → ' + etpEsc(r.exch || '안 적음') + ')</span>',
+      have:'<span style="color:var(--tx3)">이미 들여옴</span>',
+      deleted:'<span style="color:var(--tx3)">지우신 줄 — 되살리지 않습니다</span>',
+      twin:'<span style="color:var(--acc2);font-weight:700">앱에 이미 같은 불량 (' + etpEsc(r.twin) + ') — 겹치면 끈 채로 두십시오</span>'
+    })[r.state] || '';
+    prev = `<div style="margin-top:10px;border:1px solid var(--b1);border-radius:8px;overflow:hidden;max-height:46vh;overflow-y:auto">` +
+      rows.map((r, i) => r.err
+        ? `<div style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--b1);background:rgba(220,38,38,.06)">
+             <span style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${etpEsc(r.raw)}</span>
+             <span style="flex:none;font-size:11px;color:var(--acc4);font-weight:700">${etpEsc(r.err)}</span></div>`
+        : `<label style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border-bottom:1px solid var(--b1);cursor:pointer;${r.on ? '' : 'opacity:.6'}">
+             <input type="checkbox" ${r.on ? 'checked' : ''} ${(r.state === 'have' || r.state === 'deleted') ? 'disabled' : ''} onchange="etpDefImpPick(${i}, this.checked)">
+             <span style="flex:none;width:40px;font-family:'JetBrains Mono',monospace;font-size:11px;color:${r.inherited ? 'var(--acc2)' : 'var(--tx3)'}" title="${r.inherited ? '날짜 칸이 비어 윗줄 날짜를 이어받았습니다' : ''}">${etpMd(r.d)}${r.inherited ? '*' : ''}</span>
+             <span style="flex:none;min-width:74px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:800">${etpEsc(r.size).replace('x', '×')}</span>
+             <span style="flex:none;width:28px;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:900;color:var(--acc4)">${r.qty}</span>
+             <span style="flex:none;font-size:11px">${etpEsc(r.defType)}${r.exch ? ' · ' + etpEsc(r.exch) : ''}</span>
+             <span style="flex:1;min-width:120px;font-size:10.5px">${tag(r)}${r.memo ? ' <span style="color:var(--tx3)">· ' + etpEsc(r.memo) + '</span>' : ''}</span>
+           </label>`).join('') + `</div>` +
+      `<div style="margin-top:8px;font-size:12px;color:var(--tx2)">읽은 줄 <b style="color:var(--tx1)">${ok.length}</b>개 · 합계 <b>${ok.reduce((s, r) => s + r.qty, 0)}</b>장` +
+        `${bad.length ? ` · <b style="color:var(--acc4)">못 읽은 줄 ${bad.length}개</b>` : ''}` +
+        `${ok.some(r => r.inherited) ? ` · <span style="color:var(--acc2)">날짜 옆 * = 윗줄 날짜를 이어받음</span>` : ''}</div>` +
+      (picked.length
+        ? `<button class="act-btn" style="background:var(--acc4);color:#fff;margin-top:10px" onclick="etpDefImpSave()">✓ ${picked.length}줄 반영 (${picked.filter(r => r.state === 'new' || r.state === 'twin').reduce((s, r) => s + r.qty, 0)}장 재고에서 뺌)</button>`
+        : `<div style="margin-top:8px;font-size:12px;color:var(--tx3)">반영할 줄이 없습니다.</div>`);
+  }
+  return `<div style="margin-top:10px;padding:10px;background:var(--s2);border:1px solid var(--b1);border-radius:8px">
+    <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:6px">
+      직원 엑셀 <b>「정규격_불량이력」</b> 시트에서 표를 통째로(머리글 포함해도 됩니다) 복사해 붙여 주십시오.
+      <b>몇 번을 붙여도 두 벌로 늘지 않습니다</b> — 이미 들여온 줄은 건너뛰고, 교환 상태가 바뀐 것만 고칩니다.
+    </div>
+    <textarea id="etp-def-paste" class="inp" rows="6" placeholder="불량등록일자	SKU코드	제품명	불량수량	불량유형	교환진행상태	…"
+      style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;resize:vertical;margin-bottom:6px"></textarea>
+    <button class="act-btn" style="background:var(--s1);border:1px solid var(--b2);color:var(--tx1)" onclick="etpDefImpPreview()">🔎 미리보기</button>
+    ${prev}
+  </div>`;
+}
+function etpDefImpPreview(){
+  const el = document.getElementById('etp-def-paste');
+  const txt = el ? el.value : '';
+  etpDefImpRows = etpDefParse(txt);
+  if(!etpDefImpRows.length){ showToast('읽을 줄이 없습니다'); return; }
+  renderEtp();
+  const ta = document.getElementById('etp-def-paste'); if(ta) ta.value = txt;   // 다시 그려도 붙인 글이 남게
+  etpJump('etp-defect');
+}
+function etpDefImpPick(i, on){
+  if(!etpDefImpRows || !etpDefImpRows[i]) return;
+  etpDefImpRows[i].on = !!on;
+  const ta = document.getElementById('etp-def-paste'), txt = ta ? ta.value : '';
+  renderEtp();
+  const t2 = document.getElementById('etp-def-paste'); if(t2) t2.value = txt;
+}
+function etpDefImpSave(){
+  const rows = (etpDefImpRows || []).filter(r => !r.err && r.on);
+  if(!rows.length){ showToast('반영할 줄이 없습니다'); return; }
+  const add = rows.filter(r => r.state === 'new' || r.state === 'twin');
+  const upd = rows.filter(r => r.state === 'upd');
+  const n = add.reduce((s, r) => s + r.qty, 0);
+  if(!confirm(`불량 ${add.length}줄 · ${n}장을 넣고` + (upd.length ? `, 교환 상태 ${upd.length}줄을 고칠까요?` : '까요?') +
+              `\n\n넣는 장수만큼 재고에서 빠집니다. 지우면 되돌릴 수 있습니다.`)) return;
+  add.forEach(r => etpAddRow({ id:r.id, d:r.d, t:'out', size:r.size, qty:r.qty, reason:ETP_DEF_REASON,
+                               defType:r.defType, exch:r.exch, src:ETP_DEF_SRC, memo:r.memo }));
+  const now = new Date().toISOString();
+  upd.forEach(r => { const x = etpLedger.find(y => y && y.id === r.id); if(x){ x.exch = r.exch; x.updatedAt = now; } });
+  if(!etpCommit()) return;
+  showToast(`불량 ${add.length}줄 · ${n}장 반영` + (upd.length ? ` · 교환 상태 ${upd.length}줄 고침` : ''));
+  etpDefImpRows = null; etpDefImpOpen = false;
   renderEtp();
 }
 
@@ -19312,8 +19610,9 @@ function etpRecvPanelHtml(po, missRows){
 function etpExport(){
   const rows=etpRows().slice().sort((a,b)=>String(a.d).localeCompare(String(b.d)) || String(a.ts||'').localeCompare(String(b.ts||'')));
   const kor={in:'입고', out:'출고', adj:'조정'};
-  const head=['날짜','발주일','구분','사이즈','수량','출처','비고'];
-  const body=rows.map(r=>[r.d, r.od||'', kor[r.t]||r.t, r.size, r.qty, r.src||'', [r.reason,r.memo].filter(Boolean).join(' / ')]);
+  const head=['날짜','발주일','구분','사이즈','수량','출처','비고','불량유형','교환상태'];
+  const body=rows.map(r=>[r.d, r.od||'', kor[r.t]||r.t, r.size, r.qty, r.src||'', [r.reason,r.memo].filter(Boolean).join(' / '),
+                          r.defType||'', etpIsDefect(r) ? etpDefExchOf(r) : '']);
   const name='에토프_인쇄유리_원장_'+todayStr().replace(/-/g,'')+'.xlsx';
   try{
     if(typeof XLSX!=='undefined'){
