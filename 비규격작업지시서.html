@@ -4298,6 +4298,15 @@ function cadPairGaps(rs){
      `codehead` 는 어느 쪽에서도 안 걸러지므로 이것으로 봅니다.
    ⚠ 세트 표식(`×2SET`)은 제목줄에만 붙으므로, 그것이 나올 수 있는 설정
      (`CAD_SET_BRACKET`·`CAD_SET_LETTER` 가 둘 다 꺼진 때)에서는 제목줄을 남깁니다. */
+/* 약어(코드) 글자 크기 — **제목줄과 머리줄이 같은 값을 씁니다** (사장님 2026-09-30
+   "BHBU 처럼 WFMD도 같은 약어 형태인거야. 근데 도면이 하나로 합쳐진 그룹이 생겼을뿐").
+
+   한 코드짜리 덩어리는 제목줄(`BHBU`)이 약어를 적고, 도면이 합쳐진 덩어리는
+   머리줄(`WFMD`·`WRMB`)이 적습니다. **자리가 다를 뿐 같은 약어**이므로 크기도 같아야 합니다.
+   예전에는 제목줄 7.5 · 머리줄 5.6 이라 나란히 놓으면 딴 것처럼 보였습니다.
+   ⚠ 두 곳에 숫자를 적지 마십시오 — **여기 한 곳**만 고치면 둘이 같이 바뀝니다(규칙 1). */
+const CAD_CODE_FS = 7.5;
+
 function cadHideTitle(rows){
   return (rows||[]).some(r=>r.k==='codehead') && (CAD_SET_BRACKET || CAD_SET_LETTER);
 }
@@ -4640,7 +4649,7 @@ function cadBlockSVG(b, xL, yTop){
     /* 약어는 **검정**입니다 (사장님 요청 2026-09-22 "약어들 파란색으로 폰트가 지정되어있는데
        검정색으로 바꿔줄래? BD2R, M, 등등 이런것들"). 색으로 뜻을 나누는 것은 **빨강(재단치수)**
        하나뿐입니다 — 파랑까지 있으면 무엇이 급한지 흐려집니다. */
-    s+=`<text x="${txX}" y="${ty.toFixed(2)}" font-family="${F}" font-size="7.5" font-weight="700" fill="#000000">${codeTxt}`
+    s+=`<text x="${txX}" y="${ty.toFixed(2)}" font-family="${F}" font-size="${CAD_CODE_FS}" font-weight="700" fill="#000000">${codeTxt}`
      + (titleSet ? `<tspan fill="#e00000" font-size="6.6"> ×${esc(titleSet)}</tspan>` : '')
      + `</text>`;
   }
@@ -4802,7 +4811,9 @@ function cadBlockSVG(b, xL, yTop){
     if(row.k==='codehead'){
       if(row.gap) ty+=lh*0.5;
       ty+=lh;
-      s+=`<text x="${(txX+4).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" font-weight="700" fill="#000">${esc(row.text)}</text>`;
+      // 약어는 제목줄과 **같은 왼쪽 끝**(txX)에 놓습니다 — 치수줄(txX+4)보다 한 칸 나옵니다.
+      // 한 코드짜리 덩어리의 제목줄과 자리가 같아야 「같은 약어」로 보입니다(사장님 2026-09-30).
+      s+=`<text x="${txX.toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="${CAD_CODE_FS}" font-weight="700" fill="#000">${esc(row.text)}</text>`;
       prevKind=row.k;
       return;
     }
