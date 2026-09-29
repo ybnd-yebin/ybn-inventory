@@ -4066,10 +4066,21 @@ function cadBlockRows(list){
        줄 수가 그대로여야 cadTextH(장 나누기)와 어긋나지 않습니다. */
   let grpSeq=0;                      // 갈린 쌍의 차례 — 덩어리 전체에서 이어 셉니다(색이 달라도)
   const multiCode = new Set(list.map(r=>r.code)).size > 1;
-  const labOf = r => r.oldStd ? String(r.oldStd.model||'') : (multiCode ? String(r.code||'') : '');
+  /* 약어를 어디에 적을지 — **구형 정규격과 비규격이 다릅니다** (사장님 확정 2026-09-30).
+
+       구형 정규격 : 옆에 그대로  →  `M 3073 / 295×729 = 2EA`
+       비규격      : **머리줄로 올림**  →  `WFMD` 아래에 사이즈들
+
+     구형은 모델명이 한 줄에 하나씩이라 옆에 적어도 읽히고, 줄을 아끼는 편이 낫습니다.
+     비규격은 한 코드 밑에 사이즈가 여럿이라 머리줄로 묶어야 읽힙니다.
+     ⚠ 12-8-2 대로 **한 덩어리에 구형과 비규격이 섞이지 않으므로** 덩어리마다 한 가지로 갈립니다. */
+  const isOldBlock = list.some(r=>r.oldStd);
+  const labOf = r => r.oldStd ? (String(r.oldStd.model||'') + ' /')
+                              : (multiCode ? String(r.code||'') : '');
   const byColor={}; list.forEach(r=>{ const c=r.color||'미지정'; (byColor[c]=byColor[c]||[]).push(r); });
   cadColorOrder(Object.keys(byColor)).forEach(color=>{
     rows.push({k:'color', text:colorKo(color)});
+    let lastLab = null;        // 색이 바뀌면 약어 머리줄을 다시 세웁니다(비규격만)
     const agg={};
     byColor[color].forEach(r=>{
       const c=calc(r);
@@ -4136,9 +4147,25 @@ function cadBlockRows(list){
         rows.push({k:'setmark', text:`${a.qty}SET`, span:a.segLines.length, inline:oneLineSet});
       }else{
         // 완성치수는 줄마다 한 행. 수량은 **마지막 줄 뒤에** 붙입니다.
+        /* 비규격은 약어를 **머리줄로 올립니다** (사장님 요청 2026-09-30).
+           예전에는 치수줄 왼쪽 칸에 붙어 `WFMD595×512 = 1EA` 로 코드와 숫자가 붙어 나왔습니다.
+
+               WFMD                      ← 머리줄
+                 595×512 = 1EA
+                 895×512 = 1EA
+               WRMB                      ← 코드가 바뀌면 반 줄 띄고 다시
+                 600×510 = 2EA
+
+           구형 정규격은 **옆에 그대로** 둡니다 — `M 3073 / 295×729 = 2EA`.
+           ⚠ **줄이 늘어납니다.** `cadTextH`(장 나누기)도 같이 세야 합니다(12-8-2 함정). */
+        if(!isOldBlock && a.lab && a.lab !== lastLab){
+          rows.push({k:'codehead', text:a.lab, gap:(lastLab!==null)});
+          lastLab = a.lab;
+        }
         a.frameLines.forEach((ln,i)=>{
           const last = i===a.frameLines.length-1;
-          rows.push({k:'frame', text: last ? `${ln} = ${qt}` : ln, lab:(i===0?a.lab:'')});
+          rows.push({k:'frame', text: last ? `${ln} = ${qt}` : ln,
+                     lab:(isOldBlock && i===0 ? a.lab : '')});
         });
         a.glassLines.forEach(ln=>rows.push({k:'glass', text:ln}));  // EURO500은 유리가 없어 줄이 안 생긴다
       }
@@ -4259,10 +4286,14 @@ function cadTextH(rows, lh){
   const rs=(rows||[]).filter(r=>r.k!=='code' && r.k!=='setmark');
   const colorGaps=rs.filter(r=>r.k==='color').length;
   const pairGaps=cadPairGaps(rs);
+  /* 약어 머리줄(codehead)은 **한 줄을 씁니다** — 아래 `lines` 에 그대로 셉니다.
+     앞에 다른 코드가 있었으면 숨 돌릴 틈(0.5줄)을 더 둡니다(`gap`).
+     ⚠ 이 값은 렌더러(`cadBlockSVG`)와 **똑같아야** 합니다. 한쪽만 고치면 박스를 넘습니다. */
+  const headGaps=rs.filter(r=>r.k==='codehead' && r.gap).length;
   /* 색상을 꺾쇠로 옮기면 색상 줄도 높이를 안 먹는다 — 색마다 한 줄씩 번다.
      색 사이 숨 돌릴 틈(0.5줄)은 그대로 둔다. */
   const lines = CAD_COLOR_AS_BRACKET ? rs.filter(r=>r.k!=='color').length : rs.length;
-  return (1+lines)*lh + colorGaps*lh*0.5 + pairGaps*lh*CAD_PAIR_GAP_R;
+  return (1+lines)*lh + colorGaps*lh*0.5 + headGaps*lh*0.5 + pairGaps*lh*CAD_PAIR_GAP_R;
 }
 /* 코드별 도면 세로 미세 조정(mm) — 양수면 아래로, 음수면 위로.
    아래 '짧은 쪽 가운데 맞추기'로 대부분 정리되고, 그래도 눈에 걸리는 코드만 여기서 손본다.
@@ -4740,6 +4771,15 @@ function cadBlockSVG(b, xL, yTop){
     }
     /* 쌍이 새로 시작하면(빨강 바로 뒤의 검정) 그 앞에만 틈을 준다.
        cadTextH 의 cadPairGaps 와 **같은 조건**이어야 한다 — 어긋나면 박스 아래선을 넘는다. */
+    /* 약어 머리줄 — 그 아래 치수줄들이 어느 코드인지 알려 줍니다 (사장님 요청 2026-09-30).
+       ⚠ 틈(0.5줄)과 줄(1줄)은 `cadTextH` 와 **똑같이** 잡아야 합니다. 어긋나면 박스를 넘습니다. */
+    if(row.k==='codehead'){
+      if(row.gap) ty+=lh*0.5;
+      ty+=lh;
+      s+=`<text x="${(txX+4).toFixed(2)}" y="${ty.toFixed(2)}" font-family="${F}" font-size="5.6" font-weight="700" fill="#000">${esc(row.text)}</text>`;
+      prevKind=row.k;
+      return;
+    }
     if(row.k==='frame' && prevKind==='glass') ty+=lh*CAD_PAIR_GAP_R;
     prevKind=row.k;
     ty+=lh;                         // 여기서부터 진짜 한 줄을 쓴다
