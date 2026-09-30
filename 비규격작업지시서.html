@@ -2042,7 +2042,7 @@ function asPieceOf(it){
   if(!color) return bad('구형 색이 아님 — 확인 필요');
   const fw=+m[3], fh=+m[4], piece=m[2]||'';
   return { code, piece, color, name:nm,
-           oldStd:{ model:(piece?piece+' ':'')+'AS', as:true, fw, fh, gw:fw-4, gh:fh-4 } };
+           oldStd:{ model:(piece||'조각'), as:true, fw, fh, gw:fw-4, gh:fh-4 } };
 }
 /* 'M 3073' 처럼 붙여 둔 이름으로 다시 찾는다. 옛 기록의 '6062'(번호만)도 받는다. */
 function oldStdFromModel(model){
@@ -3222,6 +3222,8 @@ function saveRows(){
 function ybnFixOldRows(){
   let n = 0;
   (ROWS || []).forEach(r => {
+    // AS 조각 줄머리에서 'AS' 를 뺐습니다 (2026-09-30) — 먼저 들어온 행도 맞춰야 다시 가져올 때 안 겹칩니다
+    if(r && r.oldStd && r.oldStd.as && / AS$/.test(r.oldStd.model||'')){ r.oldStd.model = r.oldStd.model.replace(/ AS$/, ''); n++; }
     if(!r || !r.fromApp) return;
     const nameAll = (r.name || '') + ' ' + (r.short || '');
     const isEuro = /Euro\s*500|유로\s*500/i.test(nameAll);
@@ -3673,25 +3675,33 @@ function _frameTxt(c){
 }
 function _glassTxt(c){ return c.glass.map(gl=>`${gl.gw}×${gl.gh}${gl.n>1?'×'+gl.n:''}`).join(' / '); }
 let checkOpen=true, checkDateFilter='all';
-let chkOpenDates=new Set();   // 손으로 펼쳐 둔 '지난 발주' 날짜
-/* 「오늘 것만 펼치기」 — 켜면 **오늘 발주일 하나만** 펼치고 나머지는 전부 접습니다
-   (사장님 요청 2026-09-22 "오늘꺼 외에는 숨기기(접기)버튼 있었으면 좋겠어 스크롤이 넘 길어져").
-   평소에는 **납품요청일이 아직 안 지난 날짜**가 전부 펼쳐지는데, 그게 여러 날이면 길어집니다.
-   ⚠ **끈 상태가 예전 그대로**입니다. 한 번 켜면 그 선택을 기억하니 다음에 또 누르지 않아도 됩니다.
-   ⚠ localStorage 읽기는 반드시 try/catch — 저장함이 막힌 브라우저에서 화면이 통째로 멈춥니다(9-3). */
-const CHK_ONLY_TODAY_KEY='nonspec-chk-onlytoday-v1';
-let chkOnlyToday=(()=>{ try{ return localStorage.getItem(CHK_ONLY_TODAY_KEY)==='1'; }catch(e){ return false; } })();
-function chkToggleOnlyToday(){
-  chkOnlyToday=!chkOnlyToday;
-  chkOpenDates.clear();          // 손으로 펼쳐 둔 것도 같이 정리 — 안 그러면 켜도 안 접힙니다
-  try{ localStorage.setItem(CHK_ONLY_TODAY_KEY, chkOnlyToday?'1':'0'); }catch(e){}
+let chkOpenDates=new Set();   // 손으로 펼쳐 둔 날짜 — 기본은 전부 접힘
+
+/* ── 날짜 칩이 곧 「대상 고르기」입니다 (사장님 2026-09-30) ───────────────
+   "위에서 이미 선택한거는 밑에서 또 선택하고 말고 하게 하지말고
+    발주에 세부사항내용도 일단 숨겨줘 보고싶을때만 볼게"
+
+   예전에는 고르는 장치가 **셋이나 겹쳐** 있었습니다.
+     ① 날짜 칩      → 보기만 걸렀습니다 (눌러도 아무것도 안 골라짐)
+     ② 체크박스     → 이것이 진짜 대상
+     ③ 「이 날짜 선택」·「전체 선택/해제」·「오늘 것만 펼치기」 → ②를 대신 눌러 주는 단추들
+   그래서 날짜를 골라도 아래에서 한 번 더 눌러야 했습니다.
+
+   이제 **칩 하나가 정합니다.** 누르면 그 날짜만 `include=true`, 나머지는 `false`.
+   ⚠ 아래 흐름(generate·cadGenerate·수납도어·발주 인계)은 예전 그대로
+      `include` 만 봅니다 — 고친 곳은 여기 한 곳뿐이라 회귀가 없습니다.
+   ⚠ **화면을 열 때는 안 건드립니다.** 칩을 누를 때만 다시 씁니다.
+      그래서 저장해 둔 선택이 새로고침으로 날아가지 않습니다.
+   ⚠ 줄마다 있는 체크박스는 **남겨 둡니다** — 「이 날짜 중 이 한 줄만 빼겠다」는
+      예외 장치입니다. 표를 펼쳤을 때만 보입니다.                        */
+function setCheckDate(d){
+  checkDateFilter=d;
+  const all = (d==='all');
+  ROWS.forEach(r=>{ if(r.code) r.include = all || (chkOrderDate(r)===d); });
   renderCheck();
 }
-function setCheckDate(d){ checkDateFilter=d; renderCheck(); }
 function toggleCheckOpen(){ checkOpen=!checkOpen; renderCheck(); }
 function chkToggleDate(d){ if(chkOpenDates.has(d)) chkOpenDates.delete(d); else chkOpenDates.add(d); renderCheck(); }
-function chkOpenAllPast(){ (window.__chkPastDates||[]).forEach(d=>chkOpenDates.add(d)); renderCheck(); }
-function chkCloseAllPast(){ chkOpenDates.clear(); renderCheck(); }
 /* 확인·수정 미리보기의 날짜 기준 = 발주일(구매오더 발행일). 납품요청일 아님. (2026-07-21 확정)
    납품서에 발주일이 안 찍혀 있으면 납품요청일에서 리드타임만큼 앞당겨 추정한다
    — generate()가 시트 머리글의 발주일을 채울 때 쓰는 방식과 같게 맞췄다. */
@@ -3700,7 +3710,8 @@ function chkOrderDate(r){
   const lead=+val('leadDays')||2;
   return (r.req ? bizBefore(r.req, lead) : '') || '(미지정)';
 }
-// 확인·수정 = 납품서에서 뽑은 내용 미리보기(읽기전용). 발주일별 그룹 + 필터 + 접기.
+/* 확인·수정 = 납품서에서 뽑은 내용 미리보기. 발주일별로 묶고, 칩으로 대상을 고릅니다.
+   세부 표는 **접혀 있습니다** — 날짜 제목을 눌러야 펼쳐집니다. */
 function renderCheck(){
   saveRows();   // 행이 바뀌는 길은 전부 여기로 모인다 — 보관도 여기 한 곳에서만
   const area=document.getElementById('checkArea'); if(!area) return;
@@ -3716,7 +3727,7 @@ function renderCheck(){
 
   const head=`<div class="check-head">📝 확인·수정 미리보기 <span class="ck-cnt">${on} / ${ROWS.length}건</span>
     <button class="ck-toggle" onclick="toggleCheckOpen()">${checkOpen?'▲ 숨기기':'▼ 보기'}</button>
-    <span class="ck-hint">날짜는 <b>발주일</b> 기준 · 체크 끄면 발주에서 제외</span></div>`;
+    <span class="ck-hint">날짜를 누르면 <b>그 날짜가 발주 대상</b>이 됩니다 · 제목을 누르면 내용이 펼쳐집니다</span></div>`;
   if(!checkOpen){ area.innerHTML=head; return; }
 
   const chips=['all',...dates].map(d=>{
@@ -3727,42 +3738,26 @@ function renderCheck(){
 
   const shownDates = checkDateFilter==='all' ? dates : [checkDateFilter];
 
-  /* 지난 발주는 접어서 아래로, 진행 중인 것만 위에 펼쳐 둔다.
-     '지났다'의 기준은 납품요청일. 그 날짜의 요청일이 전부 오늘보다 이르면 끝난 것으로 본다.
-     요청일이 없으면 발주일로 판단한다. 전부 지난 경우엔 화면이 비어 보이지 않게
-     가장 최신 하루는 펼쳐 둔다. 접힌 날짜도 제목을 누르면 열린다. */
-  const _today=ymd(new Date());
-  const isDone=d=>{
-    if(d==='(미지정)') return true;
-    const reqs=ROWS.filter(r=>r.code && chkOrderDate(r)===d).map(r=>r.req).filter(Boolean);
-    return reqs.length ? reqs.every(x=>x<_today) : String(d)<_today;
-  };
-  /* 「오늘 것만」이 켜져 있으면 오늘 발주일 하나만 펼칩니다.
-     오늘 발주가 없으면 아래 되받이로 **가장 최신 하루**가 펼쳐지므로 화면이 비지 않습니다. */
-  let liveDates = chkOnlyToday ? shownDates.filter(d=>d===_today)
-                               : shownDates.filter(d=>!isDone(d));
-  if(!liveDates.length && shownDates.length) liveDates=[shownDates[0]];
-  const liveSet=new Set(liveDates);
-  const isOpen=d=>liveSet.has(d)||chkOpenDates.has(d);
-  const openDates=shownDates.filter(isOpen);
-  const pastDates=shownDates.filter(d=>!isOpen(d));
-  window.__chkPastDates=shownDates.filter(d=>!liveSet.has(d));   // 지난 발주 전체(펼침 여부 무관)
-
-  const sectionOf=(d,open)=>{
+  const sectionOf=d=>{
     const rows=ROWS.map((r,i)=>({r,i})).filter(x=>chkOrderDate(x.r)===d && x.r.code);
     if(!rows.length) return '';
+    const open=chkOpenDates.has(d);
     const dcnt=rows.reduce((a,x)=>a+(x.r.qty||1),0);
     const reqs=[...new Set(rows.map(x=>x.r.req).filter(Boolean))].sort();
     const reqTxt=reqs.length?` · 납품요청 ${reqs.map(fmtDate).join(', ')}`:'';
-    const dAllOn=rows.every(x=>x.r.include!==false);
     const onCnt=rows.filter(x=>x.r.include!==false).length;
-    const hd=`<div class="ckd-hd" style="display:flex;align-items:center;gap:8px${open?'':';opacity:.62'}">
-        <button onclick="chkToggleDate('${d}')" title="${open?'접기':'펼치기'}" style="border:none;background:none;cursor:pointer;font-size:12px;color:#6b7280;padding:0 2px">${open?'▼':'▶'}</button>
-        <span style="cursor:pointer" onclick="chkToggleDate('${d}')">📅 발주 ${d==='(미지정)'?'미지정':fmtDate(d)} <span style="color:#9ca3af;font-weight:400">· ${rows.length}품목 / ${dcnt}장${esc(reqTxt)}</span>${open?'':` <span style="font-size:10px;color:#9ca3af">(선택 ${onCnt}건)</span>`}</span>
-        ${open?`<button class="ck-date-toggle" style="margin-left:auto;font-size:11px;padding:3px 11px;border:1px solid #cbd0d8;border-radius:12px;background:#fff;color:#374151;cursor:pointer;font-weight:700;white-space:nowrap" onclick="chkDateAll('${d}',${dAllOn?'false':'true'})">${dAllOn?'⬜ 이 날짜 해제':'✅ 이 날짜 선택'}</button>`:''}
-      </div>`;
-    if(!open) return hd;
-    return hd + sectionBody(rows);
+    /* 「대상 N건」은 지금 발주에 실리는 수입니다. 0이면 아예 안 적어
+       화면이 조용합니다 — 고른 날짜만 파랗게 도드라집니다. */
+    const mark = onCnt
+      ? ` <span style="font-size:11px;color:#1560c0;font-weight:800">대상 ${onCnt}건</span>`
+      : '';
+    return `<div class="ckd-hd" style="display:flex;align-items:center;gap:8px${onCnt?'':';opacity:.62'}">
+        <span style="cursor:pointer;display:flex;align-items:center;gap:8px" onclick="chkToggleDate('${d}')" title="${open?'접기':'펼치기'}">
+          <span style="font-size:12px;color:#6b7280">${open?'▼':'▶'}</span>
+          📅 발주 ${d==='(미지정)'?'미지정':fmtDate(d)}
+          <span style="color:#9ca3af;font-weight:400">· ${rows.length}품목 / ${dcnt}장${esc(reqTxt)}</span>${mark}
+        </span>
+      </div>` + (open ? sectionBody(rows) : '');
   };
 
   const sectionBody=rows=>{
@@ -3787,43 +3782,11 @@ function renderCheck(){
     });
     return `<div class="check-wrap"><table class="check-tbl">
         <thead><tr><th>✓</th><th>약어</th><th>타입</th><th>프레임</th><th class="glass-h">유리</th><th>색상</th><th title="구형 유로700 = 유리 −4×−4">구형</th><th>수량</th><th>특이사항</th></tr></thead>
-        <tbody>${body}</tbody></table></div>`;
+        <tbody>${body}</tbody></table>
+        <div style="font-size:11px;color:#9ca3af;margin:4px 2px 0">체크를 끄면 그 줄만 발주에서 빠집니다</div></div>`;
   };
 
-  let sections=openDates.map(d=>sectionOf(d,true)).join('');
-  if(pastDates.length){
-    const pcnt=pastDates.reduce((a,d)=>a+ROWS.filter(r=>r.code && chkOrderDate(r)===d).length,0);
-    const openedN=(window.__chkPastDates||[]).filter(d=>chkOpenDates.has(d)).length;
-    sections+=`<div style="display:flex;align-items:center;gap:8px;margin:16px 0 6px">
-        <span style="flex:1;height:1px;background:#e5e7eb"></span>
-        <span style="font-size:11px;color:#9ca3af;white-space:nowrap">${chkOnlyToday?'오늘 말고':'지난 발주'} ${pastDates.length}일치 · ${pcnt}품목</span>
-        <button class="ck-toggle" style="font-size:11px" onclick="chkOpenAllPast()">▼ 모두 펼치기</button>
-        ${openedN?`<button class="ck-toggle" style="font-size:11px" onclick="chkCloseAllPast()">▲ 모두 접기</button>`:''}
-        <span style="flex:1;height:1px;background:#e5e7eb"></span>
-      </div>`;
-    sections+=pastDates.map(d=>sectionOf(d,false)).join('');
-  }
-  const bulkbar=`<div class="ck-bulkbar" style="display:flex;gap:6px;align-items:center;margin:6px 0 2px">
-    <button class="ck-toggle" onclick="chkAllShown(true)">✅ 전체 선택</button>
-    <button class="ck-toggle" onclick="chkAllShown(false)">⬜ 전체 해제</button>
-    <button class="ck-toggle" onclick="chkToggleOnlyToday()"
-      title="오늘 발주만 펼치고 나머지는 접습니다. 접힌 날짜도 제목을 누르면 열립니다."
-      style="${chkOnlyToday?'background:#eef4ff;border-color:#9dbbf0;color:#1560c0;font-weight:800':''}"
-      >${chkOnlyToday?'📌 오늘 것만 펼침':'📌 오늘 것만 펼치기'}</button>
-    <span style="font-size:11px;color:#9ca3af">${checkDateFilter==='all'?'모든 날짜 대상':'고른 날짜만 대상'}</span></div>`;
-  area.innerHTML = head + bulkbar + `<div class="ckf-row">${chips}</div>` + sections;
-}
-function chkSetMany(idxs,v){ idxs.forEach(i=>{ if(ROWS[i]) ROWS[i].include=v; }); renderCheck(); }
-// 한 발주일(날짜) 전체 켜기/끄기
-function chkDateAll(d,v){
-  const idxs=ROWS.map((r,i)=>({r,i})).filter(x=>x.r.code && chkOrderDate(x.r)===d).map(x=>x.i);
-  chkSetMany(idxs,v);
-}
-// 지금 보이는 것 전체 켜기/끄기 (날짜 칩으로 걸러둔 상태를 존중)
-function chkAllShown(v){
-  const all=checkDateFilter==='all';
-  const idxs=ROWS.map((r,i)=>({r,i})).filter(x=>x.r.code && (all || chkOrderDate(x.r)===checkDateFilter)).map(x=>x.i);
-  chkSetMany(idxs,v);
+  area.innerHTML = head + `<div class="ckf-row">${chips}</div>` + shownDates.map(sectionOf).join('');
 }
 function chkSet(i,k,v){ if(!ROWS[i])return; ROWS[i][k]=v;
   if(k==='code'){ const ru=RULES[v]||{}; ROWS[i].handle=ru.handle||'both'; }  // 약어 바뀌면 손잡이 규칙도 갱신
@@ -4750,7 +4713,8 @@ function cadBlockSVG(b, xL, yTop){
      빨간 재단치수도 같이 들여 써야 완성치수와 왼쪽이 맞습니다.
      칸이 없으면(LABW=0) 예전과 글자 하나 다르지 않습니다. */
   const LAB_FS = 5.0;
-  const labW = t => String(t||'').length*LAB_FS*0.58;
+  // 한글은 1em, 그 밖은 0.58em — 한글 줄머리(상마이다)가 좁게 잡혀 치수와 겹쳤습니다 (2026-09-30)
+  const labW = t => [...String(t||'')].reduce((w,ch)=>w+(/[가-힣]/.test(ch)?1:0.58),0)*LAB_FS;
   const LABW = (()=>{ const m=rows.reduce((x,r)=>Math.max(x, r.lab?labW(r.lab):0), 0); return m ? m+2.5 : 0; })();
   /* 꺾쇠는 **내용 박스(201.25mm) 를 넘지 않습니다.**
      글자가 아주 길면(`1195×350 = 2SET(4EA)` + 색이름 넉 자 = 202.1mm, 2026-09-18 굴림 실측)
