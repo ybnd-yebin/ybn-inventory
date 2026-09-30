@@ -10765,11 +10765,48 @@ function setWlMainFilter(f,btn){
 //  납품서 탭
 // ══════════════════════════════════════════════════
 
+/* 펼침 상태를 기억합니다 (사장님 지적 2026-09-30 "스크롤하면서 팅기면서 잘 접힘").
+   5분마다 시트에서 받은 뒤 화면을 통째로 다시 그리는데(rerenderAfterSync),
+   펼침 상태를 안 들고 있어 지난 카드가 기본값(접힘)으로 돌아갔습니다.
+   손으로 누른 것만 여기 남고, 안 누른 카드는 예전 기본값 그대로입니다. */
+var _delivOpenState = {};
+function _delivIsOpen(id, defOpen){
+  return (id in _delivOpenState) ? _delivOpenState[id] : !!defOpen;
+}
+function _delivHash(s){   // 묶음 열쇠(한글·| 포함)를 id 로 쓸 수 있게
+  let h=0; s=String(s||'');
+  for(let i=0;i<s.length;i++){ h=((h<<5)-h+s.charCodeAt(i))|0; }
+  return (h>>>0).toString(36);
+}
+/* AS 공용 코드는 품목표 이름을 쓰지 않고 **납품서에 적힌 품명**을 씁니다 (2026-09-30).
+   `KITAS0075` 는 AS 때마다 다른 물건에 붙는 공용 코드인데, 품목표에는 예전에
+   한 번 적어 둔 이름(`MBD2R소마이다(멍)_555*80(W/Cott`)이 박혀 있어
+   사하라 상마이다 895×350 이 웜코튼 소마이다로 둔갑해 보였습니다.
+   빈 값이면 예전처럼 품목표 이름을 씁니다. */
+function _delivAsName(it, isAS){
+  const code = String(it && it.code || '');
+  const generic = /^KIT/i.test(code) || !(it && it.short);
+  if(!isAS || !generic) return '';
+  return String(it.name||'')
+    .replace(/\s*-\s*내용참조[\s\S]*$/,'')     // 「 - 내용참조 0X0X0X0」 꼬리
+    .replace(/\s+/g,' ').trim();
+}
+function _delivAsTag(g){
+  return g && g.as ? '<span style="display:inline-block;font-size:9px;font-weight:800;background:#ff6b35;color:#fff;padding:1px 6px;border-radius:6px;margin-right:4px">🔧 AS</span>' : '';
+}
+function toggleDelivGroup(gid, row){
+  const e=document.getElementById(gid); if(!e) return;
+  const open=e.style.display==='none';
+  e.style.display=open?'block':'none';
+  _delivOpenState[gid]=open;
+  const a=row.querySelector('.grp-arrow'); if(a) a.textContent=open?'▴':'▾';
+}
 function toggleDelivDetail(id, hdr){
   const el=document.getElementById(id);
   if(!el) return;
   const isOpen=el.style.display!=='none';
   el.style.display=isOpen?'none':'block';
+  _delivOpenState[id]=!isOpen;
   const arrow=hdr.querySelector('.deliv-arrow');
   if(arrow) arrow.textContent=isOpen?'▼':'▲';
 }
@@ -17663,7 +17700,8 @@ function renderDelivery(){
       return (d.items||[]).some(it=>
         (it.orderNo||'').toLowerCase().includes(q) ||
         (it.code||'').toLowerCase().includes(q) ||
-        (it.short||'').toLowerCase().includes(q));
+        (it.short||'').toLowerCase().includes(q) ||
+        (it.name||'').toLowerCase().includes(q));   // AS 공용 코드는 품명에만 참모습이 있습니다
     });
   }
   let activeList, pastList;
@@ -17719,9 +17757,9 @@ function renderDelivery(){
           <div style="font-size:11px;color:var(--tx2);display:flex;gap:6px;flex-wrap:wrap;align-items:center">${destBadge}<span>한샘납품 ${d.delivReqDate?fmtDateSafe(d.delivReqDate):'-'}</span>${d.orderDate?`<span>· 발주 ${fmtDateSafe(d.orderDate)}</span>`:''}<span>· 출고 ${ship?fmtDateSafe(ship):'-'}</span><span>· No.${d.delivNo}</span>${d.refNo?`<span>· 참조 ${d.refNo}${isAS?' (AS)':''}</span>`:''}</div>
           <div style="font-size:10px;color:var(--tx3);margin-top:2px">총 ${totalQty}장 / ${d.items.length}품목</div>
         </div>
-        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">${dim?'▼':'▲'}</span>
+        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">${_delivIsOpen(idSafe,!dim)?'▲':'▼'}</span>
       </div>
-      <div id="${idSafe}" style="${dim?'display:none':''}">
+      <div id="${idSafe}" style="${_delivIsOpen(idSafe,!dim)?'':'display:none'}">
         <div style="height:1px;background:var(--b1);margin:8px 0"></div>
         ${(()=>{
           // 그룹핑: 비규격은 사이즈별(조립실 모드면 +L/R)로 분리, 정규격은 코드 단위.
@@ -17737,8 +17775,9 @@ function renderDelivery(){
               if(!lrv) lrv=r1.lr||r2.lr;
             }
             const useLr = big && delivLrMode==='assy' && lrv;
-            const key = big ? (it.code+'|'+(sz||'')+(useLr?'|'+lrv:'')) : it.code;
-            if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:sz,lr:(useLr?lrv:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,qty:0,orders:[],_dbgName:(it.name||'')};
+            const asNm = _delivAsName(it, isAS);
+            const key = (big ? (it.code+'|'+(sz||'')+(useLr?'|'+lrv:'')) : it.code) + (asNm?'|'+asNm:'');
+            if(!groups[key]) groups[key]={gk:key,code:it.code,short:(asNm||it.short),as:isAS,color:it.color,size:sz,lr:(useLr?lrv:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,qty:0,orders:[],_dbgName:(it.name||'')};
             groups[key].qty+=(it.qty||0);
             groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
           });
@@ -17746,7 +17785,8 @@ function renderDelivery(){
             const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
             const hasOrders=g.orders.some(o=>o.orderNo);
             const multiline=g.orders.length>1||hasOrders;
-            const gid=idSafe+'-g-'+gi;
+            const gid=idSafe+'-g-'+_delivHash(g.gk);   // 차례가 아니라 묶음 열쇠로 — 동기화로 줄이 늘어도 엉뚱한 줄이 안 열립니다
+            const gOpen=multiline && _delivIsOpen(gid,false);
             // 사이즈/좌우 배지
             const sizeTag = g.isBig&&g.size?`<span style="display:inline-block;background:var(--s3);color:var(--tx1);font-size:10px;padding:1px 6px;border-radius:6px;margin-right:4px">📐 ${g.size}</span>`:'';
             const lrTag = g.lr?`<span style="display:inline-block;background:${g.lr==='L'?'rgba(56,139,253,.15)':'rgba(248,81,73,.12)'};color:${g.lr==='L'?'var(--acc)':'var(--acc4)'};font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;margin-right:4px">${g.lr==='L'?'◀ 좌(L)':'우(R) ▶'}</span>`:'';
@@ -17754,16 +17794,16 @@ function renderDelivery(){
               `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);padding:2px 0 2px 18px">
                 <span>${o.orderNo?'오더 '+o.orderNo:'(오더번호 없음)'}</span><span>${o.qty}장</span></div>`).join('');
             return `<div style="border-bottom:1px solid var(--b1)">
-              <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();var e=document.getElementById('${gid}');var a=this.querySelector('.grp-arrow');if(e){var open=e.style.display==='none';e.style.display=open?'block':'none';if(a)a.textContent=open?'▴':'▾';}"`:''}>
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();toggleDelivGroup('${gid}',this)"`:''}>
                 <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.short||g.code}${g.isBig&&g.size?`<span style="color:var(--acc2);font-weight:700"> (${g.size}${g.lr?' '+g.lr:''})</span>`:''}</div>
+                  <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_delivAsTag(g)}${g.short||g.code}${g.isBig&&g.size?`<span style="color:var(--acc2);font-weight:700"> (${g.size}${g.lr?' '+g.lr:''})</span>`:''}</div>
                   <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?(sizeTag+lrTag):''}${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
                 </div>
                 <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
-                ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">▾</span>`:''}
+                ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">${gOpen?'▴':'▾'}</span>`:''}
               </div>
-              ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
+              ${multiline?`<div id="${gid}" style="${gOpen?'':'display:none;'}padding-bottom:6px">${orderRows}</div>`:''}
             </div>`;
           }).join('');
         })()}
@@ -17808,8 +17848,11 @@ function renderDelivery(){
           if(!lrv) lrv=r1.lr||r2.lr;
         }
         const useLr = big && lrv; // 합본 카드(조립실 성격): 비규격은 항상 좌우 구분
-        const key = (big ? (it.code+'|'+(sz||'')+(useLr?'|'+lrv:'')) : it.code) + '|' + dgrp;
-        if(!groups[key]) groups[key]={code:it.code,short:it.short,color:it.color,size:sz,lr:(useLr?lrv:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,dest:dgrp,qty:0,orders:[]};
+        const dAS = (d.refNo||'').startsWith('54');
+        const asNm = _delivAsName(it, dAS);
+        // AS 는 정오더와 한 줄로 합치지 않습니다 — 합치면 AS 가 어디 있는지 안 보입니다
+        const key = (big ? (it.code+'|'+(sz||'')+(useLr?'|'+lrv:'')) : it.code) + '|' + dgrp + (dAS?'|AS':'') + (asNm?'|'+asNm:'');
+        if(!groups[key]) groups[key]={gk:key,code:it.code,short:(asNm||it.short),as:dAS,color:it.color,size:sz,lr:(useLr?lrv:''),isBig:big,gubun:it.gubun,daegubun:it.daegubun,dest:dgrp,qty:0,orders:[]};
         groups[key].qty+=(it.qty||0);
         groups[key].orders.push({orderNo:it.orderNo||'',qty:it.qty||0});
       });
@@ -17821,23 +17864,24 @@ function renderDelivery(){
         const dot=g.color==='WC'?'var(--wc)':g.color==='ETP'?'var(--etp)':'var(--tx2)';
         const hasOrders=g.orders.some(o=>o.orderNo);
         const multiline=g.orders.length>1||hasOrders;
-        const gid=idSafe+'-g-'+gi;
+        const gid=idSafe+'-g-'+_delivHash(g.gk);   // 차례가 아니라 묶음 열쇠로 — 동기화로 줄이 늘어도 엉뚱한 줄이 안 열립니다
+            const gOpen=multiline && _delivIsOpen(gid,false);
         const sizeTag = g.isBig&&g.size?`<span style="display:inline-block;background:var(--s3);color:var(--tx1);font-size:10px;padding:1px 6px;border-radius:6px;margin-right:4px">📐 ${g.size}</span>`:'';
         const lrTag = g.lr?`<span style="display:inline-block;background:${g.lr==='L'?'rgba(56,139,253,.15)':'rgba(248,81,73,.12)'};color:${g.lr==='L'?'var(--acc)':'var(--acc4)'};font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;margin-right:4px">${g.lr==='L'?'◀ 좌(L)':'우(R) ▶'}</span>`:'';
         const orderRows=g.orders.map(o=>
           `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);padding:2px 0 2px 18px">
             <span>${o.orderNo?'오더 '+o.orderNo:'(오더번호 없음)'}</span><span>${o.qty}장</span></div>`).join('');
         return `<div style="border-bottom:1px solid var(--b1)">
-          <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();var e=document.getElementById('${gid}');var a=this.querySelector('.grp-arrow');if(e){var open=e.style.display==='none';e.style.display=open?'block':'none';if(a)a.textContent=open?'▴':'▾';}"`:''}>
+          <div style="display:flex;align-items:center;gap:10px;padding:7px 0;cursor:${multiline?'pointer':'default'}" ${multiline?`onclick="event.stopPropagation();toggleDelivGroup('${gid}',this)"`:''}>
             <div style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_destTag(g.dest)}${g.short||g.code}${g.isBig&&g.size?`<span style="color:var(--acc2);font-weight:700"> (${g.size}${g.lr?' '+g.lr:''})</span>`:''}</div>
+              <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_destTag(g.dest)}${_delivAsTag(g)}${g.short||g.code}${g.isBig&&g.size?`<span style="color:var(--acc2);font-weight:700"> (${g.size}${g.lr?' '+g.lr:''})</span>`:''}</div>
               <div style="font-size:10px;color:var(--tx2);margin-top:1px">${g.isBig?(sizeTag+lrTag):''}${g.daegubun?'<span style="background:var(--s3);padding:1px 6px;border-radius:6px;margin-right:4px">'+g.daegubun+'</span>':''}${g.code}${(!g.isBig&&g.size)?' | 📐 '+g.size:''}${g.gubun?' | '+g.gubun:''}${g.orders.length>1?' | '+g.orders.length+'개 오더':''}</div>
             </div>
             <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--acc2);flex-shrink:0">${g.qty}<span style="font-size:10px;color:var(--tx3)">장</span></div>
-            ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">▾</span>`:''}
+            ${multiline?`<span class="grp-arrow" style="font-size:11px;color:var(--tx3);flex-shrink:0">${gOpen?'▴':'▾'}</span>`:''}
           </div>
-          ${multiline?`<div id="${gid}" style="display:none;padding-bottom:6px">${orderRows}</div>`:''}
+          ${multiline?`<div id="${gid}" style="${gOpen?'':'display:none;'}padding-bottom:6px">${orderRows}</div>`:''}
         </div>`;
       }).join('');
 
@@ -17856,9 +17900,9 @@ function renderDelivery(){
             <span style="font-size:14px;font-weight:800">${hdrLabel} ${k?fmtDateSafe(k):'-'}</span></div>
           <div style="font-size:10px;color:var(--tx3);margin-top:2px">총 ${totalQty}장 · 납품서 ${ds.length}건 합본</div>
         </div>
-        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">${dim?'▼':'▲'}</span>
+        <span style="font-size:18px;color:var(--tx3)" class="deliv-arrow">${_delivIsOpen(idSafe,!dim)?'▲':'▼'}</span>
       </div>
-      <div id="${idSafe}" style="${dim?'display:none':''}">
+      <div id="${idSafe}" style="${_delivIsOpen(idSafe,!dim)?'':'display:none'}">
         <div style="height:1px;background:var(--b1);margin:8px 0"></div>
         ${itemRows}
         <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;margin-top:10px">${docActions}</div>

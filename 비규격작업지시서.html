@@ -2015,6 +2015,35 @@ function oldStdOf(abbr, num){
            mokdae:s.mokdae, mokdaeW:s.mokdaeW, mokdaeH:s.mokdaeH,
            mokdaeBore:s.mokdaeBore };   // 보링 자리까지 넘깁니다 — 여기서 빠뜨리면 화면이 조용히 빕니다
 }
+/* ── AS 공용 코드(KITAS…) — 조각 하나짜리 AS (사장님 확정 2026-09-30) ──────
+   `KITAS0075` 는 AS 때마다 다른 물건에 붙는 공용 코드입니다. 품목표에는 예전에
+   한 번 적어 둔 이름(`MBD2R소마이다(멍)_555*80(W/Cott`)이 박혀 있어 믿을 수 없고,
+   **참모습은 납품서 품명에만** 있습니다:
+     `MBD2R 상마이다 _895*350(Euro700 Grace Saha - 내용참조 0X0X0X0`
+   - 약어는 앞의 `M` 을 떼고 RULES 에 있는 것으로 봅니다(`MBD2R` → `BD2R`).
+   - `895*350` 은 **프레임** 치수입니다(납품 900×910 → −5, 상마이다 350).
+   - 유리는 구형 규칙 **−4 × −4** (사장님 확정 2026-09-30) → 891×346.
+   - 색은 칸 너비에 잘려 `Saha` 처럼 옵니다. 그래서 앞 네 글자로 봅니다.
+   ⚠ 못 읽거나 구형 색이 아니거나 목대(`(멍)`·`목대`, 유리 없음)면 **계산하지 않고**
+     `bad` 로 돌려 화면에 드러냅니다. 지어내지 않습니다. */
+const AS_OLD_COLOR_CUT=[[/\bsaha/i,'사하라'],[/\bmidn/i,'미드나잇'],[/\bfore/i,'포레스트'],[/\bwhit/i,'화이트']];
+function isAsGenericCode(code){ return /^KIT/i.test(String(code||'')); }
+function asPieceOf(it){
+  if(!it || !isAsGenericCode(it.code)) return null;
+  const nm=String(it.name||'').replace(/\s*-\s*내용참조[\s\S]*$/,'').replace(/\s+/g,' ').trim();
+  const bad=why=>({bad:true, why, name:nm||String(it.code||'')});
+  if(/\(멍\)|목대/.test(nm)) return bad('목대 조각 — 유리 없음, 확인 필요');
+  const m=nm.match(/^([A-Z][A-Z0-9]+)\s*(상마이다|하마이다|소마이다|대마이다)?\s*_?\s*(\d{2,4})\s*\*\s*(\d{2,4})/);
+  if(!m) return bad('AS 품명을 못 읽음 — 확인 필요');
+  const raw=m[1];
+  const code=(typeof RULES!=='undefined' && !RULES[raw] && raw[0]==='M' && RULES[raw.slice(1)]) ? raw.slice(1) : raw;
+  let color='';
+  for(const [re,ko] of AS_OLD_COLOR_CUT){ if(re.test(nm)){ color=ko; break; } }
+  if(!color) return bad('구형 색이 아님 — 확인 필요');
+  const fw=+m[3], fh=+m[4], piece=m[2]||'';
+  return { code, piece, color, name:nm,
+           oldStd:{ model:(piece?piece+' ':'')+'AS', as:true, fw, fh, gw:fw-4, gh:fh-4 } };
+}
 /* 'M 3073' 처럼 붙여 둔 이름으로 다시 찾는다. 옛 기록의 '6062'(번호만)도 받는다. */
 function oldStdFromModel(model){
   const p=String(model||'').trim().split(/\s+/);
@@ -2162,7 +2191,7 @@ function calc(r){
       : '';
     return {fw:s.fw, fh:s.fh,
       glass:[{label:'유리', gw:s.gw, gh:s.gh, n:1}],
-      note:'구형 정규격 · 등록 사이즈'+mk, rule,
+      note:(r.oldStd.as ? 'AS 조각 · 납품서 품명의 프레임 치수 · 유리 구형 −4×−4' : '구형 정규격 · 등록 사이즈')+mk, rule,
       hingePos:'', hingeSpecial:null, bhbu:null, wtap:null, frameSegs:null};
   }
   const isOld=isOldFrame(r);       // 구형 프레임 여부
@@ -2599,10 +2628,28 @@ function ybnDelivDates(log){
    ★ 이 파일이 PDF 를 직접 읽을 때 만드는 행과 같은 모양이어야 합니다.
      한쪽만 다르면 계산이 어긋납니다. parseDelivText 아래쪽과 같은 차례로 짭니다. */
 function ybnDocToRows(d){
-  const rows = [], skipped = [], oldMissing = [];
+  const rows = [], skipped = [], oldMissing = [], asMissing = [];
   const reqD = d.delivReqDate || '';
   const isAS = /^54/.test(String(d.refNo || '')) || (typeof isASDeliv === 'function' && isASDeliv(d.delivNo));
   (d.items || []).forEach(it => {
+    /* AS 공용 코드는 품목표 이름을 버리고 납품서 품명으로 읽습니다 (asPieceOf).
+       예전에는 아래 갈래에서 `Saha` 가 구형으로 안 잡혀 **말없이 버려졌습니다**. */
+    const asp = asPieceOf(it);
+    if(asp){
+      if(asp.bad){ asMissing.push(asp.name + ' — ' + asp.why); return; }
+      rows.push({
+        code: asp.code, type: 'OB', w: 0, h: 0, lr: it.lr || '',
+        color: asp.color, series: seriesOf(asp.name).key, seriesLabel: seriesOf(asp.name).label,
+        isAS: true, euro: false, name: asp.name,
+        qty: it.qty || 1, oldStd: asp.oldStd,
+        handle: ((typeof RULES !== 'undefined' && RULES[asp.code]) || {}).handle || 'both',
+        short: asp.name, prodCode: it.code,
+        delivNo: d.delivNo, refNo: d.refNo || '',
+        req: reqD, ship: reqD, po: d.orderDate || '',
+        fromApp: true
+      });
+      return;
+    }
     const nameAll = (it.name || '') + ' ' + (it.short || '');
     /* EURO500 은 알판이라 계산이 다릅니다. 앱이 넘겨주는 품목에는 이 표시가 없어
        **이름에서 봅니다** — 예전에는 euro:false 로 박혀 있어 EURO500 비규격이
@@ -2662,7 +2709,7 @@ function ybnDocToRows(d){
       fromApp: true                                      // 앱에서 온 행이라는 표시
     });
   });
-  return { rows, skipped, oldMissing };
+  return { rows, skipped, oldMissing, asMissing };
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -2854,7 +2901,13 @@ function ybnWhy(){
       const nonStd = isNonStdName(nameAll);
       const oc = (typeof isOldText === 'function') && isOldText(nameAll + ' ' + (it.color || ''), isEuro);
       let why = '', extra = '';
-      if(nonStd){ why = '✅ 비규격 — 들어옵니다'; }
+      const asp = asPieceOf(it);
+      if(asp){
+        why = asp.bad ? ('⛔ AS — ' + asp.why)
+                      : ('✅ AS 조각 — 들어옵니다 (' + asp.code + ' ' + asp.oldStd.fw + '×' + asp.oldStd.fh + ')');
+        extra = asp.name;
+      }
+      else if(nonStd){ why = '✅ 비규격 — 들어옵니다'; }
       else if(!oc){ why = '⛔ 신형 정규격 — 이 화면 대상이 아닙니다'; }
       else {
         const ab = codeFromShort(it.short) || codeFromShort(it.name);
@@ -2867,7 +2920,7 @@ function ybnWhy(){
                 : '⛔ 구형인데 사이즈표에 없습니다';
       }
       out.push({ 납품번호:d.delivNo, 이미있음:haveNo.has(d.delivNo) ? '예' : '아니오',
-                 제품명:(it.short || it.name || '').slice(0, 44), 까닭:why, 참고:extra });
+                 제품명:(asp ? asp.name : (it.short || it.name || '')).slice(0, 44), 까닭:why, 참고:extra });
     });
   });
 
@@ -2951,10 +3004,12 @@ function ybnImport(){
     haveRow.add(rowKey(r));
   });
   let added = 0, skipped = [], oldMiss = [], filled = 0;
+  let asMiss = [];
   const newRows = [], dupList = [], emptyList = [];
   docs.forEach(d => {
     const r = ybnDocToRows(d);
     oldMiss = oldMiss.concat(r.oldMissing || []);
+    asMiss = asMiss.concat(r.asMissing || []);
     if(!r.rows.length){ emptyList.push(d.delivNo); return; }
     const fresh = r.rows.filter(x => !haveRow.has(rowKey(x)));
     if(!fresh.length){
@@ -2988,6 +3043,7 @@ function ybnImport(){
     }
     if(emptyList.length) bits.push('비규격이 없어 건너뛴 것 ' + emptyList.length + '건');
     if(oldMiss.length) bits.push('⚠ 구형인데 사이즈표에 없는 것 ' + oldMiss.length + '건');
+    if(asMiss.length) bits.push('⚠ AS 확인 필요 ' + asMiss.length + '건 — ' + asMiss.join(' / '));
     setStatus('가져올 새 납품서가 없습니다' + (bits.length ? ' — ' + bits.join(' · ') : '') + '.');
     console.warn('[앱에서 가져오기] 안 들어온 까닭', { 이미있음:dupList, 비규격없음:emptyList, 구형미등록:oldMiss });
     return;
@@ -3001,6 +3057,10 @@ function ybnImport(){
   if(oldMiss.length){
     msg += ' · ⚠ 구형 사이즈표에 없음 ' + oldMiss.length + '건';
     console.warn('[앱에서 가져오기] 구형인데 사이즈표에 없는 것:', oldMiss);
+  }
+  if(asMiss.length){
+    msg += ' · ⚠ AS 확인 필요 ' + asMiss.length + '건 — ' + asMiss.join(' / ');
+    console.warn('[앱에서 가져오기] 못 읽은 AS 품목:', asMiss);
   }
   if(skipped.length) msg += ' · ⚠ 규격 못 읽음 ' + skipped.length + '건';
   setStatus(msg);
@@ -3456,6 +3516,7 @@ async function handleFiles(files){
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   setStatus('⏳ '+pdfFiles.length+'개 읽는 중...');
   let added=0,dup=0,skip=0,fail=0,bigN=0,oldStdMissing=0,reread=0;
+  const asMissing=[];
   for(const file of pdfFiles){
     try{
       const buf=await file.arrayBuffer();
@@ -3485,6 +3546,23 @@ async function handleFiles(files){
       const isAS=isASDeliv(parsed.delivNo)||/^54/.test(parsed.refNo||'');   // 납품번호 또는 참조 54 시작 = AS
       const noteRows=[];   // 이 납품서에서 만든 행 — ROWS에도 넣고 보관함에도 넣는다
       for(const it of parsed.items){
+        // AS 공용 코드(KITAS…)는 납품서 품명으로 읽습니다 — asPieceOf 참고 (2026-09-30)
+        const asp=asPieceOf(it);
+        if(asp){
+          if(asp.bad){ asMissing.push(asp.name+' — '+asp.why); continue; }
+          bigN+=it.qty;
+          noteRows.push({
+            code:asp.code, type:'OB', w:0, h:0, lr:it.lr||'',
+            color:asp.color, series:seriesOf(asp.name).key, seriesLabel:seriesOf(asp.name).label,
+            isAS:true, euro:false, name:asp.name,
+            qty:it.qty||1, oldStd:asp.oldStd,
+            handle:(RULES[asp.code]||{}).handle||'both',
+            short:asp.name, prodCode:it.code,
+            delivNo:parsed.delivNo, refNo:parsed.refNo||'',
+            req:reqD, ship, po:parsed.orderDate? _ymd8(parsed.orderDate):''
+          });
+          continue;
+        }
         const nameAll=(it.name||'')+' '+(it.short||'');
         // 비규격만 수집. 단 '구형(사하라·미드나잇) 정규격'은 사이즈표에 있으면 함께 태운다
         // — 구형은 프레임이 달라 정규격이라도 치수를 찍어줘야 하기 때문(2026-07-23).
@@ -3545,6 +3623,11 @@ async function handleFiles(files){
           used[o.prodCode] = i + 1;
           filled++;
         });
+        /* AS 공용 코드 줄은 예전 판에서 말없이 버려졌습니다. 같은 납품서를
+           다시 올리면 **빠진 AS 줄만** 더합니다 (2026-09-30). */
+        noteRows.filter(f => isAsGenericCode(f.prodCode)).forEach(f => {
+          if(!olds.some(o => o.prodCode === f.prodCode && o.name === f.name)){ ROWS.push(f); filled++; }
+        });
         if(filled){ reread += filled; saveRows(); }
         else dup++;
       } else {
@@ -3559,6 +3642,7 @@ async function handleFiles(files){
   if(dup) msg+=` · 중복 ${dup}`;
   if(skip) msg+=` · 양식아님 ${skip}`;
   if(oldStdMissing) msg+=` · ⚠ 구형 정규격 ${oldStdMissing}건은 사이즈 미등록으로 제외`;
+  if(asMissing.length){ msg+=` · ⚠ AS 확인 필요 ${asMissing.length}건 — ${asMissing.join(' / ')}`; console.warn('[납품서] 못 읽은 AS 품목:', asMissing); }
   if(fail) msg+=` · 실패 ${fail}`;
   setStatus(msg);
   document.getElementById('genBtn').disabled = ROWS.length===0;
