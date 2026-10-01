@@ -2026,7 +2026,7 @@ function oldStdOf(abbr, num){
    - 색은 칸 너비에 잘려 `Saha` 처럼 옵니다. 그래서 앞 네 글자로 봅니다.
    ⚠ 못 읽거나 구형 색이 아니거나 목대(`(멍)`·`목대`, 유리 없음)면 **계산하지 않고**
      `bad` 로 돌려 화면에 드러냅니다. 지어내지 않습니다. */
-const AS_OLD_COLOR_CUT=[[/\bsaha/i,'사하라'],[/\bmidn/i,'미드나잇'],[/\bfore/i,'포레스트'],[/\bwhit/i,'화이트']];
+const AS_OLD_COLOR_CUT=[[/\bsaha/i,'사하라'],[/\bmidn/i,'미드나잇'],[/\bfore/i,'포레스트'],[/\bwhit/i,'화이트'],[/\bRW\b|\brough/i,'러프우드']];
 function isAsGenericCode(code){ return /^KIT/i.test(String(code||'')); }
 function asPieceOf(it){
   if(!it || !isAsGenericCode(it.code)) return null;
@@ -2114,14 +2114,17 @@ function asmNoteFor(short){
 
    ⚠ **제품코드 접두로 가리지 마십시오.** 한때 '구형은 MR 로 시작한다'고 잡았는데
       납품서 465장을 세어 보니 이렇습니다(2026-09-15):
-        MRS 포레스트(700) · MRT 사하라(700) ← 구형
-        MRN 베일/러프우드(700) · MRU 오프화이트(500) · MRV 아보카도(500) · MRW 로즈그레이(500) ← 구형 아님
+        MRS 포레스트(700) · MRT 사하라(700) · MRN 러프우드(700, 2026-10-01 추가) ← 구형
+        MRU 오프화이트(500) · MRV 아보카도(500) · MRW 로즈그레이(500) ← 구형 아님
       `/^MR/` 로 잡으면 **EURO500 오프화이트 264건이 통째로 구형 치수로 실립니다.**
 
    ⚠ '화이트'를 넓게 잡아도 안전한 이유: EURO700 색은 여덟 가지뿐이고
       (Grace ETP · W/Cotton · Sahara · Forest · Veil Shade · BRZ · PT/BK · RW)
       그중 'white' 가 들어가는 신형 색이 없습니다. 오프화이트는 EURO500 쪽입니다. */
-const OLD_COLOR_RE=/사하라|미드나잇|포레스트|화이트|sahara|midnight|forest|white/i;
+/* 러프우드(베일 RW)도 구형입니다 (사장님 확정 2026-10-01). 단종이라 AS 로만 나오고,
+   유리(HPM 판)도 사하라처럼 −4 × −4 를 뺍니다. 품명에는 `Veil/RW` 로 옵니다.
+   `RW` 는 홀로 선 것만 잡습니다 — 다른 약어 속 글자를 잘못 잡지 않게. */
+const OLD_COLOR_RE=/사하라|미드나잇|포레스트|화이트|러프우드|sahara|midnight|forest|white|rough\s*wood|\bRW\b/i;
 function isOldText(s, isEuro){
   const t=String(s||'');
   if(isEuro || /Euro\s*500|유로\s*500/i.test(t)) return false;   // EURO500 은 구형이 아닙니다
@@ -3346,6 +3349,7 @@ const COLOR_KO_BUILTIN=[
   [/sahara|사하라/i,'사하라'],       // 구형색 — 연한 살구색
   [/midnight|미드나잇/i,'미드나잇'],  // 구형색 — 연한 남색
   [/forest|포레스트/i,'포레스트'],    // 구형색 — 연한 초록 (2026-09-15 추가)
+  [/\bRW\b|rough\s*wood|러프우드/i,'러프우드'],   // 베일 러프우드 — 구형·HPM, 단종이라 AS 로만 (2026-10-01)
   [/black|블랙/i,'블랙'],[/white|화이트/i,'화이트'],
   [/grey|gray|그레이/i,'그레이'],[/sand|샌드/i,'샌드']
 ];
@@ -3386,7 +3390,7 @@ function seriesOf(name){
 // 유리/HPM은 '색상' 기준으로 판정한다. (예빈 확정 2026-07-16)
 //   HPM(박스)로 낼 색상만 여기 넣는다. 나머지 색상(웜코튼·에토프 등)은 전부 유리.
 //   ※ 다른 베일 색상(쉐이드·브론즈·러프우드 등)이 납품서에 나오면 여기에 한글색상명으로 추가해야 HPM으로 잡힌다.
-const HPM_COLORS=new Set(['브리즈','쉐이드']);
+const HPM_COLORS=new Set(['브리즈','쉐이드','러프우드']);   // 러프우드 추가 (사장님 2026-10-01 — 베일 RW 는 HPM)
 function isHPMColor(rawColor){ return HPM_COLORS.has(colorKo(rawColor)); }
 
 // ── 색상 형광펜 (작업지시서 색상 이름칸) ───────────────────────────
