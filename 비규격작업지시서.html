@@ -3240,13 +3240,22 @@ function ybnFixOldRows(){
   (ROWS || []).forEach(r => {
     // AS 조각 줄머리에서 'AS' 를 뺐습니다 (2026-09-30) — 먼저 들어온 행도 맞춰야 다시 가져올 때 안 겹칩니다
     if(r && r.oldStd && r.oldStd.as && / AS$/.test(r.oldStd.model||'')){ r.oldStd.model = r.oldStd.model.replace(/ AS$/, ''); n++; }
+    /* 색이 빈 채로 저장된 행은 품명에서 다시 읽습니다 (사장님 2026-10-02 "구형프레임은 됐는데 색이 미지정").
+       색은 **가져올 때 한 번 읽어 저장**하므로, 읽는 규칙을 고쳐도(RW) 먼저 들어온 행은 빈 채로 남습니다.
+       구형 판정은 그릴 때마다 품명을 다시 보니 먼저 고쳐졌던 것입니다.
+       러프우드로 저장된 것도 표기를 RW 로 맞춥니다(2026-10-01). 비어 있을 때만 채우니 손으로 고치신 색은 그대로입니다. */
+    if(r && !r.color){
+      const c = colorFromName((r.name || '') + ' ' + (r.short || ''));
+      if(c){ r.color = c; n++; }
+    }
+    if(r && r.color === '러프우드'){ r.color = 'RW'; n++; }
     if(!r || !r.fromApp) return;
     const nameAll = (r.name || '') + ' ' + (r.short || '');
     const isEuro = /Euro\s*500|유로\s*500/i.test(nameAll);
     if(!!r.euro !== isEuro){ r.euro = isEuro; n++; }
   });
   if(n){
-    console.warn('[비규격] 앱에서 가져온 행 ' + n + '개의 EURO500 표시를 바로잡았습니다.');
+    console.warn('[비규격] 옛 판으로 들어온 행 ' + n + '곳을 바로잡았습니다 (EURO500 표시·빈 색 등).');
     try{ saveRows(); }catch(e){}
   }
   return n;
@@ -3334,6 +3343,7 @@ function archOpen(delivNo){
   const a=loadArchive(); const e=a[delivNo]; if(!e) return;
   ROWS=(e.rows||[]).map(r=>({...r}));
   SEEN=new Set([delivNo]);
+  ybnFixOldRows();      // 보관함의 옛 행도 같은 규칙으로 바로잡습니다(빈 색 등)
   document.getElementById('genBtn').disabled = ROWS.length===0;
   renderCheck();
   if(ROWS.length) generate();
