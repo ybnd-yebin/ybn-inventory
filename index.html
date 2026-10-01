@@ -14720,13 +14720,18 @@ function odStmtVendor(v){
   return s;
 }
 /* 단가를 매길 종류. 백사틴만 가릅니다 — 나머지(5T 투명·은경·바스 등)는 단가를 못 받았으니 null.
-   정규격 발주서는 제목이 「백샤틴(정규격)」, 비규격은 「3.2T 백사틴」으로 옵니다. */
+
+   ⚠ **정규격·비규격 단가는 물건이 아니라 「사이즈 한 줄의 수량」으로 갈립니다** (사장님 확정 2026-10-01
+      "정규격 비규격 상관없이 수량이 10개이상은 정규격가격 이하는 비규격 가격").
+      한 줄이 `OD_STD_MIN_QTY`(10)장 이상이면 정규격 단가, 그보다 적으면 비규격 단가입니다.
+      예전에는 발주서 제목(「백샤틴(정규격)」)으로 갈랐는데, 제목이 「3.2T 백사틴」 하나로
+      합쳐졌고(2026-10-01) 애초에 그게 단가 기준도 아니었습니다. */
+const OD_STD_MIN_QTY = 10;
 function odStmtKind(o,it){
   const t=[o.type,o.title,o.thick].join(' ');
   if(!/사틴|샤틴/.test(t)) return null;
   if(/바스/.test(t) || /바스/.test(it.pname||'')) return null;
-  const std=/정규격/.test(t) && !/비규격/.test(t) && !/비규격/.test(it.pname||'');
-  return std ? '3.2T 백사틴 정규격' : '3.2T 백사틴 비규격';
+  return (Number(it.qty)||0) >= OD_STD_MIN_QTY ? '3.2T 백사틴 정규격' : '3.2T 백사틴 비규격';
 }
 function odStmtRange(ym){
   const y=+ym.slice(0,4), m=+ym.slice(5,7);
