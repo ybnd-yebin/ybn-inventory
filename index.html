@@ -12265,15 +12265,15 @@ const OD_CATALOG = {
          sizes:['293*794','313*446','393*794'],
          fname:'바스사틴',
          hint:'한샘바스에 들어가는 백사틴 · 비고 각면/강화'},
-      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화',     pname:'',        modelMode:true,
+      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'', noBigoMemo:true,     pname:'',        modelMode:true,
          fname:'사틴',
-         hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
+         hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동'},
       /* 대원유리에서 **제일 많이 쓰는 종류**라 기본으로 골라 둡니다 (사장님 2026-09-22
          "그걸 제일 많이 쓰는데 매번 클릭하려니 귀찮아서"). 목록 차례는 그대로 두고
          고르는 값만 여기로 옵니다 — `def:true` 한 줄이면 다른 발주처에도 똑같이 됩니다. */
-      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화',     pname:'비규격',  sizeMode:true, def:true,
+      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'', noBigoMemo:true,     pname:'비규격',  sizeMode:true, def:true,
          fname:'사틴',
-         hint:'3.2T 백사틴 비규격 · 비고 각면/강화'}
+         hint:'3.2T 백사틴 비규격'}
     ],
     '아름유리': [
       {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
@@ -12556,7 +12556,11 @@ try{ odBigoMemo = J(localStorage.getItem(LS_OD_BIGO)) || {}; }catch(e){ odBigoMe
 function odBigoKey(vendor, p){
   return [curCat(), vendor || '', (p && p.type) || ''].join('|');
 }
-function odBigoGet(vendor, p){ return odBigoMemo[odBigoKey(vendor, p)] || ''; }
+/* `noBigoMemo:true` 인 종류는 기억해 둔 비고를 **안 꺼냅니다** (사장님 2026-10-01
+   "각면/강화 그거 없애도 될거같애 3.2T 백사틴 이라고만"). 기억값을 지우는 것으로는
+   못 막습니다 — 시트 동기화가 없는 열쇠를 다시 채워 넣기 때문입니다(8841행 부근).
+   그때그때 칸에 적으시는 것은 그대로 찍힙니다. */
+function odBigoGet(vendor, p){ return (p && p.noBigoMemo) ? '' : (odBigoMemo[odBigoKey(vendor, p)] || ''); }
 function odBigoRemember(){
   const { p, vendor } = curPreset();
   const v = (document.getElementById('od-bigo').value || '').trim();
