@@ -2166,7 +2166,12 @@ function calc(r){
      (CLAUDE.md 11-8) */
   if(isEuro500(r)){
     const fw=r.w?r.w-6:'';
-    const segs=(rule.split&&r.type&&SPLIT[rule.split]&&SPLIT[rule.split][r.type])?SPLIT[rule.split][r.type]:null;
+    /* ⚠ EURO500 은 품명에 계열이 **`CH`** 로 옵니다 — `(P)Euro500 PG/RG CH BD2R 비규격 (1080*0*910*0 M)`.
+       SPLIT 표에는 HD·OB 만 있어 CH 로 찾으면 못 찾고, **합적이 아닌 일반 도어(세로 −4 → 906)로
+       흘렀습니다** (사장님 2026-10-02 "910일때 350으로 풀려야해"). EURO500 은 EURO700 **OB** 것을
+       같이 쓰므로(위 주석), 제 계열이 표에 없으면 OB 로 찾습니다. */
+    const sp=rule.split&&SPLIT[rule.split];
+    const segs=sp ? (sp[r.type]||sp.OB||null) : null;
     const base={fw, glass:[], hot:'', rule, hingePos:'', hingeSpecial:null,
                 bhbu:null, wtap:null, w2hbt:null, whbt:null, euro500:true};
     if(segs){
