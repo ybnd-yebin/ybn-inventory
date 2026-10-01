@@ -13564,11 +13564,7 @@ function odFillSheet(ws, o){
 
   // 품목이 양식 줄 수를 넘으면 첫 줄을 서식째 복제해 늘립니다
   const n = o.items.length;
-  if(n > OD_TPL_ROWS){
-    ws.duplicateRow(OD_TPL_ROW0, n - OD_TPL_ROWS, true);
-    const last = OD_TPL_ROW0 + n - 1;
-    ws.getCell('J' + (last + 1)).value = { formula:'SUM(J' + OD_TPL_ROW0 + ':J' + last + ')' };
-  }
+  if(n > OD_TPL_ROWS) ws.duplicateRow(OD_TPL_ROW0, n - OD_TPL_ROWS, true);
   const rows = Math.max(n, OD_TPL_ROWS);
   for(let i = 0; i < rows; i++){
     const r = OD_TPL_ROW0 + i, it = o.items[i];
@@ -13580,6 +13576,13 @@ function odFillSheet(ws, o){
     odPut(ws, 'K' + r, it ? (o.due || '') : null);
     odPut(ws, 'L' + r, it ? (it.bigo || '') : null);
   }
+
+  /* 총수량 — 수식과 함께 **계산된 값도 넣습니다** (사장님 지적 2026-10-01 "총 14장인데 2장").
+     양식 J25 에는 만들 때 계산된 값 2 가 저장돼 있습니다. 엑셀은 열 때 다시 계산하지만
+     **카톡 이미지·PDF(odSheetToHtml)는 저장된 값을 그대로 읽어** 늘 2장으로 찍혔습니다. */
+  const last = OD_TPL_ROW0 + rows - 1;
+  const tot  = o.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+  ws.getCell('J' + (last + 1)).value = { formula:'SUM(J' + OD_TPL_ROW0 + ':J' + last + ')', result:tot };
 }
 
 async function odWriteExcelForm(o){
