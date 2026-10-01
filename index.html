@@ -14711,6 +14711,10 @@ const OD_VENDOR_PRICE_EST = new Set(['현성유리']);
    여기 없는 발주처는 **발주 종류**(정규격 발주인지 비규격 발주인지)로 가릅니다 —
    현성은 「일단 정규격 비규격으로 나눠봐야」 (사장님 2026-10-01). */
 const OD_KIND_BY_QTY = new Set(['대원유리']);
+/* **직접 입고 체크한 것만** 마감에 넣는 발주처 (사장님 2026-10-01 — 현성은 시작 단계라
+   "발주낸걸 전부 마감하기보다 입고된것만"). 미입고·자동(앱이 찍은 입고)은 빼고 장수만 화면에 적습니다.
+   자리 잡으면 여기서 빼면 대원처럼 돌아갑니다. */
+const OD_STMT_RECEIVED_ONLY = new Set(['현성유리']);
 let odStmtYm = null;                     // 'YYYY-MM' = 몇 월 마감인지
 let odStmtVendorSel = null;
 
@@ -14774,6 +14778,8 @@ function odStmtRows(vendor, ym){
   const {from,to}=odStmtRange(ym);
   const price=OD_VENDOR_PRICE[vendor]||{};
   const rows=[];
+  const recvOnly=OD_STMT_RECEIVED_ONLY.has(vendor);
+  rows.skipped={미입고:0, 자동:0};       // 입고된 것만 마감하는 발주처에서 뺀 장수 — 화면에 적습니다
   orderLog.forEach(o=>{
     if(odStmtVendor(o.vendor)!==vendor) return;
     (o.items||[]).forEach((it,i)=>{
@@ -14784,6 +14790,7 @@ function odStmtRows(vendor, ym){
         st=it.auto ? '자동' : '입고';
       } else { day=odStmtDueDate(o); st='미입고'; }
       if(!day || day<from || day>to) return;
+      if(recvOnly && st!=='입고'){ rows.skipped[st]+=qty; return; }
       const w=Number(it.w)||0, h=Number(it.h)||0;
       const ja = (w&&h) ? w*h/OD_JA_MM2 : null;
       const kind=odStmtKind(o,it,vendor);
@@ -14806,7 +14813,8 @@ function odStmtBtn(){
   const rows=odStmtRows(vendor, ym);
   const sum=rows.reduce((s,r)=>s+(r.amt||0),0), qty=rows.reduce((s,r)=>s+r.qty,0);
   const supply=Math.round(sum), total=supply+Math.round(supply*0.1);
-  const val = !rows.length ? '기록 없음'
+  const skN = rows.skipped ? (rows.skipped.미입고 + rows.skipped.자동) : 0;
+  const val = !rows.length ? (skN ? `입고 체크 0장 · 빠진 것 ${skN}장` : '기록 없음')
             : OD_VENDOR_PRICE[vendor] ? `${total.toLocaleString('ko-KR')}원${OD_VENDOR_PRICE_EST.has(vendor)?' (추정)':''}` : `${qty}장 · 단가 확인 필요`;
   b.innerHTML=`<span>🧾 <b>${vendor}</b> ${+ym.slice(5,7)}월 마감 <b style="font-family:'JetBrains Mono',monospace;color:var(--acc3)">${val}</b></span>`
     +`<span style="color:var(--tx3);font-size:11px;white-space:nowrap">보기 ›</span>`;
@@ -14866,6 +14874,13 @@ function odStmtRender(){
   const notes=[];
   if(cnt.미입고) notes.push(`<b style="color:var(--acc2)">미입고 ${cnt.미입고}장</b>은 납기일로 잡았습니다 — 아직 안 들어온 것이라 거래처 명세서에는 없을 수 있습니다.`);
   if(cnt.자동)   notes.push(`<b style="color:var(--acc2)">자동 ${cnt.자동}장</b>은 납기가 지나 앱이 찍은 입고입니다 — 실물을 확인한 숫자가 아닙니다.`);
+  if(OD_STMT_RECEIVED_ONLY.has(vendor)){
+    const sk=rows.skipped||{}, bits=[];
+    if(sk.미입고) bits.push(`미입고 ${sk.미입고}장`);
+    if(sk.자동)   bits.push(`자동 입고 ${sk.자동}장`);
+    notes.push(`${vendor}는 <b>직접 입고 체크한 것만</b> 마감에 넣습니다.`
+      + (bits.length ? ` <b style="color:var(--acc4)">${bits.join(' · ')}</b>은 뺐습니다 — 들어왔으면 입고 체크를 눌러 주십시오.` : ''));
+  }
   if(!hasPrice && rows.length) notes.push(`${vendor}는 단가를 아직 못 받았습니다. 수량만 셉니다.`);
   if(est){
     const p=OD_VENDOR_PRICE[vendor];
