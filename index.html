@@ -12282,13 +12282,16 @@ const OD_CATALOG = {
     ],
     // 현성유리는 에토프 색상을 인쇄해 완성품으로 보내 줍니다(🟠 에토프재고 탭).
     // 3.2T 백사틴 두 줄은 대원유리 것을 그대로 옮긴 것입니다 — 사장님 지시 2026-09-15.
+    /* 현성유리 백사틴은 **에토프** 입니다 (사장님 2026-10-02) — 제목 「3.2T 백사틴」 옆 칸에
+       「각면/강화」 대신 「에토프」. 저장 이름은 `현성유리 261002 3.2t 백사틴 에토프 비규격`
+       (날짜가 앞 — `fileDateFirst`). 정규격도 같은 꼴로 `… 에토프 정규격`. */
     '현성유리': [
-      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'',       modelMode:true,
-         fname:'사틴',
-         hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
-      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'각면/강화', pname:'비규격', sizeMode:true,
-         fname:'사틴',
-         hint:'3.2T 백사틴 비규격 · 비고 각면/강화'},
+      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'에토프', noBigoMemo:true, pname:'',       modelMode:true,
+         fname:'3.2t 백사틴 에토프', fileDateFirst:true,
+         hint:'유로700에 들어가는 3.2T 백사틴 에토프 정규격 · 품명에 모델명 입력하면 사이즈 자동'},
+      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'에토프', noBigoMemo:true, pname:'비규격', sizeMode:true,
+         fname:'3.2t 백사틴 에토프', fileDateFirst:true,
+         hint:'3.2T 백사틴 에토프 비규격'},
       {type:'5T 백유리', pick:'5T 백유리 (유리장식장)', thick:'5T 백유리', title:'5T 백유리', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 · 유리장식장에 들어갑니다 · 사이즈 직접 입력'}
     ],
     '명그라스': [
@@ -12432,6 +12435,10 @@ function odHandoffBanner(){
 }
 /* 한 색을 발주 품목으로 넣습니다. 지금 적고 계시던 품목이 있으면 덮지 않고 **뒤에 붙입니다** —
    적던 것을 말없이 지우는 것이 제일 위험합니다. */
+/* 비규격에서 넘어온 색 → 바로 고를 발주처·종류. 색을 더하려면 한 줄만 더하십시오. */
+const OD_HANDOFF_ROUTE = {
+  '에토프': { vendor:'현성유리', type:'3.2T 백사틴 비규격' },
+};
 function odHandoffTake(i){
   const o=odHandoffRead(); if(!o) return odHandoffBanner();
   const g=o.groups[i]; if(!g) return odHandoffBanner();
@@ -12452,6 +12459,19 @@ function odHandoffTake(i){
      색은 종이에 안 찍고 `color` 칸에만 둡니다 — 위 「색 섞임 막이」가 그것을 봅니다. */
   const add=(g.items||[]).map(it=>({w:it.w, h:it.h, qty:it.qty, pname:'', color:g.color, bigo:''}));
   odLines = cur.concat(add);
+  /* 에토프는 **현성유리 · 3.2T 백사틴 비규격** 으로 바로 맞춥니다 (사장님 2026-10-02).
+     에토프는 현성이 인쇄해 주는 색이라 발주처가 늘 같습니다. 목록에 없으면 건드리지 않습니다. */
+  const route = OD_HANDOFF_ROUTE[g.color];
+  if(route){
+    const cat=document.getElementById('od-cat');
+    if(cat && cat.value!=='유리' && [...cat.options].some(x=>x.value==='유리')){ cat.value='유리'; odCatChanged(); }
+    const vsel=document.getElementById('od-vendor');
+    if(vsel && [...vsel.options].some(x=>x.value===route.vendor)){
+      vsel.value=route.vendor; odVendorChanged();
+      const ti=(curCatVendors()[route.vendor]||[]).findIndex(p=>p.type===route.type);
+      if(ti>=0){ document.getElementById('od-type').value=String(ti); odTypeChanged(); }
+    }
+  }
   o.groups.splice(i,1);
   try{ if(o.groups.length) localStorage.setItem(LS_OD_HANDOFF, JSON.stringify(o));
        else localStorage.removeItem(LS_OD_HANDOFF); }catch(e){}
@@ -13073,7 +13093,12 @@ function odFileBase(o){
   const t    = String(o.type || o.title || '');
   const spec = /비규격/.test(t) ? '비규격' : (/정규격/.test(t) ? '정규격' : '');
   const ymd  = String(o.date||'').replace(/-/g,'').slice(2);   // 20260910 → 260910
-  return [String(o.vendor||'').trim(), odKindName(o), spec, ymd]
+  // 날짜를 발주처 바로 뒤에 두는 종류 — 현성유리 (사장님 2026-10-02 「현성유리 261002 3.2t 백사틴 에토프 비규격」)
+  const pp = odPresetOf(o.vendor, o.type);
+  const parts = (pp && pp.fileDateFirst)
+    ? [String(o.vendor||'').trim(), ymd, odKindName(o), spec]
+    : [String(o.vendor||'').trim(), odKindName(o), spec, ymd];
+  return parts
            .filter(Boolean).join(' ')
            .replace(/[\\\/:*?"<>|]/g,'')                       // 윈도가 못 쓰는 글자
            .replace(/\s+/g,' ').trim() || '발주서';
