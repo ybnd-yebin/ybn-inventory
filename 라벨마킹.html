@@ -1,0 +1,1861 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>라벨 마킹 · YBN&D</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{
+  --paper:#f1f2f4;
+  --card:#ffffff;
+  --ink:#1b1f23;
+  --ink-2:#4a5259;
+  --ink-3:#858e96;
+  --rule:#d8dce0;
+  --rule-2:#eceef1;
+  --hl-yellow:#ffe94d;
+  --hl-orange:#ffa022;
+  --hl-green:#8ce08f;
+  --hl-blue:#7ec8ff;
+  --hl-pink:#ff9ec8;
+  --hl-gray:#c2c6ca;
+  --pen:#d0021b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","맑은 고딕",system-ui,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+code,.mono{font-family:"SFMono-Regular",Consolas,"D2Coding",monospace}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  display:flex;align-items:center;gap:14px;
+  padding:10px 18px;
+  background:var(--card);
+  border-bottom:1px solid var(--rule);
+}
+.brand{font-weight:700;letter-spacing:-.01em;font-size:15px;white-space:nowrap}
+.brand span{color:var(--ink-3);font-weight:500;margin-left:8px;font-size:13px}
+.spacer{flex:1}
+.tabs{display:flex;gap:0;margin-left:4px}
+.tabs button{border-radius:0;border-right-width:0}
+.tabs button:first-child{border-radius:3px 0 0 3px}
+.tabs button:last-child{border-radius:0 3px 3px 0;border-right-width:1px}
+.tabs button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+.framelist{flex:1;min-width:0;padding:26px 30px 120px;max-width:920px;margin:0 auto}
+.framelist h2{margin:0 0 4px;font-size:20px;letter-spacing:-.01em}
+.framelist .meta{color:var(--ink-3);font-size:12px;margin:0 0 18px}
+.framelist table{width:100%;max-width:560px;border-collapse:collapse;background:var(--card)}
+.framelist th,.framelist td{padding:7px 12px;border-bottom:1px solid var(--rule-2);text-align:left}
+.framelist th{font-size:11px;color:var(--ink-3);font-weight:600;border-bottom:1px solid var(--rule);
+  text-transform:none;letter-spacing:.02em}
+.framelist td.model{font-family:"SFMono-Regular",Consolas,"D2Coding",monospace;font-size:13px;text-align:center}
+.framelist td.qty{text-align:left;font-variant-numeric:tabular-nums;font-weight:700;width:64px;padding-left:18px}
+.framelist tr.total td{border-top:2px solid var(--ink);border-bottom:none;font-weight:700;padding-top:9px}
+.framelist .none{color:var(--ink-3);font-size:13px}
+button,.filebtn{
+  font:inherit;color:var(--ink);
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:3px;
+  padding:6px 11px;
+  cursor:pointer;
+}
+button:hover,.filebtn:hover{border-color:var(--ink-3)}
+button:disabled{color:var(--ink-3);cursor:default;border-color:var(--rule-2)}
+button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.filebtn{display:inline-block}
+.filebtn input{display:none}
+.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.primary:hover{background:#000;border-color:#000}
+
+/* ---------- layout ---------- */
+.wrap{display:flex;align-items:flex-start;gap:0}
+.viewer{flex:1;min-width:0;padding:22px 18px 120px}
+.side{
+  width:340px;flex:none;
+  border-left:1px solid var(--rule);
+  background:var(--card);
+  height:calc(100vh - 49px);
+  position:sticky;top:49px;
+  overflow-y:auto;
+  padding:0 0 60px;
+}
+
+/* ---------- empty state ---------- */
+.empty{
+  max-width:560px;margin:64px auto;text-align:left;
+  background:var(--card);border:1px solid var(--rule);border-radius:4px;padding:32px 34px;
+}
+.empty h2{margin:0 0 6px;font-size:19px;letter-spacing:-.01em}
+.empty p{margin:0 0 18px;color:var(--ink-2)}
+.empty ol{margin:0;padding-left:20px;color:var(--ink-2)}
+.empty li{margin-bottom:5px}
+
+/* ---------- page ---------- */
+.pagewrap{
+  position:relative;
+  margin:0 auto 22px;
+  background:#fff;
+  box-shadow:0 1px 0 var(--rule),0 6px 20px rgba(20,25,30,.07);
+  max-width:1180px;
+  /* 인라인 요소의 글줄 여백이 붙으면 한 장이 용지보다 커져 빈 장이 낍니다.
+     캔버스는 display:block, 상자는 글줄 높이 0 으로 못 박습니다. */
+  line-height:0;
+  font-size:0;
+}
+.pagewrap canvas{display:block;width:100%;height:auto}
+.pageno{
+  position:absolute;left:-1px;top:-23px;
+  font-size:11px;line-height:1.4;color:var(--ink-3);   /* .pagewrap 이 line-height:0 이라 여기서 되살립니다 */
+}
+.overlay{position:absolute;inset:0}
+.overlay.tool-hl,
+.overlay.tool-circle{cursor:crosshair}
+.overlay.tool-note{cursor:cell}
+.overlay.tool-erase{cursor:not-allowed}
+
+.mark{
+  position:absolute;
+  mix-blend-mode:multiply;
+  border-radius:1px;
+  pointer-events:none;
+  /* 형광펜 진하기 — 사이드바에서 조절합니다.
+     multiply 라 검은 글자는 그대로 검게 남고, 바탕 색만 옅어집니다. */
+  opacity:var(--hl-op, .55);
+}
+.tool-erase .mark{pointer-events:auto;cursor:pointer}
+.tool-circle .mark.circle{}
+.mark.auto{outline:0}
+.mark.circle{
+  mix-blend-mode:normal;
+  background:none !important;
+  border:2.3px solid currentColor;
+  border-radius:50%;
+}
+
+.note{
+  position:absolute;
+  color:var(--pen);
+  font-weight:700;
+  font-size:15px;
+  line-height:1.15;
+  white-space:pre;
+  padding:1px 3px;
+  border:1px dashed transparent;
+  cursor:text;
+  min-width:12px;
+  transform:translate(0,-50%);
+}
+/* 쪼가리에 들어가는 자동 메모 — 자리가 좁아 테두리·여백을 뺍니다 */
+.note.strip{padding:0 1px;border:none;letter-spacing:-.01em}
+/* 유리 사이즈는 세로로 — 라벨의 다른 세로 글자와 같은 방향(아래에서 위로) 입니다.
+   기준점은 글자 왼쪽 아래 모서리이고, 거기서 위로 자랍니다. */
+.note.vert{transform:rotate(-90deg);transform-origin:0 0;padding:0}
+.note.right{transform:translate(-100%,-50%)}
+.note.right .grip{left:auto;right:-13px}
+.note:hover{border-color:rgba(208,2,27,.4)}
+.note:focus{outline:none;border-color:var(--pen);background:rgba(255,255,255,.85)}
+.note .grip{
+  position:absolute;left:-13px;top:50%;transform:translateY(-50%);
+  width:9px;height:9px;border:1px solid var(--pen);background:#fff;
+  border-radius:50%;cursor:move;opacity:0;
+}
+.note:hover .grip{opacity:1}
+.rubber{position:absolute;border:1px solid var(--ink);background:rgba(0,0,0,.06);pointer-events:none}
+
+/* ---------- sidebar sections ---------- */
+.sec{border-bottom:1px solid var(--rule-2);padding:16px 18px}
+.sec h3{margin:0 0 10px;font-size:13px;font-weight:700;letter-spacing:-.01em}
+.hint{color:var(--ink-3);font-size:12px;margin:8px 0 0;line-height:1.45}
+
+.tools{display:flex;gap:6px}
+.tool{
+  flex:1;padding:9px 2px;font-size:11.5px;text-align:center;font-size:12px;
+  border:1px solid var(--rule);border-radius:3px;background:#fff;cursor:pointer;
+}
+.tool[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+.swatches{display:flex;gap:5px;margin-top:12px}
+.sw{
+  width:29px;height:26px;border-radius:3px;border:1px solid rgba(0,0,0,.18);cursor:pointer;padding:0;
+}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink);border-color:var(--ink)}
+
+/* rules */
+.rule-row{
+  border:1px solid var(--rule);border-radius:3px;padding:9px 10px;margin-bottom:8px;background:#fff;
+}
+.rule-head{display:flex;align-items:center;gap:8px}
+.rule-head input[type=checkbox]{margin:0}
+.rule-name{flex:1;font-weight:600;font-size:13px;border:none;padding:0;background:transparent;color:var(--ink);min-width:0}
+.rule-del{border:none;background:none;color:var(--ink-3);padding:2px 4px;font-size:15px;line-height:1}
+.rule-del:hover{color:var(--pen)}
+.rule-body{display:grid;grid-template-columns:52px 1fr;gap:5px 8px;margin-top:8px;align-items:center}
+.rule-body label{font-size:11px;color:var(--ink-3)}
+.rule-body input[type=text]{
+  width:100%;font:inherit;font-size:12px;padding:4px 6px;border:1px solid var(--rule);border-radius:2px;background:#fff;color:var(--ink);
+}
+.rule-body .colorpick{display:flex;gap:4px}
+.rule-body .stylepick{display:flex;gap:4px}
+.rule-body .stylepick button{padding:3px 6px;font-size:11px;line-height:1.2;border-radius:2px}
+.rule-body .stylepick button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.rule-body .colorpick button{width:16px;height:20px;padding:0;border-radius:2px;border:1px solid rgba(0,0,0,.18)}
+.rule-body .colorpick button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink)}
+.count{font-size:11px;color:var(--ink-3);white-space:nowrap}
+.chk{display:flex;align-items:baseline;gap:7px;font-size:13px;padding:3px 0;cursor:pointer}
+.chk input{margin:0}
+.chk span{color:var(--ink-3);font-size:11.5px}
+.opwrap{display:flex;align-items:center;gap:9px}
+.opwrap input[type=range]{flex:1;min-width:0}
+
+.cmap-row{padding:9px 0;border-bottom:1px solid var(--rule-2)}
+.cmap-row:last-child{border-bottom:none}
+.cmap-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.cmap-code{font-family:"SFMono-Regular",Consolas,monospace;font-size:12px;font-weight:600;white-space:nowrap}
+.cmap-code.unset{color:var(--ink-3);font-weight:400}
+.cmap-nick{flex:1;min-width:0;font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--rule);border-radius:2px;background:#fff;color:var(--ink)}
+.cmap-none{width:auto;height:20px;padding:0 6px;font-size:11px;line-height:1;color:var(--ink-3);white-space:nowrap}
+.cmap-none[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.cmap-empty{color:var(--ink-3);font-size:12px}
+
+.stat{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ink-2)}
+.stat b{color:var(--ink);font-weight:600}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px}
+.legend span{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2)}
+.legend i{width:14px;height:12px;border-radius:2px;display:inline-block;border:1px solid rgba(0,0,0,.15)}
+
+.loading{
+  position:fixed;inset:0;background:rgba(241,242,244,.9);z-index:90;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;
+  font-size:13px;color:var(--ink-2);
+}
+
+/* ---------- print ---------- */
+/* 한 장의 크기는 PDF 에서 재서 JS 가 넣습니다 (setSheetSize).
+   기본값은 한샘 라벨지(841×595pt = 296.69×209.90mm) 입니다. */
+:root{ --sheet-w:296.60mm; --sheet-h:209.84mm; }
+/* ⚠ **용지 규칙(@page)은 한 번에 하나만 둡니다.**
+   라벨은 A4 가로·여백 0, 프레임 수량 표는 A4 세로·여백 14mm 로 서로 다른데,
+   두 규칙을 같이 두면 브라우저가 크기·여백을 통째로 무시하는 일이 있습니다
+   (그러면 인쇄가 줄어들고 밀립니다). 그래서 **프레임 수량 탭일 때만**
+   `framePage` 규칙을 넣었다 뺍니다 — `setTab()` 의 `framePageCss`. */
+@page{size:A4 landscape;margin:0}
+@media print{
+  body{background:#fff}
+  .topbar,.side,.empty,.loading{display:none !important}
+  .framelist{padding:0;max-width:none}   /* page:framePage 는 framePageCss() 가 넣습니다 */
+  .framelist table{page-break-inside:auto}
+  .framelist tr{page-break-inside:avoid}
+  .wrap{display:block}
+  .viewer{padding:0}
+  .pageno{display:none}
+  .pagewrap{
+    /* 한 장은 PDF 에서 잰 크기 그대로 못 박습니다 (--sheet-w × --sheet-h).
+       용지(A4 가로 297×210)보다 0.4mm 남짓 작게 잡아,
+       반올림으로 한 점이라도 넘쳐 빈 장이 끼는 일을 막습니다.
+
+       ⚠ 예전에는 height:calc(100vh - 2px) · width:fit-content 였습니다.
+         100vh 가 인쇄 설정(여백·배율)에 따라 달라져 쪽수가 늘고,
+         fit-content 로 잡힌 상자 폭이 캔버스 폭과 미세하게 어긋나
+         형광펜 자리가 밀렸습니다. 되돌리지 마십시오.
+       ⚠ 폭·높이 비율은 PDF 와 똑같이 넣습니다. 그래야 캔버스를 100%×100% 로
+         채워도 찌그러지지 않고, 오버레이(inset:0)가 캔버스와 정확히 겹칩니다. */
+    box-shadow:none;margin:0;
+    width:var(--sheet-w);
+    height:var(--sheet-h);
+    max-width:none;
+    aspect-ratio:auto !important;
+    overflow:hidden;
+    break-inside:avoid;page-break-inside:avoid;
+    break-after:page;page-break-after:always;
+  }
+  .pagewrap canvas{width:100%;height:100%;max-width:none;display:block}
+  .pagewrap:last-child{break-after:auto;page-break-after:auto}
+  .note{border-color:transparent !important}
+  .note .grip{display:none}
+  .mark{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">라벨 마킹<span>한샘 출고라벨 형광펜 · 메모</span></div>
+  <label class="filebtn">PDF 열기<input type="file" id="file" accept="application/pdf"></label>
+  <div class="tabs">
+    <button data-tab="labels" aria-pressed="true">라벨</button>
+    <button data-tab="frames" aria-pressed="false">프레임 수량</button>
+  </div>
+  <button id="btnRules">규칙 다시 적용</button>
+  <div class="spacer"></div>
+  <button id="btnExport">저장 파일 내보내기</button>
+  <label class="filebtn">불러오기<input type="file" id="imp" accept="application/json"></label>
+  <button id="btnClear">마킹 지우기</button>
+  <button id="btnPrint" class="primary">인쇄</button>
+</div>
+
+<div class="wrap">
+  <div class="viewer" id="viewer">
+    <div class="empty" id="empty">
+      <h2>라벨 PDF를 열어주세요</h2>
+      <p>한샘에서 받은 라벨 출력물(Crystal Report PDF)을 그대로 올리면, 규칙에 맞는 글자에 형광펜이 자동으로 칠해집니다.</p>
+      <ol>
+        <li>PDF 열기 → 자동 마킹 확인</li>
+        <li>빠진 부분은 형광펜 도구로 직접 드래그 (글자를 한 번 클릭하면 그 줄만 칠해집니다)</li>
+        <li>특이사항은 메모 도구로 찍고 바로 입력</li>
+        <li>인쇄하면 원본 라벨 그대로, 색과 메모만 얹혀서 나옵니다</li>
+      </ol>
+    </div>
+  </div>
+
+  <section class="framelist" id="framelist" hidden></section>
+
+  <aside class="side">
+    <div class="sec">
+      <h3>도구</h3>
+      <div class="tools">
+        <button class="tool" data-tool="select" aria-pressed="true">선택</button>
+        <button class="tool" data-tool="hl" aria-pressed="false">형광펜</button>
+        <button class="tool" data-tool="circle" aria-pressed="false">동그라미</button>
+        <button class="tool" data-tool="note" aria-pressed="false">메모</button>
+        <button class="tool" data-tool="erase" aria-pressed="false">지우개</button>
+      </div>
+      <div class="swatches" id="swatches"></div>
+      <p class="hint">형광펜: 글자를 클릭하면 그 줄 전체, 드래그하면 원하는 범위만 칠합니다. 메모는 클릭한 자리에 바로 입력하고, 왼쪽 동그라미를 잡아 옮길 수 있어요.</p>
+    </div>
+
+    <div class="sec">
+      <h3>색상별 표시</h3>
+      <div id="colorMap"></div>
+      <p class="hint">PDF에서 찾은 색상입니다. 색을 고르면 그 색상 이름에 형광펜이 칠해집니다. 한번 정해두면 다음 PDF에도 그대로 적용됩니다.</p>
+    </div>
+
+    <div class="sec">
+      <h3>라벨에 더 적기</h3>
+      <label class="chk"><input type="checkbox" id="exBundle"> 묶음 수량 <span>품명이 같은 묶음마다 첫 장에만</span></label>
+      <label class="chk"><input type="checkbox" id="exGlass"> 유리 사이즈 <span>수납도어류 비규격에만</span></label>
+      <p class="hint">메모는 모두 <b>세로 바코드 쪽 쪼가리</b>에 적습니다. 제품에 붙는 쪽은 형광펜만 남습니다. 유리 사이즈는 라벨의 장규격에서 계통별 차감을 뺀 값입니다 — 유리장식장은 가로 −29 · 세로 −28. 계통을 못 가리면 숫자를 지어내지 않고 「확인 필요」로 적습니다.</p>
+    </div>
+
+    <div class="sec">
+      <h3>형광펜 진하기</h3>
+      <div class="opwrap">
+        <input type="range" id="hlOp" min="20" max="100" step="5">
+        <span id="hlOpVal" class="count"></span>
+      </div>
+      <p class="hint">옅게 할수록 밑의 글자가 또렷해집니다. 검은 글자는 진하기와 상관없이 그대로 검게 남습니다.</p>
+    </div>
+
+    <div class="sec">
+      <h3>자동 규칙</h3>
+      <div id="rules"></div>
+      <button id="btnAddRule">규칙 추가</button>
+      <p class="hint">품명에 <b>포함</b> 글자가 있으면 <b>칠할 곳</b>에 적은 글자만 칠합니다. <code>*</code>는 그 줄 전체, <code>/…/</code>로 감싸면 정규식, 비우면 색 없이 메모만 붙습니다. <b>표시</b>는 형광펜·동그라미·표시 없음 중에 고르고, 메모에 <code>$0</code>을 쓰면 찾은 글자가 그대로 들어갑니다(L/R 규칙이 그렇습니다). <b>예외</b>에 적은 글자로 끝나는 건 건너뜁니다 — 지금 <code>73</code>이 들어가 있어서 3573·6073 같은 공용 사이즈는 칠하지 않습니다.</p>
+    </div>
+
+    <div class="sec">
+      <h3>확인</h3>
+      <div id="stats"></div>
+    </div>
+
+    <div class="sec">
+      <h3>색 범례</h3>
+      <div class="legend" id="legend"></div>
+      <p class="hint">현장 테이프 색과 맞춰두면 라벨만 보고도 대차 색을 고를 수 있습니다.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const COLORS = [
+  {key:"yellow", hex:"#fff02e", label:"노랑"},
+  {key:"lyellow",hex:"#fff66b", label:"연노랑"},
+  /* 주황을 **더 밝고 선명하게** 바꿨습니다 (사장님 2026-09-23 "너무 거무티티해서").
+     예전 `#ffb25c` 는 파랑이 92 나 섞여 있어, 인쇄하면 살구빛으로 탁해 보였습니다.
+     파랑만 크게 덜어 내고(92 → 34) 밝기는 그대로 두어 **형광 주황**에 가깝게 했습니다. */
+  {key:"orange", hex:"#ffa022", label:"주황"},
+  {key:"green",  hex:"#8ce08f", label:"초록"},
+  {key:"blue",   hex:"#7ec8ff", label:"파랑"},
+  {key:"pink",   hex:"#ff9ec8", label:"분홍"},
+  {key:"gray",   hex:"#c2c6ca", label:"회색"},
+  {key:"red",    hex:"#e03131", label:"빨강"}
+];
+
+// HD 는 포함해서, OB / CH 는 빼고 그 뒤부터 모델명 끝까지 (뒤에 붙은 치수코드는 제외)
+const MODEL_RE  = "/\\bHD\\s+.*?(?=\\s+\\d+X\\d+X\\d+X\\d+|$)|(?<=\\b(?:OB|CH)\\s).*?(?=\\s+\\d+X\\d+X\\d+X\\d+|$)/";
+// 유리장식벽장·키큰장처럼 Euro 계열이 아닌 수납도어류.
+// **비규격만 칠합니다.** 정규격(`유리장식키큰장 AL도어 45222 M`)은 표시하지 않습니다
+// — 규격이 정해진 물건이라 형광펜이 필요 없습니다 (사용자 확정 2026-09-22).
+const ALDOOR_RE = "/(?<=AL도어\\s)비규격\\([^)]*\\)/";
+// 높이 736 공용 사이즈(…73)는 칠하지 않습니다
+const NO73      = "/(?<!\\d)\\d{2,3}73(?!\\d)|^\\S{0,1}\\s*$/";   // 73(공용)과, 줄바꿈으로 잘려 한 글자만 남은 조각
+// 피스 동봉 모델
+const PIECE_RE  = "/\\b(?:WRMB|WFED|WF)\\b/";
+const MOKDAE1_RE= "/\\b(?:BLD1R|BLD1UA|BRO1R)\\b/";
+const MOKDAE2_RE= "/\\bBLD2R\\b/";
+const HINGE115  = "/\\b(?:BC1A|BC1B)\\b/";
+const HINGE155  = "/\\bTCPID\\b/";
+const AS_RE   = "/(?<!\\d)54\\d{8}(?!\\d)/";   // A/S 참조문서번호는 54로 시작합니다
+const LR_RE   = "/(?<=[\\s*])[LR](?=\\)|\\s*$)/";   // 품명 끝의 L / R
+
+const DEFAULT_RULES = [
+  {id:"r1", on:true,  name:"모델명 (73 제외)",      contains:"",     target:MODEL_RE,  except:NO73, color:"#fff02e", style:"hl",     note:""},
+  {id:"r2", on:true,  name:"AL도어 비규격만",        contains:"AL도어", target:ALDOOR_RE, except:"",   color:"#fff02e", style:"hl",     note:""},
+  {id:"r2b",on:true,  name:"AS 내용참조 줄",         contains:"(Euro",target:"*",       except:"",   color:"#fff02e", style:"hl",     note:""},
+  {id:"r3", on:true,  name:"A/S 건",               contains:"",     target:AS_RE,     except:"",   color:"#fff66b", style:"hl",     note:"AS"},
+  // 쪼가리가 좁습니다. 메모는 **서로 알아보는 짧은 표시**면 됩니다 (사장님 2026-09-22).
+  // 글자를 늘리면 크기가 자동으로 작아지니, 길게 적는 것이 오히려 안 읽힙니다.
+  {id:"r4", on:true,  name:"피스 동봉 (WRMB/WF/WFED)", contains:"",  target:PIECE_RE,  except:"",   color:"#fff02e", style:"none",   note:"피스"},
+  {id:"r4a",on:true,  name:"목대 1개 (BLD1R/BLD1UA/BRO1R)", contains:"", target:MOKDAE1_RE, except:"", color:"#fff02e", style:"none", note:"목대1"},
+  {id:"r4b",on:true,  name:"목대 2개 (BLD2R)",          contains:"", target:MOKDAE2_RE, except:"", color:"#fff02e", style:"none", note:"목대2"},
+  {id:"r4c",on:true,  name:"115도 힌지 (BC1A/BC1B)",    contains:"", target:HINGE115,   except:"", color:"#fff02e", style:"none", note:"115°"},
+  {id:"r4d",on:true,  name:"155도 힌지 (TCPID)",        contains:"", target:HINGE155,   except:"", color:"#fff02e", style:"none", note:"155°"},
+  // 붙는 쪽은 형광펜만 남깁니다 (사장님 2026-09-22). HD 는 노랑 형광펜이 `HD` 부터 시작하고
+  // 쪼가리에도 「HD」 메모가 가므로, 빨간 동그라미는 꺼 둡니다. 필요하면 아래 '표시'에서 되살립니다.
+  {id:"r5", on:true,  name:"HD 표시",               contains:"Euro", target:"/\\bHD\\b(?=\\s+\\S)/", except:"", color:"#e03131", style:"none", note:"HD"},
+  {id:"r6", on:true,  name:"L / R 표시",            contains:"",     target:LR_RE,     except:"",   color:"#e03131", style:"none",   note:"$0"},
+];
+
+const state = {
+  fileName:"",
+  pages:[],          // {num, w, h, items:[{str,x,y,w,h}]}
+  marks:[],          // {id,page,x,y,w,h,color,auto,rule}
+  notes:[],          // {id,page,x,y,text,auto,rule}
+  rules:loadRules(),
+  tab:"labels",
+  pdfDoc:null,
+  tool:"select",
+  color:"#fff02e",
+  colorMap:loadColorMap(),
+  colorNames:loadColorNames(),   // { "ETP":"#ff9a3c", "W/Cotton":null }
+  extras:loadExtras(),           // 묶음 수량 · 유리 사이즈 켜고 끄기
+  sheet:{w:296.54, h:209.80},    // 인쇄 한 장의 크기(mm) — setSheetSize 가 PDF 에서 재서 넣습니다
+  tokens:[]                  // PDF에서 찾은 색상 이름
+};
+
+/* ---------- storage ---------- */
+
+/* 팔레트 색을 바꾸면 **이미 저장해 둔 지정도 같이** 바꿔 줍니다.
+   저장 키 판을 올려 버리면 사장님이 따로 골라 두신 색·규칙까지 초기화되므로,
+   바뀐 색만 조용히 갈아끼웁니다. 색을 또 바꿀 때 여기 한 줄만 더하십시오. */
+const HEX_MIGRATE = {
+  "#ffb25c": "#ffa022"      // 주황 — 더 밝고 선명하게 (2026-09-23)
+};
+function migHex(h){
+  const k = String(h||"").toLowerCase();
+  return HEX_MIGRATE[k] || h;
+}
+
+function loadRules(){
+  try{
+    const s = localStorage.getItem("label-mark-rules-v10");
+    if(s){
+      const rs = JSON.parse(s);
+      for(const r of rs) r.color = migHex(r.color);
+      return rs;
+    }
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT_RULES));
+}
+function saveRules(){
+  try{ localStorage.setItem("label-mark-rules-v10", JSON.stringify(state.rules)); }catch(e){}
+}
+function loadColorMap(){
+  try{
+    const v = localStorage.getItem("label-mark-colors-v6");
+    if(v){
+      const m = JSON.parse(v);
+      for(const k in m) if(m[k]) m[k] = migHex(m[k]);
+      return m;
+    }
+  }catch(e){}
+  return {
+    "W/Cotton":  null,        // 웜코튼 — 안 칠함
+    "PG/Off WH": null,        // 화이트 — 안 칠함
+    "ETP":       "#ffa022",   // 에토프 — 주황
+    "PG/RG":     "#ffa022",   // 로즈골드 — 주황
+    "BRZ":       "#c2c6ca",   // 브리즈 — 회색
+    "Shade":     "#8ce08f"    // 쉐이드 — 초록
+  };
+}
+function saveColorMap(){
+  try{ localStorage.setItem("label-mark-colors-v6", JSON.stringify(state.colorMap)); }catch(e){}
+}
+function loadColorNames(){
+  try{
+    const v = localStorage.getItem("label-mark-colornames-v3");
+    if(v) return JSON.parse(v);
+  }catch(e){}
+  return {"W/Cotton":"웜코튼", "PG/Off WH":"화이트", "ETP":"에토프", "PG/RG":"로즈골드", "BRZ":"브리즈", "Shade":"쉐이드"};
+}
+function saveColorNames(){
+  try{ localStorage.setItem("label-mark-colornames-v3", JSON.stringify(state.colorNames)); }catch(e){}
+}
+
+function loadExtras(){
+  try{
+    const v = localStorage.getItem("label-mark-extras-v1");
+    if(v) return Object.assign({bundle:true, glass:true}, JSON.parse(v));
+  }catch(e){}
+  return {bundle:true, glass:true};
+}
+function saveExtras(){
+  try{ localStorage.setItem("label-mark-extras-v1", JSON.stringify(state.extras)); }catch(e){}
+}
+
+function docKey(){ return "label-mark-doc-v1:"+state.fileName; }
+function saveDoc(){
+  if(!state.fileName) return;
+  try{
+    localStorage.setItem(docKey(), JSON.stringify({
+      marks: state.marks.filter(m=>!m.auto),
+      notes: state.notes.filter(n=>!n.auto)
+    }));
+  }catch(e){}
+}
+function loadDoc(){
+  try{
+    const s = localStorage.getItem(docKey());
+    if(!s) return;
+    const d = JSON.parse(s);
+    state.marks.push(...(d.marks||[]));
+    state.notes.push(...(d.notes||[]));
+  }catch(e){}
+}
+
+/* ---------- pdf load ---------- */
+const viewer = document.getElementById("viewer");
+
+document.getElementById("file").addEventListener("change", async e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  await openPdf(f);
+  e.target.value = "";
+});
+
+async function openPdf(file){
+  const busy = showBusy("PDF 읽는 중…");
+  try{
+    state.fileName = file.name;
+    state.pages = []; state.marks = []; state.notes = [];
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    state.pdfDoc = pdf;
+
+    viewer.innerHTML = "";
+    for(let n=1; n<=pdf.numPages; n++){
+      busy.textContent = `페이지 ${n} / ${pdf.numPages} 그리는 중…`;
+      const page = await pdf.getPage(n);
+      const base = page.getViewport({scale:1});
+      const scale = pageScale(base, pdf.numPages);
+      const vp = page.getViewport({scale});
+
+      const wrap = document.createElement("div");
+      wrap.className = "pagewrap";
+      wrap.dataset.page = n;
+      wrap.style.aspectRatio = `${vp.width} / ${vp.height}`;
+
+      const label = document.createElement("div");
+      label.className = "pageno";
+      label.textContent = `${n} / ${pdf.numPages}`;
+      wrap.appendChild(label);
+
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(vp.width);
+      cv.height = Math.round(vp.height);
+      wrap.appendChild(cv);
+      await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+
+      const ov = document.createElement("div");
+      ov.className = "overlay";
+      ov.dataset.page = n;
+      wrap.appendChild(ov);
+      viewer.appendChild(wrap);
+
+      // text items, normalised to 0..1
+      const clips = await clipRects(page, base);
+      const tc = await page.getTextContent();
+      const items = [], vert = [];
+      for(const it of tc.items){
+        if(!it.str || !it.str.trim()) continue;
+        const t = pdfjsLib.Util.transform(base.transform, it.transform);
+        if(Math.abs(t[1]) > 0.01 || Math.abs(t[2]) > 0.01){
+          /* 세로(회전) 글자 — 형광펜 판정에서는 빼지만, **메모 자리를 잡는 데** 씁니다.
+             세로 바코드·세로 글자가 어디서 시작하는지가 쪼가리의 빈 자리를 정합니다.
+             세로 글자는 아래에서 위로 올라가므로 t[5] 가 아래 끝이고 위로 it.width 만큼 뻗습니다. */
+          vert.push({ x: t[4]/base.width, top: (t[5] - (it.width||0))/base.height,
+                      fh: (Math.hypot(t[1], t[3]) || 8)/base.width });
+          continue;
+        }
+        const fh = Math.hypot(t[2], t[3]) || 8;
+        const w = it.width || (it.str.length * fh * 0.5);
+        const o = {
+          str: it.str,
+          x: t[4]/base.width,
+          y: (t[5]-fh)/base.height,
+          w: w/base.width,
+          h: (fh*1.25)/base.height
+        };
+        o.clipX1 = clipRightOf(clips, o);     // 칸에 잘려 나온 글자의 **진짜 오른쪽 끝**
+        items.push(o);
+      }
+      state.pages.push({num:n, w:base.width, h:base.height, items, vert, lines: buildLines(items, vert)});
+    }
+    setSheetSize();
+    collectTokens();
+    loadDoc();
+    applyRules();
+    hookOverlays();
+    renderAll();
+    if(state.tab === "frames") renderFrameList();
+  }catch(err){
+    console.error(err);
+    alert("PDF를 읽지 못했습니다. 다른 파일로 다시 시도해 주세요.\n\n" + err.message);
+  }finally{
+    busy.remove();
+  }
+}
+
+/* ---------- 인쇄 화질 (2026-09-23) ----------
+
+   PDF 를 캔버스에 **그림으로 구워** 얹기 때문에, **캔버스 점 수가 곧 종이의 해상도**입니다.
+   예전에는 가로 1600점으로 고정이었습니다 — 296.5mm 에 1600점이면 **137 DPI** 라,
+   600 DPI 프린터로 뽑아도 **한 번 복사한 것처럼** 보입니다
+   (사장님 2026-09-23 "인쇄한걸 스캔한 것처럼 화질이 안좋게 나오네").
+
+   그래서 **쪽수에 맞춰 메모리 한도 안에서 가장 높은 해상도**를 씁니다.
+     · 8쪽이면 300 DPI (가로 3504점) — 예전의 2.2배
+     · 43쪽이면 예전과 같은 정도 — 쪽이 많으면 브라우저가 캔버스를 버려 **빈 장**이 나옵니다
+   ⚠ 한도를 올리기 전에 꼭 **쪽 많은 PDF 로 시험**하십시오. 빈 장은 조용히 나옵니다. */
+const PRINT_DPI        = 300;    // 목표 해상도
+const CANVAS_BUDGET_MB = 320;    // 캔버스 전체가 쓸 메모리 한도
+function pageScale(base, nPages){
+  const want  = PRINT_DPI/72;                                   // 300DPI = 4.17배
+  const budget = CANVAS_BUDGET_MB*1e6/Math.max(1, nPages);      // 쪽당 바이트
+  const fit   = Math.sqrt(budget/(4*base.width*base.height));   // 픽셀 하나에 4바이트
+  const floor = 1600/base.width;                                // 예전 값보다 나빠지지 않게
+  return Math.max(floor, Math.min(want, fit));
+}
+
+/* ---------- 칸에 잘려 나온 글자의 진짜 끝 찾기 (2026-09-22) ----------
+
+   품명이 칸보다 길면 라벨에는 `… 비규격(450*0*880*` 까지만 보입니다. 그런데
+   **pdf.js 는 잘리기 전 글자 전체**(`…880*0 M)`)를 주므로, 그대로 칠하면
+   안 보이는 부분까지 노랗게 칠해져 **칸 선을 넘어 옆 칸을 침범합니다**
+   (사장님 2026-09-22 "박스 밖으로 선을 넘었는데 불필요할거같아요").
+
+   다행히 PDF 안에 답이 있습니다 — 크리스탈리포트는 **글자를 자를 때 그 칸만큼 clip 을 겁니다.**
+   그 네모의 오른쪽 끝이 곧 눈에 보이는 끝입니다. 안 잘리는 칸에는 clip 이 없으니
+   아무 영향도 없습니다.
+   ⚠ 짐작으로 자르지 마십시오. 칸 너비를 숫자로 적어 두면 서식이 바뀔 때 조용히 틀립니다. */
+async function clipRects(page, base){
+  const OPS = pdfjsLib.OPS;
+  const mul = (a,b)=>[a[0]*b[0]+a[2]*b[1], a[1]*b[0]+a[3]*b[1],
+                      a[0]*b[2]+a[2]*b[3], a[1]*b[2]+a[3]*b[3],
+                      a[0]*b[4]+a[2]*b[5]+a[4], a[1]*b[4]+a[3]*b[5]+a[5]];
+  let ol;
+  try{ ol = await page.getOperatorList(); }catch(e){ return []; }
+  let ctm = [1,0,0,1,0,0], last = null;
+  const stack = [], out = [];
+  for(let i=0;i<ol.fnArray.length;i++){
+    const f = ol.fnArray[i], a = ol.argsArray[i];
+    if(f === OPS.save) stack.push(ctm.slice());
+    else if(f === OPS.restore) ctm = stack.pop() || ctm;
+    else if(f === OPS.transform) ctm = mul(ctm, a);
+    else if(f === OPS.constructPath) last = a[2];          // [minX, maxX, minY, maxY]
+    else if(f === OPS.clip && last){
+      const [x0,x1,y0,y1] = last;
+      const pt = ([x,y])=> pdfjsLib.Util.applyTransform(
+        [ctm[0]*x + ctm[2]*y + ctm[4], ctm[1]*x + ctm[3]*y + ctm[5]], base.transform);
+      const p0 = pt([x0,y0]), p1 = pt([x1,y1]);
+      out.push({ x0: Math.min(p0[0],p1[0])/base.width,  x1: Math.max(p0[0],p1[0])/base.width,
+                 y0: Math.min(p0[1],p1[1])/base.height, y1: Math.max(p0[1],p1[1])/base.height });
+    }
+  }
+  // 쪽 전체를 덮는 것은 칸이 아니라 바탕입니다
+  return out.filter(c => c.x1 - c.x0 < 0.9);
+}
+function clipRightOf(clips, o){
+  const my = o.y + o.h/2;
+  let lim = null;
+  for(const c of clips){
+    if(my < c.y0 || my > c.y1) continue;
+    /* 글자 **시작점이 그 칸 안**이어야 합니다.
+       ⚠ `o.x > c.x1` 로만 거르면 옆 칸 clip 의 오른쪽 끝에 딱 붙어 시작하는 글자를
+         제 칸으로 잘못 봅니다 — 작은 `03129` 의 칸이 큰 `03500` 을 자르는 일이 있었습니다. */
+    if(o.x < c.x0 - 1e-6 || o.x >= c.x1 - 1e-6) continue;
+    if(lim === null || c.x1 < lim) lim = c.x1;
+  }
+  return lim;
+}
+
+/* 인쇄 한 장의 크기를 PDF 에서 재서 넣습니다.
+   포인트를 밀리미터로 바꾸고(×25.4/72), 용지(A4 가로)보다 살짝 작게 줄입니다.
+   가로·세로를 따로 줄이면 비율이 깨지므로 **같은 비율로** 줄입니다. */
+const SHEET_MAX_W = 296.8, SHEET_MAX_H = 209.8;   // A4 가로 297×210 에서 0.2mm 만 물러섭니다
+function setSheetSize(){
+  const p = state.pages[0];
+  if(!p || !p.w || !p.h) return;
+  const w0 = p.w*25.4/72, h0 = p.h*25.4/72;
+  const s = Math.min(SHEET_MAX_W/w0, SHEET_MAX_H/h0, 1);
+  state.sheet = {w: w0*s, h: h0*s};      // 밀리미터 — 메모 자리 계산에도 씁니다
+  const st = document.documentElement.style;
+  st.setProperty("--sheet-w", state.sheet.w.toFixed(2)+"mm");
+  st.setProperty("--sheet-h", state.sheet.h.toFixed(2)+"mm");
+}
+
+function showBusy(msg){
+  const d = document.createElement("div");
+  d.className = "loading";
+  d.textContent = msg;
+  document.body.appendChild(d);
+  return d;
+}
+
+/* ---------- rules ---------- */
+function charW(ch){ return ch.charCodeAt(0) > 0x1100 ? 2 : 1; }
+function widthOf(s){ let n=0; for(const c of s) n+=charW(c); return n; }
+
+/* PDF는 한 줄을 여러 조각으로 쪼개 넣습니다.
+   ('비규격' 과 '(536*0*356*0 M)' 이 따로 옵니다)
+   그래서 붙어 있는 조각을 한 줄로 이어 판정하고, 색은 조각별로 나눠 칠합니다. */
+function buildLines(items, vert){
+  /* 글자마다 **오른쪽 한계**를 정해 둡니다 — 형광펜이 이 선을 넘지 않습니다.
+
+     칸 너비에 잘려 나온 품명(`… 비규격(450*0*880*`)은 눈에는 잘려 보이지만
+     pdf.js 는 **잘리기 전 글자 전체**를 줍니다. 그대로 칠하면 안 보이는 `0 M)` 만큼
+     형광펜이 더 나가 **칸 선을 넘어 옆 칸까지 노랗게** 됩니다 (사장님 2026-09-22).
+
+     한계는 둘 중 왼쪽:
+       ① 같은 줄에서 바로 오른쪽에 있는 글자(다음 칸, 예: `1 / 1`)
+       ② 세로 글자가 시작되는 자리 — 거기부터는 쪼가리라 가로 글자가 올 수 없습니다 */
+  const colX = [1,1];
+  for(const v of (vert||[])) colX[v.x<0.5?0:1] = Math.min(colX[v.x<0.5?0:1], v.x);
+  for(const a of items){
+    let lim = colX[a.x<0.5?0:1] - 0.004;
+    if(a.clipX1 != null && a.clipX1 < lim) lim = a.clipX1;   // PDF 가 잘라 둔 자리가 가장 정확합니다
+    for(const b of items){
+      if(b === a || b.x <= a.x) continue;
+      if(Math.abs(b.y - a.y) > a.h*0.5) continue;
+      if(b.x < lim) lim = b.x;
+    }
+    a.rightLimit = lim;
+  }
+
+  const sorted = items.slice().sort((a,b)=> (a.y - b.y) || (a.x - b.x));
+  const lines = [];
+  let cur = null;
+  for(const it of sorted){
+    const gap = cur ? it.x - cur.endX : 9;
+    const sameRow  = cur && Math.abs(it.y - cur.y) < cur.h*0.5
+                         && Math.abs(it.h - cur.h) < cur.h*0.35;   // 글자 크기가 비슷할 것
+    const adjacent = gap < 0.007 && gap > -0.004;                  // 칸 사이 여백이면 붙이지 않음
+    if(sameRow && adjacent){
+      if(gap > 0.003){ cur.text += " "; }
+      cur.parts.push({item:it, start:cur.text.length, len:it.str.length});
+      cur.text += it.str;
+      cur.endX = it.x + it.w;
+    }else{
+      cur = {y:it.y, h:it.h, x:it.x, endX:it.x+it.w, text:it.str,
+             parts:[{item:it, start:0, len:it.str.length}], first:it};
+      lines.push(cur);
+    }
+  }
+  return mergeWrapped(lines);
+}
+
+/* 큰 라벨은 품명이 두 줄로 잘립니다.
+   ("… OB M " / "비규격(410*0*736*0 M)")
+   아랫줄만 보면 OB 가 없어 규칙이 안 걸리므로 한 덩어리로 잇습니다. */
+function mergeWrapped(lines){
+  const used = new Set();
+  for(let i=0;i<lines.length;i++){
+    const a = lines[i];
+    if(used.has(i)) continue;
+    if(!/Euro\d{3}|AL도어/.test(a.text)) continue;
+    for(let j=i+1;j<lines.length;j++){
+      if(used.has(j)) continue;
+      const b = lines[j];
+      const dy = b.y - a.y;
+      if(dy > a.h*1.8) break;
+      if(dy < a.h*0.4) continue;
+      if(Math.abs(b.x - a.x) > 0.004) continue;
+      if(/Euro\d{3}|AL도어/.test(b.text)) continue;   // 다른 품명이면 잇지 않습니다
+      const sep = /\s$/.test(a.text) ? "" : " ";
+      const off = a.text.length + sep.length;
+      a.text += sep + b.text;
+      for(const pt of b.parts) a.parts.push({item:pt.item, start:off+pt.start, len:pt.len});
+      used.add(j);
+      break;
+    }
+  }
+  return lines.filter((_,i)=>!used.has(i));
+}
+
+/* 줄 안의 [a,b) 구간을 덮는 사각형들 — 조각을 넘나들면 여러 개가 나옵니다 */
+function rectsFor(line, a, b){
+  const out = [];
+  for(const pt of line.parts){
+    const s0 = Math.max(a, pt.start), e0 = Math.min(b, pt.start + pt.len);
+    if(e0 <= s0) continue;
+    const it = pt.item, total = widthOf(it.str) || 1;
+    const pre = widthOf(it.str.slice(0, s0 - pt.start));
+    const len = widthOf(it.str.slice(s0 - pt.start, e0 - pt.start));
+    const x = it.x + it.w*(pre/total);
+    // 칸 선을 넘지 않게 자릅니다 (buildLines 의 rightLimit 참고)
+    const w = Math.min(it.w*(len/total), (it.rightLimit ?? 1) - x);
+    if(w <= 0) continue;
+    out.push({x, y: it.y, w, h: it.h});
+  }
+  // 같은 줄에서 조각과 조각 사이 공백은 어디에도 속하지 않아 색이 끊깁니다. 이어 붙입니다.
+  out.sort((p,q)=> (p.y - q.y) || (p.x - q.x));
+  const joined = [];
+  for(const r of out){
+    const last = joined[joined.length-1];
+    if(last && Math.abs(last.y - r.y) < 1e-6 && r.x - (last.x + last.w) < 0.012){
+      last.w = Math.max(last.x + last.w, r.x + r.w) - last.x;
+    }else{
+      joined.push({...r});
+    }
+  }
+  return joined;
+}
+
+/* ---------- 메모 자리 — 빨간선 오른쪽 쪼가리 (사장님 확정 2026-09-22) ---------- */
+/*
+   라벨지는 **세로 바코드 왼쪽에서 이미 갈라져 있습니다.** 사장님이 빨간선으로 표시한 곳입니다.
+   (가운데 검은 십자선만 칼로 자릅니다)
+
+     ┌──────────────────────────┬──┐
+     │  이 큰 조각이 제품에 붙고   │쪼│  ← 오른쪽 쪼가리는 남습니다
+     │  마지막에 박스에 붙습니다   │가│
+     │  → **형광펜만** 남깁니다    │리│  → **메모는 전부 여기에**
+     └──────────────────────────┴──┘
+
+   쪼가리에서 쓸 수 있는 자리는 **세로 바코드·세로 글자가 시작되기 전 윗부분**뿐입니다.
+   PDF 에서 재 보면 윗줄 라벨 9.1mm · **아랫줄 라벨은 5.2mm** 밖에 안 됩니다.
+   그래서 자리를 숫자로 적어 두지 않고 **매번 재고**, 글자도 들어갈 만큼 줄입니다.
+   ⚠ 여기 값을 고정 숫자로 되돌리지 마십시오. 아랫줄 라벨에서 곧바로 절취선을 넘습니다.
+*/
+const STRIP_FS  = [15, 14, 13, 12, 11, 10, 9];  // 큰 것부터 — 다 들어가는 가장 큰 크기를 씁니다
+const STRIP_LH  = 1.25;               // 줄 간격 (글자 크기의 배수)
+const STRIP_X1  = [0.4980, 0.9885];   // 오른쪽 끝: 세로 절취선 앞 / 용지 끝에서 3.4mm
+const STRIP_SEP = " · ";              // 한 줄에 여럿을 이을 때
+
+/* ⚠ **빈 자리는 라벨 하나하나 따로 잽니다.** 사분면을 뭉뚱그리면 안 됩니다.
+   세로로 적히는 품명이 길면 그 칸만 위로 더 올라옵니다 —
+   실제로 `BNDC2N 3091 M` 한 장 때문에 절취선에서 9.15mm 였고,
+   나머지는 전부 11.50mm 였습니다. 그 하나를 전체에 적용해 **모든 아랫줄 라벨이
+   2.3mm 씩 손해**를 봤고, 그만큼 글자가 작아졌습니다. (2026-09-22 수정) */
+function stripBoxes(){
+  const mmH = state.sheet.h;
+  // 메모의 왼쪽 끝은 **세로 글자의 왼쪽 끝**에 맞춥니다. 열마다 한 번만 정합니다.
+  const colX = [1,1];
+  for(const p of state.pages) for(const v of (p.vert||[]))
+    colX[v.x<0.5?0:1] = Math.min(colX[v.x<0.5?0:1], v.x);
+
+  const gap  = 0.5/mmH;    // 세로 바코드와 0.5mm
+  /* 용지 위 가장자리에서 6mm. 메모가 아래쪽에 붙으므로 보통은 훨씬 아래에 놓이고,
+     **세 줄까지 늘어날 때만** 여기까지 올라옵니다. 원본 라벨의 맨 위 잉크가 15.9mm 라
+     그보다 위는 이 프린터에서 아직 찍어 본 적이 없는 자리입니다 — 너무 올리지 마십시오. */
+  const edge = 6.0/mmH;
+  /* 가로 절취선에서 최소 1.5mm. 메모는 **아래쪽에 붙으므로**(layoutStripNotes)
+     실제로는 이보다 훨씬 내려갑니다 — 이 값은 '글자 덩어리가 이보다 높이 올라오면 안 된다'는
+     천장일 뿐입니다. 크게 잡으면 글자만 작아지고 정작 자리는 더 안 내려갑니다. */
+  const cut  = 2.5/mmH;
+
+  const out = {};
+  for(const p of state.pages){
+    const top = {};
+    for(const v of (p.vert||[])){
+      const k = (v.x<0.5?0:1) + "-" + (v.top<0.5?0:1);
+      top[k] = Math.min(top[k] === undefined ? 1 : top[k], v.top);
+    }
+    for(const qx of [0,1]) for(const qy of [0,1]){
+      const k = qx+"-"+qy;
+      if(top[k] === undefined) continue;          // 세로 글자가 없으면 자리를 못 잽니다
+      out[p.num+"|"+k] = { x0: colX[qx], x1: STRIP_X1[qx],
+                           y0: (qy?0.5:0) + (qy?cut:edge), y1: top[k] - gap };
+    }
+  }
+  return out;
+}
+
+/* ---------- 유리 사이즈는 **세로로** 적습니다 (사장님 확정 2026-09-22) ----------
+
+   쪼가리의 세로 글자들 **사이**에 빈 칸이 있습니다. 대부분의 라벨에서 품명 세로줄과
+   납품처 세로줄 사이가 **5.17mm** 비어 있고, 세로로 적으면 길이는 라벨 높이만큼 쓸 수 있어
+   위쪽 좁은 띠보다 훨씬 크게 적을 수 있습니다.
+   덤으로 위쪽 띠가 비어 묶음 수량·L/R 도 커집니다.
+
+   ⚠ **라벨마다 따로 찾습니다.** 품명이 길면 세로줄이 두 줄이 되어 그 틈이 사라집니다
+     (`3073(공용) M` · `비규격(750*0*910*0 M)` 등). 틈이 좁으면 세로로 적지 않고
+     예전처럼 위쪽 가로 줄로 보냅니다. */
+/* 세로 칸이 이보다 좁으면 **세로로 안 적고 위쪽 가로 줄로 보냅니다.**
+   4.6mm 는 13px 이 들어가는 너비입니다(13×1.15 = 3.95mm + 양옆 0.3mm).
+   ⚠ 2.6mm 로 낮춰 두었더니 바코드 뒤 좁은 틈에 **9~10px 로 작게** 적히는 일이 있었습니다.
+     사장님 2026-09-23 "가로로 되어있는 글씨크기가 맘에드는데" — 가로 줄은 15px 입니다.
+     좁은 칸에 세로로 욱여넣느니 **가로로 크게** 적는 편이 낫습니다. */
+const GLASS_MIN_MM = 4.6;
+const GLASS_FS     = [16, 15, 14, 13];           // 칸 너비에 맞는 가장 큰 크기
+
+/* ⚠ **왼쪽 칸과 오른쪽 칸이 똑같이 판단해야 합니다.**
+   왼쪽 라벨은 세로 절취선(0.4980)까지 쓸 수 있고 오른쪽 라벨은 용지 끝 3.4mm 앞(0.9885)까지라,
+   그대로 두면 **같은 물건인데 왼쪽만 세로로, 오른쪽은 가로로** 적히는 일이 생깁니다
+   (사장님 2026-09-23 "이거 왜 짝짝이야?").
+   그래서 빈 칸을 **라벨 기준(세로 글자 왼쪽 끝부터)** 으로 재고, 오른쪽 한계는 **둘 중 좁은 쪽**을 씁니다.
+   라벨 넷이 늘 같은 모양으로 나옵니다. */
+function stripColumns(){
+  const mmW = state.sheet.w;
+  const colX = [1,1];
+  for(const p of state.pages) for(const v of (p.vert||[]))
+    colX[v.x<0.5?0:1] = Math.min(colX[v.x<0.5?0:1], v.x);
+
+  let relLim = Infinity;                       // 세로 글자 왼쪽 끝에서 여기까지
+  for(const qx of [0,1]) if(colX[qx] < 1) relLim = Math.min(relLim, STRIP_X1[qx] - colX[qx]);
+  if(!isFinite(relLim)) return {};
+
+  const out = {};
+  for(const p of state.pages){
+    const by = {};
+    for(const v of (p.vert||[])){
+      const k = (v.x<0.5?0:1) + "-" + (v.top<0.5?0:1);
+      (by[k] || (by[k] = [])).push(v);
+    }
+    for(const k in by){
+      const base = colX[+k[0]];
+      const occ = by[k].map(v => [v.x - base - v.fh/2, v.x - base + v.fh/2]).sort((a,b) => a[0]-b[0]);
+      const merged = [];
+      for(const o of occ){
+        const l = merged[merged.length-1];
+        if(l && o[0] <= l[1] + 0.0005) l[1] = Math.max(l[1], o[1]); else merged.push([...o]);
+      }
+      let best = null;
+      for(let i=1;i<merged.length;i++){
+        const g = [merged[i-1][1], merged[i][0]];
+        if(!best || g[1]-g[0] > best[1]-best[0]) best = g;
+      }
+      const tail = [merged[merged.length-1][1], relLim];         // 바코드 뒤 ~ 한계
+      if(!best || tail[1]-tail[0] > best[1]-best[0]) best = tail;
+      out[p.num+"|"+k] = { x0: base + best[0], x1: base + Math.min(best[1], relLim),
+                           top: Math.min(...by[k].map(v => v.top)),
+                           mm: (Math.min(best[1], relLim) - best[0])*mmW };
+    }
+  }
+  return out;
+}
+
+/* 글자들을 줄로 나누는 **모든 경우**를 만듭니다 (붙일 자리마다 붙이거나 말거나).
+   셋이면 4가지: `2장|HD|R` · `2장 · HD|R` · `2장|HD · R` · `2장 · HD · R`.
+   이 가운데 자리에 들어가는 것 중 **줄이 가장 많은 것**을, 줄 수가 같으면 **가장 고른 것**을 씁니다.
+   ⚠ 앞에서부터 욱여넣는 방식(greedy)만 쓰면 `2장 · HD` / `R` 처럼 어중간하게 갈립니다
+     (사장님 2026-09-22 "2장 / HD R 로 하든, 3줄은 어렵나"). */
+function splitCandidates(items){
+  const n = items.length, out = [];
+  if(n > 8) return [[items.join(STRIP_SEP)]];          // 경우의 수가 너무 불어나지 않게
+  for(let mask = 0; mask < (1 << (n-1)); mask++){
+    const lines = [items[0]];
+    for(let i = 1; i < n; i++){
+      if(mask & (1 << (i-1))) lines[lines.length-1] += STRIP_SEP + items[i];
+      else lines.push(items[i]);
+    }
+    out.push(lines);
+  }
+  return out;                                          // 마지막(mask 가 전부 1)이 한 줄짜리
+}
+
+/* 한 라벨에 적을 글자들을 쪼가리 안에 줄로 나눠 놓습니다.
+   글자 너비는 어림하지 말고 **실제로 잽니다** — 한글·숫자·`·` 가 섞여 어림이 잘 틀립니다. */
+function layoutStripNotes(pend){
+  const boxes = stripBoxes();
+  const cols  = stripColumns();
+  const cx = layoutStripNotes._cx ||
+            (layoutStripNotes._cx = document.createElement("canvas").getContext("2d"));
+  const fam = getComputedStyle(document.body).fontFamily;
+  const pxW = state.sheet.w*96/25.4, pxH = state.sheet.h*96/25.4;   // 인쇄했을 때의 크기
+  for(const [key, o] of pend){
+    const [pageStr, cell] = key.split("|");
+
+    // 유리 사이즈 — 빈 세로 칸이 넉넉하면 세로로 적고, 좁으면 위쪽 가로 줄로 보냅니다
+    let glassLeft = o.glass;
+    const col = cols[key];
+    if(o.glass && col && col.mm >= GLASS_MIN_MM){
+      // 양옆으로 0.3mm 는 띄웁니다. 딱 맞추면 인쇄가 조금만 밀려도 옆 세로줄에 닿습니다.
+      const availPx = (col.x1 - col.x0)*pxW - 2*(0.3*96/25.4);
+      let fs = GLASS_FS[GLASS_FS.length-1];
+      for(const f of GLASS_FS){ if(f*1.15 <= availPx){ fs = f; break; } }
+      cx.font = "700 " + fs + "px " + fam;
+      const tw = cx.measureText(o.glass).width, lh = fs*1.15;
+      state.notes.push({id:uid(), page:+pageStr, cell, text:o.glass, fs,
+                        x: col.x0 + ((col.x1 - col.x0) - lh/pxW)/2,   // 칸 한가운데
+                        y: col.top + tw/pxH,                          // 세로 글자와 위를 맞춤
+                        align:"left", cls:"strip vert", auto:true, rule:"__strip__"});
+      glassLeft = null;
+    }
+
+    const texts = [o.bundle, glassLeft, ...o.rules].filter(Boolean);
+    if(!texts.length) continue;
+    const box = boxes[key];
+    if(!box) continue;
+    const maxW = (box.x1 - box.x0)*pxW, maxH = (box.y1 - box.y0)*pxH;
+    /* 큰 글자부터 내려오며, 크기마다 **① 한 줄에 하나씩 → ② 이어 붙이기** 차례로 재 보고
+       먼저 들어가는 쪽을 씁니다.
+
+       ⚠ 이어 붙이기만 쓰면 `2장 · HD` / `R` 처럼 **어중간하게 갈립니다**
+         (사장님 2026-09-22 "2장 / HD R 로 하든, 3줄은 어렵나").
+         한 줄에 하나씩이면 `2장` / `HD` / `R` 로 깔끔하게 떨어집니다.
+       ⚠ 글자를 줄여 한 줄에 몰아넣지 않습니다. `2장 · 421×708 · R` 을 한 줄로 욱여넣다가
+         9px 까지 작아진 적이 있습니다 (같은 날 "글씨가 너무 작아졌어. 줄바꿈으로 해줘"). */
+    const cands = splitCandidates(texts);
+    let best = null;
+    for(const fs of STRIP_FS){
+      cx.font = "700 " + fs + "px " + fam;
+      const lh = fs*STRIP_LH;
+      let pick = null;
+      for(const lines of cands){
+        if(lines.length*lh > maxH) continue;
+        const ws = lines.map(l => cx.measureText(l).width);
+        if(Math.max(...ws) > maxW) continue;
+        const spread = Math.max(...ws) - Math.min(...ws);
+        if(!pick || lines.length > pick.lines.length ||
+           (lines.length === pick.lines.length && spread < pick.spread)) pick = {lines, spread};
+      }
+      if(pick){ best = {fs, lines:pick.lines, lh}; break; }
+      best = {fs, lines: cands[cands.length-1], lh};   // 못 들어가면 가장 압축된 것으로
+    }
+    /* **아래쪽에 붙입니다** — 세로 바코드 바로 위. (사장님 2026-09-22)
+       위에 붙이면 윗줄 라벨은 용지 가장자리에, 아랫줄 라벨은 가로 절취선에 바짝 붙습니다.
+       둘 다 인쇄가 밀리면 잘려 나가는 자리입니다. 아래에 붙이면 두 경계에서 멀어지고,
+       네 라벨 모두 **세로 바코드 바로 위**라는 같은 자리에 오게 됩니다. */
+    const blockH = best.lines.length*best.lh;
+    const top = Math.max(box.y0*pxH, box.y1*pxH - blockH);   // 위 경계는 넘지 않습니다
+    best.lines.forEach((t,i)=>{
+      state.notes.push({id:uid(), page:+pageStr, x:box.x0,
+                        y: (top + i*best.lh + best.lh/2)/pxH,
+                        text:t, cell, align:"left", cls:"strip", fs:best.fs,
+                        auto:true, rule:"__strip__"});
+    });
+  }
+}
+
+/* 규칙·묶음·유리가 만든 글자를 라벨 칸(사분면)별로 모읍니다.
+   차례: 묶음 수량 → 유리 사이즈 → 규칙 메모(피스·목대·힌지·HD·L/R) */
+function addPend(pend, page, line, kind, text){
+  const cell = (line.x<0.5?0:1) + "-" + (line.y<0.5?0:1);
+  const k = page + "|" + cell;
+  let o = pend.get(k);
+  if(!o){ o = {bundle:null, glass:null, rules:[]}; pend.set(k, o); }
+  if(kind === "rule"){ if(!o.rules.includes(text)) o.rules.push(text); }
+  else o[kind] = text;
+}
+
+function applyRules(){
+  state.marks = state.marks.filter(m=>!m.auto);
+  state.notes = state.notes.filter(n=>!n.auto);
+  for(const r of state.rules) r._n = 0;
+  const pend = new Map();          // "쪽|사분면" → {bundle, glass, rules[]}
+
+  for(const p of state.pages){
+    for(const line of p.lines){
+      const str = line.text;
+      for(const r of state.rules){
+        if(!r.on) continue;
+        if(!r.contains && !r.target) continue;
+        if(r.contains && !str.includes(r.contains)) continue;
+        const tgt = (r.target||"").trim();
+        const style = r.style || "hl";          // hl 형광펜 / circle 동그라미 / none 표시 없음
+        let matched = !tgt, found = "";
+
+        if(tgt === "*"){
+          matched = true;
+          if(style !== "none") for(const rc of rectsFor(line, 0, str.length))
+            state.marks.push({id:uid(), page:p.num, ...rc, color:r.color, style, auto:true, rule:r.id});
+          r._n++;
+        }else if(tgt){
+          const ex = (r.except||"").trim();
+          const exRe = (ex.length>2 && ex.startsWith("/") && ex.endsWith("/"))
+                       ? (function(){ try{ return new RegExp(ex.slice(1,-1)); }catch(e){ return null; } })() : null;
+          const skips = exRe ? [] : ex.split(",").map(x=>x.trim()).filter(Boolean);
+          for(const hit of findHits(str, tgt)){
+            if(exRe && exRe.test(hit.text)) continue;
+            if(skips.some(x => hit.text.endsWith(x) || hit.text.includes(x))) continue;
+            // 칸을 채우려고 뒤에 붙은 공백까지 칠하면 칸 선을 넘습니다. 앞뒤 공백은 뺍니다.
+            let s0 = hit.index, e0 = hit.index + hit.text.length;
+            while(e0 > s0 && /\s/.test(str[e0-1])) e0--;
+            while(s0 < e0 && /\s/.test(str[s0]))   s0++;
+            if(e0 <= s0) continue;
+            if(style !== "none") for(const rc of rectsFor(line, s0, e0))
+              state.marks.push({id:uid(), page:p.num, ...rc, color:r.color, style, auto:true, rule:r.id});
+            r._n++;
+            matched = true;
+            found = hit.text.trim();
+          }
+        }
+
+        if(r.note && matched){
+          const text = r.note.replace(/\$0/g, found);      // $0 = 찾은 글자 (L / R 등)
+          addPend(pend, p.num, line, "rule", text);
+        }
+      }
+    }
+  }
+  applyColorMarks();
+  if(state.extras.bundle) applyBundleNotes(pend);
+  if(state.extras.glass)  applyGlassNotes(pend);
+  layoutStripNotes(pend);
+  cleanupDuplicateNotes();
+}
+
+/* 수납도어류(AL도어 등) 비규격 — 유리 사이즈를 적습니다. (사용자 확정 2026-09-22)
+
+   라벨의 `비규격(450*0*736*0 L)` 숫자는 **장규격(납품 사이즈)** 입니다.
+   유리 차감은 계통마다 다릅니다 — 정본은 CLAUDE.md 12-1 (실적 400여 건 일치).
+     장 → 프레임 → 유리 를 한 번에 접은 값입니다.
+
+   ⚠ 순서가 중요합니다. 에어힌지·빗면을 유리장식보다 **먼저** 봐야 합니다.
+     '키큰장'·'벽장'이 이름에 겹쳐, 뒤에 두면 유리장식으로 잘못 흡수됩니다.
+   ⚠ 유로 계열은 적지 않습니다. 유리 세로 감산이 손잡이 개수(양면 −3 / 단일 −1)로
+     갈리는데 라벨에는 그 정보가 없습니다. 지어내지 않습니다. */
+const SUBDOOR_GLASS = [
+  {re:/에어힌지|AL프레임/,           name:"에어힌지",    dw:-46,  dh:-44},
+  {re:/빗각|빗면/,                   name:"빗면 프레임", dw:-100, dh:-14},
+  {re:/글래스도어/,                  name:"글래스도어",  dw:-9,   dh:-5 },
+  {re:/유리장식|장식장|키큰장|벽장/,  name:"유리장식장",  dw:-29,  dh:-28}
+];
+function glassTextOf(str){
+  if(/Euro\d{3}/.test(str)) return null;                 // 유로 계열은 위 까닭으로 제외
+  const m = str.match(/비규격\((\d+)\*\d+\*(\d+)\*\d+/);
+  if(!m) return null;                                    // 정규격은 적지 않습니다
+  const g = SUBDOOR_GLASS.find(x => x.re.test(str));
+  if(!g) return "유리?";                                 // 계통을 못 가리면 드러냅니다
+  // 「유리」를 붙이지 않는 것은 자리가 좁아서입니다. 쪼가리에 `×` 로 이어진 숫자는 이것뿐이고,
+  // 라벨 본문의 장규격은 대문자 `X`(450X0X736X0) 라 헷갈리지 않습니다.
+  return (+m[1] + g.dw) + "×" + (+m[2] + g.dh);
+}
+function applyGlassNotes(pend){
+  for(const p of state.pages) for(const line of p.lines){
+    const t = glassTextOf(line.text);
+    if(t) addPend(pend, p.num, line, "glass", t);
+  }
+}
+
+/* 묶음 수량 — **품명 전체가 같은** 라벨끼리 한 묶음입니다 (사장님 확정 2026-09-22).
+   잘라서 같은 물건끼리 모아 호치케스로 찝으므로 **맨 위 한 장에만** 수량이 있으면 됩니다.
+   그래서 **묶음마다 첫 장 하나에만** `3장` 처럼 수량만 적습니다 — 다 적으면 잉크가 아깝습니다.
+   라벨 한 장 = 한 개. 한 장에 품명이 두 번 찍히므로 사분면마다 한 줄만 셉니다. */
+function labelNames(){
+  const out = [];
+  for(const p of state.pages){
+    const byQuad = {};
+    for(const line of p.lines){
+      if(!/Euro\d{3}|AL도어/.test(line.text)) continue;
+      if(line.text.includes("(Euro")) continue;   // AS 라벨의 내용참조 줄은 품명이 아닙니다
+      const q = (line.x<0.5?0:1) + "-" + (line.y<0.5?0:1);
+      if(!byQuad[q] || line.text.length > byQuad[q].text.length) byQuad[q] = line;
+    }
+    for(const q in byQuad) out.push({page:p.num, line:byQuad[q], name:byQuad[q].text.trim()});
+  }
+  return out;
+}
+function applyBundleNotes(pend){
+  const labels = labelNames();
+  const n = new Map();
+  for(const l of labels) n.set(l.name, (n.get(l.name)||0) + 1);
+  const done = new Set();
+  for(const l of labels){                     // labelNames() 는 쪽·사분면 차례대로 줍니다
+    const c = n.get(l.name);
+    if(c < 2 || done.has(l.name)) continue;   // 한 장뿐이거나 이미 적었으면 넘어갑니다
+    done.add(l.name);
+    addPend(pend, l.page, l.line, "bundle", c + "장");
+  }
+}
+
+/* 예전에 실수로 저장된 메모가 자동 메모와 겹치면 지웁니다 */
+function cleanupDuplicateNotes(){
+  const autos = state.notes.filter(n=>n.auto);
+  const before = state.notes.length;
+  const quad = o => (o.x<0.5?0:1) + "-" + (o.y<0.5?0:1);
+  state.notes = state.notes.filter(n => n.auto || !autos.some(a =>
+      a.page===n.page && a.text===n.text && quad(a)===quad(n)));
+  if(state.notes.length !== before) saveDoc();
+}
+
+/* 라벨 품명은 "Euro700 Grace <색상> OB …" 형태입니다 */
+/* 끝을 `(?:\s|$)` 로 둔 것은 AS 라벨의 「내용참조」 줄 때문입니다.
+   `MBD2R상마이다_895*380(Euro700 Grace W/Cotton HD` 처럼 칸 너비에 잘려
+   손잡이 타입에서 끝나는 줄이 있어, 공백만 요구하면 색상을 못 찾습니다. */
+const COLOR_RE = /((?:\(P\))?Euro\d{3}\s+(?:(?:Grace|Veil)\s+)?(.+?))\s+(?:OB|HD|CH)(?:[\s]|$)/;
+
+function collectTokens(){
+  const found = new Set(Object.keys(state.colorMap));
+  for(const p of state.pages){
+    for(const line of p.lines){
+      const m = line.text.match(COLOR_RE);
+      if(m && m[2]) found.add(m[2].trim());
+    }
+  }
+  state.tokens = [...found].sort();
+  for(const t of state.tokens){
+    if(!(t in state.colorMap)) state.colorMap[t] = null;
+  }
+  saveColorMap();
+  renderColorMap();
+}
+
+function applyColorMarks(){
+  for(const p of state.pages){
+    for(const line of p.lines){
+      const str = line.text;
+      const m = str.match(COLOR_RE);
+      if(!m || !m[2]) continue;
+      const hex = state.colorMap[m[2].trim()];
+      if(!hex) continue;
+      const paint = m[1];                   // "Euro700 Grace ETP" / "(P)Euro500 PG/RG"
+      const idx = m.index;
+      if(idx < 0) continue;
+      for(const rc of rectsFor(line, idx, idx + paint.length))
+        state.marks.push({id:uid(), page:p.num, ...rc, color:hex, auto:true, rule:"__color__"});
+    }
+  }
+}
+
+/* "/…/" 로 감싸면 정규식, 아니면 그냥 글자로 찾습니다 */
+function findHits(str, tgt){
+  const out = [];
+  if(tgt.length > 2 && tgt.startsWith("/") && tgt.endsWith("/")){
+    let re;
+    try{ re = new RegExp(tgt.slice(1,-1), "g"); }
+    catch(e){ return out; }
+    let m, guard = 0;
+    while((m = re.exec(str)) !== null && guard++ < 200){
+      if(m[0]) out.push({index:m.index, text:m[0]});
+      if(m.index === re.lastIndex) re.lastIndex++;
+    }
+  }else{
+    let from = 0, idx;
+    while((idx = str.indexOf(tgt, from)) !== -1){
+      out.push({index:idx, text:tgt});
+      from = idx + tgt.length;
+    }
+  }
+  return out;
+}
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+/* ---------- render ---------- */
+function renderAll(){
+  document.getElementById("empty")?.remove();
+  for(const p of state.pages){
+    const ov = viewer.querySelector(`.overlay[data-page="${p.num}"]`);
+    if(!ov) continue;
+    ov.innerHTML = "";
+    for(const m of state.marks.filter(m=>m.page===p.num)){
+      ov.appendChild(makeMark(m));
+    }
+    for(const n of state.notes.filter(n=>n.page===p.num)){
+      ov.appendChild(makeNote(n));
+    }
+    ov.className = "overlay tool-"+state.tool;
+  }
+  renderStats();
+}
+function pct(v){ return (v*100).toFixed(4)+"%"; }
+
+function makeMark(m){
+  const d = document.createElement("div");
+  d.className = "mark" + (m.auto ? " auto" : "") + (m.style === "circle" ? " circle" : "");
+  d.dataset.id = m.id;
+  if(m.style === "circle"){
+    // 글자를 넉넉히 감싸도록 살짝 키웁니다
+    d.style.left = pct(m.x - m.w*0.225); d.style.top = pct(m.y - m.h*0.275);
+    d.style.width = pct(m.w*1.45);       d.style.height = pct(m.h*1.55);
+    d.style.borderColor = m.color;
+  }else{
+    d.style.left = pct(m.x); d.style.top = pct(m.y);
+    d.style.width = pct(m.w); d.style.height = pct(m.h);
+    d.style.background = m.color;
+  }
+  return d;
+}
+
+function makeNote(n){
+  const el = document.createElement("div");
+  el.className = "note" + (n.align === "right" ? " right" : "") + (n.cls ? " "+n.cls : "");
+  el.dataset.id = n.id;
+  el.style.left = pct(n.x);
+  el.style.top = pct(n.y);
+  if(n.fs) el.style.fontSize = n.fs + "px";   // 쪼가리에 들어갈 만큼 줄인 크기
+  el.contentEditable = n.auto ? "false" : "true";   // 자동 메모는 규칙이 만든 것이라 손대지 않습니다
+  el.spellcheck = false;
+  el.textContent = n.text;
+  if(n.auto){ el.style.cursor = "default"; return el; }
+  el.addEventListener("input", ()=>{ n.text = el.textContent; saveDoc(); });
+  el.addEventListener("blur", ()=>{
+    if(!el.textContent.trim()){
+      state.notes = state.notes.filter(x=>x.id!==n.id);
+      el.remove(); saveDoc(); renderStats();
+    }
+  });
+  el.addEventListener("keydown", ev=>{
+    if(ev.key==="Enter"){ ev.preventDefault(); el.blur(); }
+    if(ev.key==="Escape"){ el.blur(); }
+  });
+  const grip = document.createElement("span");
+  grip.className = "grip";
+  grip.contentEditable = "false";
+  grip.addEventListener("mousedown", ev=>{
+    ev.preventDefault(); ev.stopPropagation();
+    const ov = el.parentElement;
+    const move = e2=>{
+      const r = ov.getBoundingClientRect();
+      n.x = clamp((e2.clientX - r.left)/r.width);
+      n.y = clamp((e2.clientY - r.top)/r.height);
+      el.style.left = pct(n.x); el.style.top = pct(n.y);
+    };
+    const up = ()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); saveDoc(); };
+    document.addEventListener("mousemove",move); document.addEventListener("mouseup",up);
+  });
+  el.appendChild(grip);
+  return el;
+}
+function clamp(v){ return Math.max(0, Math.min(1, v)); }
+
+/* ---------- overlay interaction ---------- */
+function hookOverlays(){
+  viewer.querySelectorAll(".overlay").forEach(ov=>{
+    ov.addEventListener("mousedown", onDown);
+    ov.addEventListener("click", onClick);
+  });
+}
+
+function onClick(e){
+  const ov = e.currentTarget;
+  const pageNo = +ov.dataset.page;
+  if(state.tool === "erase"){
+    const t = e.target;
+    if(t.classList.contains("mark")){
+      state.marks = state.marks.filter(m=>m.id !== t.dataset.id);
+      t.remove(); saveDoc(); renderStats();
+      return;
+    }
+    if(t.classList.contains("note")){
+      state.notes = state.notes.filter(n=>n.id !== t.dataset.id);
+      t.remove(); saveDoc(); renderStats();
+      return;
+    }
+  }
+  if(state.tool === "note"){
+    const r = ov.getBoundingClientRect();
+    const n = {id:uid(), page:pageNo, x:clamp((e.clientX-r.left)/r.width), y:clamp((e.clientY-r.top)/r.height), text:"", auto:false};
+    state.notes.push(n);
+    const el = makeNote(n);
+    ov.appendChild(el);
+    el.focus();
+  }
+}
+
+let drag = null;
+function onDown(e){
+  if(state.tool !== "hl" && state.tool !== "circle") return;
+  if(e.button !== 0) return;
+  const ov = e.currentTarget;
+  const r = ov.getBoundingClientRect();
+  drag = {ov, page:+ov.dataset.page, x0:e.clientX-r.left, y0:e.clientY-r.top, rect:r, moved:false};
+  const box = document.createElement("div");
+  box.className = "rubber";
+  drag.box = box; ov.appendChild(box);
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+  e.preventDefault();
+}
+function onMove(e){
+  if(!drag) return;
+  const x = e.clientX - drag.rect.left, y = e.clientY - drag.rect.top;
+  const l = Math.min(x, drag.x0), t = Math.min(y, drag.y0);
+  const w = Math.abs(x-drag.x0), h = Math.abs(y-drag.y0);
+  if(w>3 || h>3) drag.moved = true;
+  Object.assign(drag.box.style, {left:l+"px", top:t+"px", width:w+"px", height:h+"px"});
+}
+function onUp(e){
+  if(!drag) return;
+  document.removeEventListener("mousemove", onMove);
+  document.removeEventListener("mouseup", onUp);
+  drag.box.remove();
+
+  const R = drag.rect;
+  const x = e.clientX - R.left, y = e.clientY - R.top;
+
+  if(drag.moved){
+    const l = Math.min(x, drag.x0)/R.width, t = Math.min(y, drag.y0)/R.height;
+    const w = Math.abs(x-drag.x0)/R.width, h = Math.abs(y-drag.y0)/R.height;
+    addMark({page:drag.page, x:l, y:t, w, h});
+  }else{
+    // 클릭 → 해당 글자 줄 전체
+    const nx = drag.x0/R.width, ny = drag.y0/R.height;
+    const page = state.pages.find(p=>p.num===drag.page);
+    const hit = page && page.items.find(it => nx>=it.x && nx<=it.x+it.w && ny>=it.y && ny<=it.y+it.h);
+    if(hit) addMark({page:drag.page, x:hit.x, y:hit.y, w:hit.w, h:hit.h});
+  }
+  drag = null;
+}
+function addMark(o){
+  const m = {id:uid(), ...o, color:state.color, style:(state.tool==="circle"?"circle":"hl"), auto:false};
+  state.marks.push(m);
+  viewer.querySelector(`.overlay[data-page="${m.page}"]`).appendChild(makeMark(m));
+  saveDoc(); renderStats();
+}
+
+/* ---------- sidebar: tools ---------- */
+document.querySelectorAll(".tool").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    state.tool = b.dataset.tool;
+    document.querySelectorAll(".tool").forEach(x=>x.setAttribute("aria-pressed", String(x===b)));
+    viewer.querySelectorAll(".overlay").forEach(ov=>{ ov.className = "overlay tool-"+state.tool; });
+  });
+});
+
+const swWrap = document.getElementById("swatches");
+COLORS.forEach(c=>{
+  const b = document.createElement("button");
+  b.className = "sw"; b.style.background = c.hex; b.title = c.label;
+  b.setAttribute("aria-pressed", String(c.hex===state.color));
+  b.addEventListener("click", ()=>{
+    state.color = c.hex;
+    swWrap.querySelectorAll(".sw").forEach(x=>x.setAttribute("aria-pressed", String(x===b)));
+  });
+  swWrap.appendChild(b);
+});
+
+const legend = document.getElementById("legend");
+COLORS.forEach(c=>{
+  const s = document.createElement("span");
+  s.innerHTML = `<i style="background:${c.hex}"></i>${c.label}`;
+  legend.appendChild(s);
+});
+
+/* ---------- 프레임 수량 ---------- */
+/* 1차 프레임 조립은 색 구분 없이 모델·사이즈로만 셉니다.
+   에토프 4073 5개 + 웜코튼 4073 5개 = 4073 프레임 10개 */
+function modelKeyOf(str){
+  let t = str.trim().replace(/^[A-Z0-9]{9}\s+/, "");   // 품목코드가 같이 붙어 있으면 떼어냅니다
+  const h = t.match(/\b(?:HD|OB|CH)\s+(.*)$/);
+  if(h) t = h[1];                       // Euro 계열: 손잡이 타입 뒤부터
+  else if(!/AL도어/.test(t)) return null;   // 그 외에는 AL도어 제품만
+  t = t.replace(/\s*\d+X\d+X\d+X\d+\s*$/, "").trim();
+  return t.length >= 2 ? t : null;
+}
+
+/* 라벨 한 장 = 한 개. 한 장에 품명이 두 번(큰 칸·작은 칸) 찍히므로
+   사분면별로 가장 온전한 줄 하나만 세어 중복을 막습니다. */
+function buildFrameList(){
+  const counts = new Map();
+  let labels = 0;
+  for(const p of state.pages){
+    const byQuad = {};
+    for(const line of p.lines){
+      const k = modelKeyOf(line.text);
+      if(!k) continue;
+      const q = (line.x<0.5?0:1) + "-" + (line.y<0.5?0:1);
+      if(!byQuad[q] || k.length > byQuad[q].length) byQuad[q] = k;
+    }
+    for(const q in byQuad){
+      counts.set(byQuad[q], (counts.get(byQuad[q])||0) + 1);
+      labels++;
+    }
+  }
+  const rows = [...counts.entries()].sort((a,b)=> a[0].localeCompare(b[0], "ko"));
+  return {rows, labels};
+}
+
+function renderFrameList(){
+  const box = document.getElementById("framelist");
+  if(!state.pages.length){
+    box.innerHTML = '<p class="none">PDF를 먼저 열어주세요.</p>';
+    return;
+  }
+  const {rows, labels} = buildFrameList();
+  const total = rows.reduce((n,[,c])=>n+c, 0);
+  const today = new Date().toLocaleDateString("ko-KR");
+  box.innerHTML =
+    '<h2>프레임 수량</h2>' +
+    `<p class="meta">${state.fileName} · 라벨 ${labels}장 · ${today} · 색 구분 없이 모델·사이즈로만 집계</p>` +
+    '<table><thead><tr><th style="text-align:center">모델 · 사이즈</th><th style="padding-left:18px">수량</th></tr></thead><tbody>' +
+    (rows.length
+      ? rows.map(([k,c])=>`<tr><td class="model">${esc(k)}</td><td class="qty">${c}</td></tr>`).join("")
+      : '<tr><td colspan="2" class="none">집계할 품목이 없습니다.</td></tr>') +
+    `<tr class="total"><td style="text-align:center">합계 ${rows.length}종</td><td class="qty">${total}</td></tr>` +
+    '</tbody></table>';
+}
+function esc(t){ return t.replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+/* ---------- 탭 ---------- */
+/* 프레임 수량 탭일 때만 세로 용지 규칙을 끼웁니다 (위 @page 주석 참고) */
+function framePageCss(on){
+  let el = document.getElementById("framePageCss");
+  if(on && !el){
+    el = document.createElement("style");
+    el.id = "framePageCss";
+    el.textContent = "@page framePage{size:A4 portrait;margin:14mm}"
+                   + "@media print{ .framelist{page:framePage} }";
+    document.head.appendChild(el);
+  }else if(!on && el){ el.remove(); }
+}
+
+function setTab(name){
+  state.tab = name;
+  framePageCss(name === "frames");
+  document.querySelectorAll(".tabs button").forEach(b=>
+    b.setAttribute("aria-pressed", String(b.dataset.tab === name)));
+  viewer.hidden = name !== "labels";
+  document.getElementById("framelist").hidden = name !== "frames";
+  if(name === "frames") renderFrameList();
+}
+document.querySelectorAll(".tabs button").forEach(b=>
+  b.addEventListener("click", ()=> setTab(b.dataset.tab)));
+
+/* ---------- sidebar: color map ---------- */
+function renderColorMap(){
+  const box = document.getElementById("colorMap");
+  const list = state.tokens.length ? state.tokens : Object.keys(state.colorMap).sort();
+  if(!list.length){ box.innerHTML = '<div class="cmap-empty">PDF를 열면 색상 이름이 여기 나옵니다.</div>'; return; }
+  box.innerHTML = "";
+  list.forEach(tok=>{
+    const row = document.createElement("div");
+    row.className = "cmap-row";
+
+    const top = document.createElement("div");
+    top.className = "cmap-top";
+    const code = document.createElement("span");
+    code.className = "cmap-code" + (state.colorMap[tok] ? "" : " unset");
+    code.textContent = tok;
+    code.title = tok;
+    const nick = document.createElement("input");
+    nick.type = "text"; nick.className = "cmap-nick";
+    nick.value = state.colorNames[tok] || "";
+    nick.placeholder = "한글 이름";
+    nick.addEventListener("change", ()=>{
+      state.colorNames[tok] = nick.value.trim();
+      saveColorNames();
+    });
+    top.append(code, nick);
+
+    const pick = document.createElement("div");
+    pick.className = "colorpick";
+    const none = document.createElement("button");
+    none.className = "cmap-none"; none.textContent = "안 칠함";
+    none.setAttribute("aria-pressed", String(!state.colorMap[tok]));
+    none.addEventListener("click", ()=>{ state.colorMap[tok] = null; commitColors(); });
+    pick.appendChild(none);
+    COLORS.forEach(c=>{
+      const b = document.createElement("button");
+      b.style.background = c.hex; b.title = c.label;
+      b.setAttribute("aria-pressed", String(state.colorMap[tok] === c.hex));
+      b.addEventListener("click", ()=>{ state.colorMap[tok] = c.hex; commitColors(); });
+      pick.appendChild(b);
+    });
+
+    row.append(top, pick);
+    box.appendChild(row);
+  });
+}
+function commitColors(){
+  saveColorMap();
+  if(state.pages.length){ applyRules(); renderAll(); }
+  renderColorMap();
+}
+
+/* ---------- sidebar: 형광펜 진하기 ---------- */
+(function(){
+  const sl = document.getElementById("hlOp"), out = document.getElementById("hlOpVal");
+  let v = 55;
+  try{ const s = localStorage.getItem("label-mark-hlop-v1"); if(s) v = +s || 55; }catch(e){}
+  const put = ()=>{
+    document.documentElement.style.setProperty("--hl-op", (v/100).toFixed(2));
+    out.textContent = v + "%";
+    sl.value = v;
+  };
+  put();
+  sl.addEventListener("input", ()=>{
+    v = +sl.value; put();
+    try{ localStorage.setItem("label-mark-hlop-v1", String(v)); }catch(e){}
+  });
+})();
+
+/* ---------- sidebar: 라벨에 더 적기 ---------- */
+[["exBundle","bundle"],["exGlass","glass"]].forEach(([id,key])=>{
+  const cb = document.getElementById(id);
+  cb.checked = !!state.extras[key];
+  cb.addEventListener("change", ()=>{
+    state.extras[key] = cb.checked;
+    saveExtras();
+    if(state.pages.length){ applyRules(); renderAll(); }
+  });
+});
+
+/* ---------- sidebar: rules ---------- */
+const rulesBox = document.getElementById("rules");
+function renderRules(){
+  rulesBox.innerHTML = "";
+  state.rules.forEach(r=>{
+    const row = document.createElement("div");
+    row.className = "rule-row";
+
+    const head = document.createElement("div");
+    head.className = "rule-head";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = r.on;
+    cb.addEventListener("change", ()=>{ r.on = cb.checked; commitRules(); });
+    const nm = document.createElement("input");
+    nm.className = "rule-name"; nm.type = "text"; nm.value = r.name;
+    nm.addEventListener("change", ()=>{ r.name = nm.value; saveRules(); });
+    const cnt = document.createElement("span");
+    cnt.className = "count"; cnt.textContent = r._n ? r._n+"곳" : "";
+    const del = document.createElement("button");
+    del.className = "rule-del"; del.textContent = "×"; del.title = "규칙 삭제";
+    del.addEventListener("click", ()=>{
+      state.rules = state.rules.filter(x=>x.id!==r.id); commitRules();
+    });
+    head.append(cb, nm, cnt, del);
+
+    const body = document.createElement("div");
+    body.className = "rule-body";
+    body.append(
+      lab("포함"), inp(r,"contains","예: Grace ETP"),
+      lab("칠할 곳"), inp(r,"target","예: ETP  /  * 전체  /  비우면 메모만"),
+      lab("예외"), inp(r,"except","예: 73  (쉼표로 여러 개)"),
+      lab("메모"), inp(r,"note","예: 피스"),
+      lab("표시"), stylePick(r),
+      lab("색"), colorPick(r)
+    );
+
+    row.append(head, body);
+    rulesBox.appendChild(row);
+  });
+}
+function lab(t){ const l=document.createElement("label"); l.textContent=t; return l; }
+function inp(r, key, ph){
+  const i = document.createElement("input");
+  i.type="text"; i.value = r[key]||""; i.placeholder = ph;
+  i.addEventListener("change", ()=>{ r[key]=i.value; commitRules(); });
+  return i;
+}
+function stylePick(r){
+  const d = document.createElement("div");
+  d.className = "stylepick";
+  [["hl","형광펜"],["circle","동그라미"],["none","표시 없음"]].forEach(([k,label])=>{
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.setAttribute("aria-pressed", String((r.style||"hl") === k));
+    b.addEventListener("click", ()=>{ r.style = k; commitRules(); });
+    d.appendChild(b);
+  });
+  return d;
+}
+
+function colorPick(r){
+  const d = document.createElement("div");
+  d.className = "colorpick";
+  COLORS.forEach(c=>{
+    const b = document.createElement("button");
+    b.style.background = c.hex; b.title = c.label;
+    b.setAttribute("aria-pressed", String(c.hex===r.color));
+    b.addEventListener("click", ()=>{ r.color = c.hex; commitRules(); });
+    d.appendChild(b);
+  });
+  return d;
+}
+function commitRules(){
+  saveRules();
+  if(state.pages.length){ applyRules(); renderAll(); }
+  renderRules();
+}
+document.getElementById("btnAddRule").addEventListener("click", ()=>{
+  state.rules.push({id:uid(), on:true, name:"새 규칙", contains:"", target:"", color:"#fff02e", note:""});
+  commitRules();
+});
+document.getElementById("btnRules").addEventListener("click", ()=>{
+  if(!state.pages.length) return;
+  applyRules(); renderAll(); renderRules();
+});
+
+/* ---------- stats ---------- */
+function renderStats(){
+  const box = document.getElementById("stats");
+  if(!state.pages.length){ box.innerHTML = '<div class="stat"><span>불러온 파일 없음</span></div>'; return; }
+  const barcodes = new Set();
+  const dest = {};
+  const SKIP = ["공장출고일","오더번호","팀( 제품)","팀(제품)"];
+  for(const p of state.pages){
+    for(const it of p.items){
+      const m = it.str.match(/\*(\d{10})-(\d{6})\*/);
+      if(m) barcodes.add(m[1]+"-"+m[2]);
+      const t = it.str.trim();
+      // 납품처는 한글로만 된 짧은 이름이 라벨마다 3번씩 반복됩니다
+      if(t.length>=2 && t.length<=10 && /^[가-힣()\s]+$/.test(t) && !SKIP.includes(t)){
+        dest[t] = (dest[t]||0)+1;
+      }
+    }
+  }
+  const rows = [
+    ["파일", state.fileName],
+    ["페이지", state.pages.length+"장"],
+    ["화면에 그려진 페이지", viewer.querySelectorAll(".pagewrap").length+"장"],
+    ["라벨(고유 바코드)", barcodes.size+"건"],
+    ["자동 형광펜", state.marks.filter(m=>m.auto).length+"곳"],
+    ["직접 칠한 곳", state.marks.filter(m=>!m.auto).length+"곳"],
+    ["메모", state.notes.length+"개"]
+  ];
+  // 쪼가리 메모는 한 줄에 여럿이 붙을 수 있어, 글자로 셉니다
+  const strip = state.notes.filter(n=>n.rule==="__strip__");
+  const has = re => strip.filter(n=>re.test(n.text)).length;
+  if(state.extras.bundle) rows.push(["묶음 표시", has(/(?:^|·\s)\d+장(?:\s|$)/)+"묶음"]);
+  if(state.extras.glass){
+    const bad = has(/유리\?/);
+    rows.push(["유리 사이즈", has(/\d+×\d+/)+"장" + (bad ? ` (확인 필요 ${bad})` : "")]);
+  }
+  const small = strip.filter(n=>n.fs < 10).length;
+  if(small) rows.push(["글자 줄인 라벨", small+"줄 (자리가 좁아서)"]);
+  rows.push(["인쇄 매수", state.pages.length+"장이어야 합니다"]);
+  const cv0 = viewer.querySelector(".pagewrap canvas");
+  if(cv0 && state.sheet.w){
+    const dpi = Math.round(cv0.width/(state.sheet.w/25.4));
+    rows.push(["인쇄 해상도", dpi+" DPI" + (dpi < 200 ? " (쪽이 많아 낮아졌습니다)" : "")]);
+  }
+  updatePrintHint();
+  Object.entries(dest).filter(([k,v])=>v>=3).sort((a,b)=>b[1]-a[1])
+    .forEach(([k,v])=>rows.push([`납품처 ${k}`, Math.round(v/3)+"건"]));
+  box.innerHTML = rows.map(([k,v])=>`<div class="stat"><span>${k}</span><b>${v}</b></div>`).join("");
+}
+renderStats();
+
+/* ---------- export / import / clear / print ---------- */
+document.getElementById("btnExport").addEventListener("click", ()=>{
+  const data = {
+    file: state.fileName,
+    rules: state.rules,
+    colorMap: state.colorMap,
+    colorNames: state.colorNames,
+    extras: state.extras,
+    marks: state.marks.filter(m=>!m.auto),
+    notes: state.notes.filter(n=>!n.auto)
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.fileName||"라벨마킹").replace(/\.pdf$/i,"") + "-마킹.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+document.getElementById("imp").addEventListener("change", async e=>{
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const d = JSON.parse(await f.text());
+    if(d.rules){ state.rules = d.rules; saveRules(); }
+    if(d.colorMap){ state.colorMap = d.colorMap; saveColorMap(); }
+    if(d.colorNames){ state.colorNames = d.colorNames; saveColorNames(); }
+    if(d.extras){
+      state.extras = Object.assign({bundle:true, glass:true}, d.extras); saveExtras();
+      document.getElementById("exBundle").checked = !!state.extras.bundle;
+      document.getElementById("exGlass").checked  = !!state.extras.glass;
+    }
+    renderColorMap();
+    state.marks = state.marks.filter(m=>m.auto).concat(d.marks||[]);
+    state.notes = state.notes.filter(n=>n.auto).concat(d.notes||[]);
+    applyRules();
+    state.marks = state.marks.concat(d.marks||[]).filter((m,i,a)=>a.findIndex(x=>x.id===m.id)===i);
+    state.notes = state.notes.concat(d.notes||[]).filter((n,i,a)=>a.findIndex(x=>x.id===n.id)===i);
+    renderRules(); renderAll(); saveDoc();
+  }catch(err){ alert("저장 파일을 읽지 못했습니다."); }
+  e.target.value = "";
+});
+
+document.getElementById("btnClear").addEventListener("click", ()=>{
+  if(!confirm("직접 칠한 형광펜과 메모를 모두 지웁니다. 계속할까요?")) return;
+  state.marks = state.marks.filter(m=>m.auto);
+  state.notes = state.notes.filter(n=>n.auto);
+  saveDoc(); renderAll();
+});
+
+/* 페이지가 많으면 브라우저가 캔버스 내용을 버리는 일이 있습니다.
+   인쇄 직전에 빈 페이지가 있는지 확인하고, 있으면 다시 그립니다. */
+function blankPages(){
+  const bad = [];
+  viewer.querySelectorAll(".pagewrap").forEach(w=>{
+    const cv = w.querySelector("canvas");
+    if(!cv || !cv.width || !cv.height){ bad.push(+w.dataset.page); return; }
+    try{
+      const ctx = cv.getContext("2d", {willReadFrequently:true});
+      let ink = 0;
+      for(const f of [0.25, 0.5, 0.75]){
+        const d = ctx.getImageData(0, Math.floor(cv.height*f), cv.width, 1).data;
+        for(let i=0;i<d.length;i+=4){
+          if(d[i]<235 || d[i+1]<235 || d[i+2]<235){ ink++; }
+        }
+        if(ink > 20) break;
+      }
+      if(ink <= 20) bad.push(+w.dataset.page);
+    }catch(e){ /* 읽지 못하면 판단 보류 */ }
+  });
+  return bad;
+}
+
+async function redrawPage(n){
+  if(!state.pdfDoc) return false;
+  const wrap = viewer.querySelector(`.pagewrap[data-page="${n}"]`);
+  const cv = wrap && wrap.querySelector("canvas");
+  if(!cv) return false;
+  const page = await state.pdfDoc.getPage(n);
+  const base = page.getViewport({scale:1});
+  const vp = page.getViewport({scale: cv.width / base.width});
+  await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+  return true;
+}
+
+document.getElementById("btnPrint").addEventListener("click", async ()=>{
+  if(state.tab !== "labels" || !state.pages.length){ window.print(); return; }
+  let bad = blankPages();
+  if(bad.length){
+    const busy = showBusy(`빈 페이지 ${bad.length}장을 다시 그리는 중…`);
+    for(const n of bad) await redrawPage(n);
+    busy.remove();
+    bad = blankPages();
+  }
+  if(bad.length){
+    alert(`${state.pages.length}장 중 ${bad.length}장이 비어 있습니다 (${bad.join(", ")}쪽).\n` +
+          `페이지가 많아 브라우저 메모리가 부족한 경우입니다.\n` +
+          `PDF를 나눠서 여시거나, 다른 탭을 닫고 다시 열어주세요.`);
+    return;
+  }
+  window.print();
+});
+
+/* 인쇄 창에서 설정이 달라지면 결과가 달라집니다. 버튼에 짧게 안내합니다.
+   PDF 로 한 번 저장했다가 인쇄할 것 없습니다 — **바로 인쇄하십시오.**
+   확인할 것은 인쇄 창 미리보기의 매수뿐이고, 그건 저장하지 않아도 보입니다. */
+function updatePrintHint(){
+  const b = document.getElementById("btnPrint");
+  b.title = "인쇄 창에서 확인할 것\n· 용지 A4 가로\n· 여백 없음\n· 배율 100%(실제 크기)"
+          + (state.pages.length ? `\n· 매수 ${state.pages.length}장` : "");
+}
+updatePrintHint();
+
+renderRules();
+renderColorMap();
+</script>
+</body>
+</html>
