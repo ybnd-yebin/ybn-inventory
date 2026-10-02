@@ -137,6 +137,9 @@ button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-vis
 .tool-circle .mark.circle{}
 .mark.auto{outline:0}
 .mark.circle{
+  /* 동그라미는 형광펜 진하기(--hl-op)를 따르지 않습니다 — 빨간 선이 분홍으로 흐려졌습니다
+     (사장님 2026-10-02 "빨간색라인으로 HD겉으로 동그라미"). */
+  opacity:1;
   mix-blend-mode:normal;
   background:none !important;
   border:2.3px solid currentColor;
@@ -424,10 +427,26 @@ const DEFAULT_RULES = [
   {id:"r4b",on:true,  name:"목대 2개 (BLD2R)",          contains:"", target:MOKDAE2_RE, except:"", color:"#fff02e", style:"none", note:"목대2"},
   {id:"r4c",on:true,  name:"115도 힌지 (BC1A/BC1B)",    contains:"", target:HINGE115,   except:"", color:"#fff02e", style:"none", note:"115°"},
   {id:"r4d",on:true,  name:"155도 힌지 (TCPID)",        contains:"", target:HINGE155,   except:"", color:"#fff02e", style:"none", note:"155°"},
-  // 붙는 쪽은 형광펜만 남깁니다 (사장님 2026-09-22). HD 는 노랑 형광펜이 `HD` 부터 시작하고
-  // 쪼가리에도 「HD」 메모가 가므로, 빨간 동그라미는 꺼 둡니다. 필요하면 아래 '표시'에서 되살립니다.
-  {id:"r5", on:true,  name:"HD 표시",               contains:"Euro", target:"/\\bHD\\b(?=\\s+\\S)/", except:"", color:"#e03131", style:"none", note:"HD"},
+  // HD 는 빨간 동그라미로 한 번 더 강조합니다 (사장님 2026-10-02 "HD 겉으로 동그라미").
+  // 09-22 에는 「붙는 쪽은 형광펜만」 이라 꺼 두었는데, 이번에 되살리셨습니다.
+  // 이미 저장된 규칙에는 loadRules() 의 RULE_MIGRATE 가 한 번만 켜 줍니다.
+  {id:"r5", on:true,  name:"HD 표시",               contains:"Euro", target:"/\\bHD\\b(?=\\s+\\S)/", except:"", color:"#e03131", style:"circle", note:"HD"},
   {id:"r6", on:true,  name:"L / R 표시",            contains:"",     target:LR_RE,     except:"",   color:"#e03131", style:"none",   note:"$0"},
+];
+/* 기본 규칙을 바꿀 때 **저장된 규칙에도** 한 번만 옮길 칸 — loadRules() 가 씁니다.
+   ⚠ state 보다 **위에** 둡니다. state 를 만들 때 loadRules() 를 부르므로, 아래에 두면
+     선언 전이라 오류가 나고 화면 스크립트가 통째로 멈춥니다(CLAUDE.md 9-3). */
+/* 팔레트 색을 바꾸면 **이미 저장해 둔 지정도 같이** 바꿔 줍니다.
+   저장 키 판을 올려 버리면 사장님이 따로 골라 두신 색·규칙까지 초기화되므로,
+   바뀐 색만 조용히 갈아끼웁니다. 색을 또 바꿀 때 여기 한 줄만 더하십시오.
+   ⚠ **이것도 state 보다 위에** 둡니다 (2026-10-02 고침). 09-23 에 state 아래에 두었더니
+     loadRules·loadColorMap 이 선언 전에 읽다가 오류 → catch 로 빠져 **저장한 규칙·색이
+     열 때마다 무시되고 기본값으로 덮였습니다.** 오류가 catch 에 먹혀 아무 표시도 없었습니다. */
+const HEX_MIGRATE = {
+  "#ffb25c": "#ffa022"      // 주황 — 더 밝고 선명하게 (2026-09-23)
+};
+const RULE_MIGRATE = [
+  ["r5", "hd-circle-1002", {style:"circle"}],   // HD 빨간 동그라미 켬 (2026-10-02)
 ];
 
 const state = {
@@ -449,12 +468,6 @@ const state = {
 
 /* ---------- storage ---------- */
 
-/* 팔레트 색을 바꾸면 **이미 저장해 둔 지정도 같이** 바꿔 줍니다.
-   저장 키 판을 올려 버리면 사장님이 따로 골라 두신 색·규칙까지 초기화되므로,
-   바뀐 색만 조용히 갈아끼웁니다. 색을 또 바꿀 때 여기 한 줄만 더하십시오. */
-const HEX_MIGRATE = {
-  "#ffb25c": "#ffa022"      // 주황 — 더 밝고 선명하게 (2026-09-23)
-};
 function migHex(h){
   const k = String(h||"").toLowerCase();
   return HEX_MIGRATE[k] || h;
@@ -466,6 +479,13 @@ function loadRules(){
     if(s){
       const rs = JSON.parse(s);
       for(const r of rs) r.color = migHex(r.color);
+      /* 기본 규칙을 바꿨을 때 **저장된 규칙에도 한 번만** 옮겨 줍니다.
+         저장 키 판을 올리면 사장님이 고쳐 두신 규칙이 다 초기화되므로, 바뀐 칸만 고칩니다.
+         한 번 옮긴 뒤에는 표식(mig)이 남아, 사장님이 다시 끄시면 그대로 둡니다. */
+      for(const [id, tag, patch] of RULE_MIGRATE){
+        const r = rs.find(x=>x.id===id);
+        if(r && !(r.mig||[]).includes(tag)){ Object.assign(r, patch); r.mig = [...(r.mig||[]), tag]; }
+      }
       return rs;
     }
   }catch(e){}
@@ -1224,10 +1244,13 @@ function applyColorMarks(){
       if(!m || !m[2]) continue;
       const hex = state.colorMap[m[2].trim()];
       if(!hex) continue;
-      const paint = m[1];                   // "Euro700 Grace ETP" / "(P)Euro500 PG/RG"
+      /* **색 이름만** 칠합니다 — `ETP` · `W/Cotton` · `PG/RG` (사장님 2026-10-02
+         "ETP에만 색칠하는걸로 짧게 변경해줘. 모든색깔 그렇게 해주고").
+         예전에는 `Euro700 Grace ETP` 를 통째로 칠했습니다. m[2] 는 m[1] 의 끝부분입니다. */
       const idx = m.index;
       if(idx < 0) continue;
-      for(const rc of rectsFor(line, idx, idx + paint.length))
+      const end = idx + m[1].length, start = end - m[2].length;
+      for(const rc of rectsFor(line, start, end))
         state.marks.push({id:uid(), page:p.num, ...rc, color:hex, auto:true, rule:"__color__"});
     }
   }
