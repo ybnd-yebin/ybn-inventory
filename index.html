@@ -16918,6 +16918,19 @@ function parseDelivText(text){
       }
       if(extra.trim()) rawName=(beforeToks.concat(nameToks).join(' ')+' '+extra).replace(/\s+/g,' ').trim();
     }
+    /* 품명이 칸 너비에 잘려 **닫는 괄호와 좌우가 뒷줄로 넘어간** 것을 이어 붙입니다
+       (사장님 지적 2026-10-06 — 「수납도어 L/R 빠진게 있음. 몇번째 수정하네」).
+         `ME1TMX001 유리장식키큰장 AL 도어 비규격 (600*0*1928*0`   ← 여기서 잘리고
+         `R)  600X0X1928X0`                                         ← 괄호와 R 이 뒷줄로
+       ⚠ 위 이어붙이기(`extra`)로는 안 잡힙니다 — '비규격' 글자가 있어 `hasSize` 가 참이라
+          그 갈래를 건너뜁니다. 비규격작업지시서의 parseDelivText 에는 09-22 에 넣었는데
+          **이 앱에는 빠져 있어**, 앱에 올린 뒤 「가져오기」로 넘기면 좌우가 늘 비었습니다.
+       괄호가 안 닫혔을 때만, 다음 줄이 `L)`·`R)` 로 시작할 때만 붙입니다(옆 품목 값을 못 끌어오게). */
+    if(/\([^)]*$/.test(rawName)){
+      const nx=(rawLines[li+1]||'').replace(/\s+/g,' ').trim();
+      const mt=nx.match(/^([LRMX])\s*\)/i);
+      if(mt) rawName=rawName.trim()+' '+mt[1].toUpperCase()+')';
+    }
     // ── 사이즈·좌우(LR) 추출 (공용 함수) ──
     let lineSize='', lr='';
     /* '(비)'로만 온 시그니처도 사이즈를 읽어야 합니다 (CLAUDE.md 4-1·12-6).
@@ -17044,7 +17057,12 @@ async function handleDelivPdf(ev){
             const old=delivLog[_exist];
             (finalItems||[]).forEach(ni=>{
               const oi=(old.items||[]).find(x=>x.code===ni.code && (x.orderNo||'')===(ni.orderNo||'') && !x.size && ni.size);
-              if(oi){ oi.size=ni.size; if(!oi.lr && ni.lr) oi.lr=ni.lr; filled++; }
+              if(oi){ oi.size=ni.size; if(!oi.lr && ni.lr) oi.lr=ni.lr; filled++; return; }
+              /* 사이즈는 있는데 **좌우만 빈** 것도 채웁니다 (2026-10-06).
+                 잘린 `R)` 를 못 읽던 옛 파서로 올라온 키큰장이 여기 해당합니다 —
+                 사이즈가 있어 위 갈래에 안 걸려, 다시 올려도 좌우가 빈 채 남았습니다. */
+              const ol=(old.items||[]).find(x=>x.code===ni.code && (x.orderNo||'')===(ni.orderNo||'') && !x.lr && ni.lr && x.size===ni.size);
+              if(ol){ ol.lr=ni.lr; if(ol.name && ni.name && ni.name.length>ol.name.length) ol.name=ni.name; filled++; }
             });
           }catch(e){ console.warn('[납품서] 사이즈 보충 실패', e); }
           if(filled){ fixedSize+=filled; saveAll(); }
