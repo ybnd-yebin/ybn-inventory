@@ -6762,8 +6762,12 @@ function subdoorPageSVG(p){
   const empty = [];                    // 수량이 없어 지울 칸
   for(let i=1; i<=t.slots; i++){
     const ph = t.ph[i-1] || ['',''];
-    const lrMode = /L\/R/.test(ph[0]);
     const list = (p.slots[i] || []).slice(0, SUBDOOR_MAX_SIZES);
+    /* 좌우로 적을지 — 캐드 양식이 `= L/R` 이거나, **좌우가 하나라도 읽혔으면** 좌우로 적습니다 (2026-10-06).
+       에어힌지 세 도면(키큰장·분리장·벽장)은 캐드 원본 양식이 `= EA` 라, 좌우가 읽혀도
+       `2 EA` 로 합쳐져 나갔습니다(사장님 「AL프레임 에어힌지 키큰장유리도어 좌우 안됐어」).
+       좌우가 하나도 없으면 subdoorQtyText 가 예전처럼 `N EA` 로 적으므로 시그니처 등은 그대로입니다. */
+    const lrMode = /L\/R/.test(ph[0]) || list.some(d => d.L || d.R || d.C);
     /* 수량이 없는 칸은 **통째로 지웁니다** (사장님 요청 2026-09-15).
        예전에는 캐드의 원래 문구(446 * xxxx = EA)를 그대로 뒀는데,
        오늘 500연장만 있는 날에도 450연장 양식이 따라 나와 헷갈렸습니다.
