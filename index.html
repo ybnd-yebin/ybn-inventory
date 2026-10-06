@@ -16979,6 +16979,13 @@ function parseDelivText(text){
       const mt=nx.match(/^([LRMX])\s*\)/i);
       if(mt) rawName=rawName.trim()+' '+mt[1].toUpperCase()+')';
     }
+    items.push(_delivItemOf(code, rawName, qty, orderNo));
+  }
+  return {delivNo, refNo, reqDate, orderDate, dest, items};
+}
+/* 품명 하나 → 품목 한 줄 (사이즈·좌우·비규격). parseDelivText 와 「품명 칸」 읽기가 **같이 씁니다**.
+   예전에는 parseDelivText 안에 박혀 있던 것을 그대로 뺐습니다(2026-10-06). */
+function _delivItemOf(code, rawName, qty, orderNo){
     // ── 사이즈·좌우(LR) 추출 (공용 함수) ──
     let lineSize='', lr='';
     /* '(비)'로만 온 시그니처도 사이즈를 읽어야 합니다 (CLAUDE.md 4-1·12-6).
@@ -16994,10 +17001,56 @@ function parseDelivText(text){
     // ── 비규격 판정: 제품명 또는 카탈로그 short에 '비규격'/'(비)' 있을 때만 ──
     const nameForJudge=(rawName||'')+' '+(info.short||'');
     const isBig=/비규격/.test(nameForJudge)||/\(비\)/.test(nameForJudge);
-    items.push({code, short:info.short||rawName||code, name:rawName, color:info.color,
-                size:lineSize||info.size, lr, isBig, gubun:info.gubun, daegubun:info.daegubun, qty, orderNo});
+    return {code, short:info.short||rawName||code, name:rawName, color:info.color,
+            size:lineSize||info.size, lr, isBig, gubun:info.gubun, daegubun:info.daegubun, qty, orderNo};
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   📄 납품서 품명을 「품명 칸」으로 읽기                    2026-10-06
+   가로줄로만 읽으면 아래 줄로 넘어간 품명 꼬리(키큰장 `⏎ R)` 등)를 잃거나, 정규격 KB 가
+   위 품목의 비규격 사이즈를 훔쳐 왔습니다. 품명은 늘 머리줄 「제품코드」와 「수량」 사이 칸에
+   찍히므로, 제품코드 자리부터 다음 품목 전까지 **그 칸의 글자를 줄 수와 상관없이 전부** 모읍니다.
+   수량·오더번호는 parseDelivText 그대로이고 **품명만** 바꿔 끼웁니다. 품목 수·코드 차례가
+   하나라도 다르면 바꾸지 않습니다.
+   ⚠ `비규격작업지시서.html` 에 **같은 함수**가 있습니다 — 고치면 두 파일을 다 고치십시오 (CLAUDE.md 12-29). */
+function delivNameCells(glyphs){            // glyphs: {str, x, y(위→아래로 커짐), w}
+  const nm = s => String(s||'').replace(/\s/g,'');
+  const hc = glyphs.find(o => nm(o.str)==='제품코드');
+  const hq = hc && glyphs.find(o => nm(o.str)==='수량' && Math.abs(o.y-hc.y) < 4);
+  if(!hc || !hq) return null;
+  const x0 = hc.x + (hc.w||0) + 3, x1 = hq.x - 2;          // 품명 칸
+  if(x1 - x0 < 60) return null;
+  const anchors = glyphs.filter(o => o.y > hc.y+4 && o.x >= hc.x-15 && o.x < x0 && /^[A-Z0-9]{9}$/.test(String(o.str).trim()))
+                        .sort((a,b) => a.y-b.y);
+  return anchors.map((a,i) => {
+    // 품명 첫 줄은 코드보다 3pt 남짓 위에 찍힙니다 → 코드 6pt 위부터 다음 코드 6pt 위까지
+    const top = a.y - 6, bot = Math.min(anchors[i+1] ? anchors[i+1].y - 6 : Infinity, a.y + 40);
+    const g = glyphs.filter(o => String(o.str).trim() && o.x >= x0-1 && o.x < x1 && o.y >= top && o.y < bot)
+                    .sort((p,q) => Math.abs(p.y-q.y) < 2 ? p.x-q.x : p.y-q.y);
+    const lines = [];
+    g.forEach(o => { const L = lines[lines.length-1];
+      if(L && Math.abs(o.y - L.y) < 2) L.t.push(o.str); else lines.push({y:o.y, t:[o.str]}); });
+    return { code:String(a.str).trim(), name:lines.map(L => L.t.join(' ')).join(' ').replace(/\s+/g,' ').trim(), lines:lines.length };
+  });
+}
+/* 칸으로 읽은 품명을 끼웁니다. 맞지 않으면 손대지 않고 까닭을 돌려줍니다. */
+function delivApplyNameCells(items, cells){
+  if(!cells || !cells.length) return { items, used:false, why:'품명 칸을 못 찾음' };
+  if(cells.length !== items.length) return { items, used:false, why:`품목 수 다름 (줄 ${items.length} / 칸 ${cells.length})` };
+  for(let i=0;i<items.length;i++){
+    if(cells[i].code !== items[i].code) return { items, used:false, why:`${i+1}번째 코드 다름 (${items[i].code} / ${cells[i].code})` };
+    if(!cells[i].name) return { items, used:false, why:`${i+1}번째 품명이 빔` };
   }
-  return {delivNo, refNo, reqDate, orderDate, dest, items};
+  let changed = 0;
+  const out = items.map((it,i) => {
+    let name = cells[i].name;
+    // 무보링 표시가 칸 밖에 찍혀 있을 때를 대비해 — 예전 읽기에 있던 것은 잃지 않습니다
+    if(/무보링/.test(it.name||'') && !/무보링/.test(name)) name += ' - 무보링 도어';
+    if(name.replace(/\s/g,'') === String(it.name||'').replace(/\s/g,'')) return it;
+    changed++;
+    return _delivItemOf(it.code, name, it.qty, it.orderNo);
+  });
+  return { items:out, used:true, changed };
 }
 
 // "납 품 서 (집계)" 형식인지 판별. 라벨/출고명세 등 다른 양식은 제외.
@@ -17022,6 +17075,7 @@ async function handleDelivPdf(ev){
       let full='';
       let cellItems=[]; // 칸 파싱용: 페이지별 글자 좌표
       let cellOk=true;
+      let nameCells=[];                   // 「품명 칸」으로 읽은 품명
       for(let p=1;p<=pdf.numPages;p++){
         const page=await pdf.getPage(p);
         const tc=await page.getTextContent();
@@ -17052,12 +17106,23 @@ async function handleDelivPdf(ev){
           y:vp.height - it.transform[5], // 위에서 아래로 증가
           w:it.width||0
         }));
+        if(nameCells){                    // 한 장이라도 못 읽으면 칸 읽기는 안 씁니다
+          const c=delivNameCells(pageGlyphs);
+          nameCells = c ? nameCells.concat(c) : null;
+        }
         const pageItems=parseDelivCellsPage(pageGlyphs);
         if(pageItems) cellItems=cellItems.concat(pageItems);
         else cellOk=false; // 한 페이지라도 헤더 못 찾으면 폴백 신호
       }
       // 헤더 정보(납품번호/날짜/납품처/참조)는 텍스트 파서로
       const parsed=parseDelivText(full);
+      // 품명만 「품명 칸」으로 다시 읽어 끼웁니다 (2026-10-06 · 맞지 않으면 예전 그대로)
+      {
+        const ap=delivApplyNameCells(parsed.items||[], nameCells);
+        parsed.items=ap.items;
+        if(!ap.used) console.warn('[품명 칸] 안 씀 — '+ap.why+' · 예전 읽기 그대로', parsed.delivNo);
+        else if(ap.changed) console.info('[품명 칸] '+parsed.delivNo+' — 품명 '+ap.changed+'줄을 칸으로 다시 읽음');
+      }
       // ── [임시 디버그] 파싱 확인용. 문제 없으면 다음 버전에서 제거 예정 ──
       {
         const lines=full.split('\n').filter(s=>s.trim());
