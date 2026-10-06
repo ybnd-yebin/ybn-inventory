@@ -972,7 +972,9 @@ function cadDrawKey(r){
      (그림이 같으면 한 덩어리 — 12-8-2 의 예외입니다) */
   const sp = (typeof RULES!=='undefined' && RULES[r.code]) ? RULES[r.code].split : null;
   const vr = (sp && typeof SPLIT_VARY!=='undefined') ? SPLIT_VARY[sp] : null;
-  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '');
+  /* 무보링은 **보링을 걷어낸 그림**이 따로 나가므로 덩어리를 가릅니다 (2026-10-06).
+     안 가르면 보링 도면 하나에 무보링 줄이 같이 실립니다. */
+  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '') + (isNoBore(r) ? '|NB' : '');
 }
 /* 색 차례 — COLOR_CHIP 에 적힌 순서를 그대로 씁니다 (사장님 2026-09-16
    "같은 계열끼리인데 색이 다르면 색순으로 나열").
@@ -1665,7 +1667,70 @@ function splitVaryDoorSVG(r, c){
        + ` preserveAspectRatio="xMidYMid meet"><g fill="none" stroke-linecap="round">${p.join('')}</g></svg>`;
 }
 
+/* 무보링 도면 — **기존 도면에서 보링만 걷어냅니다** (사장님 2026-10-06
+   "기존도면에서 보링만 없애주면 되는데 안될까?"). 도면을 따로 만들지 않으므로
+   캐드 원본이 바뀌어도 그대로 따라갑니다.
+
+   캐드 원본은 레이어가 다 검정이라 **모양으로** 가립니다. 걷어내는 것은 셋입니다.
+     ① 구멍 — 원(<circle>) 전부. 도어 테두리·단면은 원이 아니라 선입니다.
+     ② 구멍 십자선 — 원 한가운데를 지나는 짧은 선(원 지름의 2배 남짓 또는 12 이하)
+     ③ 보링 위치 치수 — **도어 테두리 밖으로 나간** 선과 글자(110 · 320 …)
+   도어 테두리는 가장 긴 가로선·세로선으로 잡습니다(모서리 둥글림 0.5 쯤은 봐 줍니다).
+   ⚠ 도어 안쪽의 단면선·모서리 눈금은 원 한가운데를 안 지나므로 남습니다.
+   ✅ 실측(2026-10-06): M · WRMB 묶음 · WT · BLD1UA 네 도면에서 원·십자선·치수만 빠지고
+      도어 몸통은 그대로입니다. */
+function libDoorStripBoring(svg){
+  try{
+    const doc=new DOMParser().parseFromString(svg,'image/svg+xml');
+    const root=doc.documentElement;
+    const segOf=p=>{                                   // 경로의 점들(직선·호 끝점)
+      const nums=(p.getAttribute('d')||'').match(/-?\d*\.?\d+/g)||[];
+      const pts=[]; const cmds=(p.getAttribute('d')||'').match(/[MLA][^MLA]*/gi)||[];
+      cmds.forEach(c=>{ const n=(c.match(/-?\d*\.?\d+/g)||[]).map(Number);
+        if(/^A/i.test(c)){ if(n.length>=7) pts.push([n[5],n[6]]); }
+        else for(let i=0;i+1<n.length;i+=2) pts.push([n[i],n[i+1]]); });
+      return pts.length?pts:(nums.length>=2?[[+nums[0],+nums[1]]]:[]);
+    };
+    const paths=[...root.querySelectorAll('path')].map(p=>{
+      const pts=segOf(p); const xs=pts.map(q=>q[0]), ys=pts.map(q=>q[1]);
+      return {el:p, x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys)};
+    }).filter(o=>isFinite(o.x0));
+    // 도어 테두리 — 가장 긴 가로선의 x 범위, 가장 긴 세로선의 y 범위
+    let H=null, V=null;
+    paths.forEach(o=>{
+      if(o.y1-o.y0<0.01 && (!H || o.x1-o.x0 > H.x1-H.x0)) H=o;
+      if(o.x1-o.x0<0.01 && (!V || o.y1-o.y0 > V.y1-V.y0)) V=o;
+    });
+    if(!H || !V) return svg;                            // 테두리를 못 잡으면 손대지 않습니다
+    const T=1.5, box={x0:H.x0-T, x1:H.x1+T, y0:V.y0-T, y1:V.y1+T};
+    const out=(x0,y0,x1,y1)=> x0<box.x0 || x1>box.x1 || y0<box.y0 || y1>box.y1;
+    const circ=[...root.querySelectorAll('circle')].map(c=>({cx:+c.getAttribute('cx'), cy:+c.getAttribute('cy'), r:+c.getAttribute('r')||0}));
+    let n=0;
+    paths.forEach(o=>{
+      const cross=circ.some(c=>{
+        const len=Math.max(o.x1-o.x0, o.y1-o.y0);
+        const thru=(o.x1-o.x0<0.01 && Math.abs(o.x0-c.cx)<0.6 && o.y0<=c.cy+0.6 && o.y1>=c.cy-0.6) ||
+                   (o.y1-o.y0<0.01 && Math.abs(o.y0-c.cy)<0.6 && o.x0<=c.cx+0.6 && o.x1>=c.cx-0.6);
+        return thru && len <= Math.max(c.r*4, 12);
+      });
+      if(cross || out(o.x0,o.y0,o.x1,o.y1)){ o.el.remove(); n++; }
+    });
+    root.querySelectorAll('circle').forEach(c=>{ c.remove(); n++; });
+    root.querySelectorAll('text').forEach(t=>{
+      const x=+t.getAttribute('x'), y=+t.getAttribute('y');
+      if(out(x,y,x,y)){ t.remove(); n++; }
+    });
+    return n ? new XMLSerializer().serializeToString(root) : svg;
+  }catch(e){ console.warn('[무보링 도면] 보링 걷어내기 실패 — 원본 그대로', e); return svg; }
+}
+/* 무보링이면 보링을 걷어낸 도면을 냅니다. 계산·치환은 원래 함수가 다 하고, 그 결과에서 걷어냅니다
+   (힌지 다시 그리기·세로 변환 도면처럼 일찍 돌아오는 길도 같이 걸립니다). */
 function libDoorFilled(r){
+  const f=libDoorFilledBase(r);
+  if(!f || !f.svg || !isNoBore(r)) return f;
+  return Object.assign({}, f, {svg:libDoorStripBoring(f.svg), sig:(f.sig||'')+'-NB', noBore:true});
+}
+function libDoorFilledBase(r){
   if(CAD_LIB_HOLD.has(r.code)) return null;   // 보류 코드 → 파라메트릭 폴백(cadDoorSize가 doorSVG로 받는다)
   // EURO500은 제 도면이 없다 → EURO700 **OB** 도면을 같이 쓴다 (사용자 확정 2026-09-04)
   const type=(r.type==='HD' && !isEuro500(r))?'HD':'OB';
