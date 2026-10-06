@@ -13443,7 +13443,18 @@ function odSheetToHtml(wb, ws){
   const cols = [];
   for(let c = B.c1; c <= B.c2; c++){ const px = odColPx(ws.getColumn(c).width); cols.push(px); w += px; }
 
-  let html = '<table style="border-collapse:collapse;table-layout:fixed;width:' + w + 'px;background:#fff">' +
+  /* 선은 **칸 경계마다 한 번만, 정수 자리에** 그립니다 (사장님 지적 2026-10-06 "표 선이 일정하지 않은데").
+     ① 예전에는 border-collapse 라 칸이 전부 **반 픽셀**(18.5 · 43.5 …)에 놓여, 1px 선이 두 픽셀에
+        번져 줄마다 진하기가 달랐습니다. 이제 separate + 칸마다 **오른쪽·아래만** 그립니다.
+     ② 선이 있는지는 **양쪽 칸을 다 봅니다** — 이 칸의 오른쪽 또는 옆 칸의 왼쪽. 엑셀이 그렇게 그립니다.
+        합친 칸은 시작칸 서식만 보던 탓에 **오른쪽 끝선이 비고**, 양식의 J15 처럼 한 칸만
+        선이 빠진 자리도 끊겨 보였습니다. */
+  const bdOf = (r, c, side) => { if(r < 1 || c < 1) return 0; const e = ws.getRow(r).getCell(c).border; const s = e && e[side]; return (s && s.style) ? (/thick|double/.test(s.style) ? 2 : 1) : 0; };
+  const edgeR = (r1, r2, c) => { let m = 0; for(let r = r1; r <= r2; r++) m = Math.max(m, bdOf(r, c, 'right'), bdOf(r, c + 1, 'left')); return m; };
+  const edgeB = (r, c1, c2) => { let m = 0; for(let c = c1; c <= c2; c++) m = Math.max(m, bdOf(r, c, 'bottom'), bdOf(r + 1, c, 'top')); return m; };
+  const bcss = px => px ? px + 'px solid #000' : '0';
+
+  let html = '<table style="border-collapse:separate;border-spacing:0;table-layout:fixed;width:' + w + 'px;background:#fff">' +
     '<colgroup>' + cols.map(px => '<col style="width:' + px + 'px">').join('') + '</colgroup>';
   for(let r = B.r1; r <= B.r2; r++){
     const row = ws.getRow(r);
@@ -13460,11 +13471,13 @@ function odSheetToHtml(wb, ws){
         else if(v instanceof Date) v = odShortDate(_ymdLocal ? _ymdLocal(v) : '');
         else v = '';
       }
+      const r2 = r + (sp ? sp.rs : 1) - 1, c2 = c + (sp ? sp.cs : 1) - 1;
       const st = [
-        'border-top:'    + odBorderCss(bd, 'top'),
-        'border-left:'   + odBorderCss(bd, 'left'),
-        'border-bottom:' + odBorderCss(bd, 'bottom'),
-        'border-right:'  + odBorderCss(bd, 'right'),
+        // 위·왼쪽은 표 맨 가장자리에서만 — 안쪽은 위·왼쪽 칸이 아래·오른쪽으로 이미 그렸습니다
+        'border-top:'    + bcss(r === B.r1 ? edgeB(r - 1, c, c2) : 0),
+        'border-left:'   + bcss(c === B.c1 ? edgeR(r, r2, c - 1) : 0),
+        'border-bottom:' + bcss(edgeB(r2, c, c2)),
+        'border-right:'  + bcss(edgeR(r, r2, c2)),
         // ⚠ style="..." 안이라 **큰따옴표를 쓰면 속성이 거기서 끊깁니다.**
         //    실제로 서식이 통째로 안 먹었습니다 (2026-09-15). 홑따옴표를 씁니다.
         "font-family:'" + (f.name || OD_FONT) + "',sans-serif",
@@ -13614,12 +13627,44 @@ function odFillSheet(ws, o){
     odPut(ws, 'L' + r, it ? (it.bigo || '') : null);
   }
 
+  odSplitClientCol(ws, rows, o);
+
   /* 총수량 — 수식과 함께 **계산된 값도 넣습니다** (사장님 지적 2026-10-01 "총 14장인데 2장").
      양식 J25 에는 만들 때 계산된 값 2 가 저장돼 있습니다. 엑셀은 열 때 다시 계산하지만
      **카톡 이미지·PDF(odSheetToHtml)는 저장된 값을 그대로 읽어** 늘 2장으로 찍혔습니다. */
   const last = OD_TPL_ROW0 + rows - 1;
   const tot  = o.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
   ws.getCell('J' + (last + 1)).value = { formula:'SUM(J' + OD_TPL_ROW0 + ':J' + last + ')', result:tot };
+}
+
+/* 비고 뒤에 「업체명」 칸 (사장님 2026-10-06 "업체를 표기해야 우리 현장에서 보기 편해서").
+   양식은 비고가 L~N 세 칸을 합친 넓은 칸이라 업체명 자리가 없었습니다. 양식 파일은 그대로 두고
+   여기서 **비고 L~M · 업체명 N** 으로 나눕니다(12-23 과 같은 방식 — 엑셀·카톡·PDF 가 함께 바뀝니다).
+   머리글 줄(11)부터 총수량 줄까지 나눠, 세로선이 표 끝까지 이어지게 합니다.
+   업체명이 비어 있으면 칸만 두고 비워 둡니다. */
+const OD_CLIENT_COL = 'N';
+function odSplitClientCol(ws, rows, o){
+  const head = OD_TPL_ROW0 - 1, foot = OD_TPL_ROW0 + rows;    // 머리글 줄 · 총수량 줄
+  const thin = { style:'thin' };
+  for(let r = head; r <= foot; r++){
+    try{ ws.unMergeCells('L' + r + ':N' + r); }catch(e){}
+    try{ ws.mergeCells('L' + r + ':M' + r); }catch(e){}
+    const L = ws.getCell('L' + r), N = ws.getCell(OD_CLIENT_COL + r);
+    N.font = Object.assign({}, L.font || {});
+    N.border = Object.assign({}, L.border || {}, N.border || {}, { left:thin });
+    const it = (r > head && r < foot) ? o.items[r - OD_TPL_ROW0] : null;
+    const val = r === head ? '업체명' : (it ? (it.client || o.client || '') : null);
+    const c = odPut(ws, OD_CLIENT_COL + r, val);
+    c.alignment = Object.assign({}, c.alignment || {}, { horizontal:'center', shrinkToFit:true });
+    // ⚠ 칸 너비는 못 늘립니다 — 결재란(담당·이사·대표)이 같은 L·M·N 칸을 씁니다.
+    //   그래서 이름이 길면 **글자를 줄여** 칸에 맞춥니다(엑셀은 shrinkToFit 이 알아서 줄입니다).
+    if(val){
+      const em = [...String(val)].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
+      const fitPt = (odColPx(ws.getColumn(OD_CLIENT_COL).width) - 10) / (em * 1.32);   // 1.32 = odSheetToHtml 의 pt→px
+      const base = (N.font && N.font.size) || 11;
+      if(fitPt < base) c.font = Object.assign({}, N.font, { size: Math.max(7, Math.floor(fitPt * 10) / 10) });
+    }
+  }
 }
 
 async function odWriteExcelForm(o){
