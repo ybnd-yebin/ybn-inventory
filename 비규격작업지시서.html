@@ -2218,6 +2218,14 @@ const WHBT_BANDS=[
 const WHBT_BOT=110;                   // 하부 고정
 /* EURO500 판별 — 한 곳에서만 본다.
    예전에는 generate·cadGenerate·프레임탭에 같은 정규식이 따로 적혀 있어 한쪽만 고치면 어긋났다. */
+/* EURO500 세로 차감 — 기본은 −4. **EURO700 의 `doorHsub` 를 EURO500 에도 그대로 쓰는 코드**만 여기 넣습니다.
+   BLD1UA: 납품 910 → 프레임 세로 250, 880 → 220 (사장님 확정 2026-10-06). 예전에는 −4 로 흘러 876 이 나갔습니다.
+   ⚠ 다른 doorHsub 코드(B·BAD·BNDC2N·BNDB2N)는 EURO500 답을 아직 못 받아 넣지 않았습니다 — 확인되면 한 줄씩 더하십시오. */
+const EURO500_USE_HSUB = new Set(['BLD1UA']);
+function euro500Hsub(code){
+  const rl = RULES[code] || {};
+  return (EURO500_USE_HSUB.has(code) && rl.doorHsub) ? rl.doorHsub : 4;
+}
 function isEuro500(r){
   return !!(r && (r.euro || /Euro\s*500|EURO5\b|유로500/i.test(r.name||r.short||'')));
 }
@@ -2253,7 +2261,7 @@ function calc(r){
       return {...base, fh:'', frameSegs:segs.map(p=>({label:p.label, fw, fh:p.v, n:p.n})),
                      note:'EURO500 · 프레임만(유리 없음) · 마이다 합적'};
     }
-    return {...base, fh:(r.h?r.h-4:''), frameSegs:null, note:'EURO500 · 프레임만(유리 없음)'};
+    return {...base, fh:(r.h?r.h-euro500Hsub(r.code):''), frameSegs:null, note:'EURO500 · 프레임만(유리 없음)'};
   }
   // 구형 정규격: 사이즈표에 등록된 프레임·유리를 그대로 쓴다(표준 계산·마이다 분할 건너뜀).
   if(r.oldStd){
@@ -5502,7 +5510,7 @@ function generate(){
             frame=same?`${fw}×${segs[0].v}`:segs.map(p=>`${fw}×${p.v}`).join(' / ');
             sortH=+segs[0].v||0; set=true; k='S|'+frame;
           }else{
-            const fh=r.h?r.h-4:'';
+            const fh=r.h?r.h-euro500Hsub(r.code):'';     // calc() 와 같은 식 (BLD1UA −660)
             frame=`${fw}×${fh}`; sortH=+fh||0; k=frame;
           }
           if(!agg[k]) agg[k]={frame, sortH, qty:0, set};
