@@ -2538,7 +2538,7 @@ function buildBasBridge(snaps){
   // 같은 날 스냅샷이 여럿이면 늦게 로드된 것이 뒤에 오게 — 받는 쪽이 뒤엣것을 채택한다
   out.sort((a,b)=> a.date<b.date?-1 : a.date>b.date?1 : (a.loadedAt-b.loadedAt));
   return {kind:'ybn-bas-bridge', v:1, src:'yesi', from:'출고예시분석',
-          exportedAt:new Date().toISOString().slice(0,10), snaps:out};
+          exportedAt:isoToday(), snaps:out};   // 로컬 날짜 — toISOString 은 오전 9시 전에 전날이 찍힙니다(CLAUDE.md 3-1)
 }
 
 function syncBasBridge(snaps){
