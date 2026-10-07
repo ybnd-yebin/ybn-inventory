@@ -13940,6 +13940,8 @@ function odSaveOrder(){
   // 입력 초기화 (발주처/종류는 유지)
   odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}];
   document.getElementById('od-due').value='';
+  // 참조 메모는 그 발주서에만 — 기록하면 비웁니다 (사장님 2026-10-07). 기록에는 ref 로 남아 있습니다.
+  { const r=document.getElementById('od-ref'); if(r) r.value=''; }
   renderOdLines();
   renderOrderList();
   if(typeof autoSync==='function') autoSync();
