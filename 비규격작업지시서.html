@@ -6617,7 +6617,10 @@ function subdoorGroup(name){
   if(/에어힌지/.test(n))               return 'AIR';
   if(/빗면|빗각/.test(n))              return 'KB';
   if(/유리장식/.test(n))               return 'YU';
-  if(/글래스\s*(채널\s*)?도어/.test(n)) return 'SIG';
+  /* '글래스 행잉 채널도어'도 시그니처 계통입니다 (2026-10-07 신형 행잉 추가).
+     예전 규칙은 '글래스' 바로 뒤에 '채널'·'도어'만 봐서, 사이에 '행잉'이 끼면
+     수납도어 탭에서 통째로 빠졌습니다. */
+  if(/글래스\s*(행잉\s*)?(채널\s*)?도어/.test(n)) return 'SIG';
   return '';
 }
 
@@ -6642,7 +6645,10 @@ function subdoorSheetId(grp, name, fh){
     if(/키큰장/.test(n)) return fh<=2240 ? 'YU_KEUN_A' : 'YU_KEUN_B';
     return '';
   }
-  if(grp==='SIG') return 'SIG';   // 18T·행잉은 납품서에 표시가 없어 기본 한 장만 쓴다
+  /* 시그니처 — 품명에 '행잉'이 있으면 행잉 도면, 아니면 기본 도면 (2026-10-07).
+     행잉은 납품서 품명에 '(비) 글래스 행잉 채널도어 450(18T용)'처럼 표시가 오므로
+     따로 고릅니다. 18T는 아직 기본 한 장으로 둡니다(예전 그대로). */
+  if(grp==='SIG') return /행잉/.test(n) ? 'SIGHANG' : 'SIG';
   return '';
 }
 
@@ -6814,6 +6820,34 @@ function subdoorDropPageFrame(svg){
     return (w>=205 && h>=290) ? '' : m;                // 종이를 거의 그대로 덮는 네모만
   });
 }
+/* ── 도면 글자 고치기 (2026-10-07 · 신형 행잉 도면) ──────────────────
+   행잉 도면의 「도어 높이별 힌지 사이즈」 표를 한샘 신형 도면
+   「(비) 글래스 행잉 채널도어 450/500 (18T용)」(2026.08.31)에 맞춥니다.
+     도어 높이 1896~1995 → A 416
+     도어 높이 1996~2095 → A 480
+     도어 높이 2096~2186 → A 544      (측판 높이 − 2 = 도어 높이)
+   예전 표는 1894~1993 / 1994~2093 / 2094~2193 / 2194~2294 네 줄이었습니다.
+   신형 도면에는 넷째 줄이 없어 '-'로 비웁니다.
+
+   **도면 데이터(SUBDOOR_SHEETS)는 손대지 않습니다 — 그릴 때만 바꿉니다**(12-8).
+   되돌리려면 아래에서 SIGHANG 줄을 지우면 됩니다. */
+const SUBDOOR_TEXT_FIX = {
+  SIGHANG: [
+    ['>1894~1993<', '>1896~1995<'],
+    ['>1994~2093<', '>1996~2095<'],
+    ['>2094~2193<', '>2096~2186<'],
+    ['>2194~2294<', '>-<'],
+    ['y="268.897" font-size="6.07" text-anchor="middle" fill="#000">544<',
+     'y="268.897" font-size="6.07" text-anchor="middle" fill="#000">-<'],
+  ],
+};
+function subdoorTextFix(id, svg){
+  const fx = SUBDOOR_TEXT_FIX[id];
+  if(!fx) return svg;
+  let s = String(svg);
+  fx.forEach(([a,b])=>{ s = s.split(a).join(b); });
+  return s;
+}
 function subdoorPageSVG(p){
   const t = SUBDOOR_SHEETS[p.id];
   if(!t) return '';
@@ -6821,7 +6855,7 @@ function subdoorPageSVG(p){
   const deliv = warehouseOutDate(p.ship) || '';
   const po    = p.po || bizBefore(p.ship, +val('leadDays')||2) || '';
   // 종이 가장자리 테두리를 먼저 뺍니다 — 둥글리기 전에 해야 곡선이 안 섞여 가려내기 쉽습니다.
-  let s = subdoorRoundSheet(subdoorDropPageFrame(t.svg))   // ㄱ자 꺾임 모서리 둥글리기(그릴 때만)
+  let s = subdoorRoundSheet(subdoorDropPageFrame(subdoorTextFix(p.id, t.svg)))   // ㄱ자 꺾임 모서리 둥글리기(그릴 때만)
     .split('{{PO}}').join(esc(fmtDate(po)))
     .split('{{DELIV}}').join(esc(fmtDate(deliv)))
     .split('{{D2}}').join(esc(fmtDate(p.ship)))
