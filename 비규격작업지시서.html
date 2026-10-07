@@ -6946,7 +6946,39 @@ function subdoorPageSVG(p){
   s = subdoorDropSlots(s, empty);
   s = subdoorCenterBlock(t, s, grew, empty);
   s = subdoorKeepOffBox(t, s, textW);
+  s = subdoorAddNotes(p.id, s);
   return SUBDOOR_SVG_OPEN + s + SUBDOOR_SVG_CLOSE;
+}
+
+/* ── 안내문(`*코너캡` 등)에 줄 더하기 (사장님 2026-10-07) ──────────────────
+   행잉 채널도어 — 한샘 신형 도면의 「합포수량 : 도어1, 힌지4, MP4」.
+   안내문 바로 밑에 힌지 표가 붙어 있어 그냥 더하면 표와 겹칩니다. 그래서 **더한 줄 수만큼
+   안내문 묶음을 위로 올려** 아래 끝은 그대로 둡니다(위쪽에는 빈 자리가 넉넉합니다).
+   줄 간격은 숫자로 적지 않고 그 묶음의 줄 간격을 그대로 잽니다.
+   도면 데이터는 그대로 — 그릴 때만 더합니다(12-8). 장을 더하려면 여기에 한 줄만 더하십시오. */
+const SUBDOOR_NOTE_ADD = {
+  SIGHANG: ['*합포수량 : 도어1, 힌지4, MP4'],
+};
+function subdoorAddNotes(id, s){
+  const add = SUBDOOR_NOTE_ADD[id];
+  if(!add || !add.length) return s;
+  try{
+    const gRe = /<g transform="translate\(([\d.]+),([\d.]+)\)"([^>]*)>((?:(?!<\/g>)[\s\S])*?)<\/g>/g;
+    let m, hit = null;
+    while((m = gRe.exec(s))){
+      const ys = [...m[4].matchAll(/<text x="0" y="([\d.]+)" font-size="([\d.]+)"[^>]*>(?:<tspan[^>]*>)?\*/g)];
+      if(ys.length >= 3){ hit = { m, ys }; break; }        // '*' 로 시작하는 줄이 셋 이상 = 안내문 묶음
+    }
+    if(!hit) return s;
+    const ys = hit.ys.map(a => +a[1]), fs = hit.ys[0][2];
+    const step = (ys[ys.length-1] - ys[0]) / (ys.length - 1);
+    const last = ys[ys.length-1];
+    const extra = add.map((txt, i) =>
+      `<text x="0" y="${(last + step*(i+1)).toFixed(3)}" font-size="${fs}" fill="#000">${esc(txt)}</text>`).join('');
+    const [all, gx, gy, attr, body] = hit.m;
+    const moved = `<g transform="translate(${gx},${(+gy - step*add.length).toFixed(3)})"${attr}>${body}${extra}</g>`;
+    return s.slice(0, hit.m.index) + moved + s.slice(hit.m.index + all.length);
+  }catch(e){ console.warn('[수납도어] 안내문 줄 더하기 실패 — 그대로 둡니다', e); return s; }
 }
 
 /* ── 치수 글자가 오른쪽 상자(프레임·손잡이 단면)를 밟지 않게 (사장님 2026-10-07) ──────
