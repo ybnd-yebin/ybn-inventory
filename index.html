@@ -1145,6 +1145,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
         <input type="text" id="od-client" class="inp" value="한샘" placeholder="예: 한샘" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
       </div>
     </div>
+    <!-- 참조 — 발주서 머리의 「참조 :」 옆에 찍히는 메모 (사장님 2026-10-07) -->
+    <div style="margin-top:8px">
+      <span class="lbl">참조 (메모)</span>
+      <input type="text" id="od-ref" class="inp" placeholder="발주서 「참조 :」 옆에 찍힙니다 — 예: 담당 김OO / 오전 입고 부탁" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+    </div>
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px">
       <span class="lbl" style="margin:0">발주 품목</span>
@@ -12868,6 +12873,7 @@ function renderOdLines(){
           <span style="color:var(--tx3);font-size:11px">수량</span>
           <input type="number" inputmode="numeric" value="${ln.qty}" oninput="odLines[${i}].qty=this.value;odUpdateCount()" onkeydown="odQtyTab(event,${i})" class="inp" style="margin:0;padding:8px 4px;text-align:center;font-size:13px">
         </div>
+        ${odLineBigoBox(ln,i)}
         ${badgeBox(ln,i)}
       </div>`;
     }
@@ -12881,6 +12887,7 @@ function renderOdLines(){
         <input type="number" inputmode="numeric" value="${ln.qty}" oninput="odLines[${i}].qty=this.value;odUpdateCount()" onkeydown="odQtyTab(event,${i})" class="inp" style="margin:0;padding:9px 4px;text-align:center;font-size:13px">
         <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
       </div>
+      ${odLineBigoBox(ln,i)}
       ${badgeBox(ln,i)}
       </div>`;
   }).join('');
@@ -12909,6 +12916,12 @@ function odModelInput(i, val){
   }
 }
 function odAddLine(){ odLines.push({w:'',h:'',qty:1,pname:'',bigo:''}); renderOdLines(); }
+// 화면에 넣는 글자(비고·참조)를 안전하게 — 발주탭 전용
+function _odEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+/* 줄마다 비고 — 비우면 위쪽 공통 비고가 들어갑니다 (사장님 2026-10-07) */
+function odLineBigoBox(ln, i){
+  return `<input type="text" value="${_odEsc(ln.bigo||'')}" placeholder="비고 (이 줄만 · 비우면 공통 비고)" oninput="odLines[${i}].bigo=this.value" class="inp" style="margin:4px 0 0;padding:6px 8px;font-size:12px;width:100%;box-sizing:border-box">`;
+}
 function odAddPresetSize(sz){
   const [w,h]=sz.split('*').map(s=>parseInt(s));
   // 빈 줄이 있으면 거기 채우고, 없으면 새 줄 추가
@@ -12951,13 +12964,17 @@ function odCollect(){
   const due=(document.getElementById('od-due').value||'').trim();
   const bigo=(document.getElementById('od-bigo').value||'').trim();
   const client=(document.getElementById('od-client').value||'').trim();
+  const ref=((document.getElementById('od-ref')||{}).value||'').trim();   // 「참조 :」 메모
   const items=odLines.filter(odLineValid).map(l=>({
     w:parseInt(l.w)||0, h:parseInt(l.h)||0, qty:parseInt(l.qty)||0,
     // 품명이 비면 고르신 종류의 기본값을 씁니다(대원유리 = 비규격).
     // 색은 종이에 안 찍지만 기록에는 남겨 둡니다 — 나중에 어느 색 발주였는지 되짚을 수 있게.
-    pname:((l.pname||p.pname||'')+'').trim(), color:((l.color||'')+'').trim(), bigo:bigo
+    /* 비고 — **그 줄에 따로 적은 것이 우선**, 비어 있으면 위쪽 공통 비고 (사장님 2026-10-07
+       "개별적으로 한줄쓰게되면 그칸은 개별적으로 적은게 우선") */
+    pname:((l.pname||p.pname||'')+'').trim(), color:((l.color||'')+'').trim(),
+    bigo:((l.bigo||'')+'').trim() || bigo
   }));
-  return {vendor, cat, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, items};
+  return {vendor, cat, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, ref, items};
 }
 
 // ── 발주서 행렬(AOA) 생성 — 양식 구조 그대로 ──
@@ -12976,7 +12993,7 @@ function odBuildAOA(o){
   put(2,4,'발 주 서 (PURCHASE ORDER)');
   put(4,2,'수      신 :');   put(4,4,o.vendor);              put(4,7,'㈜ 와이비 앤 디 YB & D');
   put(5,2,'발 주  일 :');   put(5,4,odShortDate(o.date));   put(5,7,'인천시 남동구  남동대로 370번지 57-51');
-  put(6,2,'참      조 :');                                   put(6,7,'남동공단 35블럭7롯트 신원 휄트 내 5동');
+  put(6,2,'참      조 :');   put(6,4,o.ref||'');             put(6,7,'남동공단 35블럭7롯트 신원 휄트 내 5동');
   put(7,2,'F   a   x :');                                    put(7,7,'TEL 032) 821-0247~8  FAX 032) 821-0249');
   put(8,7,'결재'); put(8,8,'담당'); put(8,9,'차장'); put(8,10,'이사'); put(8,11,'사장');
   const part = odTitleParts(o);
@@ -13150,7 +13167,7 @@ function odRenderCapture(o){
        <div>
          <div><b>수　신 :</b> ${o.vendor}</div>
          <div><b>발 주 일 :</b> ${odShortDate(o.date)}</div>
-         <div><b>참　조 :</b> </div>
+         <div><b>참　조 :</b> ${_odEsc(o.ref||'')}</div>
          <div><b>F a x :</b> </div>
        </div>
        <div style="text-align:right;position:relative">
@@ -13610,6 +13627,20 @@ function odFillSheet(ws, o){
   const part = odTitleParts(o);
   ws.getCell('D4').value = o.vendor || '';
   ws.getCell('D5').value = odShortDate(o.date);
+  /* 「참조 :」 메모 (사장님 2026-10-07). 양식의 값 칸이 D 하나뿐이라 메모가 잘렸습니다 —
+     회사 주소(G) 앞까지 D~F 를 합쳐 넓히고, 그래도 길면 글자를 줄여 맞춥니다. */
+  try{ ws.mergeCells('D6:F6'); }catch(e){}
+  const refC = ws.getCell('D6');
+  refC.value = o.ref || '';
+  refC.alignment = Object.assign({}, refC.alignment || {}, { horizontal:'left', vertical:'middle', shrinkToFit:true });
+  // 카톡 이미지·PDF(odSheetToHtml)는 shrinkToFit 을 모릅니다 — 업체명 칸(odSplitClientCol)처럼 글자 크기를 직접 맞춥니다
+  if(o.ref){
+    const em = [...String(o.ref)].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
+    const px = ['D','E','F'].reduce((s, c) => s + odColPx(ws.getColumn(c).width), 0);
+    const base = (refC.font && refC.font.size) || 11;
+    const fitPt = (px - 10) / (em * 1.32);
+    if(fitPt < base) refC.font = Object.assign({}, refC.font || {}, { size: Math.max(7, Math.floor(fitPt * 10) / 10) });
+  }
   ws.getCell('B9').value = (part.title + (part.bigo ? '  ' + part.bigo : '')).trim();
 
   // 품목이 양식 줄 수를 넘으면 첫 줄을 서식째 복제해 늘립니다
@@ -13897,7 +13928,7 @@ function odSaveOrder(){
   const order={
     id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
     vendor:o.vendor, type:o.type, thick:o.thick||'', title:o.title,
-    date:o.date, due:o.due, client:o.client, bigo:o.bigo||'',
+    date:o.date, due:o.due, client:o.client, bigo:o.bigo||'', ref:o.ref||'',
     createdAt:new Date().toISOString(),
     by:getActor()||'',
     items:o.items.map(it=>({...it, received:false, recvAt:null, eventId:null}))
