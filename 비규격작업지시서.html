@@ -6918,6 +6918,7 @@ function subdoorPageSVG(p){
      (숫자를 손으로 적으면 도면마다 어긋납니다). */
   const step = subdoorLineStep(t.svg);
   let grew = 0;                        // 줄이 늘어난 만큼 (가운데 정렬에 씁니다)
+  let textW = 0;                       // 가장 긴 치수 줄의 너비(mm) — 오른쪽 상자에 닿는지 볼 때 씁니다
   const empty = [];                    // 수량이 없어 지울 칸
   for(let i=1; i<=t.slots; i++){
     const ph = t.ph[i-1] || ['',''];
@@ -6935,13 +6936,78 @@ function subdoorPageSVG(p){
     // 한 쌍(완성/재단)이 두 줄이므로, 다음 쌍은 두 줄 아래로 내린다
     const stack = (arr) => arr.map((txt,n)=>
       n===0 ? esc(txt) : `<tspan x="0" dy="${(step*2).toFixed(3)}">${esc(txt)}</tspan>`).join('');
-    s = s.split('{{F'+i+'}}').join(stack(list.map(d=>d.fw+' * '+d.fh+' = '+subdoorQtyText(d, lrMode))))
-         .split('{{G'+i+'}}').join(stack(list.map(d=>d.gw+' * '+d.gh)));
+    const fTxt = list.map(d=>d.fw+' * '+d.fh+' = '+subdoorQtyText(d, lrMode));
+    const gTxt = list.map(d=>d.gw+' * '+d.gh);
+    s = s.split('{{F'+i+'}}').join(stack(fTxt))
+         .split('{{G'+i+'}}').join(stack(gTxt));
     grew = Math.max(grew, (list.length-1) * step * 2);   // 줄이 늘어난 만큼
+    fTxt.concat(gTxt).forEach(x => { textW = Math.max(textW, subdoorTextW(x, SUBDOOR_DIM_FS)); });
   }
   s = subdoorDropSlots(s, empty);
   s = subdoorCenterBlock(t, s, grew, empty);
+  s = subdoorKeepOffBox(t, s, textW);
   return SUBDOOR_SVG_OPEN + s + SUBDOOR_SVG_CLOSE;
+}
+
+/* ── 치수 글자가 오른쪽 상자(프레임·손잡이 단면)를 밟지 않게 (사장님 2026-10-07) ──────
+   "왼쪽으로 조금 이동될까. 손잡이 네모선이 밟혀서" — 세로가 네 자리(2186)가 되면서
+   `446 * 2186 = 4 EA` 끝이 상자 왼쪽 선(160.9mm)에 닿았습니다.
+   ■ **닿을 때만, 닿는 만큼만** 치수 묶음(F·G)과 그 이름표(`450 연장`)를 같이 왼쪽으로 당깁니다.
+     짧은 줄은 예전 자리 그대로입니다. 두 칸(450·500)은 같은 만큼 당겨 왼쪽 끝이 맞습니다.
+   ■ 상자 자리는 숫자로 적지 않고 템플릿에서 잽니다 — 치수 묶음 오른쪽에 있고 그 높이를 품는 닫힌 네모.
+   ■ 글자 너비는 굴림 기준 **한글 1em · 그 밖 0.5em**(굴림 반각은 정확히 절반입니다).
+   ■ 도면 데이터는 그대로 — 그릴 때만 옮깁니다(12-8). 끄려면 SUBDOOR_BOX_GAP = -999. */
+const SUBDOOR_DIM_FS    = 6.81;   // 치수 글자 크기(mm) — 템플릿의 {{F}} 글자
+const SUBDOOR_BOX_GAP   = 2;      // 상자 선과 글자 끝 사이에 남길 틈(mm)
+const SUBDOOR_MAX_SHIFT = 20;     // 이보다 많이는 안 당깁니다(왼쪽 도어 치수선을 덮지 않게)
+/* 글자 너비 — **실제 글꼴로 잽니다**(12-4). 굴림 반각 0.5em 어림은 실측보다 2% 짧아
+   1.7mm 만 당겨지고 상자 선에 0.8mm 까지 붙었습니다. 잴 수 없을 때만 어림을 씁니다. */
+function subdoorTextW(str, fs){
+  try{
+    const cx = subdoorTextW._cx || (subdoorTextW._cx = document.createElement('canvas').getContext('2d'));
+    cx.font = '100px Gulim, 굴림, Malgun Gothic, sans-serif';       // SUBDOOR_SVG_OPEN 과 같은 글꼴
+    return cx.measureText(String(str||'')).width / 100 * fs;
+  }catch(e){
+    return [...String(str||'')].reduce((w, ch) => w + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.5), 0) * fs;
+  }
+}
+function subdoorKeepOffBox(t, s, textW){
+  if(!textW) return s;
+  try{
+    const tpl = t.svg;
+    const gRe = /<g transform="translate\(([\d.]+),([\d.]+)\)"[^>]*>((?:(?!<\/g>)[\s\S])*?)<\/g>/g;
+    const groups = []; let m;
+    while((m = gRe.exec(tpl))) if(/\{\{F\d\}\}/.test(m[3])) groups.push({ x:+m[1], y:+m[2], xs:m[1] });
+    if(!groups.length) return s;
+    const x0 = Math.min(...groups.map(g => g.x));
+    // 오른쪽 상자 — 닫힌 네모 경로 중 묶음 오른쪽에 있고, 묶음 높이를 품는 것 (종이·내용 박스는 너비로 거릅니다)
+    let boxL = Infinity;
+    const rRe = /<path d="M ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) Z"/g;
+    while((m = rRe.exec(tpl))){
+      const xs = [+m[1],+m[3],+m[5],+m[7]], ys = [+m[2],+m[4],+m[6],+m[8]];
+      const L = Math.min(...xs), R = Math.max(...xs), T = Math.min(...ys), B = Math.max(...ys);
+      if(L <= x0 || R - L > 100) continue;
+      if(groups.some(g => g.y >= T && g.y <= B)) boxL = Math.min(boxL, L);
+    }
+    if(!isFinite(boxL)) return s;
+    const over = x0 + textW - (boxL - SUBDOOR_BOX_GAP);
+    if(over <= 0) return s;
+    const dx = Math.min(over, SUBDOOR_MAX_SHIFT);
+    // 묶음 옮기기 — 가운데 내리기(subdoorCenterBlock)로 y 는 바뀌었을 수 있으니 x 로만 찾습니다
+    const gxs = new Set(groups.map(g => g.xs));
+    s = s.replace(/<g transform="translate\(([\d.]+),([\d.]+)\)"/g,
+                  (all, x, y) => gxs.has(x) ? `<g transform="translate(${(+x - dx).toFixed(3)},${y})"` : all);
+    // 이름표(`450 연장`) — 묶음 바로 위(6mm 안), 왼쪽 끝이 묶음과 3mm 안인 글자
+    const tRe = /<text x="([\d.]+)" y="([\d.]+)" font-size="([\d.]+)"/g;
+    const labs = new Set();
+    while((m = tRe.exec(tpl))){
+      const x = +m[1], y = +m[2];
+      if(groups.some(g => Math.abs(x - g.x) < 3 && g.y - y > 0 && g.y - y < 6)) labs.add(m[1] + '|' + m[3]);
+    }
+    s = s.replace(/<text x="([\d.]+)" y="([\d.]+)" font-size="([\d.]+)"/g,
+                  (all, x, y, fs) => labs.has(x + '|' + fs) ? `<text x="${(+x - dx).toFixed(3)}" y="${y}" font-size="${fs}"` : all);
+    return s;
+  }catch(e){ console.warn('[수납도어] 치수 글자 옮기기 실패 — 그대로 둡니다', e); return s; }
 }
 
 /* ── 치수 글자를 빈 칸 가운데로 내리기 (사용자 요청 2026-09-15) ──────
