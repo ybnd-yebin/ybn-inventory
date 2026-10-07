@@ -3096,8 +3096,7 @@ function ybnImport(){
      "이미 들어와 있는 것 3건"만 뜨고 포레스트는 안 들어왔습니다.
      이제 **그 납품서에서 아직 안 들어온 줄만** 골라 채웁니다. */
   const have = {};
-  const rowKey = r => [r.delivNo||'', r.code||'', r.w||0, r.h||0, r.lr||'',
-                       (r.oldStd && r.oldStd.model) || '', isNoBore(r) ? 'NB' : ''].join('|');
+  const rowKey = ybnRowKey;
   const haveRow = new Set();
   ROWS.forEach(r => {
     if(r.delivNo && !have[r.delivNo]) have[r.delivNo] = r;
@@ -3403,6 +3402,44 @@ function saveRows(){
      유리가 없습니다(CLAUDE.md 12-1). 읽는 규칙만 고치면 **이미 들어와 있는
      행은 그대로 틀린 채 남으므로** 불러올 때 한 번 훑어 고칩니다.
    이름만 보고 고치는 것이라 몇 번 돌려도 같은 결과입니다. */
+/* 가져온 줄의 열쇠 — 「가져오기」가 이미 있는 줄인지 볼 때와, 겹친 줄을 덜어낼 때 **같은 것**을 씁니다 */
+function ybnRowKey(r){
+  return [r.delivNo||'', r.code||'', r.w||0, r.h||0, r.lr||'',
+          (r.oldStd && r.oldStd.model) || '', isNoBore(r) ? 'NB' : ''].join('|');
+}
+/* 앱에서 가져온 줄이 **원래 납품서보다 많으면** 넘치는 만큼 덜어냅니다 (사장님 2026-10-07 "4장인데 8장으로 풀리네").
+   세로에 두께(18)가 들어간 옛 줄 4개가 남은 채 고친 뒤 다시 가져와 새 줄 4개가 붙었고,
+   그 뒤 옛 줄도 바로잡히면서 똑같은 줄이 8개가 됐습니다.
+   ■ 기준은 앱에 있는 그 납품서 — 같은 열쇠의 줄이 몇 개여야 하는지 ybnDocToRows 로 세어 봅니다.
+   ■ 넘칠 때만, 넘치는 만큼만, **뒤에 붙은 것부터** 뺍니다. 모자라거나 납품서를 못 찾으면 손대지 않습니다.
+   ■ 손으로 좌우를 바꾸신 줄은 열쇠가 달라져 세는 데 안 걸리므로 지워지지 않습니다. */
+function ybnDedupeRows(){
+  const got = (typeof ybnReadDelivs === 'function') ? ybnReadDelivs() : null;
+  if(!got || got.err || !got.log) return 0;
+  const byNo = {};
+  got.log.forEach(d => { if(d && d.delivNo) byNo[d.delivNo] = d; });
+  const want = {};                                   // 납품번호 → 열쇠 → 있어야 할 줄 수
+  const have = {};
+  ROWS.forEach(r => { if(r && r.fromApp && r.delivNo && byNo[r.delivNo]) (have[r.delivNo] = have[r.delivNo] || 0, have[r.delivNo]++); });
+  Object.keys(have).forEach(no => {
+    const w = {};
+    (ybnDocToRows(byNo[no]).rows || []).forEach(x => { const k = ybnRowKey(x); w[k] = (w[k] || 0) + 1; });
+    want[no] = w;
+  });
+  const seen = {}, drop = new Set();
+  ROWS.forEach((r, i) => {
+    if(!r || !r.fromApp || !want[r.delivNo]) return;
+    const k = ybnRowKey(r), lim = want[r.delivNo][k];
+    if(lim == null) return;                          // 납품서에 없는 열쇠(손으로 고친 줄 등)는 그대로
+    seen[k] = (seen[k] || 0) + 1;
+    if(seen[k] > lim) drop.add(i);
+  });
+  if(!drop.size) return 0;
+  ROWS = ROWS.filter((r, i) => !drop.has(i));
+  console.warn('[비규격] 겹쳐 들어온 줄 ' + drop.size + '개를 덜어냈습니다 (납품서 개수에 맞춤).');
+  return drop.size;
+}
+
 function ybnFixOldRows(){
   let n = 0;
   (ROWS || []).forEach(r => {
@@ -3432,6 +3469,8 @@ function ybnFixOldRows(){
     const isEuro = /Euro\s*500|유로\s*500/i.test(nameAll);
     if(!!r.euro !== isEuro){ r.euro = isEuro; n++; }
   });
+  // 바로잡고 나면 겹치는 줄이 생길 수 있습니다(세로 18 → 2186) — 납품서 개수에 맞춰 덜어냅니다
+  try{ n += ybnDedupeRows(); }catch(e){ console.warn('[비규격] 겹친 줄 덜어내기 실패', e); }
   if(n){
     console.warn('[비규격] 옛 판으로 들어온 행 ' + n + '곳을 바로잡았습니다 (EURO500 표시·빈 색 등).');
     try{ saveRows(); }catch(e){}
