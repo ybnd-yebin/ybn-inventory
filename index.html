@@ -16365,7 +16365,10 @@ function delivSizeLR(rawName){
     const m2=name.match(/비규격\s*\(\s*([\d*]+)/); // 괄호 안 닫힘(줄바꿈) 폴백
     if(m2) size=_starSize(m2[1]);
   }
-  if(!size){ const mx=name.match(/(\d+)X(\d+)X(\d+)X(\d+)/i); if(mx) size=[mx[1],mx[2],mx[3],mx[4]].filter(n=>n!=='0').join('×'); }
+  /* X형도 `가로X두께X세로X두께` 입니다 — 1·3번째가 가로·세로 (사장님 2026-10-07).
+     예전에는 0 아닌 것을 다 이어 `450X18X2186X0` 을 `450×18×2186` 으로 적어, 작업지시서가
+     앞 둘만 읽어 **450×18** 이 됐습니다(신형 18T 채널도어). 별표형과 같은 _starSize 를 씁니다. */
+  if(!size){ const mx=name.match(/(\d+)X(\d+)X(\d+)X(\d+)/i); if(mx) size=_starSize([mx[1],mx[2],mx[3],mx[4]].join('*')); }
   /* '(비)'로만 표기된 품목은 이름에 '비규격' 글자가 없어 위 규칙에 하나도 안 걸립니다
      (CLAUDE.md 4-1·12-6 — 예: `( 비 ) 글래스 채널도어 (450*0*2296*0)`).
      마지막 수단으로 괄호로 온전히 닫힌 별표형 숫자묶음을 읽습니다.
@@ -17202,7 +17205,9 @@ async function handleDelivPdf(ev){
           try{
             const old=delivLog[_exist];
             (finalItems||[]).forEach(ni=>{
-              const oi=(old.items||[]).find(x=>x.code===ni.code && (x.orderNo||'')===(ni.orderNo||'') && !x.size && ni.size);
+              // 두께까지 이어 적힌 옛 사이즈(`450×18×2186`)도 바로잡습니다 (2026-10-07)
+              const oi=(old.items||[]).find(x=>x.code===ni.code && (x.orderNo||'')===(ni.orderNo||'') && ni.size &&
+                                               (!x.size || (String(x.size).split('×').length===3 && x.size!==ni.size)));
               if(oi){ oi.size=ni.size; if(!oi.lr && ni.lr) oi.lr=ni.lr; filled++; return; }
               /* 사이즈는 있는데 **좌우만 빈** 것도 채웁니다 (2026-10-06).
                  잘린 `R)` 를 못 읽던 옛 파서로 올라온 키큰장이 여기 해당합니다 —

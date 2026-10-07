@@ -3526,6 +3526,9 @@ function archDel(delivNo){
 function parseSizeWH(sizeStr){
   // "592×693" / "445×729" → {w,h}  (좌우 표기 없는 가로×세로)
   const m=String(sizeStr||'').split(/[×xX*]/).map(s=>parseInt(s)).filter(n=>!isNaN(n));
+  /* `450×18×2186` — 앱의 옛 판이 두께(18)까지 이어 적은 것입니다(2026-10-07 고침 전).
+     가로·두께·세로라 1·3번째를 씁니다. 이미 저장된 납품서도 다시 올리지 않고 바로 맞게 읽힙니다. */
+  if(m.length===3) return {w:m[0],h:m[2]};
   if(m.length>=2) return {w:m[0],h:m[1]};
   return {w:'',h:''};
 }
