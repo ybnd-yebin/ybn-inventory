@@ -161,6 +161,8 @@ button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-vis
 }
 /* 쪼가리에 들어가는 자동 메모 — 자리가 좁아 테두리·여백을 뺍니다 */
 .note.strip{padding:0 1px;border:none;letter-spacing:-.01em}
+/* A/S — 품명 아래 빈칸에 굵고 크게 (2026-10-07) */
+.note.ascell{font-weight:900;padding:0 2px;border:none;letter-spacing:.02em}
 /* 유리 사이즈는 세로로 — 라벨의 다른 세로 글자와 같은 방향(아래에서 위로) 입니다.
    기준점은 글자 왼쪽 아래 모서리이고, 거기서 위로 자랍니다. */
 .note.vert{transform:rotate(-90deg);transform-origin:0 0;padding:0}
@@ -1134,10 +1136,44 @@ function applyRules(){
     }
   }
   applyColorMarks();
+  applyAsCellNotes(pend);
   if(state.extras.bundle) applyBundleNotes(pend);
   if(state.extras.glass)  applyGlassNotes(pend);
   layoutStripNotes(pend);
   cleanupDuplicateNotes();
+}
+
+/* ---------- A/S 는 품명 아래 빈칸에 크게 (사장님 2026-10-07) ----------
+   "내가 손으로 쓴 그 칸에 넣어줄수있어? 볼드체로 잘보이게"
+   AS 판별은 참조번호 — `54` 로 시작하는 10자리(AS_RE 와 같은 규칙)가 그 라벨(사분면)에 있으면 AS 입니다.
+
+   자리는 **사이즈 줄(`600X0X910X0`) 아래 ~ 바코드 위** 의 빈칸입니다. 칸 선을 숫자로 적지 않고
+   그 라벨의 글자로 잽니다 — 바코드 글자(`*…*`)의 위 끝과, 그 바로 위 줄의 아래 끝 사이 한가운데.
+   (9/30 AS 라벨 실측: 사이즈 줄 아래 18.2% · 바코드 위 23.8% → 가운데 21.0%)
+   위쪽 띠에 작게 붙던 `AS` 메모는 겹치므로 그 라벨에서는 뺍니다(참조번호 형광펜은 그대로). */
+const AS_CELL_RE   = /(?<!\d)54\d{8}(?!\d)/;
+const AS_CELL_TEXT = "A/S";
+const AS_CELL_FS   = 24;            // px — 칸 높이(약 11mm)에 넉넉히 들어가는 크기
+function applyAsCellNotes(pend){
+  for(const p of state.pages){
+    const byQ = {};
+    for(const l of p.lines){ const q = (l.x<0.5?0:1) + "-" + (l.y<0.5?0:1); (byQ[q] || (byQ[q] = [])).push(l); }
+    for(const q in byQ){
+      const ls = byQ[q];
+      if(!ls.some(l => AS_CELL_RE.test(l.text))) continue;
+      const bar = ls.filter(l => /^\*.+\*$/.test(l.text.trim())).sort((a,b) => a.y-b.y)[0];
+      if(!bar) continue;                                    // 바코드를 못 찾으면 자리를 모르니 안 넣습니다
+      const above = ls.filter(l => l !== bar && l.y + l.h <= bar.y + 0.002 && l.y > bar.y - 0.15);
+      if(!above.length) continue;
+      const top  = Math.max(...above.map(l => l.y + l.h));
+      const left = Math.min(...above.map(l => l.x));
+      state.notes.push({id:uid(), page:p.num, cell:q, x:left + 0.004, y:(top + bar.y)/2,
+                        text:AS_CELL_TEXT, align:"left", cls:"ascell", fs:AS_CELL_FS,
+                        auto:true, rule:"__ascell__"});
+      const pk = pend.get(p.num + "|" + q);
+      if(pk) pk.rules = pk.rules.filter(t => t !== "AS");
+    }
+  }
 }
 
 /* 수납도어류(AL도어 등) 비규격 — 유리 사이즈를 적습니다. (사용자 확정 2026-09-22)
