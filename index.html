@@ -12308,8 +12308,11 @@ const OD_CATALOG = {
     ],
     '아름유리': [
       {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
-      {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T 투명(비산방지필름)', bigo:'비산방지필름', pname:'5T 투명', sizeMode:true, fname:'5T투명 비산방지', hint:'5T 투명 + 비산방지필름'},
-      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T 브론즈(비산방지필름)', bigo:'비산방지필름', pname:'5T 브론즈', sizeMode:true, fname:'5T브론즈 비산방지', hint:'5T 브론즈 + 비산방지필름'}
+      /* 제목 칸에 사양을 한 줄로 — `5T브론즈/강화/비산방지필름` (사장님 2026-10-08, 발주서 그림 그대로).
+         예전에는 제목 `5T 투명(비산방지필름)` + 옆 칸 비고 `비산방지필름` 으로 같은 말이 두 번 찍혔습니다.
+         ⚠ `type` 은 그대로 둡니다 — 발주 기록·비규격 넘겨받기(SUBDOOR_ORDER_ROUTE)가 그 이름을 씁니다. */
+      {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 투명', sizeMode:true, fname:'5T투명 비산방지', hint:'AL 프레임 에어힌지 · 5T 투명/강화 + 비산방지필름 · 납기는 화·금'},
+      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 브론즈', sizeMode:true, fname:'5T브론즈 비산방지', hint:'KB 빗각 도어 · 5T 브론즈/강화 + 비산방지필름 · 납기는 화·금'}
     ],
     // 현성유리는 에토프 색상을 인쇄해 완성품으로 보내 줍니다(🟠 에토프재고 탭).
     // 3.2T 백사틴 두 줄은 대원유리 것을 그대로 옮긴 것입니다 — 사장님 지시 2026-09-15.
@@ -12323,7 +12326,13 @@ const OD_CATALOG = {
       {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'에토프', noBigoMemo:true, pname:'비규격', sizeMode:true,
          fname:'3.2t 백사틴 에토프', fileDateFirst:true,
          hint:'3.2T 백사틴 에토프 비규격'},
-      {type:'5T 백유리', pick:'5T 백유리 (유리장식장)', thick:'5T 백유리', title:'5T 백유리', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 · 유리장식장에 들어갑니다 · 사이즈 직접 입력'}
+      /* 유리장식장도어 **정규격** — 모델명과 유리 사이즈 (사장님 표 2026-10-08, 유리 = 장 −24 × −24).
+         단추를 누르면 줄에 유리 사이즈와 모델명이 들어갑니다. 모델을 더하려면 sizes 에 한 줄. */
+      {type:'5T 백유리 정규격', pick:'5T 백유리 정규격 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'정규격', sizeMode:true,
+         sizes:['571*2089|60222','571*2217|60235','421*2089|45222','421*2217|45235','421*836|4586','471*836|5086','571*836|6086'],
+         hint:'유리장식장도어 정규격 · 아래 모델 단추를 누르면 유리 사이즈가 들어갑니다'},
+      // 유리장식장도어 비규격 — 제목 `5T 백유리 투명/반강화` (사장님 2026-10-08)
+      {type:'5T 백유리', pick:'5T 백유리 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 투명/반강화 · 유리장식장도어 비규격 · 사이즈 직접 입력'}
     ],
     '명그라스': [
       {type:'3.2T 백사틴 정규격 (모델명 자동)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'', modelMode:true,
@@ -12458,7 +12467,7 @@ function odHandoffBanner(){
        <div style="font-size:13px;font-weight:800;color:#1d4ed8;margin-bottom:4px">🧊 비규격에서 넘어온 유리 ${tot}장 · ${o.groups.length}색</div>
        <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:8px">
          <b>색마다 한 장씩</b> 냅니다. 색을 하나 넣고 발주서를 만든 뒤, 돌아오시면 남은 색이 여기 그대로 있습니다.<br>
-         ${o.groups.map(g=>`${brEsc(g.color)} ${g.qty}장${g.ship?` <span style="color:var(--tx3)">(D-2 ${brEsc(g.ship)})</span>`:''}`).join(' · ')}
+         ${o.groups.map(g=>`${brEsc(g.color)} ${g.qty}장${g.route?` <span style="color:var(--tx3)">→ ${brEsc(g.route.vendor)}</span>`:''}${g.ship?` <span style="color:var(--tx3)">(D-2 ${brEsc(g.ship)})</span>`:''}`).join(' · ')}
        </div>
        <div>${btns}</div>
        <button onclick="odHandoffClear()" style="padding:6px 10px;background:var(--s3);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:11px;cursor:pointer">전부 지우기</button>
@@ -12492,7 +12501,8 @@ function odHandoffTake(i){
   odLines = cur.concat(add);
   /* 에토프는 **현성유리 · 3.2T 백사틴 비규격** 으로 바로 맞춥니다 (사장님 2026-10-02).
      에토프는 현성이 인쇄해 주는 색이라 발주처가 늘 같습니다. 목록에 없으면 건드리지 않습니다. */
-  const route = OD_HANDOFF_ROUTE[g.color];
+  // 수납도어는 비규격 쪽이 발주처·종류를 정해 보냅니다(g.route) — 색깔 유리는 이 표를 봅니다
+  const route = g.route || OD_HANDOFF_ROUTE[g.color];
   if(route){
     const cat=document.getElementById('od-cat');
     if(cat && cat.value!=='유리' && [...cat.options].some(x=>x.value==='유리')){ cat.value='유리'; odCatChanged(); }
@@ -12556,7 +12566,18 @@ function odVendorChanged(keep){
 
    값은 **발주일에서 영업일 며칠 뒤**인지입니다. 주말·공휴일은 `_addBizDays` 가
    알아서 건너뜁니다(`KR_HOLIDAYS`). 다른 발주처를 더하려면 여기 한 줄만 더하십시오. */
-const OD_VENDOR_DUE = { '대원유리': 1, '현성유리': 2 };   // 발주일에서 영업일 며칠 뒤
+/* 숫자 = 발주일에서 영업일 며칠 뒤 · 요일 목록 = 발주일 **다음 날부터** 가장 가까운 그 요일(공휴일이면 그다음).
+   아름유리는 **화·금에만** 납품합니다 (사장님 2026-10-08 "그주 다가오는 화,금 중 가까운날"). 0=일 … 2=화 … 5=금 */
+const OD_VENDOR_DUE = { '대원유리': 1, '현성유리': 2, '아름유리': [2, 5] };
+function odNextDeliveryDay(base, dows){
+  const d = new Date(base + 'T00:00:00');
+  if(isNaN(d.getTime())) return '';
+  for(let i = 1; i <= 21; i++){
+    d.setDate(d.getDate() + 1);
+    if(dows.includes(d.getDay()) && !_isHoliday(d)) return _ymdLocal(d);
+  }
+  return '';
+}
 
 /* 납기 칸을 채웁니다.
    ⚠ **손으로 적어 두신 것은 건드리지 않습니다.** 우리가 넣어 둔 값일 때만 다시 씁니다
@@ -12573,7 +12594,7 @@ function odFillDue(force){
   }
   const dsel = document.getElementById('od-date');
   const base = (dsel && dsel.value) || todayStr();
-  const ymd  = _addBizDays(base, n);
+  const ymd  = Array.isArray(n) ? odNextDeliveryDay(base, n) : _addBizDays(base, n);
   const d    = new Date(ymd + 'T00:00:00');
   if(isNaN(d.getTime())) return;
   due.value = (d.getMonth()+1) + '/' + d.getDate();             // 「5/27」 꼴 — 칸 안내와 같은 표기
@@ -12838,7 +12859,9 @@ function renderOdLines(){
   if(psHost){
     if(p && Array.isArray(p.sizes) && p.sizes.length){
       psHost.innerHTML='<span style="font-size:10px;color:var(--tx3);margin-right:4px">자주 쓰는 사이즈:</span>'+
-        p.sizes.map(sz=>`<button onclick="odAddPresetSize('${sz}')" class="f-btn" style="margin:2px 4px 2px 0">${sz.replace('*','×')}</button>`).join('');
+        /* `'571*2089|60222'` 처럼 모델명을 붙일 수 있습니다 — 단추에 함께 적고, 누르면 그 줄 품명에 들어갑니다 (2026-10-08) */
+        p.sizes.map(sz=>{ const [s, model] = String(sz).split('|');
+          return `<button onclick="odAddPresetSize('${sz}')" class="f-btn" style="margin:2px 4px 2px 0">${model ? '<b>'+model+'</b> · ' : ''}${s.replace('*','×')}</button>`; }).join('');
     } else {
       psHost.innerHTML='';
     }
@@ -12981,11 +13004,12 @@ function odLineBigoBox(ln, i){
   return `<input type="text" value="${_odEsc(ln.bigo||'')}" placeholder="비고 (이 줄만 · 비우면 공통 비고)" oninput="odLines[${i}].bigo=this.value" class="inp" style="margin:4px 0 0;padding:6px 8px;font-size:12px;width:100%;box-sizing:border-box">`;
 }
 function odAddPresetSize(sz){
-  const [w,h]=sz.split('*').map(s=>parseInt(s));
+  const [s, model] = String(sz).split('|');          // 모델명이 붙어 있으면 품명으로 씁니다
+  const [w,h]=s.split('*').map(x=>parseInt(x));
   // 빈 줄이 있으면 거기 채우고, 없으면 새 줄 추가
   const empty=odLines.find(l=>!l.w&&!l.h);
-  if(empty){ empty.w=w; empty.h=h; if(!empty.qty)empty.qty=1; }
-  else odLines.push({w,h,qty:1,pname:'',bigo:''});
+  if(empty){ empty.w=w; empty.h=h; if(!empty.qty)empty.qty=1; if(model) empty.pname=model; }
+  else odLines.push({w,h,qty:1,pname:model||'',bigo:''});
   renderOdLines();
 }
 function odDelLine(i){ odLines.splice(i,1); if(!odLines.length)odLines.push({w:'',h:'',qty:1}); renderOdLines(); }

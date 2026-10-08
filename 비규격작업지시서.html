@@ -517,7 +517,9 @@
       <div class="foot">
         <button class="primary" onclick="subdoorGenerate()">📐 수납도어 작업지시서 생성</button>
         <button onclick="window.print()">🖨️ 인쇄 / PDF</button>
+        <button onclick="subdoorHandoffSend()">📤 유리 발주 — 앱 발주탭으로 보내기</button>
       </div>
+      <div id="sd-send-msg" style="font-size:12px;margin-top:6px"></div>
     </div>
     <div id="subdoorArea"><div class="empty">납품서를 올린 뒤 [수납도어 작업지시서 생성]을 누르세요.</div></div>
   </div>
@@ -6110,6 +6112,67 @@ function resetAll(){ ROWS=[]; SEEN=new Set(); try{ localStorage.removeItem(LS_RO
    ⚠ 베일(HPM)은 유리가 아니라 원장이므로 뺍니다. 조용히 빼지 말고 화면에 적습니다.
    ════════════════════════════════════════════════════════════════ */
 const LS_OD_HANDOFF = 'ybn-order-handoff-v1';
+/* 인계함에 이미 있는 묶음 가운데 남겨 둘 것 — kind 가 같으면(keepSame) 남기고, 아니면 다른 것만 남깁니다.
+   색깔 유리 보내기와 수납도어 보내기가 **같은 인계함**을 쓰므로, 한쪽이 다른 쪽 몫을 지우지 않게 합니다. */
+function odHandoffKeep(kind, keepSame){
+  try{
+    const o = JSON.parse(localStorage.getItem(LS_OD_HANDOFF) || 'null');
+    const gs = (o && Array.isArray(o.groups)) ? o.groups : [];
+    return gs.filter(g => keepSame ? (g && g.kind === kind) : (g && g.kind !== kind));
+  }catch(e){ return []; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   📤 수납도어 유리 → 앱 발주탭 (사장님 2026-10-08)
+   "수납도어도 발주로 이어질수있게 … 근데 수납도어마다 발주업체가 다름"
+   ■ 수납도어 장의 **빨간 치수(유리)** 를 계통별로 묶어 인계함에 담습니다. 앱 발주탭 띠에서
+     「넣기」를 누르면 아래 표의 발주처·종류가 바로 골라집니다(g.route).
+   ■ 시그니처 글래스도어는 아직 안 보냅니다(발주처를 말씀받지 않았습니다) — 표에 한 줄이면 됩니다.
+   ■ ⚠ 앱의 종류 이름(`type`)과 글자까지 같아야 골라집니다 — 앱 OD_CATALOG 를 보십시오.
+   ══════════════════════════════════════════════════════════════════ */
+const SUBDOOR_ORDER_ROUTE = {
+  AIR: { label:'에어힌지 5T투명/강화/비산',     vendor:'아름유리', type:'5T 투명 / 비산방지필름' },
+  KB:  { label:'KB 빗각 5T브론즈/강화/비산',     vendor:'아름유리', type:'5T 브론즈 / 비산방지필름' },
+  YU:  { label:'유리장식장 5T 백유리 투명/반강화', vendor:'현성유리', type:'5T 백유리' },
+};
+function subdoorHandoffSend(){
+  const msg = document.getElementById('sd-send-msg');
+  const say = (t,bad) => { if(msg){ msg.innerHTML = t; msg.style.color = bad ? '#b91c1c' : '#15803d'; } };
+  if(!ROWS.length){ say('납품서를 먼저 올리세요.', true); return; }
+  const daySel = document.getElementById('subdoorDate');
+  const day = daySel ? daySel.value : '';
+  const pages = subdoorCollect(day).pages;
+  const byKey = {}, order = [];
+  let skipped = 0;
+  pages.forEach(p => {
+    const grp = String(p.id || '').split('_')[0];        // AIR_KEUN → AIR · YU_BYEOK → YU · SIG… → SIG
+    const rt = SUBDOOR_ORDER_ROUTE[grp];
+    Object.values(p.slots || {}).forEach(list => (list || []).forEach(s => {
+      const q = (s.L||0) + (s.R||0) + (s.N||0) + (s.C||0);
+      if(!q) return;
+      if(!rt){ skipped += q; return; }
+      const k = grp + '|' + (p.ship || '');
+      let g = byKey[k];
+      if(!g){ g = byKey[k] = { kind:'subdoor', color:rt.label, route:{ vendor:rt.vendor, type:rt.type }, ship:p.ship || '', items:[], qty:0 }; order.push(g); }
+      const hit = g.items.find(it => it.w === s.gw && it.h === s.gh);
+      if(hit) hit.qty += q; else g.items.push({ w:s.gw, h:s.gh, qty:q });
+      g.qty += q;
+    }));
+  });
+  if(!order.length){
+    say((day ? esc(fmtDate(day)) + ' 발주에는 ' : '') + '보낼 수납도어 유리가 없습니다'
+        + (skipped ? ` (시그니처 등 발주처가 안 정해진 ${skipped}장은 안 보냅니다)` : '') + '.', true);
+    return;
+  }
+  const keep = odHandoffKeep('subdoor', false);        // 색깔 유리 몫은 그대로 둡니다
+  const pack = { at:new Date().toISOString(), from:'비규격작업지시서', groups: keep.concat(order) };
+  try{ localStorage.setItem(LS_OD_HANDOFF, JSON.stringify(pack)); }
+  catch(e){ say('저장 공간이 부족해 보내지 못했습니다.', true); return; }
+  say('✓ 앱 발주탭으로 보냈습니다 — ' + order.map(g => `${esc(g.color)} ${g.qty}장 → ${esc(g.route.vendor)}`).join(' · ')
+      + (skipped ? ` <span style="color:#6b7280">(시그니처 등 ${skipped}장은 발주처가 안 정해져 안 보냈습니다)</span>` : '')
+      + '. 앱 창에서 <b>📋 발주</b> 탭을 여시면 띠가 떠 있습니다.');
+}
+
 function odHandoffSend(){
   const msg=document.getElementById('od-send-msg');
   const say=(t,bad)=>{ if(msg){ msg.innerHTML=t; msg.style.color=bad?'#b91c1c':'#15803d'; } };
@@ -6131,7 +6194,9 @@ function odHandoffSend(){
     });
   });
   if(!groups.length){ say('보낼 유리가 없습니다.', true); return; }
-  const pack={ at:new Date().toISOString(), from:'비규격작업지시서', groups };
+  // 수납도어 탭에서 보낸 몫(kind:'subdoor')은 남겨 둡니다 — 덮으면 그쪽 유리가 말없이 사라집니다 (2026-10-08)
+  const keep = odHandoffKeep('subdoor', true);
+  const pack={ at:new Date().toISOString(), from:'비규격작업지시서', groups: keep.concat(groups) };
   try{ localStorage.setItem(LS_OD_HANDOFF, JSON.stringify(pack)); }
   catch(e){ say('저장 공간이 부족해 보내지 못했습니다.', true); return; }
   const sum=groups.map(g=>`${g.color} ${g.qty}장`).join(' · ');
