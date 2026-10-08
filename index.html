@@ -1161,6 +1161,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <datalist id="od-model-list"></datalist>
     <div style="display:flex;gap:6px;margin-bottom:6px">
       <button onclick="odAddLine()" style="flex:1;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">＋ 품목 추가</button>
+      <button onclick="odAddLines(5)" style="width:96px;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">＋ 5줄</button>
       <button id="od-clear-lines" onclick="odClearLines()" style="display:none;width:120px;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:12px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer">🧹 전부 비우기</button>
     </div>
 
@@ -12790,7 +12791,7 @@ function odLineSized(i){
   const ln = odLines[i];
   const box = document.getElementById('od-badge-' + i);
   if(!ln || !box) return;
-  try{ box.innerHTML = (typeof odUseBadge === 'function') ? odUseBadge(ln) : ''; }
+  try{ box.innerHTML = (typeof odUseMini === 'function') ? odUseMini(ln) : ''; }
   catch(e){ console.warn('[발주 월평균] 배지 실패', ln, e); box.innerHTML = ''; }
   odUpdateCount();
 }
@@ -12866,49 +12867,88 @@ function renderOdLines(){
       return `<div style="font-size:10.5px;color:var(--acc4);margin-top:5px">📊 월평균 표시 실패 — ${e.message}</div>`;
     }
   };
-  const badgeBox = (ln,i) => `<div id="od-badge-${i}">${useBadge(ln)}</div>`;
-  host.innerHTML=odLines.map((ln,i)=>{
-    if(qtyOnly){
-      return `
-      <div style="display:grid;grid-template-columns:1fr 64px auto;gap:6px;align-items:center;margin-bottom:6px">
-        <input value="${(ln.pname||'').replace(/"/g,'&quot;')}" placeholder="품명 (예: 매직블럭, 테이프, 종이컵)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="margin:0;padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
-        <input type="number" inputmode="numeric" value="${ln.qty}" placeholder="수량" oninput="odLines[${i}].qty=this.value;odUpdateCount()" onkeydown="odQtyTab(event,${i})" class="inp" style="margin:0;padding:9px 4px;text-align:center;font-size:13px">
-        <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
-      </div>`;
-    }
-    if(modelMode){
-      return `
-      <div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:8px;margin-bottom:6px">
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-          <input list="od-model-list" value="${ln.pname||''}" placeholder="모델명 입력 (예: OB M 4073)" oninput="odModelInput(${i},this.value)" class="inp" style="margin:0;padding:9px 10px;font-size:13px;flex:1">
-          <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr auto 1fr auto 56px;gap:5px;align-items:center">
-          <input type="number" inputmode="numeric" value="${ln.w}" placeholder="가로" oninput="odLines[${i}].w=this.value;odUpdateCount()" onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})" class="inp" style="margin:0;padding:8px 6px;text-align:center;font-size:13px">
-          <span style="color:var(--tx3)">×</span>
-          <input type="number" inputmode="numeric" value="${ln.h}" placeholder="세로" oninput="odLines[${i}].h=this.value;odUpdateCount()" onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})" class="inp" style="margin:0;padding:8px 6px;text-align:center;font-size:13px">
-          <span style="color:var(--tx3);font-size:11px">수량</span>
-          <input type="number" inputmode="numeric" value="${ln.qty}" oninput="odLines[${i}].qty=this.value;odUpdateCount()" onkeydown="odQtyTab(event,${i})" class="inp" style="margin:0;padding:8px 4px;text-align:center;font-size:13px">
-        </div>
-        ${odLineBigoBox(ln,i)}
-        ${badgeBox(ln,i)}
-      </div>`;
-    }
-    return `
-      <div style="margin-bottom:6px">
-      <div style="display:grid;grid-template-columns:1fr auto 1fr auto 56px auto;gap:5px;align-items:center">
-        <input type="number" inputmode="numeric" value="${ln.w}" placeholder="가로" oninput="odLines[${i}].w=this.value;odUpdateCount()" onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})" class="inp" style="margin:0;padding:9px 6px;text-align:center;font-size:13px">
-        <span style="color:var(--tx3)">×</span>
-        <input type="number" inputmode="numeric" value="${ln.h}" placeholder="세로" oninput="odLines[${i}].h=this.value;odUpdateCount()" onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})" class="inp" style="margin:0;padding:9px 6px;text-align:center;font-size:13px">
-        <span style="color:var(--tx3);font-size:11px">수량</span>
-        <input type="number" inputmode="numeric" value="${ln.qty}" oninput="odLines[${i}].qty=this.value;odUpdateCount()" onkeydown="odQtyTab(event,${i})" class="inp" style="margin:0;padding:9px 4px;text-align:center;font-size:13px">
-        <button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:16px">✕</button>
-      </div>
-      ${odLineBigoBox(ln,i)}
-      ${badgeBox(ln,i)}
-      </div>`;
+  /* 한 품목 = 표 한 줄 (사장님 2026-10-08 "품목하나당 너무 길어서" — 대리님 앱 표 모양을 따름).
+     예전에는 품목마다 세 줄(규격·수량 → 비고 칸 → 월평균 줄)이었습니다.
+     ⚠ 입력칸은 **줄 div 의 바로 아래 자식**으로 둡니다 — odTabFlow 가 closest('div') 로 줄을 찾아
+       가로 → 세로 → 수량 차례를 잡습니다. 칸을 다른 div 로 감싸면 탭이 줄 밖으로 샙니다.
+     월평균은 숫자 하나(`월 12`)로 줄이고, 자세한 내역은 그 숫자의 title(누르면 토스트)에 둡니다. */
+  odRowCss();
+  const bigoPh = _odEsc(((document.getElementById('od-bigo')||{}).value||'').trim());
+  const cell = 'margin:0;padding:6px 4px;text-align:center;font-size:13px;min-width:0';
+  const num = (i, k, ph, extra) => `<input type="number" inputmode="numeric" value="${_odEsc(odLines[i][k])}" placeholder="${ph}" oninput="odLines[${i}].${k}=this.value;odUpdateCount()" ${extra||''} class="inp" style="${cell}">`;
+  const no  = i => `<span class="od-no">${i+1}</span>`;
+  const del = i => `<button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:14px;padding:2px" title="이 줄 지우기">✕</button>`;
+  const bigo = (ln, i) => `<input type="text" value="${_odEsc(ln.bigo||'')}" placeholder="${bigoPh ? '공통: '+bigoPh : '비고'}" oninput="odLines[${i}].bigo=this.value" class="inp od-bigo" style="margin:0;padding:6px 8px;font-size:12px;min-width:0">`;
+  const mini = (ln, i) => `<span id="od-badge-${i}" class="od-mini">${odUseMini(ln)}</span>`;
+  const sizeIns = i => num(i,'w','가로',`onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})"`)
+                     + `<span style="color:var(--tx3);text-align:center">×</span>`
+                     + num(i,'h','세로',`onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})"`);
+  const qtyIn = i => num(i,'qty','수량',`onkeydown="odQtyTab(event,${i})"`);
+  const kind = qtyOnly ? 'q' : modelMode ? 'm' : 's';
+  const head = { s:'<span>#</span><span style="grid-column:span 3">가로 × 세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
+                 m:'<span>#</span><span>모델명</span><span style="grid-column:span 3">가로 × 세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
+                 q:'<span>#</span><span>품명</span><span>수량</span><span></span>' }[kind];
+  const rows = odLines.map((ln,i)=>{
+    if(kind==='q') return `<div class="od-row od-q">${no(i)}
+        <input value="${_odEsc(ln.pname||'')}" placeholder="품명 (예: 매직블럭, 테이프)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="${cell};text-align:left;padding-left:8px">
+        ${qtyIn(i)}${del(i)}</div>`;
+    if(kind==='m') return `<div class="od-row od-m">${no(i)}
+        <input list="od-model-list" value="${_odEsc(ln.pname||'')}" placeholder="모델명 (예: OB M 4073)" oninput="odModelInput(${i},this.value)" class="inp" style="${cell};text-align:left;padding-left:8px">
+        ${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}</div>`;
+    return `<div class="od-row od-s">${no(i)}${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}</div>`;
   }).join('');
+  host.innerHTML = `<div class="od-tbl">
+      <div class="od-row od-head od-${kind}">${head}</div>${rows}
+      <div class="od-row od-foot od-${kind}"><span></span><span style="grid-column:span ${kind==='q'?1:kind==='m'?4:3};text-align:left;padding-left:4px">합계</span><b id="od-sum" style="text-align:center;font-family:'JetBrains Mono',monospace">0</b><span></span></div>
+    </div>`;
   odUpdateCount();
+}
+/* 표 모양 CSS — 한 번만 넣습니다. 좁은 화면에서는 비고 칸이 그 줄 아래로 내려갑니다. */
+function odRowCss(){
+  if(document.getElementById('od-row-css')) return;
+  const s = document.createElement('style'); s.id = 'od-row-css';
+  s.textContent = `
+  .od-tbl{border:1px solid var(--b1);border-radius:8px;overflow:hidden;margin-bottom:8px}
+  .od-row{display:grid;gap:4px;align-items:center;padding:4px 8px;border-top:1px solid var(--b1)}
+  .od-row:first-child{border-top:0}
+  .od-row.od-s{grid-template-columns:22px minmax(52px,90px) 12px minmax(52px,90px) 60px minmax(90px,1fr) 64px 24px}
+  .od-row.od-m{grid-template-columns:22px minmax(110px,1.2fr) minmax(48px,80px) 12px minmax(48px,80px) 56px minmax(80px,1fr) 64px 24px}
+  .od-row.od-q{grid-template-columns:22px 1fr 64px 24px}
+  .od-head{background:var(--s2);font-size:10.5px;color:var(--tx3);font-weight:700;padding-top:6px;padding-bottom:6px}
+  .od-head span{text-align:center}
+  .od-foot{background:var(--s2);font-size:11px;color:var(--tx2)}
+  .od-no{font-size:11px;color:var(--tx3);text-align:center;font-family:'JetBrains Mono',monospace}
+  .od-mini{font-size:11px;text-align:center;white-space:nowrap;cursor:help}
+  @media (max-width:560px){
+    .od-row.od-s{grid-template-columns:20px 1fr 10px 1fr 46px 46px 22px}
+    .od-row.od-m{grid-template-columns:20px 1.4fr 1fr 10px 1fr 44px 46px 22px}
+    .od-row .od-bigo{grid-column:2 / -1;order:9}
+    .od-head .h-bigo{display:none}
+  }`;
+  document.head.appendChild(s);
+  // 공통 비고를 고치면 줄 비고 칸의 흐린 글씨(「공통: …」)도 따라 바꿉니다
+  const cb = document.getElementById('od-bigo');
+  if(cb) cb.addEventListener('input', () => {
+    const v = (cb.value||'').trim();
+    document.querySelectorAll('#od-lines .od-bigo').forEach(el => { el.placeholder = v ? '공통: '+v : '비고'; });
+  });
+}
+/* 월평균을 숫자 하나로 — 자세한 내역(최근 6개월·색별)은 title 에, 누르면 토스트로. */
+function odUseMini(ln){
+  const W=parseInt(ln.w)||0, H=parseInt(ln.h)||0;
+  const span = (t, tip, color) => `<span title="${_odEsc(tip)}" onclick="showToast(this.title)" style="color:${color||'var(--tx2)'}">${t}</span>`;
+  if(!W || !H) return '<span style="color:var(--tx3)">—</span>';
+  if(typeof odUseAvg!=='function') return span('!', '월평균 계산기를 못 찾았습니다', 'var(--acc4)');
+  let u=null;
+  try{ u=odUseAvg(W,H); }
+  catch(e){ console.warn('[발주 월평균]', W+'x'+H, e); return span('!', '월평균 계산 오류 — '+e.message, 'var(--acc4)'); }
+  if(!u) return span('0', `${W}×${H} — 최근 6개월 납품 기록 없음`, 'var(--tx3)');
+  const r=n=>Math.round((n||0)*10)/10, b=u.byColor||{}, a=u.avgByColor||{};
+  const tip = [`${W}×${H} 월평균 ${u.avg}장`,
+    u.src==='hist' ? '과거 분석값' : `최근 6개월 ${u.total}장${u.solid?'':' · 표본 적음'}${u.src==='bom'?' · BOM 기준':''}`,
+    (b.WC||0)>0 ? `웜코튼 월 ${r(a.WC)}장` : '', (b.ETP||0)>0 ? `에토프 월 ${r(a.ETP)}장` : '',
+    (b.etc||0)>0 ? `그 밖 월 ${r(a.etc)}장 (베일 등 유리 아님)` : ''].filter(Boolean).join(' · ');
+  return span(`월 <b style="color:var(--acc)">${u.avg}</b>`, tip);
 }
 
 // 모델명 입력 시 사이즈 자동 채움 ('… (L+R)'로 합쳐진 이름도 되짚습니다)
@@ -12933,6 +12973,7 @@ function odModelInput(i, val){
   }
 }
 function odAddLine(){ odLines.push({w:'',h:'',qty:1,pname:'',bigo:''}); renderOdLines(); }
+function odAddLines(n){ for(let k=0;k<n;k++) odLines.push({w:'',h:'',qty:1,pname:'',bigo:''}); renderOdLines(); }
 // 화면에 넣는 글자(비고·참조)를 안전하게 — 발주탭 전용
 function _odEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 /* 줄마다 비고 — 비우면 위쪽 공통 비고가 들어갑니다 (사장님 2026-10-07) */
@@ -12962,6 +13003,7 @@ function odUpdateCount(){
   const valid=odLines.filter(odLineValid);
   const tot=valid.reduce((s,l)=>s+(parseInt(l.qty)||0),0);
   document.getElementById('od-livecount').textContent=`품목 ${valid.length}건 · 총수량 ${tot}장`;
+  const sum=document.getElementById('od-sum'); if(sum) sum.textContent=tot;
   // 줄이 둘 이상일 때만 「전부 비우기」를 보입니다 — 한 줄이면 ✕ 로 충분합니다
   const clr=document.getElementById('od-clear-lines');
   if(clr) clr.style.display = (odLines.length>1) ? '' : 'none';
