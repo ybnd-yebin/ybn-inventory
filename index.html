@@ -651,6 +651,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
 
   <!-- 미출고(되돌린 것) · 확인 필요(매칭 안 된 품목) -->
+  <div id="deliv-newitem-box"></div>
   <div id="deliv-pending-box"></div>
   <div id="deliv-unmatched-box"></div>
 
@@ -2306,7 +2307,7 @@ function trendAgg(){
         let cat='기타';
         try{
           const dg=(typeof delivLookup==='function'?(delivLookup(it.code).daegubun||it.daegubun||''):'')||'';
-          if(typeof classifyDelivItem==='function') cat=classifyDelivItem(short, dg).cat||'기타';
+          if(typeof classifyDelivItem==='function') cat=classifyDelivItem(short, dg, it.code).cat||'기타';
         }catch(e){}
         g={short, code:(m&&m.code)||it.code||'', glass_w:m&&m.glass_w, glass_h:m&&m.glass_h, door_type:m&&m.door_type, cat, byColor:{}};
         groups.set(short,g);
@@ -7080,7 +7081,7 @@ function renderTrendNone(el, orderedShorts, q){
     // 카테고리 필터도 적용 (모델 코드로 분류)
     if(trendCat!=='all'){
       let cat='기타';
-      try{ const dg=(typeof delivLookup==='function'?(delivLookup(m.code).daegubun||''):'')||''; if(typeof classifyDelivItem==='function') cat=classifyDelivItem(m.short,dg).cat||'기타'; }catch(e){}
+      try{ const dg=(typeof delivLookup==='function'?(delivLookup(m.code).daegubun||''):'')||''; if(typeof classifyDelivItem==='function') cat=classifyDelivItem(m.short,dg,m.code).cat||'기타'; }catch(e){}
       if(cat!==trendCat) return;
     }
     seen.add(m.short);
@@ -8686,6 +8687,7 @@ function metaForSync(){
   put('inkCut',        typeof inkCut!=='undefined'        ? inkCut        : undefined);
   put('odAuto',        typeof odAuto!=='undefined'        ? odAuto        : undefined);
   put('odBigoMemo',    typeof odBigoMemo!=='undefined'    ? odBigoMemo    : undefined);
+  put('itemRules',     typeof itemRules!=='undefined'     ? itemRules     : undefined);   // 🆕 처음 보는 품목 — 정하신 분류
   /* 에토프 외주 인쇄유리 (2026-09-14). 장부·발주·묘비를 함께 보냅니다 —
      묘비가 안 가면 한 기기에서 지운 줄이 다른 기기에서 되살아납니다. */
   put('etpLedger',     typeof etpLedger!=='undefined'     ? etpLedger     : undefined);
@@ -8855,6 +8857,21 @@ function applyMergedFromSheet(data){
     let n=0;
     for(const k in data.odBigoMemo){ if(!odBigoMemo[k]){ odBigoMemo[k]=data.odBigoMemo[k]; n++; } }
     if(n) _put(LS_OD_BIGO, odBigoMemo);
+  }
+  /* 🆕 처음 보는 품목 — 코드마다 **나중에 정한 쪽**을 따릅니다. 「다시 정하기」는 `~코드` 묘비로 옵니다 —
+     묘비가 정한 것보다 나중이면 그 코드를 지워, 다른 기기에서 되살아나지 않게 합니다. */
+  if(data.itemRules!==undefined && data.itemRules && typeof itemRules!=='undefined'){
+    let n=0;
+    for(const k in data.itemRules){
+      const r=data.itemRules[k], l=itemRules[k];
+      if(r && (!l || String(r.at||'')>String(l.at||''))){ itemRules[k]=r; n++; }
+    }
+    for(const k in itemRules){
+      if(!k.startsWith('~')) continue;
+      const real=k.slice(1);
+      if(itemRules[real] && String(itemRules[real].at||'')<=String(itemRules[k].at||'')){ delete itemRules[real]; n++; }
+    }
+    if(n) itemRulesSave();
   }
   if(data.odAuto!==undefined && typeof odAuto!=='undefined' && _newer(data.odAuto, odAuto)){
     odAuto=Object.assign({on:false,fallbackDays:3}, data.odAuto);
@@ -16630,9 +16647,50 @@ function _parseQtyCell(cell, rowSeq){
 // ── 일일 브리핑: 제품/납품처 분류 ──
 // daegubun(코드기반 공식 대구분)이 있으면 cat을 그걸로 확정.
 // 세부 구분(450/500/연장, HPM/유리/73 등)은 제품명에서 계속 뽑는다.
-function classifyDelivItem(name, daegubun){
+/* ══ 🆕 처음 보는 품목 — 사장님이 정하신 분류 (2026-10-08) ══════════════════
+   사장님: "기존에 있던 리스트외에 잘 모르겠는 리스트 올라오면 내가 확인하고 체크할수있게 …
+           앞으로 사용할지 안할지 체크하게"
+   품목표(DAEGUBUN·HANSAEM_CATALOG·MODELS·CODE_MODEL_MAP)에 없는 코드는 예전에 **품명으로 짐작**만 했고,
+   짐작이 틀려도 아무 표시가 없었습니다. 이제 처음 보는 코드를 카드로 띄우고, 정하신 분류를
+   코드별로 저장해 **짐작보다 먼저** 씁니다. 구글시트로 동기화되어 다른 기기도 같이 배웁니다.
+   { 코드: { cat, sz, ext, skip, name, at } }   skip = 「집계에서 빼기」
+   ⚠ AS 공용 코드(KITAS…)는 AS 마다 다른 물건에 붙습니다(12-27) — **코드로 배우면 안 됩니다.**
+     그래서 그 품목은 품명을 열쇠로 씁니다(`KIT:` + 품명). 품명으로도 분류가 안 될 때만 띄웁니다. */
+const LS_ITEM_RULES = 'ybn-item-rules-v1';
+var itemRules = {};
+try{ itemRules = J(localStorage.getItem(LS_ITEM_RULES)) || {}; }catch(e){ itemRules = {}; }
+const NEW_ITEM_RECENT_DAYS = 14;          // 카드에 바로 띄울 범위 — 그 전 것은 「지난 것 보기」로 접습니다
+const ITEM_CHOICES = [                    // 고르는 칸 — value 는 cat|sz|ext
+  ['글래스도어|450|0','글래스도어 450'], ['글래스도어|450|1','글래스도어 450 연장'],
+  ['글래스도어|500|0','글래스도어 500'], ['글래스도어|500|1','글래스도어 500 연장'],
+  ['빌트인||0','빌트인'], ['EURO700||0','EURO700'], ['EURO500||0','EURO500'],
+  ['유리장식장||0','유리장식장'], ['에어힌지||0','에어힌지'], ['KB||0','KB'],
+  ['SKIP||0','🚫 집계에서 빼기'] ];
+function isGenericAsCode(code){ return /^KIT/i.test(String(code||'')); }
+function itemRuleKey(code, name){
+  return isGenericAsCode(code)
+    ? 'KIT:' + String(name||'').replace(/\s*-\s*내용참조[\s\S]*$/,'').replace(/\s+/g,' ').trim()
+    : String(code||'');
+}
+function itemRuleOf(code, name){ const k=itemRuleKey(code, name); return k ? itemRules[k] : null; }
+function itemIsKnownCode(code){
+  if(isGenericAsCode(code)) return true;            // 공용 코드는 품목표에 있습니다 — 품명으로 따로 봅니다
+  const i = delivLookup(code); return !!(i.daegubun || i.short);
+}
+function itemRulesSave(){ _put(LS_ITEM_RULES, itemRules); }
+
+function classifyDelivItem(name, daegubun, code){
   const n=name||'';
   const o={ is73:/73\(공용\)/.test(n), isBigyu:n.includes('비규격'), isHPM:/Veil/.test(n), isGrace:/Grace/.test(n) };
+  // 사장님이 정하신 분류가 있으면 그것이 먼저입니다 (🆕 처음 보는 품목)
+  const rule = code ? itemRuleOf(code, n) : null;
+  if(rule){
+    o.learned = true;
+    if(rule.skip){ o.cat='제외'; return o; }
+    o.cat = rule.cat;
+    if(o.cat==='글래스도어'){ o.ext=!!rule.ext; o.sz=rule.sz || (/450/.test(n)?'450':/500/.test(n)?'500':'기타'); }
+    return o;
+  }
   // 대구분 → 브리핑 카테고리 매핑
   const MAP={ '시그니처':'글래스도어', '빌트인':'빌트인', 'EURO':'유리장식장',
               '에어힌지':'에어힌지', '빗각':'KB', 'EURO700':'EURO700', 'EURO500':'EURO500' };
@@ -16830,7 +16888,7 @@ function buildDelivBrief(ymd, mode){
   // 전에는 없어서, 총계에는 들어가고 내역에서는 빠져 숫자가 안 맞았습니다(2026-07-30).
   const AS={ '글래스도어':0,'빌트인':0,'EURO500':0,'EURO700':0,'유리장식장':0,'에어힌지':0,'KB':0,'기타':0 };
   const unknown=[];   // 분류 못 한 품목 — 화면에 이름까지 보여 줍니다
-  let total=0;
+  let total=0, skipped=0;
   docs.forEach(d=>{
     const isAS=(d.refNo||'').startsWith('54');
     const dgrp=delivDestGroup(d.dest);
@@ -16840,7 +16898,8 @@ function buildDelivBrief(ymd, mode){
          납품서에서 읽어 저장해 둔 제품명(it.name)과 약어(it.short)를 함께 넘깁니다.
          (같은 방식을 13024행 등에서도 이미 쓰고 있습니다) */
       const nameForCat=((it.name||'')+' '+(info.short||it.short||'')).trim();
-      const c=classifyDelivItem(nameForCat, info.daegubun||it.daegubun||''); const q=it.qty||0;
+      const c=classifyDelivItem(nameForCat, info.daegubun||it.daegubun||'', it.code); const q=it.qty||0;
+      if(c.cat==='제외'){ skipped+=q; return; }   // 「집계에서 빼기」로 정하신 품목 — 총계에도 안 넣습니다
       total+=q;
       if(isAS){
         if(AS[c.cat]!==undefined) AS[c.cat]+=q;
@@ -16891,6 +16950,7 @@ function buildDelivBrief(ymd, mode){
   t+=`-에어힌지 : ${G.에어힌지.total}EA (비규격 : ${G.에어힌지.bigyu}EA)\n`;
   t+=`-KB : ${G.KB.total}EA (비규격 : ${G.KB.bigyu}EA)\n\n`;
   if(G.기타) t+=`-기타(분류 확인) : ${G.기타}EA\n\n`;
+  if(skipped) t+=`-집계 제외(정하신 품목) : ${skipped}EA\n\n`;
   t+=`-AS : ${asTotal}EA\n`;
   if(asTotal){ Object.entries(AS).forEach(([k,v])=>{ if(v) t+=` ${k} : ${v}EA\n`; }); }
   // 분류 못 한 품목은 이름까지 적어 둡니다. 숨겨두면 총계와 내역이 안 맞는 채로 넘어갑니다.
@@ -17794,6 +17854,102 @@ function unmatchedPrune(){
   return gone;
 }
 
+/* 🆕 처음 보는 품목 — 올라온 납품서에서 품목표에 없고 아직 정하지 않은 것을 모읍니다. */
+function newItemScan(){
+  const out = {};
+  (delivLog||[]).forEach(d => {
+    const isAS = (d.refNo||'').startsWith('54');
+    const day = d.orderDate || d.delivReqDate || '';
+    (d.items||[]).forEach(it => {
+      const nm = it.name || it.short || '';
+      if(itemIsKnownCode(it.code) && !isGenericAsCode(it.code)) return;
+      const key = itemRuleKey(it.code, nm);
+      if(!key || itemRules[key]) return;                       // 이미 정하신 것
+      const info = delivLookup(it.code);
+      const c = classifyDelivItem((nm+' '+(info.short||'')).trim(), info.daegubun||'', null);
+      if(isGenericAsCode(it.code) && c.cat !== '기타') return;  // 공용 코드는 품명으로 분류되면 됩니다
+      const u = out[key] = out[key] || { key, code:it.code, name:nm, qty:0, docs:new Set(), first:day, last:day, as:false, guess:c };
+      u.qty += it.qty||0; u.docs.add(d.id); u.as = u.as || isAS;
+      if(day && (!u.first || day < u.first)) u.first = day;
+      if(day && day > u.last){ u.last = day; u.name = nm; }      // 품명은 가장 최근 것으로
+    });
+  });
+  return Object.values(out).sort((a,b) => (b.last||'').localeCompare(a.last||''));
+}
+function newItemGuessVal(c){
+  if(!c || !c.cat || c.cat==='기타') return '';
+  if(c.cat==='글래스도어') return '글래스도어|'+(c.sz==='500'?'500':'450')+'|'+(c.ext?1:0);
+  return c.cat+'||0';
+}
+function newItemDecide(key, sel){
+  const v = (document.getElementById(sel)||{}).value || '';
+  if(!v){ showToast('분류를 골라 주십시오'); return; }
+  const [cat, sz, ext] = v.split('|');
+  delete itemRules['~'+key];                 // 「다시 정하기」로 지웠던 묘비
+  const u = (window._newItems||[]).find(x => x.key===key) || {};
+  itemRules[key] = cat==='SKIP'
+    ? { skip:true, name:u.name||'', code:u.code||'', at:new Date().toISOString() }
+    : { cat, sz:sz||'', ext:ext==='1', name:u.name||'', code:u.code||'', at:new Date().toISOString() };
+  itemRulesSave();
+  if(typeof autoSync==='function') autoSync();
+  showToast(cat==='SKIP' ? '🚫 집계에서 뺍니다' : '✅ 정했습니다 — 앞으로 이 분류로 셉니다');
+  renderDelivery();
+}
+function newItemUndo(key){
+  if(!itemRules[key]) return;
+  delete itemRules[key];
+  // 지운 것도 다른 기기에 알려야 되살아나지 않습니다 — 묘비로 남깁니다
+  itemRules['~'+key] = { removed:true, at:new Date().toISOString() };
+  itemRulesSave(); if(typeof autoSync==='function') autoSync();
+  renderDelivery();
+}
+function newItemExport(){
+  const rows = Object.entries(itemRules).filter(([k,r]) => !k.startsWith('~') && r && !r.removed)
+    .map(([k,r]) => [r.code||k, r.name||'', r.skip?'집계 제외':(r.cat+(r.sz?' '+r.sz:'')+(r.ext?' 연장':''))].join('\t'));
+  const t = '코드\t품명\t분류\n' + rows.join('\n');
+  navigator.clipboard.writeText(t).then(()=>showToast('📋 복사했습니다 — Claude 에게 붙여 주시면 품목표에 넣습니다'))
+    .catch(()=>{ prompt('아래를 복사해 주십시오', t); });
+}
+var _newItemPrevN = null;
+function renderDelivNewItems(){
+  const el = document.getElementById('deliv-newitem-box'); if(!el) return;
+  let list = [];
+  try{ list = newItemScan(); }catch(e){ console.warn('[처음 보는 품목]', e); }
+  window._newItems = list;
+  // 새로 늘었으면 알립니다 — 화면을 처음 열 때는 조용히
+  if(_newItemPrevN !== null && list.length > _newItemPrevN)
+    showToast('🆕 처음 보는 품목 ' + (list.length - _newItemPrevN) + '개 — 납품서 탭에서 확인해 주십시오');
+  _newItemPrevN = list.length;
+  const since = _addDays(todayStr(), -NEW_ITEM_RECENT_DAYS);
+  const recent = list.filter(u => (u.last||'') >= since), old = list.filter(u => (u.last||'') < since);
+  const decided = Object.entries(itemRules).filter(([k,r]) => !k.startsWith('~') && r && !r.removed);
+  if(!list.length && !decided.length){ el.innerHTML=''; return; }
+  const opt = g => '<option value="">분류 고르기</option>' + ITEM_CHOICES.map(([v,l]) =>
+    `<option value="${v}"${v===g?' selected':''}>${l}</option>`).join('');
+  const row = (u, i) => {
+    const sel = 'ni-sel-' + i, g = newItemGuessVal(u.guess);
+    return `<div style="padding:9px 0;border-bottom:1px solid var(--b1)">
+      <div style="font-size:12.5px;font-weight:700;word-break:break-all">${u.as?'<span style="font-size:9px;font-weight:800;background:#ff6b35;color:#fff;padding:1px 6px;border-radius:6px;margin-right:4px">AS</span>':''}${brEsc(u.name||u.code)}</div>
+      <div style="font-size:10px;color:var(--tx3);margin:2px 0 6px">${brEsc(u.code)} · ${u.qty}장 · 납품서 ${u.docs.size}건 · ${u.first===u.last?brEsc(u.last||'-'):brEsc(u.first)+' ~ '+brEsc(u.last)}${g?' · 앱이 짐작한 분류: <b>'+brEsc((ITEM_CHOICES.find(c=>c[0]===g)||[])[1]||'')+'</b>':' · <b style="color:var(--acc4)">분류를 못 짐작했습니다</b>'}</div>
+      <div style="display:flex;gap:6px">
+        <select id="${sel}" class="inp" style="margin:0;flex:1;padding:6px 8px;font-size:12px">${opt(g)}</select>
+        <button onclick="newItemDecide('${brEsc(u.key).replace(/'/g,'')}','${sel}')" style="flex-shrink:0;padding:6px 12px;background:var(--acc);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">이대로 사용</button>
+      </div></div>`;
+  };
+  const decidedHtml = decided.length ? `<details style="margin-top:8px"><summary style="font-size:11px;color:var(--tx2);cursor:pointer">✔ 정한 품목 ${decided.length}개 보기 · 고치기</summary>
+      ${decided.map(([k,r]) => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b1);font-size:11px">
+        <div style="flex:1;min-width:0"><b>${brEsc(r.skip?'🚫 집계 제외':(r.cat+(r.sz?' '+r.sz:'')+(r.ext?' 연장':'')))}</b> · ${brEsc(r.name||'')} <span style="color:var(--tx3)">${brEsc(r.code||'')}</span></div>
+        <button onclick="newItemUndo('${brEsc(k).replace(/'/g,'')}')" style="flex-shrink:0;padding:4px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10px;cursor:pointer">다시 정하기</button></div>`).join('')}
+      <button onclick="newItemExport()" style="margin-top:6px;padding:6px 10px;background:none;border:1px dashed var(--b2);border-radius:7px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📋 정한 품목 내보내기 (품목표에 정식으로 넣을 때)</button>
+    </details>` : '';
+  el.innerHTML = `<div class="card" style="border-left:3px solid var(--acc)">
+    <div class="card-ttl"><span>🆕 처음 보는 품목 ${recent.length}개</span></div>
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:6px;line-height:1.5">품목표에 없는 코드입니다. 지금은 앱이 <b>품명으로 짐작</b>해서 세고 있습니다.
+      맞으면 <b>이대로 사용</b>, 틀리면 분류를 바꾼 뒤 누르십시오. 세면 안 되는 품목은 <b>🚫 집계에서 빼기</b>. 정하신 것은 다른 기기에도 같이 적용됩니다.</div>
+    ${recent.length ? recent.map(row).join('') : '<div style="font-size:11px;color:var(--tx3);padding:6px 0">최근 '+NEW_ITEM_RECENT_DAYS+'일 안에 처음 보는 품목은 없습니다.</div>'}
+    ${old.length ? `<details style="margin-top:8px"><summary style="font-size:11px;color:var(--tx2);cursor:pointer">지난 것 ${old.length}개 보기 (${NEW_ITEM_RECENT_DAYS}일 전)</summary>${old.map((u,i)=>row(u, 'o'+i)).join('')}</details>` : ''}
+    ${decidedHtml}</div>`;
+}
 function renderDelivUnmatched(){
   const el=document.getElementById('deliv-unmatched-box'); if(!el) return;
   try{ unmatchedPrune(); }catch(e){ console.warn('[확인필요 정리]', e); }
@@ -17939,6 +18095,7 @@ function renderDelivery(){
   try{ renderDelivDup(); }catch(e){ console.warn('[중복정리 카드]', e); }
   const archiveEl=document.getElementById('deliv-archive');
   try{ renderDelivPending(); renderDelivUnmatched(); }catch(e){ console.warn(e); }
+  try{ renderDelivNewItems(); }catch(e){ console.warn('[처음 보는 품목]', e); }
   if(!activeEl||!archiveEl) return;
   const today=todayStr();
   if(typeof renderBrief==='function' && document.getElementById('brief-host')) renderBrief();
