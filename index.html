@@ -12312,7 +12312,11 @@ const OD_CATALOG = {
          예전에는 제목 `5T 투명(비산방지필름)` + 옆 칸 비고 `비산방지필름` 으로 같은 말이 두 번 찍혔습니다.
          ⚠ `type` 은 그대로 둡니다 — 발주 기록·비규격 넘겨받기(SUBDOOR_ORDER_ROUTE)가 그 이름을 씁니다. */
       {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 투명', sizeMode:true, fname:'5T투명 비산방지', hint:'AL 프레임 에어힌지 · 5T 투명/강화 + 비산방지필름 · 납기는 화·금'},
-      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 브론즈', sizeMode:true, fname:'5T브론즈 비산방지', hint:'KB 빗각 도어 · 5T 브론즈/강화 + 비산방지필름 · 납기는 화·금'}
+      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 브론즈', sizeMode:true, fname:'5T브론즈 비산방지', hint:'KB 빗각 도어 · 5T 브론즈/강화 + 비산방지필름 · 납기는 화·금'},
+      /* 투명·브론즈를 **한 장에** (사장님 2026-10-08 "한페이지에 발주서를 만들어달라고 했거든.
+         그래서 비고란에 투명, 브론즈 나눠서 넣어줘야해"). 줄마다 비고에 `투명`/`브론즈`.
+         비규격 수납도어 보내기가 아름유리 몫에 두 유리가 섞여 있으면 이 종류로 보냅니다. */
+      {type:'5T 투명·브론즈 / 비산방지필름', pick:'5T 투명·브론즈 한 장 (비고에 색)', thick:'5T', title:'5T/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 강화유리', sizeMode:true, fname:'5T 비산방지', hint:'에어힌지(투명)·KB 빗각(브론즈)을 한 장에 · 줄마다 비고에 투명/브론즈 · 납기는 화·금'}
     ],
     // 현성유리는 에토프 색상을 인쇄해 완성품으로 보내 줍니다(🟠 에토프재고 탭).
     // 3.2T 백사틴 두 줄은 대원유리 것을 그대로 옮긴 것입니다 — 사장님 지시 2026-09-15.
@@ -12497,7 +12501,8 @@ function odHandoffTake(i){
      고르신 종류의 기본값이 들어갑니다(대원유리 = `비규격`).
      사장님 2026-09-23: "대원꺼는 웜코튼이라고 넣지말고 비규격이라고 넣어."
      색은 종이에 안 찍고 `color` 칸에만 둡니다 — 위 「색 섞임 막이」가 그것을 봅니다. */
-  const add=(g.items||[]).map(it=>({w:it.w, h:it.h, qty:it.qty, pname:'', color:g.color, bigo:''}));
+  // 줄 비고는 보낸 쪽이 정해 오면 그대로(수납도어 아름유리 투명·브론즈 섞음 — `투명`/`브론즈`)
+  const add=(g.items||[]).map(it=>({w:it.w, h:it.h, qty:it.qty, pname:'', color:g.color, bigo:it.bigo||''}));
   odLines = cur.concat(add);
   /* 에토프는 **현성유리 · 3.2T 백사틴 비규격** 으로 바로 맞춥니다 (사장님 2026-10-02).
      에토프는 현성이 인쇄해 주는 색이라 발주처가 늘 같습니다. 목록에 없으면 건드리지 않습니다. */
@@ -13725,6 +13730,19 @@ function odFillSheet(ws, o){
     if(fitPt < base) refC.font = Object.assign({}, refC.font || {}, { size: Math.max(7, Math.floor(fitPt * 10) / 10) });
   }
   ws.getCell('B9').value = (part.title + (part.bigo ? '  ' + part.bigo : '')).trim();
+  /* 제목이 칸(B~E)보다 길면 글자를 줄여 맞춥니다 (2026-10-08) — `5T브론즈/강화/비산방지필름` 이 칸 너비를 넘어
+     카톡 이미지·PDF 에서 끝이 잘렸습니다. 엑셀은 shrinkToFit, odSheetToHtml 은 글자 크기로(참조 칸과 같은 방식). */
+  {
+    const tc = ws.getCell('B9'), tv = String(tc.value || '');
+    tc.alignment = Object.assign({}, tc.alignment || {}, { shrinkToFit:true });
+    if(tv){
+      const em = [...tv].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
+      const px = ['B','C','D','E'].reduce((s, c) => s + odColPx(ws.getColumn(c).width), 0);
+      const base = (tc.font && tc.font.size) || 11;
+      const fitPt = (px - 14) / (em * 1.32);
+      if(fitPt < base) tc.font = Object.assign({}, tc.font || {}, { size: Math.max(9, Math.floor(fitPt * 10) / 10) });
+    }
+  }
 
   // 품목이 양식 줄 수를 넘으면 첫 줄을 서식째 복제해 늘립니다
   const n = o.items.length;
