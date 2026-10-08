@@ -12294,16 +12294,16 @@ const OD_CATALOG = {
          hint:'3T 브론즈경 · 비고 각면/후면시트지'},
       {type:'바스 정규격 (백사틴·한샘바스)', thick:'백사틴',    title:'백샤틴(정규격)',  bigo:'각면/강화',     pname:'한샘바스', sizeMode:true,
          sizes:['293*794','313*446','393*794'],
-         fname:'바스사틴',
+         fname:'바스 백사틴',
          hint:'한샘바스에 들어가는 백사틴 · 비고 각면/강화'},
       {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'', noBigoMemo:true,     pname:'',        modelMode:true,
-         fname:'사틴',
+         fname:'3.2T 백사틴',
          hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동'},
       /* 대원유리에서 **제일 많이 쓰는 종류**라 기본으로 골라 둡니다 (사장님 2026-09-22
          "그걸 제일 많이 쓰는데 매번 클릭하려니 귀찮아서"). 목록 차례는 그대로 두고
          고르는 값만 여기로 옵니다 — `def:true` 한 줄이면 다른 발주처에도 똑같이 됩니다. */
       {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'', noBigoMemo:true,     pname:'비규격',  sizeMode:true, def:true,
-         fname:'사틴',
+         fname:'3.2T 백사틴',
          hint:'3.2T 백사틴 비규격'}
     ],
     '아름유리': [
@@ -12311,12 +12311,12 @@ const OD_CATALOG = {
       /* 제목 칸에 사양을 한 줄로 — `5T브론즈/강화/비산방지필름` (사장님 2026-10-08, 발주서 그림 그대로).
          예전에는 제목 `5T 투명(비산방지필름)` + 옆 칸 비고 `비산방지필름` 으로 같은 말이 두 번 찍혔습니다.
          ⚠ `type` 은 그대로 둡니다 — 발주 기록·비규격 넘겨받기(SUBDOOR_ORDER_ROUTE)가 그 이름을 씁니다. */
-      {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 투명', sizeMode:true, fname:'5T투명 비산방지', hint:'AL 프레임 에어힌지 · 5T 투명/강화 + 비산방지필름 · 납기는 화·금'},
-      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 브론즈', sizeMode:true, fname:'5T브론즈 비산방지', hint:'KB 빗각 도어 · 5T 브론즈/강화 + 비산방지필름 · 납기는 화·금'},
+      {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 투명', sizeMode:true, fname:'KB 5T투명', hint:'AL 프레임 에어힌지 · 5T 투명/강화 + 비산방지필름 · 납기는 화·금'},
+      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 브론즈', sizeMode:true, fname:'KB 5T브론즈', hint:'KB 빗각 도어 · 5T 브론즈/강화 + 비산방지필름 · 납기는 화·금'},
       /* 투명·브론즈를 **한 장에** (사장님 2026-10-08 "한페이지에 발주서를 만들어달라고 했거든.
          그래서 비고란에 투명, 브론즈 나눠서 넣어줘야해"). 줄마다 비고에 `투명`/`브론즈`.
          비규격 수납도어 보내기가 아름유리 몫에 두 유리가 섞여 있으면 이 종류로 보냅니다. */
-      {type:'5T 투명·브론즈 / 비산방지필름', pick:'5T 투명·브론즈 한 장 (비고에 색)', thick:'5T', title:'5T/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 강화유리', sizeMode:true, fname:'5T 비산방지', hint:'에어힌지(투명)·KB 빗각(브론즈)을 한 장에 · 줄마다 비고에 투명/브론즈 · 납기는 화·금'}
+      {type:'5T 투명·브론즈 / 비산방지필름', pick:'5T 투명·브론즈 한 장 (비고에 색)', thick:'5T', title:'5T/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 강화유리', sizeMode:true, fname:'KB 5T투명·브론즈', hint:'에어힌지(투명)·KB 빗각(브론즈)을 한 장에 · 줄마다 비고에 투명/브론즈 · 납기는 화·금'}
     ],
     // 현성유리는 에토프 색상을 인쇄해 완성품으로 보내 줍니다(🟠 에토프재고 탭).
     // 3.2T 백사틴 두 줄은 대원유리 것을 그대로 옮긴 것입니다 — 사장님 지시 2026-09-15.
@@ -12325,25 +12325,25 @@ const OD_CATALOG = {
        (날짜가 앞 — `fileDateFirst`). 정규격도 같은 꼴로 `… 에토프 정규격`. */
     '현성유리': [
       {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'에토프', noBigoMemo:true, pname:'',       modelMode:true,
-         fname:'3.2t 백사틴 에토프', fileDateFirst:true,
+         fname:'3.2T 백사틴 에토프',
          hint:'유로700에 들어가는 3.2T 백사틴 에토프 정규격 · 품명에 모델명 입력하면 사이즈 자동'},
       {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'에토프', noBigoMemo:true, pname:'비규격', sizeMode:true,
-         fname:'3.2t 백사틴 에토프', fileDateFirst:true,
+         fname:'3.2T 백사틴 에토프',
          hint:'3.2T 백사틴 에토프 비규격'},
       /* 유리장식장도어 **정규격** — 모델명과 유리 사이즈 (사장님 표 2026-10-08, 유리 = 장 −24 × −24).
          단추를 누르면 줄에 유리 사이즈와 모델명이 들어갑니다. 모델을 더하려면 sizes 에 한 줄. */
-      {type:'5T 백유리 정규격', pick:'5T 백유리 정규격 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'정규격', sizeMode:true,
+      {type:'5T 백유리 정규격', fname:'5T 백유리', pick:'5T 백유리 정규격 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'정규격', sizeMode:true,
          sizes:['571*2089|60222','571*2217|60235','421*2089|45222','421*2217|45235','421*836|4586','471*836|5086','571*836|6086'],
          hint:'유리장식장도어 정규격 · 아래 모델 단추를 누르면 유리 사이즈가 들어갑니다'},
       // 유리장식장도어 비규격 — 제목 `5T 백유리 투명/반강화` (사장님 2026-10-08)
-      {type:'5T 백유리', pick:'5T 백유리 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 투명/반강화 · 유리장식장도어 비규격 · 사이즈 직접 입력'}
+      {type:'5T 백유리', fname:'5T 백유리', pick:'5T 백유리 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 투명/반강화 · 유리장식장도어 비규격 · 사이즈 직접 입력'}
     ],
     '명그라스': [
       {type:'3.2T 백사틴 정규격 (모델명 자동)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'', modelMode:true,
-         fname:'사틴',
+         fname:'3.2T 백사틴',
          hint:'품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
       {type:'3.2T 백사틴 비규격 (수기)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'각면/강화', pname:'비규격', sizeMode:true,
-         fname:'사틴',
+         fname:'3.2T 백사틴',
          hint:'3.2T 백사틴 비규격 · 사이즈 직접 입력 · 비고 각면/강화'},
       {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'}
     ]
@@ -13202,17 +13202,37 @@ function odKindName(o){
             .replace(/\s+/g,'').trim();
 }
 
+/* 저장 이름 — **`날짜_업체_품목 규격`** 한 꼴로 통일합니다 (사장님 2026-10-08
+   "엑셀과 PDF 저장할때 저장명도 통일 … 261008_아름_KB 5T투명 비규격").  엑셀·PDF·카톡 이미지가 같이 씁니다.
+     261008_대원_3.2T 백사틴 비규격 · 261008_현성_5T 백유리 정규격 · 261008_아름_KB 5T투명·브론즈 비규격
+   ■ 업체 — 끝의 「유리」를 뗍니다(대원·현성·아름). 명그라스·승일포장처럼 안 끝나면 그대로.
+   ■ 품목 — 종류의 `fname`(없으면 종류 이름에서 괄호·규격을 뗀 것) — odKindName.
+   ■ 규격 — 종류 이름에 적혀 있으면 그것. 없으면 **줄 품명으로** 봅니다(사장님 확정):
+       품명에 모델명(숫자 네다섯 자리 · 그 종류의 모델 단추)이 있으면 정규격, 아니면 비규격, 섞이면 「정·비규격」.
+     유리 발주에만 붙입니다 — 박스·목대 같은 일반 발주는 규격이 없습니다.
+   (예전에는 업체마다 순서가 달랐습니다 — 대원 `대원유리 사틴 비규격 261008` · 현성 `현성유리 261008 …`) */
+function odFileSpec(o){
+  const t = String(o.type || o.title || '');
+  if(/비규격/.test(t)) return '비규격';
+  if(/정규격/.test(t)) return '정규격';
+  if((o.type||'') === '일반' || (o.cat && o.cat !== '유리')) return '';
+  const p = odPresetOf(o.vendor, o.type);
+  const models = new Set(((p && p.sizes) || []).map(s => String(s).split('|')[1]).filter(Boolean));
+  const isStd = it => { const n = String(it.pname||'').trim(); return models.has(n) || /(^|\s)\d{4,5}(\s|$)/.test(n); };
+  const items = o.items || [];
+  if(!items.length) return '';
+  const std = items.filter(isStd).length;
+  return std === 0 ? '비규격' : (std === items.length ? '정규격' : '정·비규격');
+}
+function odFileVendor(v){
+  const s = String(v||'').trim();
+  return (s.length > 2 && /유리$/.test(s)) ? s.slice(0, -2) : s;
+}
 function odFileBase(o){
-  const t    = String(o.type || o.title || '');
-  const spec = /비규격/.test(t) ? '비규격' : (/정규격/.test(t) ? '정규격' : '');
   const ymd  = String(o.date||'').replace(/-/g,'').slice(2);   // 20260910 → 260910
-  // 날짜를 발주처 바로 뒤에 두는 종류 — 현성유리 (사장님 2026-10-02 「현성유리 261002 3.2t 백사틴 에토프 비규격」)
-  const pp = odPresetOf(o.vendor, o.type);
-  const parts = (pp && pp.fileDateFirst)
-    ? [String(o.vendor||'').trim(), ymd, odKindName(o), spec]
-    : [String(o.vendor||'').trim(), odKindName(o), spec, ymd];
-  return parts
-           .filter(Boolean).join(' ')
+  const kind = [odKindName(o), odFileSpec(o)].filter(Boolean).join(' ');
+  return [ymd, odFileVendor(o.vendor), kind]
+           .filter(Boolean).join('_')
            .replace(/[\\\/:*?"<>|]/g,'')                       // 윈도가 못 쓰는 글자
            .replace(/\s+/g,' ').trim() || '발주서';
 }
