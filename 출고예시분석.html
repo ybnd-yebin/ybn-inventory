@@ -738,9 +738,17 @@ function vendorLabel(v){ return {YBND:'와이비앤디', DREAM:'드림하이텍'
 //   ⚠️ 코드 접두사(BB10* 등)로 하드코딩하지 말 것.
 //      '와이비에 없으면 바스'라는 규칙이라야 새 코드 체계가 생겨도 스스로 적응한다.
 //      (드림 예시에 섞여 들어온 와이비 품목 41개는 여기서 자동으로 걸러진다)
+/* ⚠ 2026-10-08 — 와이비 예시에 **안 실린 와이비 품목**이 드림 파일에만 오는 날이 있습니다.
+     유로500 로즈그레이 AS(`(P)Euro500 PG/RG CH M 5073(공용) M`)가 「바스」로 찍혔습니다(사장님 화면).
+     그래서 이름이 **우리 제품군**이면 드림에만 있어도 바스로 보지 않습니다. 접두사 대신 제품군 이름으로
+     가르므로 새 코드 체계에도 그대로 맞습니다. 바스 품목 이름에는 이 낱말들이 안 들어갑니다. */
+// ⚠ 바스 이름은 `EURO5 베일화이트 하부장 …` 처럼 **EURO5** 로 옵니다 — 우리 것은 `Euro500`·`Euro700`.
+//   그래서 `EURO5` 를 잡으면 안 됩니다(바스가 와이비로 둔갑). 세 자리 `[57]00` 까지 봅니다.
+const YB_FAMILY_RE = /Euro\s*[57]00|글래스|유리장식|장식장|키큰장|AL\s*도어|AL프레임|에어힌지|\bKB\b|빗각|빗면|채널\s*도어|B\/I|빌트인/i;
 function isBas(row, ybCodes){
   if((row.src||'')!=='DREAM') return false;   // 판정은 파일 출처로 (벤더 칸은 못 믿는다)
-  return !ybCodes.has(row.code);
+  if(ybCodes.has(row.code)) return false;
+  return !YB_FAMILY_RE.test(row.name||'');     // 우리 제품군 이름이면 와이비 품목입니다
 }
 
 // 대분류: 오이도 / 바스 / 유로500 / 유로700 / 그외
@@ -1248,14 +1256,23 @@ function mondayOf(iso){
   const back = (w===0)?6:(w-1);     // 일요일이면 6일 전이 월요일
   return addDays(iso,-back);
 }
+/* 2주 물량은 **자재 준비용**입니다 — 오늘·지난 날짜는 이미 손을 떠났습니다 (사장님 2026-10-08
+   "오늘은 10/8 목요일인데 7,8 물량이 다 나오면 의미가 없어. 영업일 기준으로 다음날껏부터").
+   · 시작 = **다음 영업일**. 그 전의 주말·휴일 출고(오이도 토요일)는 직전 영업일 = 오늘 이전에
+     작업하므로 같이 빠집니다(6-4). 예: 10/8(목) → 10/9 한글날 → 시작 10/12, 10/10(토)은 빠짐.
+   · 2주 = 다음 영업일부터 **10영업일**. 끝은 11번째 영업일 하루 전까지 — 10번째 영업일에 작업할
+     뒤따르는 주말 출고(오이도 토요일)를 함께 담습니다. 연휴가 끼면 그만큼 뒤로 밀립니다.
+   · 이번주 = 다음 영업일 ~ 이번주 일요일(남은 날이 없으면 비어 보입니다). 다음주·그다음주·전체는 예전 그대로. */
+const MONTH_2W_BIZDAYS = 10;
 function monthRangeBounds(){
   const today = isoToday();
   const mon0 = mondayOf(today);
+  const start = nextBusinessDays(today, 1)[0];
   if(MONTH_RANGE==='ALL') return null;
-  if(MONTH_RANGE==='W0') return [mon0, addDays(mon0,6)];
+  if(MONTH_RANGE==='W0') return [start, addDays(mon0,6)];
   if(MONTH_RANGE==='W1') return [addDays(mon0,7), addDays(mon0,13)];
   if(MONTH_RANGE==='W2') return [addDays(mon0,14), addDays(mon0,20)];
-  if(MONTH_RANGE==='2W') return [mon0, addDays(mon0,13)];  // 이번주+다음주
+  if(MONTH_RANGE==='2W') return [start, addDays(nextBusinessDays(today, MONTH_2W_BIZDAYS+1)[MONTH_2W_BIZDAYS], -1)];
   return null;
 }
 
