@@ -12913,8 +12913,10 @@ function renderOdLines(){
                      + num(i,'h','세로',`onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})"`);
   const qtyIn = i => num(i,'qty','수량',`onkeydown="odQtyTab(event,${i})"`);
   const kind = qtyOnly ? 'q' : modelMode ? 'm' : 's';
-  const head = { s:'<span>#</span><span style="grid-column:span 3">가로 × 세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
-                 m:'<span>#</span><span>모델명</span><span style="grid-column:span 3">가로 × 세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
+  /* 머리글은 **아래 칸과 똑같이 한 칸씩** 둡니다 (사장님 2026-10-08 "위에 목록이랑 밑에 칸이랑 글씨를 맞춰").
+     예전에는 「가로 × 세로」를 세 칸에 걸친 한 덩어리로 써서, 머리의 가로·세로가 아래 칸 한가운데가 아니라 × 쪽으로 몰렸습니다. */
+  const head = { s:'<span>#</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
+                 m:'<span>#</span><span>모델명</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
                  q:'<span>#</span><span>품명</span><span>수량</span><span></span>' }[kind];
   const rows = odLines.map((ln,i)=>{
     if(kind==='q') return `<div class="od-row od-q">${no(i)}
@@ -12944,6 +12946,10 @@ function odRowCss(){
   .od-row.od-q{grid-template-columns:22px 1fr 64px 24px}
   .od-head{background:var(--s2);font-size:10.5px;color:var(--tx3);font-weight:700;padding-top:6px;padding-bottom:6px}
   .od-head span{text-align:center}
+  /* 머리글 칸 사이 옅은 세로줄 — 어느 칸의 머리인지 보이게. × 칸 양옆은 가로·세로를 한 묶음으로 보이게 뺍니다 */
+  .od-head > span + span:not(.h-x):not(:empty){box-shadow:-4px 0 0 -3px var(--b2)}
+  .od-head > span.h-x + span{box-shadow:none}
+  .od-head .h-x{color:var(--tx3);font-weight:400}
   .od-foot{background:var(--s2);font-size:11px;color:var(--tx2)}
   .od-no{font-size:11px;color:var(--tx3);text-align:center;font-family:'JetBrains Mono',monospace}
   .od-mini{font-size:11px;text-align:center;white-space:nowrap;cursor:help}
