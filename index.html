@@ -323,6 +323,80 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 .fab{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;border:none;color:#0d1117;font-size:26px;cursor:pointer;z-index:300;display:none;align-items:center;justify-content:center;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.4)}
 .fab:active{transform:scale(.93)}
 .divider{height:1px;background:var(--b1);margin:10px 0}
+/* 🗓️ 일정·업무 (2026-10-12) — 라이트, 얇은 테두리, 그림자·그라데이션 없음, 본문 15px, 누르는 곳 44px 이상 */
+#pg-plan{padding:18px 16px 90px;font-size:15px;color:#1a1d2e;background:#fff}
+#pg-plan .bd-muted{color:#9aa0b8;font-size:13px}
+#pg-plan .bd-top{display:grid;grid-template-columns:3fr 2fr;gap:20px;margin-bottom:28px}
+#pg-plan .bd-cal,#pg-plan .bd-day{border:1px solid #e3e6ee;border-radius:12px;padding:16px;background:#fff;min-width:0}
+#pg-plan .bd-calhead{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+#pg-plan .bd-ym{font-size:19px;font-weight:800;flex:1;text-align:center}
+#pg-plan .bd-btn{min-height:44px;min-width:44px;padding:0 14px;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid #d6dae4;background:#fff;color:#1a1d2e}
+#pg-plan .bd-ghost:hover{background:#f4f5f8}
+#pg-plan .bd-primary{background:#1a1d2e;border-color:#1a1d2e;color:#fff}
+#pg-plan .bd-wide{width:100%;margin-top:12px}
+#pg-plan .bd-week,#pg-plan .bd-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+#pg-plan .bd-week span{text-align:center;font-size:13px;color:#7a8099;padding:4px 0}
+#pg-plan .bd-cell{min-height:76px;border:1px solid #eef0f5;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:flex-start;padding:6px;cursor:pointer;font-family:inherit;text-align:left;gap:2px;min-width:0}
+#pg-plan .bd-cell:hover{background:#f7f8fb}
+#pg-plan .bd-empty{border:none;background:none;cursor:default}
+#pg-plan .bd-cell.today .bd-dn{background:#1a1d2e;color:#fff !important;border-radius:6px;padding:0 6px}
+#pg-plan .bd-cell.sel{border:2px solid #1a1d2e;padding:5px}
+#pg-plan .bd-dn{font-size:15px;font-weight:700}
+#pg-plan .bd-hol{font-size:11px;color:#dc2626;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#pg-plan .bd-dots{display:flex;align-items:center;gap:3px;margin-top:auto;flex-wrap:wrap}
+#pg-plan .bd-dots i,#pg-plan .bd-legend i,#pg-plan .bd-dayitem i{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none}
+#pg-plan .bd-dots b{font-size:11px;color:#7a8099;font-weight:600}
+#pg-plan .bd-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:13px;color:#5a6282}
+#pg-plan .bd-legend span{display:flex;align-items:center;gap:5px}
+#pg-plan .bd-dayhead{font-size:18px;font-weight:800;margin-bottom:10px}
+#pg-plan .bd-daylist{display:flex;flex-direction:column;gap:6px}
+#pg-plan .bd-dayitem{display:flex;align-items:center;gap:10px;min-height:48px;padding:8px 12px;border:1px solid #eef0f5;border-radius:9px;background:#fff;cursor:pointer;font-family:inherit;font-size:15px;text-align:left;color:#1a1d2e}
+#pg-plan .bd-dayitem:hover{background:#f7f8fb}
+#pg-plan .bd-dit{flex:1;min-width:0}
+#pg-plan .bd-dayitem small{color:#7a8099;font-size:12px;white-space:nowrap}
+#pg-plan .bd-tabs{display:flex;align-items:center;gap:6px;border-bottom:1px solid #e3e6ee;padding-bottom:10px;margin-bottom:16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+#pg-plan .bd-tab{min-height:44px;padding:0 16px;border-radius:9px;border:1px solid transparent;background:none;font-size:15px;font-weight:600;color:#5a6282;cursor:pointer;white-space:nowrap;font-family:'Noto Sans KR',sans-serif}
+#pg-plan .bd-tab span{display:inline-block;min-width:22px;padding:1px 7px;border-radius:10px;background:#eef0f5;font-size:12px;margin-left:4px;color:#5a6282}
+#pg-plan .bd-tab.on{border-color:#1a1d2e;color:#1a1d2e}
+#pg-plan .bd-tab.on span{background:#1a1d2e;color:#fff}
+#pg-plan .bd-tabs .bd-btn{white-space:nowrap;flex:none}
+#pg-plan .bd-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;align-items:start;margin-bottom:18px}
+#pg-plan .bd-card{border:1px solid;border-radius:12px;padding:14px 14px;cursor:pointer;transition:outline-color .3s;outline:3px solid transparent}
+#pg-plan .bd-card.flash{outline-color:#2563eb}
+#pg-plan .bd-ch{display:flex;align-items:flex-start;gap:10px}
+#pg-plan .bd-chk{width:24px;height:24px;margin:1px 0 0;flex:none;cursor:pointer;accent-color:#1a1d2e}
+#pg-plan .bd-ct{font-size:16px;font-weight:700;line-height:1.4;word-break:keep-all}
+#pg-plan .bd-cs{font-size:13px;color:#5a6282;margin-top:3px;line-height:1.5}
+#pg-plan .bd-arrow{color:#9aa0b8;font-size:13px;padding-top:3px}
+#pg-plan .bd-detail{margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.08);cursor:default}
+#pg-plan .bd-f{display:grid;grid-template-columns:84px 1fr;gap:8px;font-size:15px;line-height:1.6;margin-bottom:6px}
+#pg-plan .bd-f>span{color:#7a8099;font-size:13px;padding-top:2px}
+#pg-plan .bd-log{font-size:14px}
+#pg-plan .bd-log small{color:#9aa0b8;font-size:12px}
+#pg-plan .bd-meta{font-size:12px;color:#9aa0b8;margin:8px 0}
+#pg-plan .bd-actions{display:flex;gap:8px;flex-wrap:wrap}
+#pg-plan .bd-month{font-size:16px;font-weight:800;margin:6px 0 10px}
+#pg-plan .bd-month span{font-size:13px;color:#9aa0b8;font-weight:600}
+#bd-modal .bd-kinds{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+#bd-modal .bd-kbtn{min-height:44px;padding:0 14px;border:1px solid #d6dae4;border-radius:9px;background:#fff;font-size:15px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:#1a1d2e}
+#bd-modal .bd-l{display:block;font-size:13px;color:#5a6282;margin-bottom:12px}
+#bd-modal .bd-row{display:flex;align-items:center;gap:8px;font-size:15px;color:#1a1d2e;min-height:44px}
+#bd-modal .bd-row input{width:22px;height:22px}
+#bd-modal .bd-in{display:block;width:100%;box-sizing:border-box;margin-top:5px;min-height:44px;padding:10px 12px;font-size:15px;border:1px solid #d6dae4;border-radius:9px;background:#fff;color:#1a1d2e;font-family:'Noto Sans KR',sans-serif}
+#bd-modal .bd-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#bd-modal .bd-mbtn{flex:1;min-height:48px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+@media (max-width:760px){
+  #pg-plan{padding:12px 12px 90px}
+  #pg-plan .bd-top{grid-template-columns:1fr;gap:14px}
+  #pg-plan .bd-cal,#pg-plan .bd-day{padding:12px}
+  #pg-plan .bd-cell{min-height:46px;padding:4px;align-items:center}
+  #pg-plan .bd-cell.sel{padding:3px}
+  #pg-plan .bd-hol{display:none}
+  #pg-plan .bd-dots{justify-content:center}
+  #pg-plan .bd-dots i{width:7px;height:7px}
+  #pg-plan .bd-cards{grid-template-columns:1fr}
+  #bd-modal .bd-2{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -360,6 +434,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
     <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
     <button class="main-nav-btn" onclick="showMain('deskboard')">📋 업무판</button>
+    <!-- 🗓️ 일정·업무 — 만드는 중이라 설정의 「새 메인 페이지 미리보기」를 켠 기기에서만 보입니다 (2026-10-12) -->
+    <button class="main-nav-btn" id="nav-plan" style="display:none" onclick="showMain('plan')">🗓️ 일정·업무</button>
     <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
   </nav>
 </div>
@@ -375,6 +451,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div id="today-head"></div>
   <div id="today-body"></div>
 </div>
+
+<!-- 🗓️ 일정·업무 (2026-10-12) — 위는 달력·선택한 날, 아래는 탭 4개와 포스트잇. bdRender 가 #bd-host 에 그립니다 -->
+<div class="sec-pg" id="pg-plan"><div id="bd-host"></div></div>
 
 <!-- 📋 업무판 — 예전 홈. 홈은 「오늘의 점검」이 되었고 이쪽으로 옮겼습니다 (2026-09-15) -->
 <div class="sec-pg" id="pg-deskboard">
@@ -1237,6 +1316,20 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
 </div>
 
+<!-- 🗓️ 일정·업무 — 넣기·고치기 창 (2026-10-12). 칸은 종류에 따라 bdFillForm 이 그립니다 -->
+<div class="modal-bg" id="bd-modal">
+  <div class="modal-sheet" style="max-width:560px;margin:0 auto;background:#fff">
+    <button class="close-btn" onclick="closeM('bd-modal')">×</button>
+    <div class="modal-ttl" id="bd-modal-ttl" style="font-size:18px">새로 넣기</div>
+    <div id="bd-form"></div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button id="bd-del" class="bd-mbtn" onclick="bdDelete()" style="flex:none;padding:0 16px;background:#fff;border:1px solid #f1b4b4;color:#dc2626">지우기</button>
+      <button class="bd-mbtn" onclick="closeM('bd-modal')" style="background:#fff;border:1px solid #d6dae4;color:#5a6282">닫기</button>
+      <button class="bd-mbtn" onclick="bdSaveForm()" style="flex:2;background:#1a1d2e;border:none;color:#fff">저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- 📒 거래처 월 마감 창 (2026-10-12) — 목록·한 달 대조 화면은 clRender 가 #cl-body 에 그립니다 -->
 <div class="modal-bg" id="cl-modal">
   <div class="modal-sheet" style="max-width:1200px;margin:0 auto;max-height:92vh">
@@ -1476,6 +1569,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- SETTINGS -->
 <div class="sec-pg" id="pg-settings" style="padding:14px 14px 80px">
+  <!-- 🗓️ 일정·업무 미리보기 스위치 (2026-10-12) — 이 기기에만 저장. 다른 분 화면에는 탭이 안 생깁니다 -->
+  <div class="card">
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;min-height:44px">
+      <input type="checkbox" id="plan-preview-chk" onchange="bdSetPreview(this.checked)" style="width:22px;height:22px">
+      <span><b>🗓️ 새 메인 페이지 미리보기</b><br><span style="font-size:11px;color:var(--tx2)">만드는 중인 「일정·업무」 탭을 <b>이 기기에서만</b> 보이게 합니다. 아직 시트로 보내지 않습니다.</span></span>
+    </label>
+  </div>
   <div class="card" style="border-left:3px solid var(--acc)">
     <div class="card-ttl">👤 내 이름 (작성자 식별)</div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:10px">
@@ -4068,6 +4168,7 @@ function showMain(id){
   fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
   if(id==='home')renderToday();
   if(id==='deskboard'){renderHome(); if(typeof renderWeekly==='function') renderWeekly();}
+  if(id==='plan') bdRender();   // 🗓️ 일정·업무
   if(id==='todo')renderTodo();
   if(id==='board'){renderNotices();renderSchedules();renderBreaks();}
   if(id==='stock')renderSub(curSub);
@@ -12274,6 +12375,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     fab.style.display=(id==='todo'||id==='worklog')?'flex':'none';
     if(id==='home')renderToday();
     else if(id==='deskboard'){renderHome();renderNotices();renderSchedules();renderCal();renderBreaks();if(typeof renderWeekly==='function')renderWeekly();}
+    else if(id==='plan') bdRender();   // 🗓️ 일정·업무 (2026-10-12)
     else if(id==='worklog')renderWorklogMain();
     else if(id==='delivery'){renderDelivery(); if(typeof renderDelivArchive==='function') renderDelivArchive();}
     else if(id==='todo')renderTodo();
@@ -16029,6 +16131,296 @@ async function clUploadCompare(inp){
     showToast(`✓ 대조 결과 ${hit}줄을 옮겼습니다`+(nIn?` · 입고 대기 ${nIn}줄 이월`:''));
   }catch(e){ alert('대조 파일을 못 읽었습니다.\n'+e.message); }
 }
+
+
+/* ══════════════════════════════════════════════════════════
+   🗓️ 일정·업무 (메인 페이지, 사장님 요청 2026-10-12)
+   "카톡은 어른들이 잘 안 보고 … 한눈에 보기 쉬운 페이지"
+   계기: AS 두 건을 각각 5일·6일 연기했는데, 하나만 하루 당겨 달라던 것을 둘 다로 기억해
+         하루 일찍 급하게 납품한 일. → 카드마다 **날짜 바꾼 기록**과 **오더번호·현장명**을 둡니다.
+   ─ 1단계(지금): 화면만. 이 기기 브라우저에만 저장(`ybn-board-v1`). 시트로 안 보냅니다.
+   ─ 탭은 설정의 「새 메인 페이지 미리보기」를 켠 기기에서만 보입니다(`ybn-plan-preview`).
+   ─ 카드 종류: progress(진행중) · order(발주중) · todo(할일) · event(일반 일정 — 카드 없이 달력에만).
+     완료는 종류가 아니라 status:'done' 입니다 — 되돌리면 원래 탭으로 갑니다.
+   ─ 지우기는 묘비(deleted:true) — 2단계 동기화 때 되살아나지 않게.
+   ─ 공휴일 판정은 `KR_HOLIDAYS` 한 곳. 아래 이름표는 **화면에 이름을 적을 때만** 씁니다.
+   ══════════════════════════════════════════════════════════ */
+const LS_BOARD='ybn-board-v1', LS_PLAN_PREVIEW='ybn-plan-preview';
+const BD_KIND={
+  progress:{ label:'진행중', dot:'#16a34a', bg:'#ecfdf3', line:'#bbe5c8' },
+  order:   { label:'발주중', dot:'#ea6c00', bg:'#fff4e8', line:'#f6cfa6' },
+  todo:    { label:'할일',   dot:'#d4a106', bg:'#fffbe6', line:'#f0e0a0' },
+  event:   { label:'일정',   dot:'#9aa0b8', bg:'#f4f5f8', line:'#dde0e8' },
+};
+const BD_DONE={ label:'완료', bg:'#f4f5f8', line:'#dde0e8' };
+const BD_TABS=['progress','order','todo','done'];
+/* 공휴일 이름 — 화면 표시용. 쉬는 날인지는 늘 `KR_HOLIDAYS` 가 정합니다(여기 없으면 「공휴일」로 적음) */
+const BD_HOLIDAY_NAME={
+  '2026-01-01':'신정','2026-02-16':'설날','2026-02-17':'설날','2026-02-18':'설날',
+  '2026-03-01':'삼일절','2026-03-02':'대체공휴일','2026-05-01':'노동절','2026-05-05':'어린이날',
+  '2026-05-24':'부처님오신날','2026-05-25':'대체공휴일','2026-06-03':'지방선거','2026-06-06':'현충일',
+  '2026-07-17':'제헌절','2026-08-15':'광복절','2026-08-17':'대체공휴일',
+  '2026-09-24':'추석','2026-09-25':'추석','2026-09-26':'추석',
+  '2026-10-03':'개천절','2026-10-05':'대체공휴일','2026-10-09':'한글날','2026-12-25':'성탄절','2027-01-01':'신정',
+};
+let boardCards=[];
+try{ boardCards=J(localStorage.getItem(LS_BOARD))||[]; }catch(e){ boardCards=[]; }
+let bdYear=new Date().getFullYear(), bdMonth=new Date().getMonth(), bdSel=todayStr(), bdTab='progress';
+const bdOpenSet=new Set();
+let bdEditId=null, bdEditKind='progress';
+
+const bdEsc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const bdMd=s=>/^\d{4}-\d{2}-\d{2}/.test(s||'')?`${+s.slice(5,7)}/${+s.slice(8,10)}`:'';
+const bdDow=s=>['일','월','화','수','목','금','토'][new Date(s+'T00:00:00').getDay()];
+function bdHolidayName(ds){ return KR_HOLIDAYS.has(ds) ? (BD_HOLIDAY_NAME[ds]||'공휴일') : ''; }
+function bdSave(){ try{ localStorage.setItem(LS_BOARD, JSON.stringify(boardCards)); }catch(e){ showToast('⚠ 저장 실패 — 저장 공간을 확인하십시오'); } }
+function bdPreviewOn(){ try{ return localStorage.getItem(LS_PLAN_PREVIEW)==='1'; }catch(e){ return false; } }
+/* 달력에 놓을 날짜 — 발주는 입고 예정일, 나머지는 대표 날짜 */
+function bdDateOf(c){ return c.kind==='order' ? (c.arriveDate||c.date||'') : (c.date||''); }
+function bdVisible(c){
+  if(!c || c.deleted) return false;
+  if(c.visibility==='me' && (c.createdBy||'')!==(getActor()||'')) return false;
+  return true;
+}
+const bdCardsAll=()=>boardCards.filter(bdVisible);
+function bdTabOf(c){ return c.status==='done' ? 'done' : c.kind; }
+function bdOverdue(c){ const d=bdDateOf(c); return c.status!=='done' && c.kind!=='event' && d && d<todayStr(); }
+
+/* ── 샘플 (처음 한 번만, 「(샘플)」이 붙습니다. 「샘플 지우기」로 한 번에 지웁니다) ── */
+function bdSeedSamples(){
+  try{ if(localStorage.getItem('ybn-board-sampled')==='1') return; }catch(e){ return; }
+  if(boardCards.length) return;
+  const t=todayStr(), d=n=>_addDays(t,n), now=new Date().toISOString(), me=getActor()||'';
+  const mk=(o)=>Object.assign({ id:'bd_s'+Math.random().toString(36).slice(2,8), sample:true, summary:'', body:'', nextStep:'', vendor:'', item:'', qty:'',
+    orderDate:'', arriveDate:'', owner:'', orderNo:'', site:'', visibility:'all', status:'open', completedAt:'', dateLog:[],
+    createdAt:now, createdBy:me, updatedAt:now, updatedBy:me, deleted:false }, o);
+  boardCards=[
+    mk({ kind:'progress', title:'(샘플) AS 강남 현장 상마이다', orderNo:'5400162852', site:'강남 ○○아파트', date:d(5), summary:'납기 연기 후 하루 당김',
+      body:'현장 요청으로 납품일을 바꿨습니다.', nextStep:'유리 입고 확인 후 조립', owner:'송예빈',
+      dateLog:[{at:now,by:me,field:'date',from:d(-1),to:d(6),note:'5일 연기 — 유리 일정'},{at:now,by:me,field:'date',from:d(6),to:d(5),note:'현장 요청으로 하루 당김'}] }),
+    mk({ kind:'progress', title:'(샘플) AS 분당 현장 키큰장', orderNo:'5400162901', site:'분당 △△빌라', date:d(7), summary:'6일 연기 — 당김 없음',
+      nextStep:'도면 확인', owner:'송예빈', dateLog:[{at:now,by:me,field:'date',from:d(1),to:d(7),note:'6일 연기'}] }),
+    mk({ kind:'order', title:'(샘플) 현성 3.2T 백사틴 비규격', vendor:'현성유리', item:'3.2T 백사틴 비규격', qty:'24', orderDate:d(-2), arriveDate:d(1), body:'에토프 비규격분' }),
+    mk({ kind:'order', title:'(샘플) 아름 5T 투명', vendor:'아름유리', item:'5T 투명 / 비산방지필름', qty:'6', orderDate:d(-6), arriveDate:d(-1), body:'입고 예정일 지남 — 빨간 테두리 확인용' }),
+    mk({ kind:'todo', title:'(샘플) 10월 현성 마감 대조', date:d(3), body:'이월 44건 확인' }),
+    mk({ kind:'todo', title:'(샘플) 박스 재고 확인', date:d(0) }),
+    mk({ kind:'event', title:'(샘플) 월요 회의', date:d(2), body:'10:00 사무실' }),
+    mk({ kind:'todo', title:'(샘플) 9월 마감 확정', date:d(-3), status:'done', completedAt:now }),
+  ];
+  bdSave();
+  try{ localStorage.setItem('ybn-board-sampled','1'); }catch(e){}
+}
+function bdClearSamples(){
+  if(!confirm('샘플 카드를 모두 지울까요?')) return;
+  const now=new Date().toISOString();
+  boardCards.forEach(c=>{ if(c.sample && !c.deleted){ c.deleted=true; c.updatedAt=now; c.updatedBy=getActor()||''; } });
+  bdSave(); bdRender();
+}
+
+/* ── 그리기 ── */
+function bdRender(){
+  const host=document.getElementById('bd-host'); if(!host) return;
+  host.innerHTML=`<div class="bd-top"><div class="bd-cal">${bdCalHtml()}</div><div class="bd-day">${bdDayHtml()}</div></div>
+    <div class="bd-board">${bdBoardHtml()}</div>`;
+}
+function bdCalHtml(){
+  const y=bdYear, m=bdMonth, first=new Date(y,m,1), start=first.getDay(), days=new Date(y,m+1,0).getDate();
+  const t=todayStr();
+  const byDay={};
+  bdCardsAll().forEach(c=>{ if(c.status==='done') return; const d=bdDateOf(c); if(d && d.slice(0,7)===_ymdLocal(first).slice(0,7)) (byDay[d]=byDay[d]||[]).push(c); });
+  let cells='';
+  for(let i=0;i<start;i++) cells+='<div class="bd-cell bd-empty"></div>';
+  for(let d=1; d<=days; d++){
+    const ds=_ymdLocal(new Date(y,m,d)), dow=(start+d-1)%7, hol=bdHolidayName(ds);
+    const items=(byDay[ds]||[]).sort(bdSort);
+    const dots=items.slice(0,3).map(c=>`<i style="background:${BD_KIND[c.kind].dot}"></i>`).join('')+(items.length>3?`<b>+${items.length-3}</b>`:'');
+    const red=hol||dow===0, blue=!hol&&dow===6;
+    cells+=`<button class="bd-cell${ds===bdSel?' sel':''}${ds===t?' today':''}" onclick="bdPick('${ds}')" aria-label="${m+1}월 ${d}일${hol?' '+hol:''}${items.length?' 항목 '+items.length+'개':''}">
+      <span class="bd-dn" style="${red?'color:#dc2626':blue?'color:#2563eb':''}">${d}</span>${hol?`<span class="bd-hol">${bdEsc(hol)}</span>`:''}
+      <span class="bd-dots">${dots}</span></button>`;
+  }
+  return `<div class="bd-calhead">
+      <button class="bd-btn bd-ghost" onclick="bdMove(-1)" aria-label="이전 달">‹</button>
+      <div class="bd-ym">${y}년 ${m+1}월</div>
+      <button class="bd-btn bd-ghost" onclick="bdMove(1)" aria-label="다음 달">›</button>
+      <button class="bd-btn bd-ghost" onclick="bdToday()">오늘</button></div>
+    <div class="bd-week">${['일','월','화','수','목','금','토'].map((w,i)=>`<span style="${i===0?'color:#dc2626':i===6?'color:#2563eb':''}">${w}</span>`).join('')}</div>
+    <div class="bd-grid">${cells}</div>
+    <div class="bd-legend">${['progress','order','todo','event'].map(k=>`<span><i style="background:${BD_KIND[k].dot}"></i>${k==='todo'?'할일·마감':k==='order'?'발주·입고':k==='event'?'일반 일정':'진행중'}</span>`).join('')}</div>`;
+}
+function bdDayHtml(){
+  const ds=bdSel, hol=bdHolidayName(ds);
+  const items=bdCardsAll().filter(c=>bdDateOf(c)===ds).sort(bdSort);
+  const row=c=>{
+    const k=BD_KIND[c.kind], done=c.status==='done';
+    return `<button class="bd-dayitem" onclick="bdJump('${c.id}')" style="${done?'opacity:.55':''}">
+      <i style="background:${k.dot}"></i><span class="bd-dit">${bdEsc(c.title)}${done?' <small>(완료)</small>':''}</span>
+      <small>${c.kind==='order'?'입고 예정':k.label}</small></button>`;
+  };
+  return `<div class="bd-dayhead">${+ds.slice(5,7)}월 ${+ds.slice(8,10)}일 (${bdDow(ds)})${hol?` <span style="color:#dc2626;font-size:14px">${bdEsc(hol)}</span>`:''}</div>
+    <div class="bd-daylist">${items.map(row).join('')||'<div class="bd-muted" style="padding:14px 2px">이날은 일정이 없습니다</div>'}</div>
+    <button class="bd-btn bd-primary bd-wide" onclick="bdNew(null,'${ds}')">＋ 일정 추가</button>`;
+}
+function bdSort(a,b){
+  const da=bdDateOf(a)||'9999', db=bdDateOf(b)||'9999';
+  return da.localeCompare(db) || String(a.createdAt).localeCompare(String(b.createdAt));
+}
+function bdBoardHtml(){
+  const all=bdCardsAll().filter(c=>c.kind!=='event');
+  const cnt={}; BD_TABS.forEach(t=>cnt[t]=all.filter(c=>bdTabOf(c)===t).length);
+  const tabs=`<div class="bd-tabs" role="tablist">${BD_TABS.map(t=>`<button role="tab" class="bd-tab${bdTab===t?' on':''}" onclick="bdTab='${t}';bdRender()">${t==='done'?'완료':BD_KIND[t].label} <span>${cnt[t]}</span></button>`).join('')}
+      <span style="flex:1"></span>
+      ${boardCards.some(c=>c.sample&&!c.deleted)?`<button class="bd-btn bd-ghost" onclick="bdClearSamples()">샘플 지우기</button>`:''}
+      ${bdTab!=='done'?`<button class="bd-btn bd-primary" onclick="bdNew('${bdTab}')">＋ ${BD_KIND[bdTab].label} 추가</button>`:''}</div>`;
+  let list=all.filter(c=>bdTabOf(c)===bdTab);
+  let body='';
+  if(bdTab==='done'){
+    list.sort((a,b)=>String(b.completedAt).localeCompare(String(a.completedAt)));
+    const g={}; list.forEach(c=>{ const ym=(c.completedAt||'').slice(0,7)||'기타'; (g[ym]=g[ym]||[]).push(c); });
+    body=Object.keys(g).sort().reverse().map(ym=>`<div class="bd-month">${ym==='기타'?'완료일 없음':`${+ym.slice(0,4)}년 ${+ym.slice(5,7)}월`} <span>${g[ym].length}</span></div>
+      <div class="bd-cards">${g[ym].map(bdCardHtml).join('')}</div>`).join('');
+  } else {
+    list.sort(bdSort);
+    body=`<div class="bd-cards">${list.map(bdCardHtml).join('')}</div>`;
+  }
+  if(!list.length) body=`<div class="bd-muted" style="padding:28px 4px;text-align:center">${bdTab==='done'?'완료한 카드가 없습니다':'카드가 없습니다'}</div>`;
+  return tabs+body;
+}
+function bdCardHtml(c){
+  const open=bdOpenSet.has(c.id), done=c.status==='done';
+  const st=done?BD_DONE:BD_KIND[c.kind], over=bdOverdue(c), d=bdDateOf(c);
+  const dateLab = c.kind==='order' ? '입고 예정' : c.kind==='todo' ? '마감' : '목표일';
+  const sub=[ d?`${dateLab} ${bdMd(d)}(${bdDow(d)})`:'', done?`완료 ${bdMd(_ymdLocal(new Date(c.completedAt)))}`:(over?'<b style="color:#dc2626">날짜 지남</b>':''),
+    c.kind==='order'&&c.vendor?bdEsc(c.vendor):'', c.orderNo?`#${bdEsc(c.orderNo)}`:'', c.site?bdEsc(c.site):'' ].filter(Boolean).join(' · ');
+  const check = c.kind==='todo' ? `<input type="checkbox" class="bd-chk"${done?' checked':''} onclick="event.stopPropagation();bdDone('${c.id}',this.checked)" aria-label="완료">` : '';
+  const field=(l,v)=>v?`<div class="bd-f"><span>${l}</span><div>${bdEsc(v).replace(/\n/g,'<br>')}</div></div>`:'';
+  const log=(c.dateLog||[]).length?`<div class="bd-f"><span>날짜 바뀐 기록</span><div>${c.dateLog.map(x=>`<div class="bd-log">${bdMd(x.from)||'(없음)'} → <b>${bdMd(x.to)||'(없음)'}</b>${x.note?` — ${bdEsc(x.note)}`:''} <small>${bdEsc(x.by||'')} ${bdMd(_ymdLocal(new Date(x.at)))}</small></div>`).join('')}</div></div>`:'';
+  const detail=open?`<div class="bd-detail">
+      ${field('요약',c.summary)}${field('내용',c.body)}${c.kind==='progress'?field('다음 단계',c.nextStep):''}
+      ${c.kind==='order'?field('거래처',c.vendor)+field('품목',c.item)+field('수량',c.qty)+field('발주일',bdMd(c.orderDate))+field('입고 예정일',bdMd(c.arriveDate)):''}
+      ${field('오더번호',c.orderNo)}${field('현장명',c.site)}${field('담당자',c.owner)}${log}
+      <div class="bd-meta">${c.visibility==='me'?'🔒 나만 보기 · ':''}작성 ${bdEsc(c.createdBy||'')} · 고침 ${bdEsc(c.updatedBy||'')} ${bdMd(_ymdLocal(new Date(c.updatedAt)))}</div>
+      <div class="bd-actions">
+        ${done?`<button class="bd-btn bd-ghost" onclick="event.stopPropagation();bdDone('${c.id}',false)">되돌리기 (${BD_KIND[c.kind].label})</button>`
+          :`<button class="bd-btn bd-ghost" onclick="event.stopPropagation();bdEdit('${c.id}')">수정</button>
+            ${c.kind==='order'?`<button class="bd-btn bd-primary" onclick="event.stopPropagation();bdDone('${c.id}',true)">입고 완료</button>`
+              :c.kind==='progress'?`<button class="bd-btn bd-primary" onclick="event.stopPropagation();bdDone('${c.id}',true)">완료</button>`:''}`}
+      </div></div>`:'';
+  return `<div class="bd-card${open?' open':''}" id="bdc-${c.id}" style="background:${st.bg};border-color:${over?'#dc2626':st.line};${over?'border-width:2px':''}" onclick="bdToggle('${c.id}')">
+      <div class="bd-ch">${check}<div style="flex:1;min-width:0"><div class="bd-ct">${bdEsc(c.title)}</div><div class="bd-cs">${sub||'<span class="bd-muted">날짜 없음</span>'}</div></div>
+        ${c.visibility==='me'?'<span title="나만 보기">🔒</span>':''}<span class="bd-arrow">${open?'▴':'▾'}</span></div>${detail}</div>`;
+}
+
+/* ── 움직임 ── */
+function bdMove(n){ bdMonth+=n; if(bdMonth<0){bdMonth=11;bdYear--;} if(bdMonth>11){bdMonth=0;bdYear++;} bdRender(); }
+function bdToday(){ const t=new Date(); bdYear=t.getFullYear(); bdMonth=t.getMonth(); bdSel=todayStr(); bdRender(); }
+function bdPick(ds){ bdSel=ds; bdRender(); }
+function bdToggle(id){ bdOpenSet.has(id)?bdOpenSet.delete(id):bdOpenSet.add(id); bdRender(); }
+/* 날짜 패널에서 누르면 그 카드 탭으로 가서 펼치고 그 자리로 갑니다. 일반 일정은 카드가 없어 바로 고치기 창 */
+function bdJump(id){
+  const c=boardCards.find(x=>x.id===id); if(!c) return;
+  if(c.kind==='event'){ bdEdit(id); return; }
+  bdTab=bdTabOf(c); bdOpenSet.add(id); bdRender();
+  setTimeout(()=>{ const el=document.getElementById('bdc-'+id); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),1400); } },30);
+}
+function bdDone(id, done){
+  const c=boardCards.find(x=>x.id===id); if(!c) return;
+  c.status=done?'done':'open'; c.completedAt=done?new Date().toISOString():'';
+  c.updatedAt=new Date().toISOString(); c.updatedBy=getActor()||'';
+  bdSave(); bdRender();
+  showToast(done?`✓ 완료 탭으로 옮겼습니다`:`↩ ${BD_KIND[c.kind].label} 탭으로 되돌렸습니다`);
+}
+
+/* ── 추가·수정 창 ── */
+function bdNew(kind, date){
+  bdEditId=null; bdEditKind=kind||'event';
+  bdFillForm({ kind:bdEditKind, date:date||'', arriveDate:bdEditKind==='order'?(date||''):'', orderDate:bdEditKind==='order'?todayStr():'', visibility:'all' });
+}
+function bdEdit(id){
+  const c=boardCards.find(x=>x.id===id); if(!c) return;
+  bdEditId=id; bdEditKind=c.kind; bdFillForm(c);
+}
+function bdFillForm(c){
+  const v=k=>bdEsc(c[k]||'');
+  const kindSel=`<div class="bd-kinds">${['progress','order','todo','event'].map(k=>`<button type="button" class="bd-kbtn${bdEditKind===k?' on':''}" style="${bdEditKind===k?`background:${BD_KIND[k].bg};border-color:${BD_KIND[k].dot}`:''}" onclick="bdSwitchKind('${k}')">${k==='event'?'일반 일정':BD_KIND[k].label}</button>`).join('')}</div>`;
+  const inp=(id,label,val,type='text',ph='')=>`<label class="bd-l">${label}<input class="bd-in" id="bdf-${id}" type="${type}" value="${val}" placeholder="${ph}"></label>`;
+  const area=(id,label,val,ph='')=>`<label class="bd-l">${label}<textarea class="bd-in" id="bdf-${id}" rows="3" placeholder="${ph}">${val}</textarea></label>`;
+  const k=bdEditKind;
+  let f=inp('title', k==='order'?'제목 (비우면 거래처·품목으로)':'제목', v('title'));
+  if(k==='progress') f+=inp('summary','한 줄 요약',v('summary'))+area('body','본문',v('body'))+inp('nextStep','다음 단계 (한 줄)',v('nextStep'))+inp('date','목표일',v('date'),'date');
+  if(k==='order')    f+=`<div class="bd-2">${inp('vendor','거래처',v('vendor'))}${inp('qty','수량',v('qty'))}</div>`+inp('item','품목',v('item'))
+                       +`<div class="bd-2">${inp('orderDate','발주일',v('orderDate'),'date')}${inp('arriveDate','입고 예정일',v('arriveDate'),'date')}</div>`+area('body','메모',v('body'));
+  if(k==='todo')     f+=inp('date','마감일',v('date'),'date')+area('body','메모',v('body'));
+  if(k==='event')    f+=inp('date','날짜',v('date'),'date')+area('body','메모 (시간·장소)',v('body'));
+  if(k!=='event')    f+=`<div class="bd-2">${inp('orderNo','오더번호',v('orderNo'),'text','예: 5400162852')}${inp('site','현장명',v('site'))}</div>`+inp('owner','담당자',v('owner'));
+  if(bdEditId)       f+=inp('dateNote','날짜를 바꾼다면 — 까닭 (기록에 남습니다)','', 'text','예: 현장 요청으로 하루 당김');
+  f+=`<label class="bd-l bd-row"><input type="checkbox" id="bdf-me"${c.visibility==='me'?' checked':''}> 나만 보기 <small class="bd-muted">(켜면 작성자 본인에게만 보입니다)</small></label>`;
+  document.getElementById('bd-form').innerHTML=kindSel+f;
+  document.getElementById('bd-modal-ttl').textContent=bdEditId?'카드 고치기':'새로 넣기';
+  document.getElementById('bd-del').style.display=bdEditId?'':'none';
+  document.getElementById('bd-modal').classList.add('on');
+  setTimeout(()=>{ const t=document.getElementById('bdf-title'); if(t&&!bdEditId) t.focus(); },50);
+}
+/* 종류를 바꿔도 이미 적은 값은 들고 갑니다 */
+function bdSwitchKind(k){
+  const cur=bdReadForm(); bdEditKind=k;
+  if(k==='order' && !cur.arriveDate) cur.arriveDate=cur.date;
+  if(k!=='order' && !cur.date) cur.date=cur.arriveDate;
+  bdFillForm(Object.assign({}, bdEditId?boardCards.find(x=>x.id===bdEditId):{}, cur));
+}
+function bdReadForm(){
+  const g=id=>{ const el=document.getElementById('bdf-'+id); return el?el.value.trim():undefined; };
+  const o={};
+  ['title','summary','body','nextStep','date','vendor','item','qty','orderDate','arriveDate','orderNo','site','owner'].forEach(k=>{ const x=g(k); if(x!==undefined) o[k]=x; });
+  const me=document.getElementById('bdf-me'); if(me) o.visibility=me.checked?'me':'all';
+  return o;
+}
+function bdSaveForm(){
+  const f=bdReadForm(), k=bdEditKind, now=new Date().toISOString(), by=getActor()||'';
+  const note=(document.getElementById('bdf-dateNote')||{}).value||'';
+  if(k==='order' && !f.title) f.title=[f.vendor,f.item].filter(Boolean).join(' ');
+  if(!f.title){ showToast('제목을 적어 주십시오'); return; }
+  if(k==='order') f.date=f.arriveDate||'';
+  let c;
+  if(bdEditId){
+    c=boardCards.find(x=>x.id===bdEditId); if(!c) return;
+    // 날짜가 바뀌면 기록 — 「무엇에서 무엇으로, 누가, 왜」
+    const before=bdDateOf(c);
+    Object.assign(c,f,{kind:k});
+    const after=bdDateOf(c);
+    if(before && after!==before){ (c.dateLog=c.dateLog||[]).push({ at:now, by, field:k==='order'?'arriveDate':'date', from:before, to:after, note:note.trim() }); }
+    c.updatedAt=now; c.updatedBy=by;
+  } else {
+    c=Object.assign({ id:'bd_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), kind:k, summary:'', body:'', nextStep:'', vendor:'', item:'', qty:'',
+      orderDate:'', arriveDate:'', owner:'', orderNo:'', site:'', visibility:'all', status:'open', completedAt:'', dateLog:[],
+      createdAt:now, createdBy:by, updatedAt:now, updatedBy:by, deleted:false }, f, {kind:k});
+    boardCards.push(c);
+    if(k!=='event') bdTab=k;
+  }
+  bdSave(); closeM('bd-modal');
+  const d=bdDateOf(c); if(d){ bdSel=d; bdYear=+d.slice(0,4); bdMonth=+d.slice(5,7)-1; }
+  if(k!=='event') bdOpenSet.add(c.id);
+  bdRender(); showToast('✓ 저장했습니다');
+}
+function bdDelete(){
+  const c=boardCards.find(x=>x.id===bdEditId); if(!c) return;
+  if(!confirm(`「${c.title}」을(를) 지울까요?`)) return;
+  c.deleted=true; c.updatedAt=new Date().toISOString(); c.updatedBy=getActor()||'';
+  bdSave(); closeM('bd-modal'); bdRender(); showToast('지웠습니다');
+}
+/* 설정 — 미리보기 스위치. 켠 기기에서만 탭이 보입니다 */
+function bdApplyPreview(){
+  const on=bdPreviewOn();
+  const b=document.getElementById('nav-plan'); if(b) b.style.display=on?'':'none';
+  const cb=document.getElementById('plan-preview-chk'); if(cb) cb.checked=on;
+}
+function bdSetPreview(on){
+  try{ localStorage.setItem(LS_PLAN_PREVIEW, on?'1':'0'); }catch(e){}
+  bdApplyPreview();
+  if(on){ bdSeedSamples(); showToast('🗓️ 일정·업무 탭을 켰습니다 (이 기기에서만)'); }
+  else if(curMain==='plan') showMain('home');
+}
+try{ bdApplyPreview(); }catch(e){}
 
 /* ══════════════════════════════════════════════════════════
    📷 이미지로 넣기 (사장님 요청 2026-09-29)
