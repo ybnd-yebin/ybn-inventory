@@ -1245,6 +1245,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="cl-body"></div>
     <input type="file" id="cl-file" accept=".xlsx,.xls" style="display:none" onchange="clUploadVendor(this)">
     <input type="file" id="cl-dfile" accept=".xlsx,.xls" style="display:none" onchange="clUploadDefect(this)">
+    <input type="file" id="cl-cfile" accept=".xlsx,.xls" style="display:none" onchange="clUploadCompare(this)">
   </div>
 </div>
 
@@ -15403,7 +15404,6 @@ function clMergeFromSheet(rc, rdel){
   for(const id in closingDeleted){
     if(closings[id] && String(closings[id].updatedAt||'')<=String(closingDeleted[id])){ delete closings[id]; n++; }
   }
-  clSeedLoad();
   if(n) clSave();
   return n;
 }
@@ -15572,8 +15572,27 @@ async function clUploadDefect(inp){
       hist.push({ date:clXlDate(r[cD]), w, h, qty:q, type:String(r[cT]||'').trim()||'기타', memo:String(r[cM]||'').trim() });
     }
     c.defectHist=hist; c.defectHistFile=file.name;
+    /* 「SKU별 합계」 시트의 「기타」 — 아직 거래처 차감에 안 들어간 불량입니다(9월: 18장).
+       다음 달 마감에서 처리하도록 이월로 넣습니다. 다시 올려도 겹치지 않게 앞서 넣은 것은 갈아끼웁니다. */
+    let nEtc=0;
+    const sn=wb.SheetNames.find(n=>/SKU별/.test(n));
+    if(sn){
+      const sr=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
+      const sh=sr.findIndex(r=>r.some(v=>String(v).trim()==='기타'));
+      if(sh>=0){
+        const cE=sr[sh].findIndex(v=>String(v).trim()==='기타');
+        c.carry=(c.carry||[]).filter(x=>x.auto!=='dhist-etc');
+        for(let i=sh+1;i<sr.length;i++){
+          const m=String(sr[i][0]||'').match(/(\d+)\s*[×xX*]\s*(\d+)/), q=clNum(sr[i][cE]);
+          if(!m||q<=0) continue;
+          c.carry.push({ id:'ca_'+Date.now().toString(36)+'_'+i, kind:'불량', text:`기타 불량 ${m[1]}×${m[2]} — 다음 달 마감에서 처리`, w:+m[1], h:+m[2], qty:q, amt:null,
+            fromYm:c.ym, done:false, auto:'dhist-etc', at:new Date().toISOString(), by:getActor()||'' });
+          nEtc+=q;
+        }
+      }
+    }
     clApplyDefectTypes(c); clTouch(c); clTab='defects'; clRender();
-    showToast(`✓ 불량이력 ${hist.reduce((s,d)=>s+d.qty,0)}장을 맞춰 봤습니다`);
+    showToast(`✓ 불량이력 ${hist.reduce((s,d)=>s+d.qty,0)}장을 맞춰 봤습니다`+(nEtc?` · 기타 불량 ${nEtc}장은 이월로 넣었습니다`:''));
   }catch(e){ alert('불량이력을 못 읽었습니다.\n'+e.message); }
 }
 function clApplyDefectTypes(c){
@@ -15747,7 +15766,8 @@ function clDetailHtml(c){
         ${lock?`<button onclick="clUnlock()" style="${B}background:var(--s2);border:1px solid var(--b2);color:var(--tx1)">🔓 확정 해제</button>`
              :`<button onclick="clConfirm()"${okDiff&&c.lines?'':' disabled'} style="${B}border:none;color:#fff;background:${okDiff?'#16a34a':'#9aa0b8'};${okDiff?'':'cursor:not-allowed'}">✔ 확정</button>
                <button onclick="clRematch()" style="${B}background:var(--s2);border:1px solid var(--b2);color:var(--tx1)">발주 기록과 다시 맞추기</button>
-               <button onclick="clPickDefectFile()" style="${B}background:var(--s2);border:1px solid var(--b2);color:var(--tx1)">불량이력 올리기</button>`}
+               <button onclick="clPickDefectFile()" style="${B}background:var(--s2);border:1px solid var(--b2);color:var(--tx1)">불량이력 올리기</button>
+               <button onclick="clPickCompareFile()" title="엑셀로 맞춰 둔 대조 파일(대조결과 시트)의 상태·메모를 그대로 옮깁니다" style="${B}background:var(--s2);border:1px solid var(--b2);color:var(--tx1)">지난 대조 결과 불러오기</button>`}
         ${okDiff||lock?'':`<span style="font-size:11px;color:#dc2626;align-self:center">차이가 0원이어야 확정할 수 있습니다</span>`}</div></div>`;
   const inc=clIncoming(c).filter(x=>!x.it.done);
   const incBanner=inc.length?`<div onclick="clTab='carry';clRender()" style="cursor:pointer;font-size:11.5px;background:#ea6c0012;border:1px solid #ea6c0055;border-radius:8px;padding:8px 10px;margin-bottom:10px">↪ 지난달에서 넘어온 이월 <b style="color:#ea6c00">${inc.length}건</b> — ${inc.slice(0,3).map(x=>clEsc(x.it.text)).join(' · ')}${inc.length>3?' …':''} <span style="color:var(--tx3)">(보기 ›)</span></div>`:'';
@@ -15779,7 +15799,7 @@ function clLinesHtml(c,P,dis){
     const r=calc[k];
     if(clFilter==='!' && !r.flags.length) return '';
     if(clFilter && clFilter!=='!' && L.st!==clFilter) return '';
-    const poTxt=(L.po||[]).map(p=>`${clMd(p.date)} ${clEsc(p.file)} (${p.qty})`).join('<br>')||(L.poText?clEsc(L.poText):'<span style="color:var(--tx3)">-</span>');
+    const poTxt=(L.po||[]).map(p=>`${p.date?clMd(p.date)+" ":""}${clEsc(p.file)}${p.qty?" ("+p.qty+")":""}`).join('<br>')||(L.poText?clEsc(L.poText):'<span style="color:var(--tx3)">-</span>');
     const over=L.st==='비규격 초과(경고)';
     return `<tr style="border-top:1px solid var(--b1);${over?'background:#dc26260a':''}">
       <td style="${P2}color:var(--tx3)">${L.row}</td>
@@ -15896,7 +15916,7 @@ function clExcel(){
     const a=[['마감 행','거래명세서일','모델','두께','유리','구분','가로','세로','수량','평','평단가','보링','단가','공급가액','거래처 공급가액','연결된 발주서','발주수량','차이(마감-발주)','상태','A/S','메모','계산 확인']];
     c.lines.forEach(L=>{ const r=clCalcLine(L,P,c.vendor);
       a.push([L.row,L.date,L.model,L.thick,L.glass,L.kind,L.w||'',L.h||'',L.qty,r.py??'',r.pUnit??'',L.bore||'',r.unit==null?'':Math.round(r.unit*100)/100,Math.round(r.amt),Math.round(L.amtFile||0),
-        (L.po||[]).map(p=>`${p.date} ${p.file} (${p.qty})`).join('; ')||L.poText||'',L.poQty??'',L.diff??'',L.st,L.as?'유상 A/S':'',L.memo||'',r.flags.join(' · ')]); });
+        (L.po||[]).map(p=>`${p.date?p.date+" ":""}${p.file}${p.qty?" ("+p.qty+")":""}`).join('; ')||L.poText||'',L.poQty??'',L.diff??'',L.st,L.as?'유상 A/S':'',L.memo||'',r.flags.join(' · ')]); });
     const w2=XLSX.utils.aoa_to_sheet(a); w2['!cols']=[{wch:6},{wch:11},{wch:14},{wch:6},{wch:10},{wch:8},{wch:6},{wch:6},{wch:5},{wch:6},{wch:7},{wch:5},{wch:9},{wch:11},{wch:11},{wch:40},{wch:7},{wch:7},{wch:22},{wch:8},{wch:30},{wch:20}];
     XLSX.utils.book_append_sheet(wb,w2,'대조결과');
   }
@@ -15913,8 +15933,102 @@ function clExcel(){
   XLSX.writeFile(wb,`${c.ym.slice(2,4)}${c.ym.slice(5,7)}_${typeof odFileVendor==="function"?odFileVendor(c.vendor):c.vendor}_월마감.xlsx`);
 }
 
-/* 9월 씨앗 — 3단계에서 채웁니다 */
-function clSeedLoad(){}
+/* ── 지난 대조 결과 불러오기 (2026-10-12) ─────────────────
+   앱이 생기기 전에 엑셀로 맞춰 둔 대조(9월 `현성_9월마감_발주대조.xlsx`)를 그대로 옮깁니다.
+   ⚠ 9월 자료를 코드에 박지 않은 까닭: 이 앱은 **공개 저장소·공개 주소**라 매입 줄이 누구에게나 보입니다.
+     파일은 앱에서 올리고, 자료는 이 기기와 시트에만 남깁니다.
+   ─ 「대조결과」 시트: 마감 행 번호로 줄을 찾아 상태·메모·연결된 발주서·발주수량을 그대로 씁니다.
+   ─ 「미입고 발주」 시트: 이 달 발주인데 마감에 안 잡힌 것 → 이월 「입고 대기」.
+   ─ 상태가 「인정(가격 재확인 요청)」인 줄 → 이월 「가격 재확인」, 「발주서 미확인」 줄 → 이월 「발주 미확인」.
+   다시 올려도 겹치지 않게, 앞서 자동으로 넣은 이월은 갈아끼웁니다. */
+const CL_ST_IMPORT={'일치':'일치','일치(정규격초과인정)':'정규격 초과 인정','정규격초과인정':'정규격 초과 인정',
+  '정규격입고정산(발주서없음)':'정규격 입고정산(발주서 없음)','인정(가격재확인요청)':'인정(가격 재확인 요청)',
+  '발주서없음(8월발주분추정)':'발주서 미확인','발주서미확인':'발주서 미확인','비규격초과인정':'비규격 초과 인정','비규격초과(경고)':'비규격 초과(경고)'};
+function clPoParse(txt, ym){
+  return String(txt||'').split(/;\s*/).map(s=>s.trim()).filter(Boolean).map(s=>{
+    const m=s.match(/^(\d{1,2})\/(\d{1,2})\??\s*(.*?)\s*\((\d+)\)\s*$/);
+    if(!m) return { date:'', file:s, qty:0 };
+    return { date:`${ym.slice(0,4)}-${('0'+m[1]).slice(-2)}-${('0'+m[2]).slice(-2)}`, file:m[3], qty:+m[4] };
+  });
+}
+function clPickCompareFile(){ const f=document.getElementById('cl-cfile'); if(f){ f.value=''; f.click(); } }
+async function clUploadCompare(inp){
+  const file=inp.files&&inp.files[0]; if(!file) return;
+  const c=clCur(); if(!c||!c.lines) return;
+  if(clLocked(c)){ showToast('확정된 마감입니다 — 먼저 확정을 풀어 주십시오'); return; }
+  try{
+    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+    const sn=wb.SheetNames.find(n=>/대조결과/.test(n));
+    if(!sn) throw new Error('「대조결과」 시트를 못 찾았습니다');
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
+    const hdr=rows.findIndex(r=>r.some(v=>/마감\s*행/.test(String(v))));
+    if(hdr<0) throw new Error('「마감 행」 머리글을 못 찾았습니다');
+    const H=rows[hdr].map(v=>String(v).replace(/\s/g,''));
+    const ci=re=>H.findIndex(v=>re.test(v));
+    const cR=ci(/마감행/), cW=ci(/^가로/), cH=ci(/^세로/), cQ=ci(/마감수량/), cP=ci(/매칭발주서|연결된발주서/), cPQ=ci(/^발주수량/), cS=ci(/^상태/), cM=ci(/^메모/);
+    const byRow={}; c.lines.forEach(L=>byRow[L.row]=L);
+    let hit=0; const miss=[], diffRows=[], unknownSt=new Set();
+    for(let i=hdr+1;i<rows.length;i++){
+      const r=rows[i]; if(r[cR]==='') continue;
+      const L=byRow[+r[cR]]; if(!L){ miss.push(r[cR]); continue; }
+      if(cW>=0 && (clNum(r[cW])!==L.w || clNum(r[cH])!==L.h || clNum(r[cQ])!==L.qty)) diffRows.push(L.row);
+      const st0=String(r[cS]||'').trim(), st=CL_ST_IMPORT[st0.replace(/\s/g,'')];
+      if(!st){ unknownSt.add(st0); continue; }
+      let memo=String(r[cM]||'').trim();
+      const est=st0.match(/\(([^)]*추정[^)]*)\)/); if(est) memo=memo?`${est[1]} · ${memo}`:est[1];
+      L.st=st; L.stManual=true; L.memo=memo;
+      L.poText=String(r[cP]||'').trim(); L.poManual=true;
+      L.po=L.poText?clPoParse(L.poText,c.ym):[];
+      L.poQty=r[cPQ]===''?null:clNum(r[cPQ]); L.diff=L.poQty==null?null:L.qty-L.poQty;
+      L.as=/A\s*\/\s*S/i.test(L.poText);
+      hit++;
+    }
+    // 이월 — 자동으로 넣은 것은 갈아끼웁니다
+    c.carry=(c.carry||[]).filter(x=>!/^cmp-/.test(x.auto||''));
+    const now=new Date().toISOString(), by=getActor()||'';
+    const add=(o,auto)=>c.carry.push(Object.assign({ id:'ca_'+Date.now().toString(36)+'_'+c.carry.length, fromYm:c.ym, done:false, auto, at:now, by },o));
+    const P=clPrice(c.vendor);
+    c.lines.filter(L=>L.st==='인정(가격 재확인 요청)').forEach(L=>{
+      add({ kind:'가격재확인', text:`${L.model} ${clWon(clCalcLine(L,P,c.vendor).amt)}원 — 가격 재확인 요청`, qty:L.qty, amt:Math.round(clCalcLine(L,P,c.vendor).amt) },'cmp-price');
+    });
+    const grp={};
+    c.lines.filter(L=>L.st==='발주서 미확인').forEach(L=>{
+      const k=L.glassCls==='5T백유리'?'5T 백유리':L.glassCls==='사틴'?'3.2T 사틴':(L.model||'기타');
+      (grp[k]=grp[k]||[]).push(L);
+    });
+    Object.entries(grp).forEach(([k,ls])=>{
+      const ds=ls.map(L=>L.date).filter(Boolean).sort();
+      add({ kind:'발주미확인', text:`${k} ${ds.length?clMd(ds[0])+(ds.length>1&&ds[ds.length-1]!==ds[0]?'~'+clMd(ds[ds.length-1]):''):''} 입고 ${ls.length}줄 — 발주 내용 미확인`,
+        qty:ls.reduce((s,L)=>s+L.qty,0), amt:Math.round(ls.reduce((s,L)=>s+clCalcLine(L,P,c.vendor).amt,0)) },'cmp-nopo');
+    });
+    let nIn=0;
+    const mn=wb.SheetNames.find(n=>/미입고/.test(n));
+    if(mn){
+      const mr=XLSX.utils.sheet_to_json(wb.Sheets[mn],{header:1,raw:true,defval:''});
+      const mh=mr.findIndex(r=>r.some(v=>/발주일/.test(String(v))));
+      if(mh>=0){
+        const MH=mr[mh].map(v=>String(v).replace(/\s/g,''));
+        const mi=re=>MH.findIndex(v=>re.test(v));
+        const mD=mi(/발주일/), mG=mi(/유리/), mW=mi(/가로/), mHh=mi(/세로/), mQ=mi(/안잡힌|남은/), mF=mi(/파일/), mK=mi(/구분/);
+        const mon=`${+c.ym.slice(5,7)}월`;
+        for(let i=mh+1;i<mr.length;i++){
+          const r=mr[i]; if(!clNum(r[mW])) continue;
+          if(mK>=0 && !String(r[mK]).includes(mon)) continue;          // 이 달 발주만 (다음 달 발주는 다음 달 대상)
+          add({ kind:'입고대기', text:`${r[mD]} 발주 ${r[mG]} ${r[mW]}×${r[mHh]} — ${r[mF]}`, w:clNum(r[mW]), h:clNum(r[mHh]), qty:clNum(r[mQ]), amt:null },'cmp-inbound');
+          nIn++;
+        }
+      }
+    }
+    c.compareFile=file.name;
+    clTouch(c); clRender();
+    const warn=[];
+    if(miss.length) warn.push(`마감에 없는 행 ${miss.length}개 (${miss.slice(0,5).join(', ')})`);
+    if(diffRows.length) warn.push(`규격·수량이 다른 행 ${diffRows.length}개 (${diffRows.slice(0,5).join(', ')})`);
+    if(unknownSt.size) warn.push(`모르는 상태 — 건너뜀: ${[...unknownSt].join(', ')}`);
+    if(warn.length) alert('대조 결과를 옮겼지만 확인할 것이 있습니다.\n\n· '+warn.join('\n· '));
+    showToast(`✓ 대조 결과 ${hit}줄을 옮겼습니다`+(nIn?` · 입고 대기 ${nIn}줄 이월`:''));
+  }catch(e){ alert('대조 파일을 못 읽었습니다.\n'+e.message); }
+}
 
 /* ══════════════════════════════════════════════════════════
    📷 이미지로 넣기 (사장님 요청 2026-09-29)
