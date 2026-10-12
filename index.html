@@ -16810,9 +16810,13 @@ const LS_ITEM_RULES = 'ybn-item-rules-v1';
 var itemRules = {};
 try{ itemRules = J(localStorage.getItem(LS_ITEM_RULES)) || {}; }catch(e){ itemRules = {}; }
 const NEW_ITEM_RECENT_DAYS = 14;          // 카드에 바로 띄울 범위 — 그 전 것은 「지난 것 보기」로 접습니다
-const ITEM_CHOICES = [                    // 고르는 칸 — value 는 cat|sz|ext
-  ['글래스도어|450|0','글래스도어 450'], ['글래스도어|450|1','글래스도어 450 연장'],
-  ['글래스도어|500|0','글래스도어 500'], ['글래스도어|500|1','글래스도어 500 연장'],
+const ITEM_CHOICES = [                    // 고르는 칸 — value 는 cat|sz|ext(|v — 글래스도어만: '' · 18 채널 18T · 18H 행잉 18T)
+  ['글래스도어|450|0|','글래스도어 450'], ['글래스도어|450|1|','글래스도어 450 연장'],
+  ['글래스도어|500|0|','글래스도어 500'], ['글래스도어|500|1|','글래스도어 500 연장'],
+  ['글래스도어|450|0|18','글래스도어 450 (18T용)'], ['글래스도어|500|0|18','글래스도어 500 (18T용)'],
+  ['글래스도어|비|0|18','글래스도어 18T 비규격'],
+  ['글래스도어|450|0|18H','글래스도어 행잉 450 (18T용)'], ['글래스도어|500|0|18H','글래스도어 행잉 500 (18T용)'],
+  ['글래스도어|비|0|18H','글래스도어 행잉 18T 비규격'],
   ['빌트인||0','빌트인'], ['EURO700||0','EURO700'], ['EURO500||0','EURO500'],
   ['유리장식장||0','유리장식장'], ['에어힌지||0','에어힌지'], ['KB||0','KB'],
   ['SKIP||0','🚫 집계에서 빼기'] ];
@@ -16828,6 +16832,31 @@ function itemIsKnownCode(code){
   const i = delivLookup(code); return !!(i.daegubun || i.short);
 }
 function itemRulesSave(){ _put(LS_ITEM_RULES, itemRules); }
+/* 글래스도어 세부 — 신형 18T 는 힌지가 달라 기존 450·500 과 따로 셉니다(사장님 2026-10-12).
+   행잉 채널도어도 따로입니다. v: '' 기존 · '18' 채널 18T · '18H' 행잉 18T. 18T 비규격은 sz '비'.
+   r = 정하신 분류. v 가 없는 옛 결정(18T 를 나누기 전)은 품명으로 다시 봅니다. */
+function glassFill(o, n, r){
+  if(r && r.v===undefined) r = null;
+  o.v   = r ? (r.v||'') : (/18\s*T/i.test(n) ? (/행잉/.test(n)?'18H':'18') : '');
+  o.ext = r ? !!r.ext : /연장/.test(n);
+  o.sz  = (r && r.sz) || ((o.v && (/비규격/.test(n) || /\(\s*비\s*\)/.test(n))) ? '비'
+          : /450/.test(n)?'450' : /500/.test(n)?'500' : '기타');
+}
+function glassLabel(c){        // 카톡 줄 이름 — '450' · '450 연장' · '450 (18T용)' · '행잉 18T 비규격'
+  const base = c.sz==='비' ? '18T 비규격' : c.sz + (c.ext?' 연장':'') + (c.v?' (18T용)':'');
+  return (c.v==='18H' ? '행잉 ' : '') + base;
+}
+const GLASS18_ORDER = ['450 (18T용)','500 (18T용)','450 연장 (18T용)','500 연장 (18T용)','18T 비규격',
+  '행잉 450 (18T용)','행잉 500 (18T용)','행잉 450 연장 (18T용)','행잉 500 연장 (18T용)','행잉 18T 비규격'];
+function glass18Lines(m){      // 그날 18T 가 있을 때만 줄이 생깁니다
+  const ix = k => { const i=GLASS18_ORDER.indexOf(k); return i<0 ? 99 : i; };
+  return Object.keys(m).filter(k=>m[k]).sort((a,b)=>ix(a)-ix(b)).map(k=>` ${k} : ${m[k]}EA\n`).join('');
+}
+function itemRuleLabel(r){
+  if(r.skip) return '🚫 집계 제외';
+  if(r.cat==='글래스도어' && r.v!==undefined) return '글래스도어 ' + glassLabel(r);
+  return r.cat + (r.sz?' '+r.sz:'') + (r.ext?' 연장':'');
+}
 
 function classifyDelivItem(name, daegubun, code){
   const n=name||'';
@@ -16838,7 +16867,7 @@ function classifyDelivItem(name, daegubun, code){
     o.learned = true;
     if(rule.skip){ o.cat='제외'; return o; }
     o.cat = rule.cat;
-    if(o.cat==='글래스도어'){ o.ext=!!rule.ext; o.sz=rule.sz || (/450/.test(n)?'450':/500/.test(n)?'500':'기타'); }
+    if(o.cat==='글래스도어') glassFill(o, n, rule);
     return o;
   }
   // 대구분 → 브리핑 카테고리 매핑
@@ -16846,13 +16875,12 @@ function classifyDelivItem(name, daegubun, code){
               '에어힌지':'에어힌지', '빗각':'KB', 'EURO700':'EURO700', 'EURO500':'EURO500' };
   if(daegubun && MAP[daegubun]){
     o.cat=MAP[daegubun];
-    if(o.cat==='글래스도어'){ o.ext=/연장/.test(n); o.sz=/450/.test(n)?'450':/500/.test(n)?'500':'기타'; }
+    if(o.cat==='글래스도어') glassFill(o, n);
     return o;
   }
   // 폴백: 제품명 추측 (대구분 없는 코드)
   if(/글래스.*도어|글래스.*채널|채널도어/.test(n)){
-    o.cat='글래스도어'; o.ext=/연장/.test(n);
-    o.sz=/450/.test(n)?'450':/500/.test(n)?'500':'기타';
+    o.cat='글래스도어'; glassFill(o, n);
   }
   else if(/(^|\s)\(?B\/I|BUIF/.test(n)) o.cat='빌트인';
   else if(/에어힌지/.test(n)) o.cat='에어힌지';
@@ -17029,8 +17057,8 @@ function buildDelivBrief(ymd, mode){
   const _bkey = d => mode==='req' ? (d.delivReqDate||d.orderDate) : (d.orderDate||d.delivReqDate);
   const docs=delivLog.filter(d=>_bkey(d)===ymd);
   if(!docs.length) return null;
-  const oido={ '450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0 };
-  const G={ glass:{'450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0}, 빌트인:0,
+  const oido={ '450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0,t18:{} };
+  const G={ glass:{'450':0,'500':0,'450연장':0,'500연장':0,total:0,ext:0,t18:{}}, 빌트인:0,
     EURO700:{total:0,hpm:0,grace:0,t73:0,non73:0,bigyu:0,bigyuHPM:0,bigyuGrace:0},
     EURO500:{total:0,t73:0,non73:0,bigyu:0},
     유리장식장:{total:0,bigyu:0}, 에어힌지:{total:0,bigyu:0}, KB:{total:0,bigyu:0}, 기타:0 };
@@ -17060,7 +17088,8 @@ function buildDelivBrief(ymd, mode){
       if(dgrp==='오이도'){
         if(c.cat==='글래스도어'){
           oido.total+=q;
-          if(c.ext){ oido.ext+=q; if(c.sz==='450')oido['450연장']+=q; else if(c.sz==='500')oido['500연장']+=q; }
+          if(c.v){ const k=glassLabel(c); oido.t18[k]=(oido.t18[k]||0)+q; }   // 18T 는 따로 (힌지가 다름)
+          else if(c.ext){ oido.ext+=q; if(c.sz==='450')oido['450연장']+=q; else if(c.sz==='500')oido['500연장']+=q; }
           else { if(c.sz==='450')oido['450']+=q; else if(c.sz==='500')oido['500']+=q; }
         } else {
           // 오이도인데 글래스도어가 아닌 품목 — 누락되지 않도록 기타로 집계
@@ -17070,7 +17099,8 @@ function buildDelivBrief(ymd, mode){
       }
       if(c.cat==='글래스도어'){
         G.glass.total+=q;
-        if(c.ext){ G.glass.ext+=q; if(c.sz==='450')G.glass['450연장']+=q; else if(c.sz==='500')G.glass['500연장']+=q; }
+        if(c.v){ const k=glassLabel(c); G.glass.t18[k]=(G.glass.t18[k]||0)+q; }
+        else if(c.ext){ G.glass.ext+=q; if(c.sz==='450')G.glass['450연장']+=q; else if(c.sz==='500')G.glass['500연장']+=q; }
         else { if(c.sz==='450')G.glass['450']+=q; else if(c.sz==='500')G.glass['500']+=q; }
       }
       else if(c.cat==='빌트인') G.빌트인+=q;
@@ -17088,11 +17118,13 @@ function buildDelivBrief(ymd, mode){
   const asTotal=Object.values(AS).reduce((a,b)=>a+b,0);
   let t=`📦 ${md}(${wd}) ${mode==='req'?'한샘납품':'발주'} · 총 ${total}EA\n\n`;
   t+=`[오이도]\n-글래스도어 : ${oido.total}EA\n 450 : ${oido['450']}EA\n 500 : ${oido['500']}EA\n 450 연장 : ${oido['450연장']}EA\n 500 연장 : ${oido['500연장']}EA\n`;
+  t+=glass18Lines(oido.t18);
   if(oido.etc){ t+=` (글래스도어 외 : ${oido.etc}EA)\n`; }
   t+=`\n`;
   t+=`[그레이박스]\n`;
   t+=`-글래스도어 : ${G.glass.total}EA (연장 : ${G.glass.ext}EA)\n`;
-  t+=` 450 : ${G.glass['450']}EA\n 500 : ${G.glass['500']}EA\n 450 연장 : ${G.glass['450연장']}EA\n 500 연장 : ${G.glass['500연장']}EA\n\n`;
+  t+=` 450 : ${G.glass['450']}EA\n 500 : ${G.glass['500']}EA\n 450 연장 : ${G.glass['450연장']}EA\n 500 연장 : ${G.glass['500연장']}EA\n`;
+  t+=glass18Lines(G.glass.t18)+`\n`;
   t+=`-빌트인 : ${G.빌트인}EA\n\n`;
   t+=`-EURO700 : ${G.EURO700.total}EA\n(HPM : ${G.EURO700.hpm}EA / 유리 : ${G.EURO700.grace}EA)\n73 : ${G.EURO700.t73}EA\n73 외 : ${G.EURO700.non73}EA\n(비규격 HPM : ${G.EURO700.bigyuHPM}EA / 비규격 유리 : ${G.EURO700.bigyuGrace}EA)\n\n`;
   t+=`-EURO500 : ${G.EURO500.total}EA\n73 : ${G.EURO500.t73}EA\n73 외 : ${G.EURO500.non73}EA\n(비규격 : ${G.EURO500.bigyu}EA)\n\n`;
@@ -18028,18 +18060,22 @@ function newItemScan(){
 }
 function newItemGuessVal(c){
   if(!c || !c.cat || c.cat==='기타') return '';
-  if(c.cat==='글래스도어') return '글래스도어|'+(c.sz==='500'?'500':'450')+'|'+(c.ext?1:0);
+  if(c.cat==='글래스도어'){
+    const sz = c.sz==='비' && c.v ? '비' : c.sz==='500' ? '500' : '450';
+    return '글래스도어|'+sz+'|'+(c.v?0:(c.ext?1:0))+'|'+(c.v||'');
+  }
   return c.cat+'||0';
 }
 function newItemDecide(key, sel){
   const v = (document.getElementById(sel)||{}).value || '';
   if(!v){ showToast('분류를 골라 주십시오'); return; }
-  const [cat, sz, ext] = v.split('|');
+  const [cat, sz, ext, gv] = v.split('|');
   delete itemRules['~'+key];                 // 「다시 정하기」로 지웠던 묘비
   const u = (window._newItems||[]).find(x => x.key===key) || {};
   itemRules[key] = cat==='SKIP'
     ? { skip:true, name:u.name||'', code:u.code||'', at:new Date().toISOString() }
-    : { cat, sz:sz||'', ext:ext==='1', name:u.name||'', code:u.code||'', at:new Date().toISOString() };
+    : Object.assign({ cat, sz:sz||'', ext:ext==='1', name:u.name||'', code:u.code||'', at:new Date().toISOString() },
+                    cat==='글래스도어' ? { v:gv||'' } : {});
   itemRulesSave();
   if(typeof autoSync==='function') autoSync();
   showToast(cat==='SKIP' ? '🚫 집계에서 뺍니다' : '✅ 정했습니다 — 앞으로 이 분류로 셉니다');
@@ -18055,7 +18091,7 @@ function newItemUndo(key){
 }
 function newItemExport(){
   const rows = Object.entries(itemRules).filter(([k,r]) => !k.startsWith('~') && r && !r.removed)
-    .map(([k,r]) => [r.code||k, r.name||'', r.skip?'집계 제외':(r.cat+(r.sz?' '+r.sz:'')+(r.ext?' 연장':''))].join('\t'));
+    .map(([k,r]) => [r.code||k, r.name||'', r.skip?'집계 제외':itemRuleLabel(r)].join('\t'));
   const t = '코드\t품명\t분류\n' + rows.join('\n');
   navigator.clipboard.writeText(t).then(()=>showToast('📋 복사했습니다 — Claude 에게 붙여 주시면 품목표에 넣습니다'))
     .catch(()=>{ prompt('아래를 복사해 주십시오', t); });
@@ -18088,7 +18124,7 @@ function renderDelivNewItems(){
   };
   const decidedHtml = decided.length ? `<details style="margin-top:8px"><summary style="font-size:11px;color:var(--tx2);cursor:pointer">✔ 정한 품목 ${decided.length}개 보기 · 고치기</summary>
       ${decided.map(([k,r]) => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b1);font-size:11px">
-        <div style="flex:1;min-width:0"><b>${brEsc(r.skip?'🚫 집계 제외':(r.cat+(r.sz?' '+r.sz:'')+(r.ext?' 연장':'')))}</b> · ${brEsc(r.name||'')} <span style="color:var(--tx3)">${brEsc(r.code||'')}</span></div>
+        <div style="flex:1;min-width:0"><b>${brEsc(itemRuleLabel(r))}</b> · ${brEsc(r.name||'')} <span style="color:var(--tx3)">${brEsc(r.code||'')}</span></div>
         <button onclick="newItemUndo('${brEsc(k).replace(/'/g,'')}')" style="flex-shrink:0;padding:4px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10px;cursor:pointer">다시 정하기</button></div>`).join('')}
       <button onclick="newItemExport()" style="margin-top:6px;padding:6px 10px;background:none;border:1px dashed var(--b2);border-radius:7px;color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📋 정한 품목 내보내기 (품목표에 정식으로 넣을 때)</button>
     </details>` : '';
