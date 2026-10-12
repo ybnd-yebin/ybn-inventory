@@ -12704,7 +12704,7 @@ function odVendorChanged(keep){
    알아서 건너뜁니다(`KR_HOLIDAYS`). 다른 발주처를 더하려면 여기 한 줄만 더하십시오. */
 /* 숫자 = 발주일에서 영업일 며칠 뒤 · 요일 목록 = 발주일 **다음 날부터** 가장 가까운 그 요일(공휴일이면 그다음).
    아름유리는 **화·금에만** 납품합니다 (사장님 2026-10-08 "그주 다가오는 화,금 중 가까운날"). 0=일 … 2=화 … 5=금 */
-const OD_VENDOR_DUE = { '대원유리': 1, '현성유리': 2, '아름유리': [2, 5] };
+const OD_VENDOR_DUE = { '대원유리': 1, '현성유리': 2, '아름유리': [2, 5], '승일포장': 7 };   // 승일포장(박스) 영업일 7일 — 사장님 2026-10-13
 function odNextDeliveryDay(base, dows){
   const d = new Date(base + 'T00:00:00');
   if(isNaN(d.getTime())) return '';
@@ -13599,7 +13599,13 @@ function odFixApproval(wb, ws){
       cell.font = Object.assign({}, cell.font || {}, { name:OD_FONT });
     });
   });
-  // ③ 결재란을 칸으로 그리기 — K8:K9 '결재' + 그 오른쪽으로 이름들
+  /* ③ 결재란 = **그림 한 장** (사장님 2026-10-13 "결재칸이 굉장히 거슬려 … 이미지로 위에 얹을수있을까?")
+     칸으로 그리면 폭·높이가 아래 표의 칸을 따라가 「결재」 칸은 넓고 서명 칸은 낮았습니다.
+     이제 J8:N9 는 비우고(종이 오른쪽 선만 남김) 그 자리에 앱이 그린 그림을 얹습니다 — 사인도 그림 안에.
+     엑셀·PDF·카톡 이미지가 모두 「그림 얹기」 길을 쓰므로 세 곳이 같이 바뀝니다.
+     그림을 못 만들면(캔버스 막힘) 예전처럼 칸으로 그립니다. */
+  if(odApprovalAsImage(wb, ws)) return;
+  // ③' (대비) 결재란을 칸으로 그리기 — K8:K9 '결재' + 그 오른쪽으로 이름들
   const F    = { name:OD_FONT, size:OD_APPROVAL_SIZE };
   const thin = { style:'thin', color:{ argb:'FF000000' } };
   const box  = { top:thin, left:thin, bottom:thin, right:thin };
@@ -13652,7 +13658,101 @@ function odFixApproval(wb, ws){
     const b = x.border || {};
     x.border = b.right ? { right:b.right } : undefined;
   });
+  odFixSeal(wb, ws);
+  // ④ 담당 칸에 사인 — 앱이 이미 들고 있는 것을 그대로 씁니다
+  const sig = odSignatureBuf();
+  if(sig){
+    try{
+      ws.addImage(wb.addImage({ buffer:sig, extension:'png' }),
+        { tl:{ col:11.18, row:8.12 }, ext:{ width:74, height:41 } });   // L9 안쪽
+    }catch(e){ console.warn('[발주서] 사인을 못 넣었습니다', e); }
+  }
+}
 
+/* 결재란 그림 — 크기·비율은 여기 숫자만 고치십시오.
+   폭·높이는 양식의 J~N 칸 · 8~9 줄을 재서 그 자리를 그대로 덮습니다(아래 표가 안 바뀝니다). */
+const OD_APV = {
+  KEY_W:   0.15,    // 「결재」 칸 몫 (나머지를 이름 셋이 똑같이 나눔)
+  HEAD_H:  0.30,    // 이름 줄 몫 (나머지가 서명 칸)
+  DOWN:    0.75,    // 아래 빈 줄(10행)을 얼마나 더 쓸지 — 서명 칸을 넉넉히 (10행 오른쪽은 비어 있습니다)
+  PAD:     3,       // 상자 바깥 여백(px)
+  LINE:    1,       // 선 굵기(px)
+  FONT_PX: 17,      // 글자 크기(px)
+  SCALE:   3        // 그림 해상도 배수 — 인쇄해도 흐리지 않게
+};
+let _odSigImg = null;          // 사인 그림(디코딩 끝난 것) — 캔버스에 그리려면 미리 읽어 둬야 합니다
+function odSigImgReady(){
+  if(_odSigImg) return Promise.resolve(_odSigImg);
+  const buf = odSignatureBuf();
+  if(!buf) return Promise.resolve(null);
+  return new Promise(res => {
+    const b = new Uint8Array(buf); let s = '';
+    for(let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    const im = new Image();
+    // ⚠ img.decode() 는 창이 가려져 있으면 안 끝납니다(12-25) — onload 로 기다립니다
+    im.onload = () => { _odSigImg = im; res(im); };
+    im.onerror = () => res(null);
+    im.src = 'data:image/png;base64,' + btoa(s);
+  });
+}
+function odApprovalAsImage(wb, ws){
+  let png;
+  const colPx = c => Math.round((Number(ws.getColumn(c).width) || 8.43) * 7.5 + 5);
+  const rowPx = r => Math.round((Number(ws.getRow(r).height) || 18) * 96 / 72);
+  const W = ['J','K','L','M','N'].reduce((s, c) => s + colPx(c), 0);
+  const H = Math.round(rowPx(8) + rowPx(9) + rowPx(10) * OD_APV.DOWN);
+  try{
+    const A = OD_APV, S = A.SCALE;
+    const cv = document.createElement('canvas');
+    cv.width = W * S; cv.height = H * S;
+    const g = cv.getContext('2d');
+    g.scale(S, S);
+    const x0 = A.PAD, y0 = A.PAD, bw = W - A.PAD * 2, bh = H - A.PAD * 2;
+    const kw = Math.round(bw * A.KEY_W), nw = (bw - kw) / OD_APPROVAL.length;
+    const hh = Math.round(bh * A.HEAD_H);
+    g.fillStyle = '#fff'; g.fillRect(x0, y0, bw, bh);
+    g.strokeStyle = '#000'; g.lineWidth = A.LINE;
+    const ln = (ax, ay, bx, by) => { g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); };
+    g.strokeRect(x0 + .5, y0 + .5, bw - 1, bh - 1);
+    ln(x0 + kw + .5, y0, x0 + kw + .5, y0 + bh);                         // 결재 | 이름들
+    ln(x0 + kw, y0 + hh + .5, x0 + bw, y0 + hh + .5);                    // 이름 줄 아래
+    for(let i = 1; i < OD_APPROVAL.length; i++){ const x = Math.round(x0 + kw + nw * i) + .5; ln(x, y0, x, y0 + bh); }
+    g.fillStyle = '#111'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `700 ${A.FONT_PX}px '${OD_FONT}', sans-serif`;
+    g.fillText('결', x0 + kw / 2, y0 + bh * 0.32);
+    g.fillText('재', x0 + kw / 2, y0 + bh * 0.68);
+    g.font = `400 ${A.FONT_PX}px '${OD_FONT}', sans-serif`;
+    OD_APPROVAL.forEach((nm, i) => g.fillText(nm, x0 + kw + nw * (i + .5), y0 + hh / 2 + 1));
+    // 담당 서명 칸에 사인 — 칸 안에 비율 그대로 꽉 맞춥니다
+    if(_odSigImg){
+      const cx = x0 + kw, cy = y0 + hh, cw = nw, ch = bh - hh, m = 3;
+      const k = Math.min((cw - m * 2) / _odSigImg.width, (ch - m * 2) / _odSigImg.height);
+      const iw = _odSigImg.width * k, ih = _odSigImg.height * k;
+      g.drawImage(_odSigImg, cx + (cw - iw) / 2, cy + (ch - ih) / 2, iw, ih);
+    }
+    const bin = atob(cv.toDataURL('image/png').split(',')[1]);
+    png = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) png[i] = bin.charCodeAt(i);
+  }catch(e){ console.warn('[발주서] 결재란 그림을 못 만들었습니다 — 칸으로 그립니다', e); return false; }
+
+  // 칸은 비웁니다 — 글자·테두리·합친 칸 (O 는 종이 오른쪽 선만 남김)
+  ['J8:K9','K8:K9','L8:L9','M8:M9','N8:N9','N8:O8','N9:O9']
+    .forEach(a => { try{ ws.unMergeCells(a); }catch(e){} });
+  ['J','K','L','M','N'].forEach(c => [8, 9].forEach(r => {
+    const x = ws.getCell(c + r); x.value = null; x.border = undefined;
+  }));
+  ['O8','O9'].forEach(a => {
+    const x = ws.getCell(a); x.value = null;
+    const b = x.border || {};
+    x.border = b.right ? { right:b.right } : undefined;
+  });
+  odFixSeal(wb, ws);                     // 도장 먼저 — 그 함수는 그림을 다 훑어 크기를 바꿉니다(결재란 그림까지 키우면 안 됨)
+  ws.addImage(wb.addImage({ buffer:png.buffer, extension:'png' }),
+    { tl:{ col:9, row:7 }, ext:{ width:W, height:H } });               // J8 왼쪽 위
+  return true;
+}
+
+function odFixSeal(wb, ws){
   /* ⑤ 도장 — 10% 키우고 글씨 쪽으로 당깁니다 (사장님 2026-09-16).
      양식의 도장은 두 칸에 걸쳐 늘어나는 방식이라 크기를 못 정합니다.
      크기를 픽셀로 못 박아 두면 엑셀과 카톡 그림이 같은 크기로 나옵니다. */
@@ -13679,14 +13779,6 @@ function odFixApproval(wb, ws){
     rg.ext = { width: w * OD_SEAL_SCALE, height: h * OD_SEAL_SCALE };
     delete rg.br;                                          // 한 칸 기준 + 크기로 바꿉니다
   });
-  // ④ 담당 칸에 사인 — 앱이 이미 들고 있는 것을 그대로 씁니다
-  const sig = odSignatureBuf();
-  if(sig){
-    try{
-      ws.addImage(wb.addImage({ buffer:sig, extension:'png' }),
-        { tl:{ col:11.18, row:8.12 }, ext:{ width:74, height:41 } });   // L9 안쪽
-    }catch(e){ console.warn('[발주서] 사인을 못 넣었습니다', e); }
-  }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -13883,6 +13975,7 @@ async function odFilledSheet(o){
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(_odTplBuf.slice(0));      // 원본은 그대로 두고 복사본을 씁니다
   const ws = wb.worksheets[0];
+  await odSigImgReady();                       // 결재란 그림에 사인을 그리려면 미리 읽어 둡니다
   odFixApproval(wb, ws);                        // 결재란·글씨체를 우리 것으로
   odFillSheet(ws, o);
   return { wb, ws };
