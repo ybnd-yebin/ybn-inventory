@@ -12444,6 +12444,18 @@ const OD_CATALOG = {
          ⚠ `type` 은 그대로 둡니다 — 발주 기록·비규격 넘겨받기(SUBDOOR_ORDER_ROUTE)가 그 이름을 씁니다. */
       {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 투명', sizeMode:true, fname:'KB 5T투명', hint:'AL 프레임 에어힌지 · 5T 투명/강화 + 비산방지필름 · 납기는 화·금'},
       {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 브론즈', sizeMode:true, fname:'KB 5T브론즈', hint:'KB 빗각 도어 · 5T 브론즈/강화 + 비산방지필름 · 납기는 화·금'},
+      /* **정규격** — 모델명을 치면 유리 사이즈가 나옵니다 (사장님 표 2026-10-08 · 요청 2026-10-13 "EURO700 처럼").
+         `models` 는 '모델명|유리 가로*세로|줄 비고' — 모델을 더하려면 한 줄만. 에어힌지는 모델 번호가 없어 장 사이즈로 부릅니다.
+         에어힌지 유리 = 장 −41 × −40 · KB 빗면 = 장 −95 × −10 · 시그니처 = 장 −5 × −5. */
+      {type:'5T 투명 / 비산방지필름 정규격', pick:'5T 투명 정규격 (에어힌지)', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T투명',
+         models:['에어힌지 벽장 445×738|405*698','에어힌지 벽장 495×738|455*698','에어힌지 분리장 595×1345|555*1305','에어힌지 키큰장 545×2113|505*2073'],
+         hint:'AL 프레임 에어힌지 정규격 · 벽장·분리장·키큰장 또는 445 같은 장 사이즈를 치면 유리 사이즈 자동 · 납기는 화·금'},
+      {type:'5T 브론즈 / 비산방지필름 정규격', pick:'5T 브론즈 정규격 (KB 빗면)', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T브론즈',
+         models:['빗면 키큰장 60211|500*2103|좌우 확인','빗면 벽장 4574|350*728','빗면 벽장 5074|400*728','빗면 플랩장 10054|900*528','빗면 플랩장 12054|1100*528'],
+         hint:'KB 빗면 정규격 · 모델 번호(4574 등)를 치면 유리 사이즈 자동 · 키큰장 60211 은 좌우가 있습니다 · 납기는 화·금'},
+      {type:'5T 투명 정규격 (시그니처 글래스도어)', pick:'5T 투명 정규격 (시그니처 글래스도어)', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
+         models:['글래스 도어 450|441*2165','글래스 도어 500|491*2165'],
+         hint:'시그니처 글래스도어 정규격 · 450 / 500 을 치면 유리 사이즈 자동 (유리 = 장 −5 × −5)'},
       /* 투명·브론즈를 **한 장에** (사장님 2026-10-08 "한페이지에 발주서를 만들어달라고 했거든.
          그래서 비고란에 투명, 브론즈 나눠서 넣어줘야해"). 줄마다 비고에 `투명`/`브론즈`.
          비규격 수납도어 보내기가 아름유리 몫에 두 유리가 섞여 있으면 이 종류로 보냅니다. */
@@ -12463,9 +12475,10 @@ const OD_CATALOG = {
          hint:'3.2T 백사틴 에토프 비규격'},
       /* 유리장식장도어 **정규격** — 모델명과 유리 사이즈 (사장님 표 2026-10-08, 유리 = 장 −24 × −24).
          단추를 누르면 줄에 유리 사이즈와 모델명이 들어갑니다. 모델을 더하려면 sizes 에 한 줄. */
-      {type:'5T 백유리 정규격', fname:'5T 백유리', pick:'5T 백유리 정규격 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'정규격', sizeMode:true,
+      {type:'5T 백유리 정규격', fname:'5T 백유리', pick:'5T 백유리 정규격 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'', modelMode:true,
+         models:['60222|571*2089','60235|571*2217','45222|421*2089','45235|421*2217','4586|421*836','5086|471*836','6086|571*836'],
          sizes:['571*2089|60222','571*2217|60235','421*2089|45222','421*2217|45235','421*836|4586','471*836|5086','571*836|6086'],
-         hint:'유리장식장도어 정규격 · 아래 모델 단추를 누르면 유리 사이즈가 들어갑니다'},
+         hint:'유리장식장도어 정규격 · 모델명(60222 등)을 치거나 아래 단추를 누르면 유리 사이즈가 들어갑니다'},
       // 유리장식장도어 비규격 — 제목 `5T 백유리 투명/반강화` (사장님 2026-10-08)
       {type:'5T 백유리', fname:'5T 백유리', pick:'5T 백유리 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 투명/반강화 · 유리장식장도어 비규격 · 사이즈 직접 입력'}
     ],
@@ -12476,6 +12489,9 @@ const OD_CATALOG = {
       {type:'3.2T 백사틴 비규격 (수기)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'각면/강화', pname:'비규격', sizeMode:true,
          fname:'3.2T 백사틴',
          hint:'3.2T 백사틴 비규격 · 사이즈 직접 입력 · 비고 각면/강화'},
+      {type:'5T 투명 정규격 (시그니처 글래스도어)', pick:'5T 투명 정규격 (시그니처 글래스도어)', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
+         models:['글래스 도어 450|441*2165','글래스 도어 500|491*2165'],
+         hint:'시그니처 글래스도어 정규격 · 450 / 500 을 치면 유리 사이즈 자동 (유리 = 장 −5 × −5)'},
       {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'}
     ]
   },
@@ -12811,7 +12827,19 @@ function odModelOptions(){
 function odModelSizeTry(i, val){
   const s = String(val||'').trim();
   if(!s || odFindModel(s)) return;
-  const sizes = new Map();                             // 'w×h' → Map(좌우 뗀 모델 → [모델 표기…])
+  /* 종류에 딸린 목록이 있으면 그 안에서만 찾습니다 — 번호(4574)·장 사이즈(445)·유리 사이즈(350728) 아무거나.
+     하나로 좁혀질 때만 채우고, 여럿이면 후보를 알려 드립니다(벽장 445·495 처럼 갈릴 때 혼동 없게). */
+  const pm = odPresetModels((curPreset()||{}).p);
+  if(pm.length){
+    const q = s.replace(/[\s*xX×]/g, '');
+    const hits = pm.filter(x => x.name.replace(/[\s×]/g, '').includes(q) || ('' + x.w + x.h) === q);
+    const inp = document.querySelectorAll('#od-lines input[list="od-model-list"]')[i];
+    if(hits.length === 1){ if(inp) inp.value = hits[0].name; odModelInput(i, hits[0].name); }
+    else if(hits.length > 1) showToast(`「${s}」에 맞는 모델이 ${hits.length}가지입니다 — ${hits.map(x => x.name).join(' · ')}. 목록에서 골라 주세요.`);
+    else showToast(`「${s}」에 맞는 정규격 모델이 없습니다 — 비규격이면 비규격 종류로 넣어 주세요.`);
+    return;
+  }
+  const sizes = new Map();                            // 'w×h' → Map(좌우 뗀 모델 → [모델 표기…])
   (typeof MODELS!=='undefined'?MODELS:[]).forEach(m=>{
     if(!m || !m.glass_w) return;
     const k = m.glass_w + '×' + m.glass_h;
@@ -12841,9 +12869,26 @@ function odModelSizeTry(i, val){
   renderOdLines();
   showToast(`${w}×${h} 모델이 ${opts.length}가지입니다 — ${opts.slice(0,4).join(' · ')}${opts.length>4?' …':''}. 사이즈만 채웠습니다.`);
 }
+/* 종류에 딸린 모델 목록 — `'모델명|가로*세로|줄 비고'` (2026-10-13, 5T 투명·브론즈·백유리 정규격) */
+function odPresetModels(p){
+  return ((p && p.models) || []).map(s => {
+    const [name, sz, bigo] = String(s).split('|');
+    const [w, h] = String(sz||'').split('*').map(x => parseInt(x) || 0);
+    return { name:(name||'').trim(), w, h, bigo:(bigo||'').trim() };
+  }).filter(x => x.name && x.w && x.h);
+}
+function odPresetModelOptions(p){
+  return odPresetModels(p).map(x =>
+    `<option value="${_odEsc(x.name)}">${x.w}×${x.h} · ${x.w}${x.h}${x.bigo ? ' · '+_odEsc(x.bigo) : ''}</option>`).join('');
+}
 // 합쳐진 이름('… (L+R)')도 원래 모델로 되짚습니다.
 function odFindModel(val){
   const s=String(val||'').trim();
+  const pm = odPresetModels((curPreset()||{}).p);
+  if(pm.length){                                   // 이 종류는 제 목록만 봅니다
+    const hit = pm.find(x => x.name === s);
+    return hit ? { short:hit.name, glass_w:hit.w, glass_h:hit.h, bigo:hit.bigo, preset:true } : null;
+  }
   if(!s || typeof MODELS==='undefined') return null;
   let m=MODELS.find(x=>x.short===s);
   if(m) return m;
@@ -13045,9 +13090,11 @@ function renderOdLines(){
   // 모델명 자동완성 목록 채우기 (한 번만 충분하지만 매번 갱신해도 무방)
   if(modelMode){
     const dl=document.getElementById('od-model-list');
-    if(dl && !dl.dataset.filled){
-      dl.innerHTML=odModelOptions();
-      dl.dataset.filled='1';
+    /* 종류에 제 모델 목록(`models`)이 있으면 그것만 — 유로700 목록과 섞이면 4574 같은 번호가 엉뚱한 모델로 갑니다 */
+    const key = (p && p.models) ? 'p:' + p.type : 'MODELS';
+    if(dl && dl.dataset.filled !== key){
+      dl.innerHTML = (p && p.models) ? odPresetModelOptions(p) : odModelOptions();
+      dl.dataset.filled = key;
     }
   }
   const host=document.getElementById('od-lines');
@@ -13160,6 +13207,12 @@ function odUseMini(ln){
 function odModelInput(i, val){
   odLines[i].pname=val;
   const m=odFindModel(val);
+  if(m && m.preset){                       // 종류에 딸린 모델 — 사이즈와 (있으면) 줄 비고만
+    odLines[i].w=m.glass_w; odLines[i].h=m.glass_h; odLines[i].codes=null;
+    if(m.bigo && !odLines[i].bigo) odLines[i].bigo=m.bigo;
+    renderOdLines();
+    return;
+  }
   if(m && m.glass_w){
     odLines[i].w=m.glass_w; odLines[i].h=m.glass_h;
     // 월평균 배지 근거. 합쳐진 이름이면 같은 base의 코드를 모두 모읍니다(좌우 공용 유리).
