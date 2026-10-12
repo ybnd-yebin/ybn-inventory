@@ -434,8 +434,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
     <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
     <button class="main-nav-btn" onclick="showMain('deskboard')">📋 업무판</button>
-    <!-- 🗓️ 일정·업무 — 만드는 중이라 설정의 「새 메인 페이지 미리보기」를 켠 기기에서만 보입니다 (2026-10-12) -->
-    <button class="main-nav-btn" id="nav-plan" style="display:none" onclick="showMain('plan')">🗓️ 일정·업무</button>
+    <!-- 🗓️ 일정·업무 (2026-10-12) — 2026-10-13 부터 모두에게 보입니다(공유). 고치기는 설정의 「입력자 목록」만 -->
+    <button class="main-nav-btn" id="nav-plan" onclick="showMain('plan')">🗓️ 일정·업무</button>
     <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
   </nav>
 </div>
@@ -1569,13 +1569,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- SETTINGS -->
 <div class="sec-pg" id="pg-settings" style="padding:14px 14px 80px">
-  <!-- 🗓️ 일정·업무 미리보기 스위치 (2026-10-12) — 이 기기에만 저장. 다른 분 화면에는 탭이 안 생깁니다 -->
-  <div class="card">
-    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;min-height:44px">
-      <input type="checkbox" id="plan-preview-chk" onchange="bdSetPreview(this.checked)" style="width:22px;height:22px">
-      <span><b>🗓️ 새 메인 페이지 미리보기</b><br><span style="font-size:11px;color:var(--tx2)">만드는 중인 「일정·업무」 탭을 <b>이 기기에서만</b> 보이게 합니다. 아직 시트로 보내지 않습니다.</span></span>
-    </label>
-  </div>
   <div class="card" style="border-left:3px solid var(--acc)">
     <div class="card-ttl">👤 내 이름 (작성자 식별)</div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:10px">
@@ -1585,6 +1578,15 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <input id="actor-input" class="inp" placeholder="예: 예빈모바일" style="font-size:13px;font-family:'Noto Sans KR',sans-serif">
     <button onclick="saveActor()" style="width:100%;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">✓ 이름 저장</button>
     <div id="actor-current" style="margin-top:8px;font-size:11px;color:var(--tx3);text-align:center"></div>
+  </div>
+  <!-- 🗓️ 일정·업무 입력자 목록 (2026-10-13) — 위 「내 이름」이 여기 있으면 고칠 수 있고, 없으면 보기만. 목록도 동기화됩니다 -->
+  <div class="card">
+    <div class="card-ttl">🗓️ 일정·업무 — 입력자 목록</div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:10px">
+      여기 있는 이름만 「일정·업무」 탭에서 넣고·고치고·완료할 수 있습니다. 나머지 분은 보기만 합니다.<br>
+      위 「내 이름」과 <b>똑같이</b> 적어 주십시오(띄어쓰기·대소문자는 상관없습니다). 실수 막기용이라 이름을 바꿔 적으면 뚫립니다.
+    </div>
+    <div id="bd-editors"></div>
   </div>
   <div class="card">
     <div class="card-ttl">📥 발주서 엑셀 업로드</div>
@@ -8804,6 +8806,8 @@ function metaForSync(){
   put('odAuto',        typeof odAuto!=='undefined'        ? odAuto        : undefined);
   put('odBigoMemo',    typeof odBigoMemo!=='undefined'    ? odBigoMemo    : undefined);
   put('itemRules',     typeof itemRules!=='undefined'     ? itemRules     : undefined);   // 🆕 처음 보는 품목 — 정하신 분류
+  /* 🗓️ 일정·업무 (2026-10-13 공유) — 카드(묘비 포함, 샘플 뺌)와 입력자 목록. 뒤쪽 let 이라 try 로 감쌉니다 */
+  try{ put('boardCards', bdForSync()); put('boardEditors', boardEditors); }catch(e){}
   /* 📒 거래처 월 마감 (2026-10-12) — 확정된 달은 요약·이월만(`clForSync`). 묘비도 같이 — 안 보내면 지운 마감이 되살아납니다.
      try 로 감싼 까닭: `closings` 는 뒤쪽 let 이라, 화면이 다 뜨기 전에 불리면 typeof 도 오류를 냅니다. */
   try{ put('closings', clForSync()); put('closingDeleted', closingDeleted); }catch(e){}
@@ -8979,6 +8983,10 @@ function applyMergedFromSheet(data){
   }
   /* 🆕 처음 보는 품목 — 코드마다 **나중에 정한 쪽**을 따릅니다. 「다시 정하기」는 `~코드` 묘비로 옵니다 —
      묘비가 정한 것보다 나중이면 그 코드를 지워, 다른 기기에서 되살아나지 않게 합니다. */
+  /* 🗓️ 일정·업무 — 카드마다 나중에 고친 쪽(`bdMergeFromSheet` → mergeById), 입력자 목록은 나중에 고친 쪽 */
+  if(data.boardCards!==undefined || data.boardEditors!==undefined){
+    try{ bdMergeFromSheet(data.boardCards, data.boardEditors); }catch(e){ console.warn('[일정·업무] 받기 실패', e); }
+  }
   /* 📒 거래처 월 마감 — 마감마다 나중에 고친 쪽. 받은 것이 요약뿐이면 이 기기의 줄은 살립니다(`clMergeFromSheet`) */
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
@@ -16138,14 +16146,14 @@ async function clUploadCompare(inp){
    "카톡은 어른들이 잘 안 보고 … 한눈에 보기 쉬운 페이지"
    계기: AS 두 건을 각각 5일·6일 연기했는데, 하나만 하루 당겨 달라던 것을 둘 다로 기억해
          하루 일찍 급하게 납품한 일. → 카드마다 **날짜 바꾼 기록**과 **오더번호·현장명**을 둡니다.
-   ─ 1단계(지금): 화면만. 이 기기 브라우저에만 저장(`ybn-board-v1`). 시트로 안 보냅니다.
-   ─ 탭은 설정의 「새 메인 페이지 미리보기」를 켠 기기에서만 보입니다(`ybn-plan-preview`).
+   ─ 저장 `ybn-board-v1`. 2026-10-13 부터 **모두에게 공유**(사장님 A안) — 앱의 기존 동기화 길에 함께 실어 보냅니다(`bdForSync`).
+     고치기는 「입력자 목록」에 있는 사람만(`bdCanEdit`). 아래 「입력자 목록」 머리말을 보십시오.
    ─ 카드 종류: progress(진행중) · order(발주중) · todo(할일) · event(일반 일정 — 카드 없이 달력에만).
      완료는 종류가 아니라 status:'done' 입니다 — 되돌리면 원래 탭으로 갑니다.
    ─ 지우기는 묘비(deleted:true) — 2단계 동기화 때 되살아나지 않게.
    ─ 공휴일 판정은 `KR_HOLIDAYS` 한 곳. 아래 이름표는 **화면에 이름을 적을 때만** 씁니다.
    ══════════════════════════════════════════════════════════ */
-const LS_BOARD='ybn-board-v1', LS_PLAN_PREVIEW='ybn-plan-preview';
+const LS_BOARD='ybn-board-v1';
 const BD_KIND={
   progress:{ label:'진행중', dot:'#16a34a', bg:'#ecfdf3', line:'#bbe5c8' },
   order:   { label:'발주중', dot:'#ea6c00', bg:'#fff4e8', line:'#f6cfa6' },
@@ -16173,8 +16181,11 @@ const bdEsc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').r
 const bdMd=s=>/^\d{4}-\d{2}-\d{2}/.test(s||'')?`${+s.slice(5,7)}/${+s.slice(8,10)}`:'';
 const bdDow=s=>['일','월','화','수','목','금','토'][new Date(s+'T00:00:00').getDay()];
 function bdHolidayName(ds){ return KR_HOLIDAYS.has(ds) ? (BD_HOLIDAY_NAME[ds]||'공휴일') : ''; }
-function bdSave(){ try{ localStorage.setItem(LS_BOARD, JSON.stringify(boardCards)); }catch(e){ showToast('⚠ 저장 실패 — 저장 공간을 확인하십시오'); } }
-function bdPreviewOn(){ try{ return localStorage.getItem(LS_PLAN_PREVIEW)==='1'; }catch(e){ return false; } }
+/* 저장하면 곧 시트로도 보냅니다. 시트에서 받아 저장할 때(quiet)는 다시 안 보냅니다 */
+function bdSave(quiet){
+  try{ localStorage.setItem(LS_BOARD, JSON.stringify(boardCards)); }catch(e){ showToast('⚠ 저장 실패 — 저장 공간을 확인하십시오'); }
+  if(!quiet) bdSyncSoon();
+}
 /* 달력에 놓을 날짜 — 발주는 입고 예정일, 나머지는 대표 날짜 */
 function bdDateOf(c){ return c.kind==='order' ? (c.arriveDate||c.date||'') : (c.date||''); }
 function bdVisible(c){
@@ -16186,30 +16197,7 @@ const bdCardsAll=()=>boardCards.filter(bdVisible);
 function bdTabOf(c){ return c.status==='done' ? 'done' : c.kind; }
 function bdOverdue(c){ const d=bdDateOf(c); return c.status!=='done' && c.kind!=='event' && d && d<todayStr(); }
 
-/* ── 샘플 (처음 한 번만, 「(샘플)」이 붙습니다. 「샘플 지우기」로 한 번에 지웁니다) ── */
-function bdSeedSamples(){
-  try{ if(localStorage.getItem('ybn-board-sampled')==='1') return; }catch(e){ return; }
-  if(boardCards.length) return;
-  const t=todayStr(), d=n=>_addDays(t,n), now=new Date().toISOString(), me=getActor()||'';
-  const mk=(o)=>Object.assign({ id:'bd_s'+Math.random().toString(36).slice(2,8), sample:true, summary:'', body:'', nextStep:'', vendor:'', item:'', qty:'',
-    orderDate:'', arriveDate:'', owner:'', orderNo:'', site:'', visibility:'all', status:'open', completedAt:'', dateLog:[],
-    createdAt:now, createdBy:me, updatedAt:now, updatedBy:me, deleted:false }, o);
-  boardCards=[
-    mk({ kind:'progress', title:'(샘플) AS 강남 현장 상마이다', orderNo:'5400162852', site:'강남 ○○아파트', date:d(5), summary:'납기 연기 후 하루 당김',
-      body:'현장 요청으로 납품일을 바꿨습니다.', nextStep:'유리 입고 확인 후 조립', owner:'송예빈',
-      dateLog:[{at:now,by:me,field:'date',from:d(-1),to:d(6),note:'5일 연기 — 유리 일정'},{at:now,by:me,field:'date',from:d(6),to:d(5),note:'현장 요청으로 하루 당김'}] }),
-    mk({ kind:'progress', title:'(샘플) AS 분당 현장 키큰장', orderNo:'5400162901', site:'분당 △△빌라', date:d(7), summary:'6일 연기 — 당김 없음',
-      nextStep:'도면 확인', owner:'송예빈', dateLog:[{at:now,by:me,field:'date',from:d(1),to:d(7),note:'6일 연기'}] }),
-    mk({ kind:'order', title:'(샘플) 현성 3.2T 백사틴 비규격', vendor:'현성유리', item:'3.2T 백사틴 비규격', qty:'24', orderDate:d(-2), arriveDate:d(1), body:'에토프 비규격분' }),
-    mk({ kind:'order', title:'(샘플) 아름 5T 투명', vendor:'아름유리', item:'5T 투명 / 비산방지필름', qty:'6', orderDate:d(-6), arriveDate:d(-1), body:'입고 예정일 지남 — 빨간 테두리 확인용' }),
-    mk({ kind:'todo', title:'(샘플) 10월 현성 마감 대조', date:d(3), body:'이월 44건 확인' }),
-    mk({ kind:'todo', title:'(샘플) 박스 재고 확인', date:d(0) }),
-    mk({ kind:'event', title:'(샘플) 월요 회의', date:d(2), body:'10:00 사무실' }),
-    mk({ kind:'todo', title:'(샘플) 9월 마감 확정', date:d(-3), status:'done', completedAt:now }),
-  ];
-  bdSave();
-  try{ localStorage.setItem('ybn-board-sampled','1'); }catch(e){}
-}
+/* ── 샘플 — 1단계 때 사장님 기기에만 심었던 「(샘플)」 카드. 시트로는 안 보냅니다(`bdForSync`). 「샘플 지우기」로 지웁니다 ── */
 function bdClearSamples(){
   if(!confirm('샘플 카드를 모두 지울까요?')) return;
   const now=new Date().toISOString();
@@ -16259,7 +16247,7 @@ function bdDayHtml(){
   };
   return `<div class="bd-dayhead">${+ds.slice(5,7)}월 ${+ds.slice(8,10)}일 (${bdDow(ds)})${hol?` <span style="color:#dc2626;font-size:14px">${bdEsc(hol)}</span>`:''}</div>
     <div class="bd-daylist">${items.map(row).join('')||'<div class="bd-muted" style="padding:14px 2px">이날은 일정이 없습니다</div>'}</div>
-    <button class="bd-btn bd-primary bd-wide" onclick="bdNew(null,'${ds}')">＋ 일정 추가</button>`;
+    ${bdCanEdit()?`<button class="bd-btn bd-primary bd-wide" onclick="bdNew(null,'${ds}')">＋ 일정 추가</button>`:''}`;
 }
 function bdSort(a,b){
   const da=bdDateOf(a)||'9999', db=bdDateOf(b)||'9999';
@@ -16271,7 +16259,7 @@ function bdBoardHtml(){
   const tabs=`<div class="bd-tabs" role="tablist">${BD_TABS.map(t=>`<button role="tab" class="bd-tab${bdTab===t?' on':''}" onclick="bdTab='${t}';bdRender()">${t==='done'?'완료':BD_KIND[t].label} <span>${cnt[t]}</span></button>`).join('')}
       <span style="flex:1"></span>
       ${boardCards.some(c=>c.sample&&!c.deleted)?`<button class="bd-btn bd-ghost" onclick="bdClearSamples()">샘플 지우기</button>`:''}
-      ${bdTab!=='done'?`<button class="bd-btn bd-primary" onclick="bdNew('${bdTab}')">＋ ${BD_KIND[bdTab].label} 추가</button>`:''}</div>`;
+      ${bdTab!=='done'&&bdCanEdit()?`<button class="bd-btn bd-primary" onclick="bdNew('${bdTab}')">＋ ${BD_KIND[bdTab].label} 추가</button>`:''}</div>`;
   let list=all.filter(c=>bdTabOf(c)===bdTab);
   let body='';
   if(bdTab==='done'){
@@ -16292,7 +16280,7 @@ function bdCardHtml(c){
   const dateLab = c.kind==='order' ? '입고 예정' : c.kind==='todo' ? '마감' : '목표일';
   const sub=[ d?`${dateLab} ${bdMd(d)}(${bdDow(d)})`:'', done?`완료 ${bdMd(_ymdLocal(new Date(c.completedAt)))}`:(over?'<b style="color:#dc2626">날짜 지남</b>':''),
     c.kind==='order'&&c.vendor?bdEsc(c.vendor):'', c.orderNo?`#${bdEsc(c.orderNo)}`:'', c.site?bdEsc(c.site):'' ].filter(Boolean).join(' · ');
-  const check = c.kind==='todo' ? `<input type="checkbox" class="bd-chk"${done?' checked':''} onclick="event.stopPropagation();bdDone('${c.id}',this.checked)" aria-label="완료">` : '';
+  const check = c.kind==='todo' ? `<input type="checkbox" class="bd-chk"${done?' checked':''}${bdCanEdit()?'':' disabled'} onclick="event.stopPropagation();bdDone('${c.id}',this.checked)" aria-label="완료">` : '';
   const field=(l,v)=>v?`<div class="bd-f"><span>${l}</span><div>${bdEsc(v).replace(/\n/g,'<br>')}</div></div>`:'';
   const log=(c.dateLog||[]).length?`<div class="bd-f"><span>날짜 바뀐 기록</span><div>${c.dateLog.map(x=>`<div class="bd-log">${bdMd(x.from)||'(없음)'} → <b>${bdMd(x.to)||'(없음)'}</b>${x.note?` — ${bdEsc(x.note)}`:''} <small>${bdEsc(x.by||'')} ${bdMd(_ymdLocal(new Date(x.at)))}</small></div>`).join('')}</div></div>`:'';
   const detail=open?`<div class="bd-detail">
@@ -16300,7 +16288,7 @@ function bdCardHtml(c){
       ${c.kind==='order'?field('거래처',c.vendor)+field('품목',c.item)+field('수량',c.qty)+field('발주일',bdMd(c.orderDate))+field('입고 예정일',bdMd(c.arriveDate)):''}
       ${field('오더번호',c.orderNo)}${field('현장명',c.site)}${field('담당자',c.owner)}${log}
       <div class="bd-meta">${c.visibility==='me'?'🔒 나만 보기 · ':''}작성 ${bdEsc(c.createdBy||'')} · 고침 ${bdEsc(c.updatedBy||'')} ${bdMd(_ymdLocal(new Date(c.updatedAt)))}</div>
-      <div class="bd-actions">
+      <div class="bd-actions"${bdCanEdit()?'':' style="display:none"'}>
         ${done?`<button class="bd-btn bd-ghost" onclick="event.stopPropagation();bdDone('${c.id}',false)">되돌리기 (${BD_KIND[c.kind].label})</button>`
           :`<button class="bd-btn bd-ghost" onclick="event.stopPropagation();bdEdit('${c.id}')">수정</button>
             ${c.kind==='order'?`<button class="bd-btn bd-primary" onclick="event.stopPropagation();bdDone('${c.id}',true)">입고 완료</button>`
@@ -16319,11 +16307,12 @@ function bdToggle(id){ bdOpenSet.has(id)?bdOpenSet.delete(id):bdOpenSet.add(id);
 /* 날짜 패널에서 누르면 그 카드 탭으로 가서 펼치고 그 자리로 갑니다. 일반 일정은 카드가 없어 바로 고치기 창 */
 function bdJump(id){
   const c=boardCards.find(x=>x.id===id); if(!c) return;
-  if(c.kind==='event'){ bdEdit(id); return; }
+  if(c.kind==='event'){ if(bdCanEdit()) bdEdit(id); else showToast(c.title+(c.body?' — '+c.body:'')); return; }
   bdTab=bdTabOf(c); bdOpenSet.add(id); bdRender();
   setTimeout(()=>{ const el=document.getElementById('bdc-'+id); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),1400); } },30);
 }
 function bdDone(id, done){
+  if(!bdCanEdit()){ showToast("보기 전용입니다 — 입력자만 고칠 수 있습니다"); return; }
   const c=boardCards.find(x=>x.id===id); if(!c) return;
   c.status=done?'done':'open'; c.completedAt=done?new Date().toISOString():'';
   c.updatedAt=new Date().toISOString(); c.updatedBy=getActor()||'';
@@ -16341,6 +16330,7 @@ function bdEdit(id){
   bdEditId=id; bdEditKind=c.kind; bdFillForm(c);
 }
 function bdFillForm(c){
+  if(!bdCanEdit()){ showToast("보기 전용입니다 — 입력자만 고칠 수 있습니다"); return; }
   const v=k=>bdEsc(c[k]||'');
   const kindSel=`<div class="bd-kinds">${['progress','order','todo','event'].map(k=>`<button type="button" class="bd-kbtn${bdEditKind===k?' on':''}" style="${bdEditKind===k?`background:${BD_KIND[k].bg};border-color:${BD_KIND[k].dot}`:''}" onclick="bdSwitchKind('${k}')">${k==='event'?'일반 일정':BD_KIND[k].label}</button>`).join('')}</div>`;
   const inp=(id,label,val,type='text',ph='')=>`<label class="bd-l">${label}<input class="bd-in" id="bdf-${id}" type="${type}" value="${val}" placeholder="${ph}"></label>`;
@@ -16376,6 +16366,7 @@ function bdReadForm(){
   return o;
 }
 function bdSaveForm(){
+  if(!bdCanEdit()){ showToast("보기 전용입니다 — 입력자만 고칠 수 있습니다"); return; }
   const f=bdReadForm(), k=bdEditKind, now=new Date().toISOString(), by=getActor()||'';
   const note=(document.getElementById('bdf-dateNote')||{}).value||'';
   if(k==='order' && !f.title) f.title=[f.vendor,f.item].filter(Boolean).join(' ');
@@ -16403,24 +16394,93 @@ function bdSaveForm(){
   bdRender(); showToast('✓ 저장했습니다');
 }
 function bdDelete(){
+  if(!bdCanEdit()){ showToast("보기 전용입니다 — 입력자만 고칠 수 있습니다"); return; }
   const c=boardCards.find(x=>x.id===bdEditId); if(!c) return;
   if(!confirm(`「${c.title}」을(를) 지울까요?`)) return;
   c.deleted=true; c.updatedAt=new Date().toISOString(); c.updatedBy=getActor()||'';
   bdSave(); closeM('bd-modal'); bdRender(); showToast('지웠습니다');
 }
-/* 설정 — 미리보기 스위치. 켠 기기에서만 탭이 보입니다 */
-function bdApplyPreview(){
-  const on=bdPreviewOn();
-  const b=document.getElementById('nav-plan'); if(b) b.style.display=on?'':'none';
-  const cb=document.getElementById('plan-preview-chk'); if(cb) cb.checked=on;
+/* ── 입력자 목록 (2026-10-13, 공유 A안) ─────────────────────
+   설정의 「내 이름」이 이 목록에 있는 사람만 추가·수정·완료 버튼이 보입니다. 나머지는 보기만.
+   ⚠ 이름은 각자 스스로 적는 값이라 **실수 막기**입니다 — 마음먹고 이름을 바꾸면 뚫립니다.
+     제대로 막는 것은 시트(Apps Script)에서 비밀번호를 확인하는 B안입니다(나중에).
+   ─ 목록이 비어 있으면 아직 아무도 정하지 않은 것이라 **누구나** 고칠 수 있고, 화면에 그렇게 알립니다.
+   ─ 목록도 동기화합니다 — 나중에 고친 쪽(`at`)이 이깁니다. */
+const LS_BOARD_EDITORS='ybn-board-editors-v1';
+let boardEditors={ names:[], at:'' };
+try{ boardEditors=J(localStorage.getItem(LS_BOARD_EDITORS))||boardEditors; }catch(e){}
+const bdNorm=s=>String(s||'').replace(/\s/g,'').toLowerCase();
+function bdCanEdit(){
+  const n=(boardEditors.names||[]);
+  if(!n.length) return true;
+  const me=bdNorm(getActor()); return !!me && n.some(x=>bdNorm(x)===me);
 }
-function bdSetPreview(on){
-  try{ localStorage.setItem(LS_PLAN_PREVIEW, on?'1':'0'); }catch(e){}
-  bdApplyPreview();
-  if(on){ bdSeedSamples(); showToast('🗓️ 일정·업무 탭을 켰습니다 (이 기기에서만)'); }
-  else if(curMain==='plan') showMain('home');
+function bdEditorsSave(){
+  boardEditors.at=new Date().toISOString(); boardEditors.by=getActor()||'';
+  try{ localStorage.setItem(LS_BOARD_EDITORS, JSON.stringify(boardEditors)); }catch(e){}
+  bdSyncSoon(); bdEditorsRender(); bdRender();
 }
-try{ bdApplyPreview(); }catch(e){}
+function bdEditorAdd(){
+  if(!bdCanEdit()){ showToast('입력자만 목록을 고칠 수 있습니다'); return; }
+  const el=document.getElementById('bd-editor-new'); const v=(el&&el.value||'').trim(); if(!v) return;
+  if((boardEditors.names||[]).some(x=>bdNorm(x)===bdNorm(v))){ showToast('이미 있는 이름입니다'); return; }
+  const first=!(boardEditors.names||[]).length;
+  boardEditors.names=(boardEditors.names||[]).concat(v);
+  // 처음 목록을 만들 때 내 이름이 빠지면 나도 못 고치게 되니 같이 넣습니다
+  if(first && getActor() && bdNorm(getActor())!==bdNorm(v)) boardEditors.names.push(getActor());
+  el.value=''; bdEditorsSave();
+}
+function bdEditorDel(i){
+  if(!bdCanEdit()) return;
+  const name=boardEditors.names[i];
+  const left=boardEditors.names.filter((_,k)=>k!==i);
+  if(left.length && getActor() && !left.some(x=>bdNorm(x)===bdNorm(getActor())) && !confirm(`「${name}」을(를) 빼면 지금 이 기기(${getActor()})도 못 고치게 됩니다. 뺄까요?`)) return;
+  boardEditors.names=left; bdEditorsSave();
+}
+function bdEditorsRender(){
+  const host=document.getElementById('bd-editors'); if(!host) return;
+  const can=bdCanEdit(), names=boardEditors.names||[], me=getActor();
+  host.innerHTML=`${names.length?names.map((n,i)=>`<span style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px;margin:0 6px 6px 0;border:1px solid var(--b2);border-radius:16px;font-size:13px">${bdEsc(n)}${can?`<button onclick="bdEditorDel(${i})" style="border:none;background:none;color:var(--tx3);cursor:pointer;font-size:15px;min-width:28px;min-height:28px" aria-label="빼기">×</button>`:''}</span>`).join('')
+      :'<div style="font-size:12px;color:var(--acc2);margin-bottom:6px">아직 비어 있어 <b>누구나</b> 고칠 수 있습니다. 이름을 넣으면 그 사람들만 고칩니다.</div>'}
+    ${can?`<div style="display:flex;gap:6px;margin-top:4px"><input id="bd-editor-new" class="inp" placeholder="설정의 「내 이름」 그대로 (예: 예빈PC)" style="margin:0;flex:1;font-size:13px"><button onclick="bdEditorAdd()" style="min-width:64px;min-height:40px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">넣기</button></div>`:''}
+    <div style="font-size:11px;color:var(--tx3);margin-top:8px">이 기기 이름: <b>${bdEsc(me||'(안 적음)')}</b> → ${can?'<b style="color:var(--acc3)">고칠 수 있음</b>':'보기만'}</div>`;
+}
+/* ── 동기화 (2026-10-13, 공유 A안 — 앱의 기존 동기화 길에 함께 실음) ──
+   카드마다 나중에 고친 쪽(updatedAt)이 이깁니다(`mergeById`). 지운 카드는 묘비(deleted)로 함께 가서 되살아나지 않습니다.
+   ─ 샘플 카드는 **안 보냅니다** — 다른 분 화면에 「(샘플)」이 뜨지 않게.
+   ─ 덧붙임 칸이 작아(`GS_EXT_LIMIT`) `BD_SYNC_MAX` 를 넘으면 오래된 완료(180일)·묘비(90일)부터 덜어 보냅니다(이 기기에는 남음).
+   ⚠ 「나만 보기」는 **화면에서 가리는 것**입니다. 카드 자체는 시트로 가므로 비밀 내용은 적지 마십시오. */
+const BD_SYNC_MAX=80000;
+function bdForSync(){
+  let out=boardCards.filter(c=>c && !c.sample);
+  if(JSON.stringify(out).length>BD_SYNC_MAX){
+    const cut=d=>_ymdLocal(new Date(Date.now()-d*86400000));
+    out=out.filter(c=>!(c.deleted && String(c.updatedAt).slice(0,10)<cut(90)) && !(c.status==='done' && String(c.completedAt).slice(0,10)<cut(180)));
+    console.warn('[일정·업무] 동기화 크기가 커서 오래된 완료·묘비는 빼고 보냅니다');
+  }
+  return out;
+}
+function bdMergeFromSheet(rc, re){
+  let changed=false;
+  if(Array.isArray(rc)){
+    const before=JSON.stringify(boardCards);
+    boardCards=mergeById(boardCards, rc, 'id');
+    if(JSON.stringify(boardCards)!==before){ changed=true; bdSave(true); }
+  }
+  if(re && Array.isArray(re.names) && String(re.at||'')>String(boardEditors.at||'')){
+    boardEditors={ names:re.names.slice(), at:re.at, by:re.by||'' };
+    try{ localStorage.setItem(LS_BOARD_EDITORS, JSON.stringify(boardEditors)); }catch(e){}
+    changed=true; bdEditorsRender();
+  }
+  if(changed && typeof curMain!=='undefined' && curMain==='plan') bdRender();
+  return changed;
+}
+let _bdSyncT=null;
+function bdSyncSoon(){
+  clearTimeout(_bdSyncT);
+  _bdSyncT=setTimeout(()=>{ try{ if(typeof autoSync==='function') autoSync(); }catch(e){} }, 1500);
+}
+try{ bdEditorsRender(); }catch(e){}
 
 /* ══════════════════════════════════════════════════════════
    📷 이미지로 넣기 (사장님 요청 2026-09-29)
