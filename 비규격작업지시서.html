@@ -6139,6 +6139,10 @@ const SUBDOOR_ORDER_ROUTE = {
   AIR: { vendor:'아름유리', type:'5T 투명 / 비산방지필름',  tag:'투명' },
   KB:  { vendor:'아름유리', type:'5T 브론즈 / 비산방지필름', tag:'브론즈' },
   YU:  { vendor:'현성유리', type:'5T 백유리',               tag:'' },
+  /* 시그니처 글래스도어 비규격 → 대원유리 5T 투명/반강화 (사장님 2026-10-13 「글래스도어 5T 투명 비규격은 대원유리로 발주함」).
+     정규격은 아름유리입니다(앱 발주탭 모델 목록). 채널·행잉(18T) 모두 유리 사양이 같습니다(12-31). */
+  SIG:     { vendor:'대원유리', type:'비규격 (5T투명·한샘장식장)', tag:'' },
+  SIGHANG: { vendor:'대원유리', type:'비규격 (5T투명·한샘장식장)', tag:'' },
 };
 const SUBDOOR_VENDOR_MIX = { '아름유리': '5T 투명·브론즈 / 비산방지필름' };   // 앱 OD_CATALOG 의 type 과 같아야 합니다
 function subdoorHandoffSend(){
