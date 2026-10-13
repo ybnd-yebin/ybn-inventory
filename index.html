@@ -21080,6 +21080,7 @@ function etpRowHtml(r){
   else if(r.cover != null) tail += ' · ' + r.cover + '영업일치';
   else if(r.cur > 0)       tail += ' · 8개월간 출고 없음';
   if(r.onOrder > 0)   tail += ' · <b style="color:var(--acc)">발주 ' + r.onOrder + '장 미입고</b>';
+  if(r.cumOut > 0)    tail += ' · <span title="' + (window._etpCumFrom ? window._etpCumFrom + ' 부터 올라온 납품서 합(AS 포함)' : '올라온 납품서 합') + '">누적 ' + r.cumOut + '장</span>';
   if(etpMode === 'normal' && r.measAvg != null) tail += ' · <span style="color:var(--acc5)">실측 ' + etpDot(r.measAvg) + '</span>';
 
   const mdl = r.models.length
@@ -21388,11 +21389,87 @@ function artCmpHtml(ours){
       <div style="font-size:10.5px;color:var(--tx3)">붙인 때 ${when}${a.basis?' · 아티팩트 기준 '+a.basis:''} · 차이 = 우리 − 아티팩트. 아티팩트는 <b>오더 발행 즉시</b> 빼고 우리는 <b>납품서로</b> 빼서, 나가기 전 물량만큼 아티팩트가 작게 보일 수 있습니다.</div>
       ${(a.warn||[]).length?`<div style="margin-top:4px;font-size:11px;color:var(--acc2)">⚠ ${a.warn.map(etpEsc).join('<br>⚠ ')}</div>`:''}
     </div>
+    ${artAlignBtnHtml()}
     ${artOpen?`<div class="filter-row" style="margin:8px 0 4px">${chip('diff','재고 다름',diff.length)}${chip('only','한쪽에만',only.length)}${chip('all','전체',rows.length)}</div>
     <div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden">
       <div style="display:grid;grid-template-columns:minmax(0,1.3fr) 1fr 1fr 64px;gap:8px;padding:6px 10px;background:var(--s3);font-size:10.5px;color:var(--tx2);font-weight:700"><span>사이즈</span><span>아티팩트</span><span>우리 앱</span><span style="text-align:right">차이</span></div>
       ${list||'<div style="padding:14px;text-align:center;font-size:12px;color:var(--tx3)">해당하는 사이즈가 없습니다</div>'}
     </div>`:''}
+  </div>`;
+}
+
+/* ── 🔁 ① 출발점 맞추기 — 아티팩트 숫자로 우리 장부를 한 번 맞춥니다 (사장님 2026-10-13 「1번 진행해줘」)
+   사장님: "와이비앱에서 하는 에토프 재고는 거의 무의미해서 맞춰볼 필요없이 그냥 그대로 따라하는게 나을거같아.
+            계속 뒤돌아서 맞춰보기할게 아니라 앞으로 나아갈 방법을"
+   ─ 빼는 때는 이미 같습니다(우리도 납품서 발주일 기준 · 올리는 즉시 — ETP_OUT_BASIS='order').
+     틀어진 것은 출발점이라, 사이즈마다 차이만큼 **실사 조정(adj)** 줄을 넣습니다. 옛 기록은 안 지웁니다.
+   ─ 아직 안 뺀 납품서(대개 AS)는 아티팩트 숫자에 이미 들어가 있으므로 **0장 출고 줄**로 「반영함」 표시만 합니다
+     — 두 번 빠지지 않게. (etpDoneDocs 가 장부의 doc 으로 봅니다)
+   ─ 넣은 줄에는 모두 `align` 표식이 붙어 「맞춤 되돌리기」로 한꺼번에 지웁니다(묘비 → 다른 기기도 같이).
+   ─ 안전재고는 **우리 것(월평균) 그대로** 둡니다 (사장님 확정 2026-10-13). */
+const LS_ART_ALIGN = 'ybn-art-align-v1';
+function artAlignInfo(){ try{ return JSON.parse(localStorage.getItem(LS_ART_ALIGN)) || null; }catch(e){ return null; } }
+function artAlignPlan(){
+  const a=artLoad(); if(!a) return null;
+  const st=etpStockMap();
+  const adj=[];
+  a.rows.forEach(r=>{
+    const our=(st[r.size]||{cur:0}).cur;
+    const d=r.cur-our;
+    if(d) adj.push({ size:r.size, our, art:r.cur, diff:d });
+  });
+  let pend=[];
+  try{ pend=etpDeductList().wait.filter(x=>x.total>0); }catch(e){}
+  return { a, adj, pend };
+}
+function artAlign(){
+  const p=artAlignPlan(); if(!p){ showToast('먼저 아티팩트 재고를 붙여 넣으십시오'); return; }
+  const {a, adj, pend}=p;
+  const when=(function(){ const d=new Date(a.at); return isNaN(d)?'':(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); })();
+  if(!adj.length && !pend.length){ showToast('이미 같습니다 — 맞출 것이 없습니다'); return; }
+  const plus=adj.filter(x=>x.diff>0).reduce((s,x)=>s+x.diff,0), minus=adj.filter(x=>x.diff<0).reduce((s,x)=>s+x.diff,0);
+  if(!confirm(
+      `${when}에 붙인 아티팩트 숫자로 우리 에토프 재고를 맞춥니다.\n\n`
+    + `· 사이즈 ${adj.length}개에 실사 조정 (+${plus}장 / ${minus}장)\n`
+    + (pend.length?`· 아직 안 뺀 납품서 ${pend.length}건은 「아티팩트에 이미 들어감」으로 표시 (두 번 안 빠지게)\n`:'')
+    + `\n옛 기록은 지우지 않고 차이만 덧붙입니다. 「맞춤 되돌리기」로 한꺼번에 되돌릴 수 있습니다.\n`
+    + `시트에도 올라가 다른 기기에 같이 반영됩니다.\n\n계속할까요?`)) return;
+  const stamp='al_'+Date.now().toString(36), d=todayStr(), md=etpMd(d);
+  adj.forEach(x=>{
+    etpAddRow({ d, t:'adj', size:x.size, qty:x.diff, src:'아티팩트 맞춤 '+md, memo:`우리 ${x.our} → 아티팩트 ${x.art}` });
+    etpLedger[etpLedger.length-1].align=stamp;
+  });
+  pend.forEach(x=>{
+    Object.keys(x.sizes).slice(0,1).forEach(s=>{
+      etpAddRow({ d:x.date, t:'out', size:s, qty:0, src:'납품서 '+x.delivNo, reason:'납품', memo:'아티팩트 맞춤에 이미 들어감 — 빼지 않음' });
+      const row=etpLedger[etpLedger.length-1]; row.doc=x.delivNo; row.align=stamp;
+    });
+  });
+  if(!etpCommit()) return;
+  try{ localStorage.setItem(LS_ART_ALIGN, JSON.stringify({ stamp, at:new Date().toISOString(), artAt:a.at, n:adj.length, plus, minus, pend:pend.length })); }catch(e){}
+  renderEtp();
+  showToast(`✅ 아티팩트 숫자로 맞췄습니다 — ${adj.length}개 사이즈 조정`+(pend.length?` · 납품서 ${pend.length}건 표시`:''));
+}
+function artAlignUndo(){
+  const info=artAlignInfo(); if(!info){ showToast('되돌릴 맞춤이 없습니다'); return; }
+  const rows=etpRows().filter(r=>r.align===info.stamp);
+  if(!rows.length){ try{ localStorage.removeItem(LS_ART_ALIGN); }catch(e){} renderEtp(); showToast('이미 되돌렸습니다'); return; }
+  if(!confirm(`맞춤으로 넣은 ${rows.length}줄을 지워 그 전 장부로 되돌릴까요?`)) return;
+  const now=new Date().toISOString();
+  rows.forEach(r=>{ etpDeleted[r.id]=now; });
+  if(!etpCommit()) return;
+  try{ localStorage.removeItem(LS_ART_ALIGN); }catch(e){}
+  renderEtp();
+  showToast(`되돌렸습니다 — ${rows.length}줄`);
+}
+function artAlignBtnHtml(){
+  const info=artAlignInfo();
+  const live=info && etpRows().some(r=>r.align===info.stamp);
+  const b=(fn,label,pri)=>`<button onclick="${fn}" style="padding:7px 13px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;${pri?'background:var(--acc4);border:none;color:#fff':'background:var(--s2);border:1px solid var(--b2);color:var(--tx1)'}">${label}</button>`;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+    ${b('artAlign()','✅ 이 숫자로 우리 재고 맞추기',1)}
+    ${live?b('artAlignUndo()','↶ 맞춤 되돌리기'):''}
+    ${live?`<span style="font-size:10.5px;color:var(--tx3)">마지막 맞춤 ${(function(){ const d=new Date(info.at); return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); })()} · ${info.n}개 사이즈</span>`:''}
   </div>`;
 }
 
@@ -21422,6 +21499,9 @@ function renderEtp(){
     rows.forEach(r => { if(m.avgBySize[r.size] != null) r.measAvg = m.avgBySize[r.size]; });
   }
 
+  /* 누적 출고 — 올라온 납품서 전부(AS 포함)를 유리로 펼친 합 (사장님 2026-10-13 「여태 누적수량도 볼 수 있었으면」).
+     월평균(안전재고의 바탕)과 따로 봅니다 — 월평균은 ETP_SIZE_MASTER 고정표입니다. */
+  try{ const cm = etpMeasured({ includeAS:true }); rows.forEach(r => { r.cumOut = cm.bySize[r.size] || 0; }); window._etpCumFrom = cm.from || ''; }catch(e){ console.warn('[에토프] 누적', e); }
   const head = etpHeadHtml(rows) + etpTodoHtml() +
     (function(){ try{ return artCmpHtml(rows); }catch(e){ console.warn('[아티팩트 맞춰 보기]', e); return ''; } })();   // 🔁 2026-10-13
 
