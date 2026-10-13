@@ -22963,7 +22963,7 @@ function etpDraftOrder(){
     const gap = r.safety - r.cur - r.onOrder;
     if(gap <= 0) return;
     const q = Math.ceil(gap / etpLotSize) * etpLotSize;
-    out.push({ size:r.size, cur:r.cur, safety:r.safety, onOrder:r.onOrder, need:gap, qty:q });
+    out.push({ size:r.size, cur:r.cur, safety:r.safety, onOrder:r.onOrder, need:gap, qty:q, nonstd:!!r.nonstd });
   });
   out.sort((a, b) => b.qty - a.qty || a.size.localeCompare(b.size));
   return out;
@@ -23569,6 +23569,120 @@ function tdyLine(left, right, sub, col){
   '</div>';
 }
 
+/* ══════════════════════════════════════════════════════════
+   🏠 오늘 — 숫자 타일 한 줄 · 「지금 발주할 것」 카드          2026-10-13
+   사장님: "앱 안에서 연결성이 쭉 있어서 할일들을 바로바로 체크할 수 있으면 …
+            지금은 계속 엑셀 켰다가 뭐 켰다가 엄청 정신이 없거든"
+   직원과 쓰는 재고 아티팩트의 KPI 타일·「지금 발주할 것」 판을 본떴습니다.
+   ─ 타일은 **세기만** 합니다. 숫자는 각 탭이 이미 내는 함수에서 그대로 가져옵니다(두 곳에 두지 않음).
+   ─ 타일을 누르면 그 탭의 그 자리로 갑니다. 0 이면 회색으로 「없음」.
+   ══════════════════════════════════════════════════════════ */
+function tdyTile(o){
+  // o: {ico, label, n, unit, tone:'red'|'orange'|'blue'|'', sub, go}
+  const col = !o.n ? 'var(--tx3)' : o.tone==='red' ? 'var(--acc4)' : o.tone==='orange' ? 'var(--acc2)' : o.tone==='blue' ? 'var(--acc)' : 'var(--tx1)';
+  const bd  = !o.n ? 'var(--b1)'  : o.tone==='red' ? 'var(--acc4)' : o.tone==='orange' ? 'var(--acc2)' : 'var(--b2)';
+  const num = (o.n==null) ? '—' : (o.text!=null ? o.text : o.n);
+  return `<button onclick="${o.go}" title="${o.title||''}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:10px 12px;border:1px solid ${bd};border-left:3px solid ${bd};border-radius:10px;background:var(--s1);cursor:pointer;text-align:left;font-family:'Noto Sans KR',sans-serif">
+    <span style="font-size:11px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${o.ico} ${o.label}</span>
+    <span style="font-size:22px;font-weight:900;line-height:1.15;color:${col};font-family:'JetBrains Mono',monospace">${num}<small style="font-size:11px;font-weight:600;margin-left:2px;font-family:'Noto Sans KR',sans-serif">${(o.n && o.unit)?o.unit:''}</small></span>
+    <span style="font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${o.n ? (o.sub||'') : (o.zero||'없음')}</span>
+  </button>`;
+}
+// 다른 탭의 칸으로 가서 그 자리를 보여 줍니다
+function tdyGoTo(main, elId, sub){
+  if(main) showMain(main);
+  setTimeout(()=>{
+    if(sub && typeof showSub==='function') try{ showSub(sub); }catch(e){}
+    const e=elId && document.getElementById(elId);
+    if(e){ e.scrollIntoView({behavior:'smooth',block:'start'}); e.classList.add('flash'); setTimeout(()=>e.classList.remove('flash'),1400); }
+  }, 120);
+}
+// 앱 발주 기록 가운데 아직 입고 체크 안 된 것
+function tdyOpenOrders(){
+  let n=0, q=0; const vs={};
+  (typeof orderLog!=='undefined'?orderLog:[]).forEach(o=>(o.items||[]).forEach(it=>{
+    if(!(it.w&&it.h) || it.received) return;
+    n++; q+=Number(it.qty)||0; const v=odStmtVendor(o.vendor); vs[v]=(vs[v]||0)+(Number(it.qty)||0);
+  }));
+  return { n, q, vs };
+}
+function todayTilesHtml(d){
+  const t=[];
+  t.push(tdyTile({ico:'🔴', label:'오늘 못 만드는 것', n:d.blocked==null?null:d.blocked.length, unit:'종', tone:'red',
+    sub:'에토프 재고가 모자람', zero:'재고로 댈 수 있음', go:"tdyGoTo('etp')"}));
+  t.push(tdyTile({ico:'🧾', label:'지금 발주할 것', n:d.etpShort.length, unit:'종', tone:'blue',
+    sub:d.etpShort.reduce((s,x)=>s+x.qty,0)+'장 · 현성 에토프', zero:'안전재고 다 채움', go:"tdyGoTo('home','tdy-order-now')"}));
+  const op=d.open;
+  t.push(tdyTile({ico:'📦', label:'입고 대기', n:op.q, unit:'장', tone:'',
+    sub:Object.entries(op.vs).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([v,q])=>v.replace(/유리$/,'')+' '+q).join(' · '),
+    zero:'다 들어옴', go:"tdyGoTo('order','od-order-list')"}));
+  t.push(tdyTile({ico:'⏰', label:'납기 지난 발주', n:d.late.length, unit:'건', tone:'red',
+    sub:d.late.reduce((s,p)=>s+p.qty,0)+'장 미입고', zero:'없음', go:"tdyGoTo('etp')"}));
+  t.push(tdyTile({ico:'🆕', label:'처음 보는 품목', n:d.newItems, unit:'개', tone:'orange',
+    sub:'납품서 탭에서 정하기', zero:'모두 정함', go:"tdyGoTo('delivery','deliv-newitem-box')"}));
+  const upl=d.upl;
+  t.push(tdyTile({ico:'📥', label:'납품서', n:upl?1:null, text:upl?(upl.gap>=1?upl.gap+'일':'오늘'):'—', tone:upl&&upl.gap>=2?'red':'',
+    sub:upl?('마지막 '+upl.last.slice(5).replace('-','/')+(upl.gap>=1?' · 영업일 밀림':' 올림')):'', zero:'올린 것 없음',
+    title:'마지막으로 납품서를 올린 날', go:"tdyGoTo('delivery')"}));
+  t.push(tdyTile({ico:'🗓️', label:'일정 날짜 지남', n:d.overdue, unit:'가지', tone:'red',
+    sub:'아래 달력에서 완료·고치기', zero:'밀린 일정 없음', go:"tdyGoTo('home','pg-plan')"}));
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;margin:10px 0 4px">${t.join('')}</div>`;
+}
+
+// 🧾 지금 발주할 것 — 크게 보여 주고 단추 하나로 발주탭에 채웁니다
+function todayOrderNowCard(etpShort){
+  if(!etpShort.length) return '';
+  const q=etpShort.reduce((s,x)=>s+x.qty,0);
+  const nNon=etpShort.filter(x=>x.nonstd).length;
+  const rows=etpShort.slice(0,12).map(x=>
+    `<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-top:1px solid var(--b1)">
+      <b style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:14px">${x.size.replace('x','×')}${x.nonstd?' <small style="font-size:10px;color:var(--acc2);font-family:Noto Sans KR,sans-serif">비규격</small>':''}</b>
+      <span style="flex:none;font-size:10.5px;color:var(--tx3)">재고 ${x.cur} · 안전 ${x.safety}${x.onOrder?' · 발주중 '+x.onOrder:''}</span>
+      <b style="flex:none;width:46px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:17px;color:var(--acc)">${x.qty}</b>
+    </div>`).join('');
+  return `<div id="tdy-order-now">`+tdyCard('var(--acc)','🧾','지금 발주할 것 — 현성 에토프 '+etpShort.length+'종 '+q+'장',
+    `<div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:4px">안전재고까지 채우는 양입니다(이미 발주해 둔 것은 뺌 · ${etpLotSize}장 묶음).</div>`+
+    rows+(etpShort.length>12?`<div style="font-size:10.5px;color:var(--tx3);margin-top:6px">외 ${etpShort.length-12}종</div>`:'')+
+    `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+       <button onclick="tdyOrderNowFill()" style="padding:10px 16px;background:var(--acc);border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📝 이 목록으로 발주서 만들기 →</button>
+       ${nNon?`<span style="align-self:center;font-size:10.5px;color:var(--acc2)">비규격 ${nNon}종은 정규격과 단가가 달라 따로 채웁니다</span>`:''}
+     </div>`,
+    tdyGo('에토프재고',"showMain('etp');setTimeout(function(){etpJump('etp-draft')},120)"))+`</div>`;
+}
+/* 「이 목록으로 발주서 만들기」 — 발주탭에 현성유리 · 3.2T 백사틴을 고르고 사이즈·수량을 채웁니다.
+   ⚠ 정규격·비규격은 **현성 단가가 다릅니다**(4,300 / 5,000 — 12-37). 그래서 한 발주서에 섞지 않습니다.
+     정규격이 있으면 정규격 먼저, 다 기록한 뒤 다시 누르면 남은 비규격이 채워집니다.
+   ⚠ 관통보링 사이즈(`592x1538 L`)의 L/R 은 줄 비고에 넣습니다. */
+const TDY_ORDER_TYPE = { std:'3.2T 백사틴 정규격 (유로700)', non:'3.2T 백사틴 비규격' };
+function tdyOrderNowFill(){
+  const all=(typeof etpDraftOrder==='function')?etpDraftOrder():[];
+  if(!all.length){ showToast('발주할 것이 없습니다'); return; }
+  const std=all.filter(x=>!x.nonstd), non=all.filter(x=>x.nonstd);
+  const pick=std.length?std:non, kind=std.length?'std':'non';
+  const cur=odLines.filter(l=>String(l.w||'').trim()||String(l.h||'').trim()||String(l.pname||'').trim());
+  if(cur.length && !confirm(`발주 입력칸에 품목 ${cur.length}줄이 있습니다.\n지우고 「지금 발주할 것」으로 채울까요?`)) return;
+  showMain('order');
+  const csel=document.getElementById('od-cat');
+  if(csel && [...csel.options].some(x=>x.value==='유리')){ csel.value='유리'; }
+  odCatChanged();
+  const vsel=document.getElementById('od-vendor');
+  let ok=false;
+  if(vsel && [...vsel.options].some(x=>x.value==='현성유리')){
+    vsel.value='현성유리'; odVendorChanged();
+    const ti=(curCatVendors()['현성유리']||[]).findIndex(p=>p.type===TDY_ORDER_TYPE[kind]);
+    if(ti>=0){ document.getElementById('od-type').value=String(ti); odTypeChanged(); ok=true; }
+  }
+  odLines=pick.map(x=>{
+    const m=String(x.size).match(/^(\d+)x(\d+)(?:\s*([LR]))?/i)||[];
+    return { w:m[1]||'', h:m[2]||'', qty:x.qty, pname:'', color:'에토프', bigo:m[3]?m[3].toUpperCase():'' };
+  });
+  renderOdLines();
+  setTimeout(()=>{ const top=document.getElementById('od-vendor'); if(top) top.scrollIntoView({behavior:'smooth',block:'center'}); },120);
+  showToast(!ok ? '⚠ 현성유리·백사틴 종류를 못 찾아 품목만 채웠습니다 — 발주처·종류를 고르십시오'
+    : `📝 현성 ${kind==='std'?'정규격':'비규격'} ${pick.length}종 ${pick.reduce((s,x)=>s+x.qty,0)}장을 채웠습니다`
+      + (kind==='std'&&non.length?` — 비규격 ${non.length}종은 기록한 뒤 다시 누르십시오`:''));
+}
+
 function renderToday(){
   const head=document.getElementById('today-head');
   const body=document.getElementById('today-body');
@@ -23595,8 +23709,15 @@ function renderToday(){
         '</span>' +
       '</div>' +
       '<div style="margin-top:6px;font-size:10.5px;color:var(--tx3)">' +
-        '납품서·재고·발주를 훑어 스스로 찾은 것입니다. 할일에 적지 않으셔도 됩니다.' +
+        '납품서·재고·발주를 훑어 스스로 찾은 것입니다. 할일에 적지 않으셔도 됩니다. 타일을 누르면 그 자리로 갑니다.' +
       '</div>' +
+      (function(){ try{
+        const newItems=(function(){ try{
+          const since=_addDays(td,-NEW_ITEM_RECENT_DAYS);
+          return newItemScan().filter(u=>(u.last||'')>=since).length; }catch(e){ return null; } })();
+        const overdue=(function(){ try{ return bdCardsAll().filter(c=>c.status!=='done' && bdOverdue(c)).length; }catch(e){ return null; } })();
+        return todayTilesHtml({ blocked, etpShort, late, upl, open:tdyOpenOrders(), newItems, overdue });
+      }catch(e){ console.warn('[오늘] 타일',e); return ''; } })() +
     '</div>';
 
   let h='';
@@ -23605,7 +23726,7 @@ function renderToday(){
   // 2026-10-13: 일정·업무(달력·카드)를 이 화면 안에 통째로 넣어 요약 카드는 뺐습니다 — 겹칩니다.
   //   todayPlanCard() 는 남겨 둡니다(되돌릴 때 이 줄만 살리면 됩니다).
   //   앱을 막 열 때(첫 renderToday)는 달력 값(bdYear 등)이 아직 선언 전이라 실패합니다 → 스크립트가 다 읽힌 뒤 한 번 더.
-  try{ bdRender(); bdRenderExtras(); }catch(e){ setTimeout(function(){ try{ bdRender(); bdRenderExtras(); }catch(e2){ console.warn('[오늘] 일정·업무',e2); } },0); }
+  try{ bdRender(); bdRenderExtras(); }catch(e){ if(!window._tdyRetried){ window._tdyRetried=1; setTimeout(function(){ try{ renderToday(); }catch(e2){ console.warn('[오늘] 일정·업무',e2); } },0); } }
 
   // ── 🔴 납품서 업로드가 밀렸으면 제일 먼저 (다른 숫자가 다 이것에 기댑니다)
   if(upl && upl.gap>=2){
@@ -23659,7 +23780,9 @@ function renderToday(){
   }
 
   // ── 🧾 발주 넣을 것
-  if(etpShort.length){
+  // 2026-10-13: 크게 보이고 단추 하나로 발주탭에 채우는 「지금 발주할 것」 카드로 바꿨습니다(todayOrderNowCard).
+  if(etpShort.length){ try{ h+=todayOrderNowCard(etpShort); }catch(e){ console.warn('[오늘] 지금 발주할 것',e); } }
+  if(false && etpShort.length){   // 옛 카드 — 되돌릴 때 위 줄을 지우고 false 를 빼면 됩니다
     const q=etpShort.reduce((s,x)=>s+x.qty,0);
     h+=tdyCard('var(--acc)','🧾','현성유리에 발주할 것 '+etpShort.length+'종 '+q+'장',
       '<div style="font-size:11.5px;color:var(--tx2);line-height:1.6">안전재고까지 채우는 양입니다. 이미 발주해 둔 것은 빼고 셌습니다.<br>' +
