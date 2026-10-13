@@ -1138,6 +1138,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="m-tab on" id="lg-tab-buy" onclick="setLedgerKind('buy')">📥 매입 (사오는 것)</button>
     <button class="m-tab" id="lg-tab-sell" onclick="setLedgerKind('sell')">📤 매출 (파는 것)</button>
   </div>
+  <!-- 📋 한샘 단가표 (2026-10-14) — 매출 탭에서만 보입니다. renderHsPrice 가 그립니다 -->
+  <div id="hs-price-host" style="display:none"></div>
 
   <div class="card">
     <div class="card-ttl" id="lg-form-title">📥 매입 입력</div>
@@ -1387,6 +1389,21 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <textarea id="art-paste-ta" class="inp" rows="10" placeholder="여기에 붙여 넣으십시오" style="width:100%;box-sizing:border-box;font-size:12px;font-family:'JetBrains Mono',monospace"></textarea>
     <div id="art-paste-msg" style="font-size:12px;margin:6px 0"></div>
     <button onclick="artTakePaste()" style="width:100%;padding:11px;background:var(--acc);border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">읽고 맞춰 보기</button>
+  </div>
+</div>
+
+<!-- 📋 SRM 줄 붙여넣기 (2026-10-14) -->
+<div class="modal-bg" id="hs-paste-modal">
+  <div class="modal-sheet" style="max-width:760px;margin:0 auto">
+    <button class="close-btn" onclick="closeM('hs-paste-modal')">×</button>
+    <div class="modal-ttl">📋 SRM 줄 붙여넣기 — 한샘 단가</div>
+    <div style="font-size:11.5px;color:var(--tx2);line-height:1.7;margin-bottom:8px">
+      SRM 「P/O 참조 납품서 생성」 → 발주를 열어 「P/O구매오더상세」 표의 줄을 끌어 선택 → <b>Ctrl+C</b> → 아래에 <b>Ctrl+V</b>.
+      여러 발주를 이어 붙여도 됩니다. 같은 줄은 두 번 안 들어갑니다.
+    </div>
+    <textarea id="hs-paste-ta" class="inp" rows="9" placeholder="1	00030	CAIB14165	글래스 채널도어 450(18T용)	1000	1001	2	EA	110849	221698 …" style="width:100%;box-sizing:border-box;font-size:12px;font-family:'JetBrains Mono',monospace"></textarea>
+    <div id="hs-paste-msg" style="font-size:12px;margin:6px 0"></div>
+    <button onclick="hsTakePaste()" style="width:100%;padding:11px;background:var(--acc);border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">읽고 단가표에 넣기</button>
   </div>
 </div>
 
@@ -17650,6 +17667,177 @@ let lgEditId=null;
 let lgPhotoData=null;    // 저장용(작은) base64 (data URL)
 let lgReadData=null;     // 읽기용(큰) base64 (data URL)
 
+/* ══════════════════════════════════════════════════════════
+   📋 한샘 단가표 — SRM 「P/O 구매오더상세」 줄을 붙여 넣어 모읍니다       2026-10-14
+   사장님: "매일 뜨는 것에 대한 단가들을 모아서 우리만의 단가표 … 마감자료로 쓰는 것도 좋을 것 같고"
+           "납품창고를 나누면 좋을 것 같아. 그레이박스랑 오이도 둘뿐"
+   ─ 줄 차례(탭으로 갈림): No · 순번 · 자재코드 · 자재명 · 납품처 · 저장소 · 수량 · 단위 · 단가 · 합계금액 · 영업오더 · 품목순번 · AS · 납품일
+   ─ 창고는 **저장소 칸**으로 갈립니다 — 1001 그레이박스 · 2001 오이도 (2026-10-14 실제 두 발주로 확인). 모르는 번호는 그대로 적고 드러냅니다.
+   ─ 단가는 **공급가**(부가세 뺌) — 줄 합계의 합이 SRM 「총합계금액」과 같습니다(600,378).
+   ─ 비규격은 같은 코드라도 사이즈마다 단가가 다를 수 있어 **코드 + 사이즈**가 열쇠입니다(delivSizeLR).
+   ─ 같은 줄을 두 번 붙여도 안 늘어납니다 — 코드·순번·수량·단가·납품일·저장소가 같으면 같은 줄.
+   ─ 저장: 이 기기 `ybn-hs-price-v1`. ⚠ 시트 동기화는 아직 안 합니다(용량 — 할일.md).
+   ══════════════════════════════════════════════════════════ */
+const LS_HS_PRICE = 'ybn-hs-price-v1';
+const HS_WH = { '1001':'그레이박스', '2001':'오이도' };
+let hsPrice = (function(){ try{ const o=JSON.parse(localStorage.getItem(LS_HS_PRICE)); return (o && Array.isArray(o.rows)) ? o : { rows:[] }; }catch(e){ return { rows:[] }; } })();
+let hsWhFilter = '', hsSearch = '', hsOpen = false;
+function hsSave(){ try{ localStorage.setItem(LS_HS_PRICE, JSON.stringify(hsPrice)); return true; }catch(e){ console.warn('[한샘 단가] 저장 실패', e); return false; } }
+function hsNum(t){ const n=parseFloat(String(t==null?'':t).replace(/[,\s원]/g,'')); return isNaN(n)?null:n; }
+function hsSizeOf(name){ try{ return isNonStd(name) ? (delivSizeLR(name).size || '') : ''; }catch(e){ return ''; } }
+function hsKey(code, size, wh){ return [code, size||'', wh||''].join('|'); }
+
+// 붙여 넣은 글 → 줄들
+function hsParse(text){
+  const out=[], bad=[];
+  String(text||'').split(/\r?\n/).forEach(ln=>{
+    if(!ln.trim()) return;
+    const c=ln.split('\t').map(s=>s.trim());
+    // 자재코드 칸을 찾아 그 뒤로 셉니다(앞에 No·순번이 없어도 되게)
+    const ci=c.findIndex((x,i)=>i<=3 && /^[A-Z][A-Z0-9]{5,}$/.test(x));
+    if(ci<0){ bad.push(ln.slice(0,40)); return; }
+    const code=c[ci], name=c[ci+1]||'', wh=c[ci+3]||'', qty=hsNum(c[ci+4]), price=hsNum(c[ci+6]), amt=hsNum(c[ci+7]);
+    const seq=ci>=1 ? c[ci-1] : '';
+    const dm=(c.slice(ci+8).join(' ').match(/(20\d{2})[-.]?(\d{2})[-.]?(\d{2})/)||[]);
+    const deliv=dm[1] ? dm[1]+'-'+dm[2]+'-'+dm[3] : '';
+    if(price==null || qty==null){ bad.push(ln.slice(0,40)); return; }
+    const asCol=(c[ci+10]||'').trim();
+    out.push({ code, name, size:hsSizeOf(name), wh, whName:HS_WH[wh]||('저장소 '+wh), qty, price, amt, deliv, seq,
+               as:!!asCol, id:[code,seq,qty,price,deliv,wh].join('~') });
+  });
+  return { out, bad };
+}
+function hsOpenPaste(){
+  document.getElementById('hs-paste-ta').value='';
+  document.getElementById('hs-paste-msg').innerHTML='';
+  document.getElementById('hs-paste-modal').classList.add('on');
+  setTimeout(()=>{ const t=document.getElementById('hs-paste-ta'); if(t) t.focus(); },50);
+}
+function hsTakePaste(){
+  const p=hsParse(document.getElementById('hs-paste-ta').value);
+  const msg=document.getElementById('hs-paste-msg');
+  if(!p.out.length){ msg.innerHTML='<span style="color:var(--acc4)">읽은 줄이 없습니다 — SRM 상세 창의 표 줄을 복사해 붙여 주십시오.</span>'; return; }
+  const have=new Set(hsPrice.rows.map(r=>r.id));
+  const now=new Date().toISOString();
+  let add=0, dup=0, changed=0;
+  p.out.forEach(r=>{
+    if(have.has(r.id)){ dup++; return; }
+    const prev=hsBook()[hsKey(r.code,r.size,r.wh)];
+    if(prev && prev.price!==r.price) changed++;
+    r.at=now; hsPrice.rows.push(r); have.add(r.id); add++;
+  });
+  if(!hsSave()){ msg.innerHTML='<span style="color:var(--acc4)">이 브라우저에 저장하지 못했습니다.</span>'; return; }
+  closeM('hs-paste-modal'); hsOpen=true; renderHsPrice();
+  const unk=p.out.filter(r=>!HS_WH[r.wh]).length;
+  showToast(`📋 ${add}줄 넣음`+(dup?` · 이미 있는 ${dup}줄 건너뜀`:'')+(changed?` · ⚠ 단가 바뀐 것 ${changed}`:'')+(unk?` · 모르는 저장소 ${unk}줄`:'')+(p.bad.length?` · 못 읽은 ${p.bad.length}줄`:''));
+}
+// 단가표 — 열쇠(코드·사이즈·창고)마다 최근 단가와 이력
+function hsBook(){
+  const b={};
+  hsPrice.rows.slice().sort((x,y)=>String(x.deliv||x.at).localeCompare(String(y.deliv||y.at))).forEach(r=>{
+    const k=hsKey(r.code,r.size,r.wh);
+    const e=b[k]||(b[k]={ key:k, code:r.code, name:r.name, size:r.size, wh:r.wh, whName:r.whName, price:r.price, prev:null, first:r.deliv, last:r.deliv, n:0, qty:0, hist:[] });
+    if(e.price!==r.price){ e.prev=e.price; e.hist.push({ d:r.deliv, from:e.price, to:r.price }); e.price=r.price; }
+    e.name=r.name; e.last=r.deliv||e.last; e.n++; e.qty+=r.qty;
+  });
+  return b;
+}
+// 납품서 한 줄의 단가 찾기 — 같은 창고 → 다른 창고 순
+function hsPriceOf(code, size, whName){
+  const b=hsBook(); const wh=Object.keys(HS_WH).find(k=>HS_WH[k]===whName)||'';
+  const e=b[hsKey(code,size,wh)] || Object.values(b).find(x=>x.code===code && (x.size||'')===(size||''));
+  return e ? { price:e.price, other: e.wh!==wh } : null;
+}
+function hsSetWh(w){ hsWhFilter=w; hsOpen=true; renderHsPrice(); }
+function hsToggle(){ hsOpen=!hsOpen; renderHsPrice(); }
+function hsOnSearch(v){ hsSearch=String(v||''); clearTimeout(window._hsT); window._hsT=setTimeout(renderHsPrice,200); }
+
+// 📥 한 달 매출 — 그달 납품서(납품요청일) 수량 × 단가표
+let hsYm = todayStr().slice(0,7);
+function hsMonthRows(ym){
+  const out=[];
+  (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
+    if(!d || (d.id && typeof delivDeleted!=='undefined' && delivDeleted[d.id])) return;
+    const day=d.delivReqDate||d.orderDate||''; if(day.slice(0,7)!==ym) return;
+    const whName=delivDestGroup(d.dest), as=String(d.refNo||'').startsWith('54');
+    (d.items||[]).forEach(it=>{
+      const q=Number(it.qty)||0; if(!q || !it.code) return;
+      const nm=it.name||it.short||'';
+      const size=hsSizeOf(nm);
+      const p=hsPriceOf(it.code, size, whName);
+      out.push({ day, delivNo:d.delivNo||'', refNo:d.refNo||'', as, whName, code:it.code, name:nm, size, qty:q,
+                 price:p?p.price:null, other:p?p.other:false, amt:p?p.price*q:null });
+    });
+  });
+  return out.sort((a,b)=>a.day.localeCompare(b.day)||a.code.localeCompare(b.code));
+}
+function hsMonthExcel(){
+  if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 — 잠시 후 다시'); return; }
+  const ym=((document.getElementById('hs-ym')||{}).value||hsYm).trim(); hsYm=ym;
+  const rows=hsMonthRows(ym);
+  if(!rows.length){ showToast(ym+' 납품서가 없습니다'); return; }
+  const sum=(f)=>rows.filter(f).reduce((s,r)=>s+(r.amt||0),0);
+  const head=[['기간',ym,'','기준','납품요청일 · 납품서 수량 × 한샘 단가표(공급가)'],[],
+    ['납품요청일','창고','구분','납품번호','참조오더','제품코드','품명','사이즈','수량','단가','금액','비고']];
+  const body=rows.map(r=>[r.day, r.whName, r.as?'AS':'정오더', r.delivNo, r.refNo, r.code, r.name, r.size, r.qty, r.price==null?'':r.price, r.amt==null?'':r.amt, r.price==null?'단가 없음':(r.other?'다른 창고 단가':'')]);
+  const tot=[[],
+    ['그레이박스 정오더','','','','','','','','',' ',sum(r=>r.whName==='그레이박스'&&!r.as)],
+    ['오이도 정오더','','','','','','','','',' ',sum(r=>r.whName==='오이도'&&!r.as)],
+    ['AS','','','','','','','','',' ',sum(r=>r.as)],
+    ['합계(공급가)','','','','','','','','',' ',sum(()=>true)],
+    ['단가 없음',rows.filter(r=>r.price==null).length+'줄','','','','','','',rows.filter(r=>r.price==null).reduce((s,r)=>s+r.qty,0)+'개']];
+  const ws=XLSX.utils.aoa_to_sheet(head.concat(body,tot));
+  ws['!cols']=[{wch:11},{wch:10},{wch:7},{wch:12},{wch:12},{wch:12},{wch:40},{wch:11},{wch:6},{wch:10},{wch:12},{wch:14}];
+  const book=Object.values(hsBook()).sort((a,b)=>a.whName.localeCompare(b.whName)||a.code.localeCompare(b.code));
+  const ws2=XLSX.utils.aoa_to_sheet([['창고','제품코드','품명','사이즈','단가','이전 단가','처음','마지막','본 횟수']].concat(
+    book.map(e=>[e.whName,e.code,e.name,e.size,e.price,e.prev==null?'':e.prev,e.first,e.last,e.n])));
+  ws2['!cols']=[{wch:10},{wch:12},{wch:40},{wch:11},{wch:10},{wch:10},{wch:11},{wch:11},{wch:8}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'월 매출'); XLSX.utils.book_append_sheet(wb,ws2,'단가표');
+  XLSX.writeFile(wb, odFileName([ym.slice(2,4)+ym.slice(5,7),'한샘','매출']) + '.xlsx');
+  showToast(`📥 ${ym} 매출 엑셀 — ${rows.length}줄`+(rows.some(r=>r.price==null)?` · 단가 없음 ${rows.filter(r=>r.price==null).length}줄`:''));
+}
+
+function renderHsPrice(){
+  const host=document.getElementById('hs-price-host'); if(!host) return;
+  host.style.display=(typeof lgKind==='undefined'||lgKind==='sell')?'':'none';
+  const book=Object.values(hsBook());
+  const q=hsSearch.trim().toLowerCase();
+  const list=book.filter(e=>(!hsWhFilter||e.wh===hsWhFilter) && (!q || (e.code+' '+e.name+' '+e.size).toLowerCase().includes(q)))
+    .sort((a,b)=>(b.prev!=null)-(a.prev!=null) || String(b.last).localeCompare(String(a.last)) || a.code.localeCompare(b.code));
+  const cnt=w=>book.filter(e=>e.wh===w).length;
+  const chip=(w,l,n)=>`<button class="f-btn${hsWhFilter===w?' on':''}" onclick="hsSetWh('${w}')">${l} ${n}</button>`;
+  const btn=(fn,l,pri)=>`<button onclick="${fn}" style="padding:7px 13px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;${pri?'background:var(--acc);border:none;color:#fff':'background:var(--s2);border:1px solid var(--b2);color:var(--tx1)'}">${l}</button>`;
+  const COLS='minmax(0,1fr) 64px 76px 76px 52px';
+  const num=(v,o)=>{ o=o||{}; const e=v==null; return `<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:${o.big?'13px':'11.5px'};font-weight:${o.big?800:500};color:${e?'var(--tx3)':(o.c||'var(--tx1)')}">${e?'-':Number(v).toLocaleString('ko-KR')}</span>`; };
+  const rows=list.slice(0,300).map(e=>`<div style="display:grid;grid-template-columns:${COLS};gap:6px;align-items:center;padding:6px 10px;border-top:1px solid var(--b1);${e.prev!=null?'background:rgba(234,108,0,.06)':''}">
+      <div style="min-width:0"><b style="font-family:'JetBrains Mono',monospace;font-size:12px">${etpEsc(e.code)}</b> <span style="font-size:10px;color:var(--tx3)">${etpEsc(e.whName)}</span>
+        <div style="font-size:11px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${etpEsc(e.name)}${e.size?' <b style="color:var(--acc2)">'+etpEsc(e.size)+'</b>':''}</div></div>
+      <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3)">${e.last?e.last.slice(5).replace('-','/'):'-'}</span>
+      ${num(e.prev,{c:'var(--tx3)'})}${num(e.price,{big:true,c:e.prev!=null?'var(--acc2)':''})}
+      <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2)">${e.n}</span>
+    </div>`).join('');
+  host.innerHTML=`<div class="card" style="border-left:3px solid var(--acc)">
+    <div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span>📋 한샘 단가표 <span style="font-weight:400;color:var(--tx3)">(SRM · 공급가)</span></span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap">${btn('hsOpenPaste()','📋 SRM 줄 붙여넣기',1)}${book.length?btn('hsToggle()',hsOpen?'접기':'펼치기'):''}</span>
+    </div>
+    <div style="font-size:11.5px;color:var(--tx2);line-height:1.7">
+      SRM 「P/O 구매오더상세」 표 줄을 복사해 붙이면 <b>제품코드별 단가</b>가 쌓입니다. 창고는 저장소 칸으로 갈립니다(1001 그레이박스 · 2001 오이도).
+      지금 <b>${book.length}품목</b>${book.filter(e=>e.prev!=null).length?` · <b style="color:var(--acc2)">단가 바뀐 것 ${book.filter(e=>e.prev!=null).length}</b>`:''}.
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
+      <input type="month" id="hs-ym" value="${hsYm}" onchange="hsYm=this.value" style="padding:5px 7px;font-size:12px;border:1px solid var(--b2);border-radius:7px;background:var(--s2);color:var(--tx1)">
+      ${btn('hsMonthExcel()','📥 이 달 매출 엑셀 (납품서 × 단가)')}
+    </div>
+    ${hsOpen && book.length?`<div class="filter-row" style="margin:10px 0 6px">${chip('','전체',book.length)}${chip('1001','그레이박스',cnt('1001'))}${chip('2001','오이도',cnt('2001'))}</div>
+    <input class="inp" value="${etpEsc(hsSearch)}" oninput="hsOnSearch(this.value)" placeholder="🔍 코드 · 품명 · 사이즈" style="margin-bottom:6px;padding:8px 10px;font-size:12.5px">
+    <div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:${COLS};gap:6px;padding:6px 10px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)"><span>제품코드 · 품명</span><span style="text-align:right">마지막</span><span style="text-align:right">이전 단가</span><span style="text-align:right">단가</span><span style="text-align:right">본 횟수</span></div>
+      ${rows||'<div style="padding:14px;text-align:center;font-size:12px;color:var(--tx3)">해당하는 품목이 없습니다</div>'}
+    </div>`:''}
+  </div>`;
+}
+
 function setLedgerKind(k){
   lgKind=k;
   document.getElementById('lg-tab-buy').classList.toggle('on',k==='buy');
@@ -17671,6 +17859,7 @@ function renderLedger(){
     vl.innerHTML=names.map(n=>'<option value="'+n+'"></option>').join('');
   }
   renderLedgerMonthly();
+  try{ renderHsPrice(); }catch(e){ console.warn('[한샘 단가표]', e); }   // 📋 매출 탭에서만 보입니다 (2026-10-14)
   renderLedgerByVendor();
   renderLedgerList();
   if(!lgItems.length) lgItems=[{item:'',price:'',qty:'',amount:''}];
