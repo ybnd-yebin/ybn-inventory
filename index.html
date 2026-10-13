@@ -12517,7 +12517,9 @@ const OD_CATALOG = {
   },
   '박스': {
     '승일포장': [
-      {type:'일반', thick:'', title:'박스 발주', bigo:'', pname:'', sizeMode:true, hint:'규격·수량 직접 입력. 자주 쓰는 박스 종류를 알려주시면 프리셋으로 추가해 드릴게요.'}
+      /* 박스는 **인쇄명 + 수량** 입니다 (사장님 2026-10-13). 인쇄명은 업체에 보낸 이름 그대로일 뿐이라(같은 박스에 비슷한 비규격도 싸므로)
+         앱이 짐작해 만들지 않습니다 — **지난 박스 발주에 적힌 이름만** 목록으로 띄웁니다(odBoxNames). */
+      {type:'일반', thick:'', title:'박스 발주', bigo:'', pname:'', qtyOnly:true, boxName:true, hint:'인쇄명·수량 입력 · 인쇄명 칸에 글자 일부(예: 3573)를 치면 지금까지 발주한 인쇄명이 뜹니다. 처음 쓰는 이름은 그냥 적으시면 다음부터 뜹니다.'}
     ]
   },
   '목대': {
@@ -12767,7 +12769,7 @@ function odTypeChanged(){
     document.getElementById('od-type-hint').textContent =
       (p.hint||'') + (linked ? '\n🟠 저장하면 에토프재고의 발주 기록에도 같이 들어갑니다 — 거기서 따로 넣지 않으셔도 됩니다.' : '');
     document.getElementById('od-type-hint').style.whiteSpace = 'pre-line';
-    document.getElementById('od-line-hint').textContent=p.modelMode?'모델명 입력 → 사이즈 자동':'규격은 가로*세로 (mm)';
+    document.getElementById('od-line-hint').textContent=p.boxName?'인쇄명 — 지난 발주에서 골라 쓰기':p.modelMode?'모델명 입력 → 사이즈 자동':'규격은 가로*세로 (mm)';
   }
   renderOdLines();
 }
@@ -12880,6 +12882,27 @@ function odPresetModels(p){
 function odPresetModelOptions(p){
   return odPresetModels(p).map(x =>
     `<option value="${_odEsc(x.name)}">${x.w}×${x.h} · ${x.w}${x.h}${x.bigo ? ' · '+_odEsc(x.bigo) : ''}</option>`).join('');
+}
+/* 박스 인쇄명 목록 — **지난 박스 발주에 적힌 이름만** (사장님 2026-10-13 "이미 발주한거에서 끌어오면돼").
+   짐작·꼬리표 없이 이름 그대로. 최근에 쓴 것이 위로, 옆에 마지막 발주일·수량만 적습니다.
+   목록은 발주 기록(orderLog)에서 그때그때 모으므로 따로 저장하지 않습니다 — 동기화도 발주 기록을 따라갑니다. */
+function odIsBoxOrder(o){ return !!o && (/승일포장/.test(o.vendor||'') || /박스/.test(o.title||'')); }
+function odBoxNames(){
+  const by = new Map();
+  (orderLog||[]).forEach(o => {
+    if(!odIsBoxOrder(o)) return;
+    (o.items||[]).forEach(it => {
+      const nm = String(it.pname||'').trim(); if(!nm) return;
+      const cur = by.get(nm);
+      if(!cur || String(o.date||'') > cur.date) by.set(nm, { name:nm, date:String(o.date||''), qty:Number(it.qty)||0 });
+    });
+  });
+  return [...by.values()].sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name));
+}
+function odBoxListFill(){
+  let dl = document.getElementById('od-box-list');
+  if(!dl){ dl = document.createElement('datalist'); dl.id = 'od-box-list'; document.body.appendChild(dl); }
+  dl.innerHTML = odBoxNames().map(x => `<option value="${_odEsc(x.name)}">마지막 ${x.date ? odShortDate(x.date) : ''} · ${x.qty}개</option>`).join('');
 }
 // 합쳐진 이름('… (L+R)')도 원래 모델로 되짚습니다.
 function odFindModel(val){
@@ -13130,16 +13153,22 @@ function renderOdLines(){
                      + `<span style="color:var(--tx3);text-align:center">×</span>`
                      + num(i,'h','세로',`onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})"`);
   const qtyIn = i => num(i,'qty','수량',`onkeydown="odQtyTab(event,${i})"`);
-  const kind = qtyOnly ? 'q' : modelMode ? 'm' : 's';
+  const boxMode=!!(p&&p.boxName);
+  if(boxMode) odBoxListFill();
+  const kind = boxMode ? 'b' : qtyOnly ? 'q' : modelMode ? 'm' : 's';
   /* 머리글은 **아래 칸과 똑같이 한 칸씩** 둡니다 (사장님 2026-10-08 "위에 목록이랑 밑에 칸이랑 글씨를 맞춰").
      예전에는 「가로 × 세로」를 세 칸에 걸친 한 덩어리로 써서, 머리의 가로·세로가 아래 칸 한가운데가 아니라 × 쪽으로 몰렸습니다. */
   const head = { s:'<span>#</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
                  m:'<span>#</span><span>모델명</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
-                 q:'<span>#</span><span>품명</span><span>수량</span><span></span>' }[kind];
+                 q:'<span>#</span><span>품명</span><span>수량</span><span></span>',
+                 b:'<span>#</span><span>인쇄명</span><span>수량</span><span class="h-bigo">비고</span><span></span>' }[kind];
   const rows = odLines.map((ln,i)=>{
     if(kind==='q') return `<div class="od-row od-q">${no(i)}
         <input value="${_odEsc(ln.pname||'')}" placeholder="품명 (예: 매직블럭, 테이프)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="${cell};text-align:left;padding-left:8px">
         ${qtyIn(i)}${del(i)}</div>`;
+    if(kind==='b') return `<div class="od-row od-b">${no(i)}
+        <input list="od-box-list" value="${_odEsc(ln.pname||'')}" placeholder="인쇄명 (글자 일부를 치면 지난 발주 이름이 뜹니다)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="${cell};text-align:left;padding-left:8px">
+        ${qtyIn(i)}${bigo(ln,i)}${del(i)}</div>`;
     if(kind==='m') return `<div class="od-row od-m">${no(i)}
         <input list="od-model-list" value="${_odEsc(ln.pname||'')}" placeholder="모델명 또는 사이즈 (예: OB M 4073 · 595729)" oninput="odModelInput(${i},this.value)" onchange="odModelSizeTry(${i},this.value)" class="inp" style="${cell};text-align:left;padding-left:8px">
         ${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}</div>`;
@@ -13147,7 +13176,7 @@ function renderOdLines(){
   }).join('');
   host.innerHTML = `<div class="od-tbl">
       <div class="od-row od-head od-${kind}">${head}</div>${rows}
-      <div class="od-row od-foot od-${kind}"><span></span><span style="grid-column:span ${kind==='q'?1:kind==='m'?4:3};text-align:left;padding-left:4px">합계</span><b id="od-sum" style="text-align:center;font-family:'JetBrains Mono',monospace">0</b><span></span></div>
+      <div class="od-row od-foot od-${kind}"><span></span><span style="grid-column:span ${(kind==='q'||kind==='b')?1:kind==='m'?4:3};text-align:left;padding-left:4px">합계</span><b id="od-sum" style="text-align:center;font-family:'JetBrains Mono',monospace">0</b><span></span></div>
     </div>`;
   odUpdateCount();
 }
@@ -13162,6 +13191,7 @@ function odRowCss(){
   .od-row.od-s{grid-template-columns:22px minmax(52px,90px) 12px minmax(52px,90px) 60px minmax(90px,1fr) 64px 24px}
   .od-row.od-m{grid-template-columns:22px minmax(110px,1.2fr) minmax(48px,80px) 12px minmax(48px,80px) 56px minmax(80px,1fr) 64px 24px}
   .od-row.od-q{grid-template-columns:22px 1fr 64px 24px}
+  .od-row.od-b{grid-template-columns:22px minmax(160px,1.6fr) 64px minmax(90px,1fr) 24px}
   .od-head{background:var(--s2);font-size:10.5px;color:var(--tx3);font-weight:700;padding-top:6px;padding-bottom:6px}
   .od-head span{text-align:center}
   /* 머리글 칸 사이 옅은 세로줄 — 어느 칸의 머리인지 보이게. × 칸 양옆은 가로·세로를 한 묶음으로 보이게 뺍니다 */
@@ -13174,6 +13204,7 @@ function odRowCss(){
   @media (max-width:560px){
     .od-row.od-s{grid-template-columns:20px 1fr 10px 1fr 46px 46px 22px}
     .od-row.od-m{grid-template-columns:20px 1.4fr 1fr 10px 1fr 44px 46px 22px}
+    .od-row.od-b{grid-template-columns:20px 1fr 52px 22px}
     .od-row .od-bigo{grid-column:2 / -1;order:9}
     .od-head .h-bigo{display:none}
   }`;
@@ -14102,6 +14133,7 @@ function odFillSheet(ws, o){
     odPut(ws, 'L' + r, it ? (it.bigo || '') : null);
   }
 
+  if(odIsBoxOrder(o)) odBoxWideName(ws, rows, o);
   odSplitClientCol(ws, rows, o);
 
   /* 총수량 — 수식과 함께 **계산된 값도 넣습니다** (사장님 지적 2026-10-01 "총 14장인데 2장").
@@ -14110,6 +14142,28 @@ function odFillSheet(ws, o){
   const last = OD_TPL_ROW0 + rows - 1;
   const tot  = o.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
   ws.getCell('J' + (last + 1)).value = { formula:'SUM(J' + OD_TPL_ROW0 + ':J' + last + ')', result:tot };
+}
+
+/* 박스 발주서 — 인쇄명이 길어(`Euro 700 Grace CH M 6086 M (595X860)`) 품명·규격 칸을 **한 칸(C~I)** 으로 합칩니다.
+   예전 승일포장 양식도 한 칸이었습니다. 그래도 길면 글자를 줄입니다(엑셀 shrinkToFit · 카톡/PDF 는 글자 크기). */
+function odBoxWideName(ws, rows, o){
+  const head = OD_TPL_ROW0 - 1, px = ['C','D','E','F','G','H','I'].reduce((s, c) => s + odColPx(ws.getColumn(c).width), 0);
+  for(let r = head; r < OD_TPL_ROW0 + rows; r++){
+    ['C'+r+':E'+r, 'F'+r+':I'+r, 'C'+r+':I'+r].forEach(a => { try{ ws.unMergeCells(a); }catch(e){} });
+    const keep = ws.getCell('C' + r).border, right = ws.getCell('I' + r).border;
+    ['D','E','F','G','H','I'].forEach(c => { const x = ws.getCell(c + r); x.value = null; });
+    try{ ws.mergeCells('C' + r + ':I' + r); }catch(e){}
+    const c = ws.getCell('C' + r);
+    c.border = Object.assign({}, keep || {}, right && right.right ? { right:right.right } : {});
+    if(r === head){ c.value = '인   쇄   명'; continue; }
+    const v = String(c.value || '');
+    c.alignment = Object.assign({}, c.alignment || {}, { shrinkToFit:true });
+    if(v){
+      const em = [...v].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
+      const base = (c.font && c.font.size) || 11, fitPt = (px - 14) / (em * 1.32);
+      if(fitPt < base) c.font = Object.assign({}, c.font || {}, { size: Math.max(8, Math.floor(fitPt * 10) / 10) });
+    }
+  }
 }
 
 /* 비고 뒤에 「업체명」 칸 (사장님 2026-10-06 "업체를 표기해야 우리 현장에서 보기 편해서").
