@@ -12533,28 +12533,31 @@ const OD_CATALOG = {
          hint:'3.2T 백사틴 비규격'}
     ],
     '아름유리': [
-      {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
+      {type:'5T 투명', pick:'5T 투명 비규격', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
       /* 제목 칸에 사양을 한 줄로 — `5T브론즈/강화/비산방지필름` (사장님 2026-10-08, 발주서 그림 그대로).
          예전에는 제목 `5T 투명(비산방지필름)` + 옆 칸 비고 `비산방지필름` 으로 같은 말이 두 번 찍혔습니다.
          ⚠ `type` 은 그대로 둡니다 — 발주 기록·비규격 넘겨받기(SUBDOOR_ORDER_ROUTE)가 그 이름을 씁니다. */
-      {type:'5T 투명 / 비산방지필름', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 투명', sizeMode:true, fname:'KB 5T투명', hint:'AL 프레임 에어힌지 · 5T 투명/강화 + 비산방지필름 · 납기는 화·금'},
-      {type:'5T 브론즈 / 비산방지필름', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 브론즈', sizeMode:true, fname:'KB 5T브론즈', hint:'KB 빗각 도어 · 5T 브론즈/강화 + 비산방지필름 · 납기는 화·금'},
+      /* 사장님 엑셀 「에어힌지 (AL프레임 에어힌지)」 시트 그대로 (2026-10-14) — 제목 `비규격` · 품명 `키친바흐` · 줄 비고 `5T투명/강화/비산방지필름`.
+         고르는 칸 이름(pick)은 엑셀 시트 이름 + 정규격/비규격. KB 빗각은 같은 짜임에 브론즈(시트를 아직 못 봄 — 다르면 고칩니다).
+         ⚠ `type` 은 그대로 — 발주 기록·수납도어 넘겨받기(SUBDOOR_ORDER_ROUTE)·마감 단가가 그 이름을 씁니다. */
+      {type:'5T 투명 / 비산방지필름', pick:'에어힌지 (AL프레임 에어힌지) 비규격', thick:'5T 투명', title:'비규격', bigo:'', noBigoMemo:true, lineBigo:'5T투명/강화/비산방지필름', pname:'키친바흐', sizeMode:true, fname:'KB 5T투명', hint:'AL 프레임 에어힌지 비규격 · 비고 5T투명/강화/비산방지필름 · 납기는 화·금'},
+      {type:'5T 브론즈 / 비산방지필름', pick:'키친바흐 (KB 빗각도어) 비규격', thick:'5T 브론즈', title:'비규격', bigo:'', noBigoMemo:true, lineBigo:'5T브론즈/강화/비산방지필름', pname:'키친바흐', sizeMode:true, fname:'KB 5T브론즈', hint:'KB 빗각 도어 비규격 · 비고 5T브론즈/강화/비산방지필름 · 납기는 화·금'},
       /* **정규격** — 모델명을 치면 유리 사이즈가 나옵니다 (사장님 표 2026-10-08 · 요청 2026-10-13 "EURO700 처럼").
          `models` 는 '모델명|유리 가로*세로|줄 비고' — 모델을 더하려면 한 줄만. 에어힌지는 모델 번호가 없어 장 사이즈로 부릅니다.
          에어힌지 유리 = 장 −41 × −40 · KB 빗면 = 장 −95 × −10 · 시그니처 = 장 −5 × −5. */
-      {type:'5T 투명 / 비산방지필름 정규격', pick:'5T 투명 정규격 (에어힌지)', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T투명',
+      {type:'5T 투명 / 비산방지필름 정규격', pick:'에어힌지 (AL프레임 에어힌지) 정규격', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T투명',
          models:['에어힌지 벽장 445×738|405*698','에어힌지 벽장 495×738|455*698','에어힌지 분리장 595×1345|555*1305','에어힌지 키큰장 545×2113|505*2073'],
          hint:'AL 프레임 에어힌지 정규격 · 벽장·분리장·키큰장 또는 445 같은 장 사이즈를 치면 유리 사이즈 자동 · 납기는 화·금'},
-      {type:'5T 브론즈 / 비산방지필름 정규격', pick:'5T 브론즈 정규격 (KB 빗면)', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T브론즈',
+      {type:'5T 브론즈 / 비산방지필름 정규격', pick:'키친바흐 (KB 빗각도어) 정규격', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T브론즈',
          models:['빗면 키큰장 60211|500*2103|좌우 확인','빗면 벽장 4574|350*728','빗면 벽장 5074|400*728','빗면 플랩장 10054|900*528','빗면 플랩장 12054|1100*528'],
          hint:'KB 빗면 정규격 · 모델 번호(4574 등)를 치면 유리 사이즈 자동 · 키큰장 60211 은 좌우가 있습니다 · 납기는 화·금'},
-      {type:'5T 투명 정규격 (시그니처 글래스도어)', pick:'5T 투명 정규격 (시그니처 글래스도어)', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
+      {type:'5T 투명 정규격 (시그니처 글래스도어)', pick:'시그니처 (글래스도어) 정규격', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
          models:['글래스 도어 450|441*2165','글래스 도어 500|491*2165'],
          hint:'시그니처 글래스도어 정규격 · 450 / 500 을 치면 유리 사이즈 자동 (유리 = 장 −5 × −5)'},
       /* 투명·브론즈를 **한 장에** (사장님 2026-10-08 "한페이지에 발주서를 만들어달라고 했거든.
          그래서 비고란에 투명, 브론즈 나눠서 넣어줘야해"). 줄마다 비고에 `투명`/`브론즈`.
          비규격 수납도어 보내기가 아름유리 몫에 두 유리가 섞여 있으면 이 종류로 보냅니다. */
-      {type:'5T 투명·브론즈 / 비산방지필름', pick:'5T 투명·브론즈 한 장 (비고에 색)', thick:'5T', title:'5T/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'5T 강화유리', sizeMode:true, fname:'KB 5T투명·브론즈', hint:'에어힌지(투명)·KB 빗각(브론즈)을 한 장에 · 줄마다 비고에 투명/브론즈 · 납기는 화·금'}
+      {type:'5T 투명·브론즈 / 비산방지필름', pick:'에어힌지·키친바흐 한 장 비규격 (비고에 사양)', thick:'5T', title:'비규격', bigo:'', noBigoMemo:true, pname:'키친바흐', sizeMode:true, fname:'KB 5T투명·브론즈', hint:'에어힌지(투명)·KB 빗각(브론즈)을 한 장에 · 줄마다 비고에 투명/브론즈 · 납기는 화·금'}
     ],
     // 현성유리는 에토프 색상을 인쇄해 완성품으로 보내 줍니다(🟠 에토프재고 탭).
     // 3.2T 백사틴 두 줄은 대원유리 것을 그대로 옮긴 것입니다 — 사장님 지시 2026-09-15.
@@ -12575,7 +12578,9 @@ const OD_CATALOG = {
          sizes:['571*2089|60222','571*2217|60235','421*2089|45222','421*2217|45235','421*836|4586','471*836|5086','571*836|6086'],
          hint:'유리장식장도어 정규격 · 모델명(60222 등)을 치거나 아래 단추를 누르면 유리 사이즈가 들어갑니다'},
       // 유리장식장도어 비규격 — 제목 `5T 백유리 투명/반강화` (사장님 2026-10-08)
-      {type:'5T 백유리', fname:'5T 백유리', pick:'5T 백유리 비규격 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'5T 백유리', sizeMode:true, hint:'5T 백유리 투명/반강화 · 유리장식장도어 비규격 · 사이즈 직접 입력'}
+      /* 사장님 엑셀 양식 그대로 (2026-10-14) — 제목 `5T백유리`(띄어쓰기 없음 · 옆 비고 없음) · 품명 `비규격` · 줄 비고 `반강화/각면`.
+         줄 비고는 lineBigo — 공통 비고(제목 옆 B9)에는 안 찍히고 줄 비고 칸에만 들어갑니다. 기억해 둔 옛 비고는 안 꺼냅니다(noBigoMemo). */
+      {type:'5T 백유리', fname:'5T 백유리', pick:'5T 백유리 비규격 (유리장식장)', thick:'5T 백유리', title:'5T백유리', bigo:'', noBigoMemo:true, lineBigo:'반강화/각면', pname:'비규격', sizeMode:true, hint:'5T 백유리 비규격 · 유리장식장도어 · 비고 반강화/각면 · 사이즈 직접 입력'}
     ],
     '명그라스': [
       {type:'3.2T 백사틴 정규격 (모델명 자동)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'', modelMode:true,
@@ -13185,7 +13190,9 @@ function odTabFlow(ev, i, which){
 /* 수량칸에서 탭 — 다음 줄 첫 칸으로 갑니다. 마지막 줄이면 줄을 하나 더 만들어
    바로 이어 적으실 수 있게 합니다. 사이즈를 여러 줄 넣을 때 손이 안 멈춥니다. */
 function odQtyTab(ev, i){
-  if(ev.key !== 'Tab' || ev.shiftKey) return;
+  // Enter 도 같습니다 — 가로 Tab 세로 Tab 수량 Enter 로 다음 줄 (사장님 2026-10-14). 한글 조합 중 Enter 는 건너뜁니다
+  if(ev.isComposing) return;
+  if((ev.key !== 'Tab' && ev.key !== 'Enter') || ev.shiftKey) return;
   ev.preventDefault();
   const host = document.getElementById('od-lines');
   const goto = n => {
@@ -13246,7 +13253,7 @@ function renderOdLines(){
        가로 → 세로 → 수량 차례를 잡습니다. 칸을 다른 div 로 감싸면 탭이 줄 밖으로 샙니다.
      월평균은 숫자 하나(`월 12`)로 줄이고, 자세한 내역은 그 숫자의 title(누르면 토스트)에 둡니다. */
   odRowCss();
-  const bigoPh = _odEsc(((document.getElementById('od-bigo')||{}).value||'').trim());
+  const bigoPh = _odEsc(((document.getElementById('od-bigo')||{}).value||'').trim() || (((curPreset()||{}).p||{}).lineBigo||''));   // 줄 기본 비고도 흐린 글씨로
   const cell = 'margin:0;padding:6px 4px;text-align:center;font-size:13px;min-width:0';
   const num = (i, k, ph, extra) => `<input type="number" inputmode="numeric" value="${_odEsc(odLines[i][k])}" placeholder="${ph}" oninput="odLines[${i}].${k}=this.value;odUpdateCount()" ${extra||''} class="inp" style="${cell}">`;
   const no  = i => `<span class="od-no">${i+1}</span>`;
@@ -13425,7 +13432,7 @@ function odCollect(){
     /* 비고 — **그 줄에 따로 적은 것이 우선**, 비어 있으면 위쪽 공통 비고 (사장님 2026-10-07
        "개별적으로 한줄쓰게되면 그칸은 개별적으로 적은게 우선") */
     pname:((l.pname||p.pname||'')+'').trim(), color:((l.color||'')+'').trim(), req:((l.req||'')+'').trim(),
-    bigo:((l.bigo||'')+'').trim() || bigo
+    bigo:((l.bigo||'')+'').trim() || bigo || (p.lineBigo||'')   // lineBigo — 줄에만 들어가는 기본 비고(제목 옆엔 안 찍힘, 2026-10-14)
   }));
   return {vendor, cat, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, ref, items};
 }
