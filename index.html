@@ -12731,6 +12731,9 @@ function odHandoffBanner(){
 /* 비규격에서 넘어온 색 → 바로 고를 발주처·종류. 색을 더하려면 한 줄만 더하십시오. */
 const OD_HANDOFF_ROUTE = {
   '에토프': { vendor:'현성유리', type:'3.2T 백사틴 비규격' },
+  // 웜코튼은 대원유리 (사장님 2026-10-14 「웜코튼은 대원으로 연결되어야 되는데 현성유리로 연결됨」).
+  // 예전엔 표에 없어 발주처를 안 바꿨고, 앞서 에토프를 넣느라 골라 둔 현성유리가 그대로 남았습니다.
+  '웜코튼': { vendor:'대원유리', type:'3.2T 백사틴 비규격' },
 };
 function odHandoffTake(i){
   const o=odHandoffRead(); if(!o) return odHandoffBanner();

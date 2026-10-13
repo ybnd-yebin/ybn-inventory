@@ -1240,7 +1240,9 @@ function labelNames(){
   for(const p of state.pages){
     const byQuad = {};
     for(const line of p.lines){
-      if(!/Euro\d{3}|AL도어/.test(line.text)) continue;
+      /* 품명 줄 — Euro·AL도어만 보다가 **에어힌지(AL프레임)·KB 빗면·글래스도어**가 철 확인에서 빠졌습니다 (사장님 2026-10-14
+         「라벨에 나오는 모든 품목 리스트가 나와야 하는데 수납유리 중에 에어힌지는 빠져 있었음」). 수납도어 품명을 다 봅니다. */
+      if(!/Euro\d{3}|AL도어|AL프레임|에어힌지|빗면|빗각|미러장식|글래스\s*(?:행잉\s*)?(?:채널\s*)?도어|유리장식|키큰장유리|벽장유리/.test(line.text)) continue;
       if(line.text.includes("(Euro")) continue;   // AS 라벨의 내용참조 줄은 품명이 아닙니다
       const q = (line.x<0.5?0:1) + "-" + (line.y<0.5?0:1);
       if(!byQuad[q] || line.text.length > byQuad[q].text.length) byQuad[q] = line;
@@ -1306,6 +1308,12 @@ function collectTokens(){
   state.tokens = [...found].sort();
   for(const t of state.tokens){
     if(!(t in state.colorMap)) state.colorMap[t] = null;
+    /* 아보카도(Euro500)는 초록 (사장님 2026-10-14). 라벨 색 코드를 아직 못 봐서 이름으로 알아봅니다 —
+       `Avocado` · `PG/AV` 꼴. 손으로 색을 정해 두셨으면(null 아님) 건드리지 않습니다. */
+    if(/avocado|아보카도|^PG\/AV\b/i.test(t) && !state.colorMap[t]){
+      state.colorMap[t] = "#8ce08f";
+      if(state.colorNames && !state.colorNames[t]){ state.colorNames[t] = "아보카도"; try{ saveColorNames(); }catch(e){} }
+    }
   }
   saveColorMap();
   renderColorMap();
