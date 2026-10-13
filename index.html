@@ -325,6 +325,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 .divider{height:1px;background:var(--b1);margin:10px 0}
 /* 🗓️ 일정·업무 (2026-10-12) — 라이트, 얇은 테두리, 그림자·그라데이션 없음, 본문 15px, 누르는 곳 44px 이상 */
 #pg-plan{padding:18px 16px 90px;font-size:15px;color:#1a1d2e;background:#fff}
+/* 🏠 오늘 탭 안에 들어간 뒤(2026-10-13) — 바깥 #pg-home 이 이미 여백을 줍니다 */
+#pg-home #pg-plan{padding:4px 0 8px;margin-bottom:14px}
 #pg-plan .bd-muted{color:#9aa0b8;font-size:13px}
 #pg-plan .bd-top{display:grid;grid-template-columns:3fr 2fr;gap:20px;margin-bottom:28px}
 #pg-plan .bd-cal,#pg-plan .bd-day{border:1px solid #e3e6ee;border-radius:12px;padding:16px;background:#fff;min-width:0}
@@ -443,7 +445,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <!-- 📋 업무판은 🗓️ 일정·업무로 합쳤습니다 (사장님 2026-10-13). 화면은 남겨 두어 되돌릴 수 있게 — 버튼만 숨김 -->
     <button class="main-nav-btn" onclick="showMain('deskboard')" style="display:none">📋 업무판</button>
     <!-- 🗓️ 일정·업무 (2026-10-12) — 2026-10-13 부터 모두에게 보입니다(공유). 고치기는 설정의 「입력자 목록」만 -->
-    <button class="main-nav-btn" id="nav-plan" onclick="showMain('plan')">🗓️ 일정·업무</button>
+    <button class="main-nav-btn" id="nav-plan" onclick="showMain('plan')" style="display:none">🗓️ 일정·업무</button>
     <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
   </nav>
 </div>
@@ -457,11 +459,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
      예전 홈(할일·공지·달력)은 📋 업무판 탭으로 옮겼습니다. -->
 <div class="sec-pg on" id="pg-home" style="padding:14px 14px 80px">
   <div id="today-head"></div>
-  <div id="today-body"></div>
-</div>
-
-<!-- 🗓️ 일정·업무 (2026-10-12) — 위는 달력·선택한 날, 아래는 탭 4개와 포스트잇. bdRender 가 #bd-host 에 그립니다 -->
-<div class="sec-pg" id="pg-plan"><div id="bd-host"></div>
+<!-- 🗓️ 일정·업무 (2026-10-12) — 위는 달력·선택한 날, 아래는 탭 4개와 포스트잇. bdRender 가 #bd-host 에 그립니다
+     2026-10-13 부터 🏠 오늘 탭 안에 들어 있습니다 (사장님 「오늘 탭 메인에 합쳐줘」 — 날짜 줄 → 일정·업무 → 알림 차례).
+     id 는 pg-plan 그대로 두어 CSS(#pg-plan …)가 그대로 먹습니다. sec-pg 가 아니라 따로 숨겨지지 않습니다. -->
+<div id="pg-plan"><div id="bd-host"></div>
   <!-- 업무판에서 옮겨 온 것 (사장님 2026-10-13 「업무판이랑 합쳐」) — 공지 · 휴무·출장 · 주간 업무일지.
        예전 할일·일정은 카드로 옮겼습니다(`bdMigrateOld`). 아래 칸들은 예전 함수가 그대로 그립니다. -->
   <div class="bd-extra">
@@ -481,6 +482,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <!-- 주간 업무일지 · 회의 메모 — 노션 「주간업무일지」를 참고 (2026-09-15) -->
     <div id="weekly-host"></div>
   </div>
+</div>
+  <div id="today-body"></div>
 </div>
 
 <!-- 📋 업무판 — 예전 홈. 2026-10-13 부터 🗓️ 일정·업무로 합쳐 버튼을 숨겼습니다(되돌릴 수 있게 화면은 남김).
@@ -4170,6 +4173,7 @@ function breaksOn(dateStr){
 function brShort(s){ const p=String(s||'').split('-'); return p.length===3?(+p[1])+'/'+(+p[2]):s; }
 
 function showMain(id){
+  if(id==='plan') id='home';   // 🗓️ 일정·업무는 2026-10-13 부터 🏠 오늘 탭 안에 있습니다
   curMain=id;
   document.querySelectorAll('.sec-pg').forEach(s=>s.classList.remove('on'));
   document.querySelectorAll('.main-nav-btn').forEach(b=>b.classList.remove('on'));
@@ -4184,7 +4188,6 @@ function showMain(id){
   fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
   if(id==='home')renderToday();
   if(id==='deskboard'){renderHome(); if(typeof renderWeekly==='function') renderWeekly();}
-  if(id==='plan'){ bdRender(); bdRenderExtras(); }   // 🗓️ 일정·업무 (+ 업무판에서 옮겨 온 칸)
   if(id==='todo')renderTodo();
   if(id==='board'){renderNotices();renderSchedules();renderBreaks();}
   if(id==='stock')renderSub(curSub);
@@ -4959,7 +4962,7 @@ function deleteBreak(id){
   if(!confirm(b.name+' 휴무를 삭제합니까?')) return;
   // 지워도 목록에는 묘비로 남깁니다 — 빼버리면 동기화 때 다른 기기 것이 되살아납니다
   b.deleted=true; b.updatedAt=new Date().toISOString();
-  saveBreaks(); renderBreaks(); renderCal(); if(curMain==='plan') bdRender(); autoSync(); showToast('삭제됨');
+  saveBreaks(); renderBreaks(); renderCal(); if((curMain==='plan'||curMain==='home')) bdRender(); autoSync(); showToast('삭제됨');
 }
 function confirmBreak(){
   const name=document.getElementById('bm-name').value.trim();
@@ -4977,7 +4980,7 @@ function confirmBreak(){
     showToast('✅ '+breakKind+' 추가됨 ('+breakDays(from,to)+'일)');
   }
   editBreakId=null;
-  saveBreaks(); closeM('break-modal'); renderBreaks(); renderCal(); if(curMain==='plan') bdRender(); autoSync();
+  saveBreaks(); closeM('break-modal'); renderBreaks(); renderCal(); if((curMain==='plan'||curMain==='home')) bdRender(); autoSync();
 }
 
 // ── STOCK DASHBOARD ──
@@ -9004,7 +9007,7 @@ function applyMergedFromSheet(data){
     try{ bdMergeFromSheet(data.boardCards, data.boardEditors); }catch(e){ console.warn('[일정·업무] 받기 실패', e); }
   }
   // 업무판 합치기 — 시트에서 옛 할일·일정이 더 들어왔으면 카드로 옮깁니다(이미 있는 것은 건너뜀)
-  try{ if(bdMigrateOld() && typeof curMain!=='undefined' && curMain==='plan') bdRender(); }catch(e){}
+  try{ if(bdMigrateOld() && typeof curMain!=='undefined' && (curMain==='plan'||curMain==='home')) bdRender(); }catch(e){}
   /* 📒 거래처 월 마감 — 마감마다 나중에 고친 쪽. 받은 것이 요약뿐이면 이 기기의 줄은 살립니다(`clMergeFromSheet`) */
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
@@ -16695,7 +16698,7 @@ function bdMergeFromSheet(rc, re){
     try{ localStorage.setItem(LS_BOARD_EDITORS, JSON.stringify(boardEditors)); }catch(e){}
     changed=true; bdEditorsRender();
   }
-  if(changed && typeof curMain!=='undefined' && curMain==='plan') bdRender();
+  if(changed && typeof curMain!=='undefined' && (curMain==='plan'||curMain==='home')) bdRender();
   return changed;
 }
 let _bdSyncT=null;
@@ -23418,7 +23421,10 @@ function renderToday(){
   let h='';
 
   // ── 🗓️ 오늘·이번 주 일정 — 일정·업무 요약 (사장님 2026-10-13 (가) 「메인페이지에 넣어줘」)
-  h+=(function(){ try{ return todayPlanCard(); }catch(e){ console.warn('[오늘] 일정',e); return ''; } })();
+  // 2026-10-13: 일정·업무(달력·카드)를 이 화면 안에 통째로 넣어 요약 카드는 뺐습니다 — 겹칩니다.
+  //   todayPlanCard() 는 남겨 둡니다(되돌릴 때 이 줄만 살리면 됩니다).
+  //   앱을 막 열 때(첫 renderToday)는 달력 값(bdYear 등)이 아직 선언 전이라 실패합니다 → 스크립트가 다 읽힌 뒤 한 번 더.
+  try{ bdRender(); bdRenderExtras(); }catch(e){ setTimeout(function(){ try{ bdRender(); bdRenderExtras(); }catch(e2){ console.warn('[오늘] 일정·업무',e2); } },0); }
 
   // ── 🔴 납품서 업로드가 밀렸으면 제일 먼저 (다른 숫자가 다 이것에 기댑니다)
   if(upl && upl.gap>=2){
@@ -23500,7 +23506,7 @@ function renderToday(){
           '<span style="flex:1;min-width:0;font-size:12.5px;line-height:1.55;color:var(--tx1)">'+etpEsc(r.text)+'</span>' +
         '</div>').join('') +
       (wkOpen.length>6?'<div style="font-size:10.5px;color:var(--tx3);margin-top:6px">외 '+(wkOpen.length-6)+'가지</div>':''),
-      tdyGo('주간일지',"showMain('plan');setTimeout(function(){var e=document.getElementById('weekly-host');if(e)e.scrollIntoView({behavior:'smooth'})},80)"));
+      tdyGo('주간일지',"showMain('home');setTimeout(function(){var e=document.getElementById('weekly-host');if(e)e.scrollIntoView({behavior:'smooth'})},80)"));
   }
   // (예전 「진행중 할일 · 업무판으로 옮겼습니다」 줄은 맨 위 일정 요약으로 바꿨습니다 — 2026-10-13)
 
