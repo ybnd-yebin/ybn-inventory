@@ -17729,7 +17729,7 @@ function hsTakePaste(){
     r.at=now; hsPrice.rows.push(r); have.add(r.id); add++;
   });
   if(!hsSave()){ msg.innerHTML='<span style="color:var(--acc4)">이 브라우저에 저장하지 못했습니다.</span>'; return; }
-  closeM('hs-paste-modal'); hsOpen=true; renderHsPrice();
+  closeM('hs-paste-modal'); hsOpen=true; renderHsPrice(); try{ renderLgSummary(); }catch(e){}
   const unk=p.out.filter(r=>!HS_WH[r.wh]).length;
   showToast(`📋 ${add}줄 넣음`+(dup?` · 이미 있는 ${dup}줄 건너뜀`:'')+(changed?` · ⚠ 단가 바뀐 것 ${changed}`:'')+(unk?` · 모르는 저장소 ${unk}줄`:'')+(p.bad.length?` · 못 읽은 ${p.bad.length}줄`:''));
 }
@@ -17745,8 +17745,8 @@ function hsBook(){
   return b;
 }
 // 납품서 한 줄의 단가 찾기 — 같은 창고 → 다른 창고 순
-function hsPriceOf(code, size, whName){
-  const b=hsBook(); const wh=Object.keys(HS_WH).find(k=>HS_WH[k]===whName)||'';
+function hsPriceOf(code, size, whName, book){
+  const b=book||hsBook(); const wh=Object.keys(HS_WH).find(k=>HS_WH[k]===whName)||'';
   const e=b[hsKey(code,size,wh)] || Object.values(b).find(x=>x.code===code && (x.size||'')===(size||''));
   return e ? { price:e.price, other: e.wh!==wh } : null;
 }
@@ -17756,17 +17756,18 @@ function hsOnSearch(v){ hsSearch=String(v||''); clearTimeout(window._hsT); windo
 
 // 📥 한 달 매출 — 그달 납품서(납품요청일) 수량 × 단가표
 let hsYm = todayStr().slice(0,7);
+/* ym = 'YYYY-MM' 이면 그달, 'YYYY-MM-DD' 이면 그날 (발주일 기준) */
 function hsMonthRows(ym){
-  const out=[];
+  const out=[], book=hsBook();
   (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
     if(!d || (d.id && typeof delivDeleted!=='undefined' && delivDeleted[d.id])) return;
-    const day=d.orderDate||d.delivReqDate||''; if(day.slice(0,7)!==ym) return;   // 매출 발생일 = 발주일 (사장님 2026-10-14)
+    const day=d.orderDate||d.delivReqDate||''; if(day.slice(0,ym.length)!==ym) return;   // 매출 발생일 = 발주일 (사장님 2026-10-14)
     const whName=delivDestGroup(d.dest), as=String(d.refNo||'').startsWith('54');
     (d.items||[]).forEach(it=>{
       const q=Number(it.qty)||0; if(!q || !it.code) return;
       const nm=it.name||it.short||'';
       const size=hsSizeOf(nm);
-      const p=hsPriceOf(it.code, size, whName);
+      const p=hsPriceOf(it.code, size, whName, book);
       out.push({ day, delivNo:d.delivNo||'', refNo:d.refNo||'', as, whName, code:it.code, name:nm, size, qty:q,
                  price:p?p.price:null, other:p?p.other:false, amt:p?p.price*q:null });
     });
@@ -18144,16 +18145,20 @@ function renderLgSummary(){
   const host=document.getElementById('lg-summary'); if(!host) return;
   const td=todayStr(), ym=td.slice(0,7);
   const sum=(f,k)=>ledgerLog.filter(r=>r&&r.kind===k&&f(String(r.date||''))).reduce((s,r)=>s+(lgRecordTotal(r)||0),0);
-  const row=(label,f)=>{ const b=sum(f,'buy'), s2=sum(f,'sell'), d=s2-b;
-    const v=(x,c)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}</span>`;
-    return `<div style="display:grid;grid-template-columns:72px repeat(3,minmax(0,1fr));gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)">
-      <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)')}${v(s2,'var(--acc3)')}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
-  host.innerHTML=`<div class="card" style="padding:0;overflow:hidden">
-    <div style="display:grid;grid-template-columns:72px repeat(3,minmax(0,1fr));gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
-      <span></span><span style="text-align:right">📥 매입</span><span style="text-align:right">📤 매출</span><span style="text-align:right">차이</span></div>
-    ${row('오늘 '+(+td.slice(5,7))+'/'+(+td.slice(8,10)), d=>d===td)}
-    ${row((+ym.slice(5,7))+'월 누적', d=>d.slice(0,7)===ym && d<=td)}
-  </div>`;
+  /* 한샘 매출 — 📋 한샘 단가표 × 그날(그달) 납품서, **발주일** 기준 (사장님 2026-10-14 「매출은 올려놨는데 왜 위에 금액이 안 나오지」).
+     손으로 적은 매출(ledgerLog)과 따로 칸을 둡니다 — 같은 한샘 매출을 손으로도 적으셨으면 두 번 셉니다. */
+  const hs=(key)=>{ try{ const r=(typeof hsMonthRows==='function')?hsMonthRows(key):[]; return { amt:r.reduce((s,x)=>s+(x.amt||0),0), none:r.filter(x=>x.price==null).length }; }catch(e){ return {amt:0,none:0}; } };
+  const COLS='72px repeat(4,minmax(0,1fr))';
+  const v=(x,c,sub)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}${sub?`<br><small style="font-size:10px;font-weight:600;color:var(--acc2);font-family:'Noto Sans KR',sans-serif">${sub}</small>`:''}</span>`;
+  const row=(label,f,hk)=>{ const b=sum(f,'buy'), s2=sum(f,'sell'), H=hs(hk), d=s2+H.amt-b;
+    return `<div style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)">
+      <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)')}${v(s2,'var(--acc3)')}${v(H.amt,'var(--acc3)',H.none?'단가 없음 '+H.none+'줄':'')}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
+  host.innerHTML=`<div class="card" style="padding:0;overflow-x:auto"><div style="min-width:460px">
+    <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
+      <span></span><span style="text-align:right">📥 매입</span><span style="text-align:right">📤 매출(기록)</span><span style="text-align:right" title="📋 한샘 단가표 × 납품서, 발주일 기준">📋 한샘 SRM</span><span style="text-align:right">차이</span></div>
+    ${row('오늘 '+(+td.slice(5,7))+'/'+(+td.slice(8,10)), d=>d===td, td)}
+    ${row((+ym.slice(5,7))+'월 누적', d=>d.slice(0,7)===ym && d<=td, ym)}
+  </div></div>`;
 }
 function renderLedgerMonthly(){
   try{ renderLgSummary(); }catch(e){ console.warn('[매입매출 요약]', e); }
