@@ -152,6 +152,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 /* WORK LOG */
 .day-card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;margin-bottom:8px;overflow:hidden}
 .day-hdr{padding:12px 14px;border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center}
+/* 발주 리스트 — 휴대폰에서는 단추(보기·다시 발주·카톡…)를 발주처 이름 아래 줄로 (2026-10-13) */
+@media (max-width:560px){ .od-hdr{flex-wrap:wrap;gap:6px} .od-hdr>div:first-child{flex:1 1 100%} .od-hdr>div:last-child{text-align:left!important} }
 .day-date{font-weight:700;font-size:13px;margin-bottom:2px}
 .day-color-sum{font-size:10px;color:var(--tx2)}
 .day-color-sum .wc{color:var(--wc)}.day-color-sum .etp{color:var(--etp)}
@@ -1295,6 +1297,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       입고된 품목은 ☐를 눌러 체크하세요. 체크하면 해당 사이즈가 <b>원유리 입고</b>로 잡힙니다.
       월말정산은 월별 <b>발주합계 vs 입고합계</b>로 확인하세요.
     </div>
+    <!-- 🔎 지난 발주 찾기 (사장님 2026-10-13 「발주서·발주이력·기존에 발주했던 사이즈 보려고 엑셀을 열어」) -->
+    <div id="od-find" style="margin-bottom:10px">
+      <input id="od-find-q" class="inp" type="search" placeholder="🔎 사이즈·품명·비고로 찾기 (예: 595 · 595*729 · 에토프 · 60222)"
+             oninput="odFindInput(this.value)" style="margin:0 0 6px;padding:9px 11px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+      <div id="od-find-chips" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+      <div id="od-find-sum" style="font-size:11.5px;line-height:1.6;margin-top:6px"></div>
+    </div>
     <div id="od-order-list"></div>
   </div>
 </div>
@@ -1320,6 +1329,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 </div>
 
 <!-- 🧾 마감 명세서 창 (2026-09-30) — 표는 odStmtRender 가 #od-stmt 에 그대로 그립니다 -->
+<!-- 👁 지난 발주서 보기 (2026-10-13) — 카톡 이미지와 같은 그림을 앱 안에서 봅니다 -->
+<div class="modal-bg" id="od-view-modal">
+  <div class="modal-sheet" style="max-width:820px;margin:0 auto">
+    <button class="close-btn" onclick="closeM('od-view-modal')">×</button>
+    <div class="modal-ttl" id="od-view-ttl">발주서 보기</div>
+    <div id="od-view-btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <div id="od-view-body" style="background:#fff;border:1px solid var(--b2);border-radius:8px;overflow:auto;text-align:center;min-height:120px"></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="od-stmt-modal">
   <div class="modal-sheet" style="max-width:920px;margin:0 auto">
     <button class="close-btn" onclick="closeM('od-stmt-modal')">×</button>
@@ -15176,6 +15195,153 @@ function delivUseStock(finId, recQty, delivNo){
   if(typeof renderDelivery==='function') renderDelivery();
   if(document.getElementById('sp-finished') && document.getElementById('sp-finished').style.display!=='none') renderFinished();
 }
+/* ══════════════════════════════════════════════════════════
+   🔎 지난 발주 찾기 · 👁 보기 · ↻ 다시 발주                 2026-10-13
+   사장님: "발주서를 열어보려고 엑셀을 열어. 발주 양식이라던가 발주이력이라던가
+            기존에 발주했던 사이즈들을 보려고"
+   ─ 찾기: 사이즈(595 · 595*729 · 595x729)·품명·비고·색·발주처·종류 아무거나.
+           걸린 발주만 남기고 걸린 줄은 노랗게, 위에 한 줄 요약(사이즈별 몇 번·몇 장).
+   ─ 보기: 카톡 이미지와 **같은 그림**(odMakeCaptureNode → html2canvas)을 창에 띄웁니다.
+   ─ 다시 발주: 발주처·종류·품목·수량을 새 발주 입력칸에. 날짜·납기는 오늘 기준으로 새로.
+   ══════════════════════════════════════════════════════════ */
+let odFindQ = '', odFindVendor = '';
+let _odFindT = null;
+function odFindInput(v){
+  clearTimeout(_odFindT);
+  _odFindT = setTimeout(()=>{ odFindQ = String(v||''); renderOrderList(); }, 200);
+}
+function odFindPickVendor(v){ odFindVendor = (odFindVendor===v ? '' : v); renderOrderList(); }
+// 찾는 글자 다듬기 — 띄어쓰기 없애고, 595*729 · 595x729 · 595X729 를 595×729 로
+function odFindNorm(t){
+  return String(t||'').toLowerCase().replace(/\s+/g,'').replace(/(\d)[*x×](\d)/g,'$1×$2');
+}
+function odFindItemText(it){
+  return odFindNorm(((it.w&&it.h)?`${it.w}×${it.h}`:'')+' '+(it.pname||'')+' '+(it.bigo||'')+' '+(it.color||''));
+}
+function odFindItemHit(it){
+  const q=odFindNorm(odFindQ);
+  return !!q && odFindItemText(it).includes(q);
+}
+function odFindApply(){
+  const q=odFindNorm(odFindQ);
+  const list=(orderLog||[]).filter(o=>{
+    if(odFindVendor && odStmtVendor(o.vendor)!==odFindVendor) return false;
+    if(!q) return true;
+    const head=odFindNorm([o.vendor,o.type,o.title,o.thick,o.client,o.ref,o.bigo,o.date].join(' '));
+    return head.includes(q) || (o.items||[]).some(it=>odFindItemText(it).includes(q));
+  });
+  try{ odFindRenderBar(list, q); }catch(e){ console.warn('[발주 찾기]', e); }
+  return list;
+}
+function odFindRenderBar(list, q){
+  const chips=document.getElementById('od-find-chips');
+  if(chips){
+    const vs=[...new Set((orderLog||[]).map(o=>odStmtVendor(o.vendor)))].sort((a,b)=>a.localeCompare(b,'ko'));
+    const chip=(v,label)=>{
+      const on=(odFindVendor===v);
+      return `<button onclick="odFindPickVendor('${String(v).replace(/'/g,"\\'")}')" style="padding:5px 11px;border-radius:14px;font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid ${on?'var(--acc)':'var(--b2)'};background:${on?'var(--acc)':'var(--s2)'};color:${on?'#fff':'var(--tx2)'};font-weight:${on?700:500}">${_odEsc(label)}</button>`;
+    };
+    chips.innerHTML=(vs.length>1 ? chip('', '전체')+vs.map(v=>chip(v,v)).join('') : '');
+  }
+  const sum=document.getElementById('od-find-sum'); if(!sum) return;
+  if(!q && !odFindVendor){ sum.innerHTML=''; return; }
+  if(!list.length){ sum.innerHTML=''; return; }
+  // 걸린 줄 모으기 — 찾는 글자가 없으면(발주처만 고름) 그 발주처 전체를 셉니다
+  const hits=[];
+  list.forEach(o=>(o.items||[]).forEach(it=>{ if(!q || odFindItemText(it).includes(q)) hits.push({o,it}); }));
+  const tot=hits.reduce((a,x)=>a+(Number(x.it.qty)||0),0);
+  hits.sort((a,b)=>String(b.o.date||'').localeCompare(String(a.o.date||'')));
+  const last=hits[0];
+  // 사이즈별로 몇 번·몇 장 — 많이 나온 차례로 여덟까지
+  const bySize={};
+  hits.forEach(x=>{
+    if(!(x.it.w&&x.it.h)) return;
+    const k=x.it.w+'×'+x.it.h;
+    const s=bySize[k]||(bySize[k]={n:0,q:0,last:''});
+    s.n++; s.q+=Number(x.it.qty)||0; if(String(x.o.date||'')>s.last) s.last=x.o.date||'';
+  });
+  const sizes=Object.entries(bySize).sort((a,b)=>b[1].n-a[1].n||b[1].q-a[1].q);
+  let h=`<div style="padding:8px 11px;background:var(--s2);border:1px solid var(--b2);border-radius:8px">`+
+    `걸린 발주 <b>${list.length}건</b> · 걸린 줄 <b>${hits.length}줄</b> · 합계 <b style="font-family:'JetBrains Mono',monospace">${tot}</b>장`+
+    (last?` · 마지막 <b>${odShortDate(last.o.date)}</b> ${_odEsc(odStmtVendor(last.o.vendor))} ${(last.it.w&&last.it.h)?last.it.w+'×'+last.it.h+' ':''}${last.it.qty}장`:'');
+  if(sizes.length){
+    h+=`<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--tx2)">`+
+      sizes.slice(0,8).map(([k,v])=>`<span><b style="font-family:'JetBrains Mono',monospace;color:var(--tx1)">${k}</b> ${v.n}번·${v.q}장 <span style="color:var(--tx3)">(마지막 ${odShortDate(v.last)})</span></span>`).join('')+
+      (sizes.length>8?`<span style="color:var(--tx3)">외 ${sizes.length-8}가지</span>`:'')+`</div>`;
+  }
+  sum.innerHTML=h+'</div>';
+}
+
+// 👁 보기 — 카톡으로 보내는 그림과 똑같이 그려 창에 띄웁니다
+async function odViewSaved(orderId){
+  const o=(orderLog||[]).find(x=>x && x.id===orderId);
+  if(!o){ showToast('발주 기록을 찾지 못했어요'); return; }
+  if(!o.items || !o.items.length){ showToast('품목이 없는 기록이에요'); return; }
+  const body=document.getElementById('od-view-body');
+  document.getElementById('od-view-ttl').textContent=`👁 ${odStmtVendor(o.vendor)} · ${odShortDate(o.date)} 발주서`;
+  const id=String(o.id).replace(/'/g,"\\'");
+  const b=(fn,label)=>`<button onclick="${fn}('${id}')" style="padding:8px 13px;border-radius:8px;border:1px solid var(--b2);background:var(--s2);color:var(--tx1);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${label}</button>`;
+  document.getElementById('od-view-btns').innerHTML=
+    b('odReorder','↻ 다시 발주')+b('odCopySaved','📋 카톡')+b('odExcelSaved','📊 엑셀')+b('odPdfSaved','📕 PDF');
+  body.innerHTML='<div style="padding:40px;color:#888;font-size:13px">발주서를 그리는 중…</div>';
+  document.getElementById('od-view-modal').classList.add('on');
+  try{
+    const node=await odMakeCaptureNode(o);
+    if(document.fonts && document.fonts.load){ try{ await Promise.all([document.fonts.load("17px 'Hi Melody'"), document.fonts.ready]); }catch(e){} }
+    if(typeof html2canvas!=='function') throw new Error('html2canvas 없음');
+    const canvas=await html2canvas(node,{scale:2,backgroundColor:'#fff'});
+    document.getElementById('od-capture-host').innerHTML='';
+    body.innerHTML='';
+    canvas.style.cssText='max-width:100%;height:auto;display:block;margin:0 auto';
+    body.appendChild(canvas);
+  }catch(e){
+    console.warn('[발주서 보기]', e);
+    body.innerHTML='<div style="padding:30px;color:#c00;font-size:13px">발주서를 그리지 못했습니다 — 📕 PDF 로 열어 보십시오</div>';
+  }
+}
+
+// ↻ 다시 발주 — 지난 발주의 발주처·종류·품목·수량을 새 발주 입력칸에 채웁니다
+function odReorder(orderId){
+  const o=(orderLog||[]).find(x=>x && x.id===orderId);
+  if(!o){ showToast('발주 기록을 찾지 못했어요'); return; }
+  const cur=odLines.filter(l=>String(l.w||'').trim()||String(l.h||'').trim()||String(l.pname||'').trim());
+  if(cur.length && !confirm(`지금 발주 입력칸에 품목 ${cur.length}줄이 있습니다.\n지우고 「${odStmtVendor(o.vendor)} ${odShortDate(o.date)}」 발주로 채울까요?`)) return;
+  // 대분류 → 발주처 → 종류. 옛 기록은 cat 이 없을 수 있어 발주처가 든 대분류를 찾습니다.
+  const vname=odStmtVendor(o.vendor);
+  let cat=o.cat;
+  if(!cat || !OD_CATALOG[cat] || !(OD_CATALOG[cat][vname] || OD_CATALOG[cat][o.vendor])){
+    cat=Object.keys(OD_CATALOG).find(c=>OD_CATALOG[c][vname] || OD_CATALOG[c][o.vendor]) || cat;
+  }
+  const csel=document.getElementById('od-cat');
+  if(csel && cat && [...csel.options].some(x=>x.value===cat)) csel.value=cat;
+  odCatChanged();
+  const vsel=document.getElementById('od-vendor');
+  const v=[...vsel.options].find(x=>x.value===o.vendor) || [...vsel.options].find(x=>x.value===vname);
+  let typeOk=false;
+  if(v){
+    vsel.value=v.value; odVendorChanged();
+    const ti=(curCatVendors()[v.value]||[]).findIndex(p=>p.type===o.type);
+    if(ti>=0){ document.getElementById('od-type').value=String(ti); odTypeChanged(); typeOk=true; }
+  }
+  // 줄 비고는 공통 비고와 다를 때만 줄에 남깁니다(같으면 공통 비고 칸이 채워 줍니다)
+  odLines=(o.items||[]).map(it=>({w:it.w||'', h:it.h||'', qty:it.qty||1, pname:it.pname||'', color:it.color||'',
+                                  bigo:(it.bigo && it.bigo!==o.bigo)?it.bigo:''}));
+  if(!odLines.length) odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}];
+  // 공통 비고도 그때 적힌 그대로(비었으면 비움) — 종류를 고르며 들어간 기억값을 덮습니다
+  const bg=document.getElementById('od-bigo'); if(bg) bg.value=o.bigo||'';
+  const cl=document.getElementById('od-client'); if(cl && o.client) cl.value=o.client;
+  // 날짜는 오늘, 납기는 발주처 기본값으로 새로 잡습니다
+  const d=document.getElementById('od-date'); if(d) d.value=todayStr();
+  const du=document.getElementById('od-due'); if(du){ du.value=''; du.dataset.auto='1'; }
+  try{ odFillDue(); }catch(e){}
+  renderOdLines();
+  closeM('od-view-modal');
+  const top=document.getElementById('od-vendor'); if(top) top.scrollIntoView({behavior:'smooth',block:'center'});
+  showToast(!v ? `⚠ 발주처 「${o.vendor}」 가 목록에 없어 품목만 채웠습니다 — 발주처를 고르십시오`
+           : !typeOk ? `⚠ 종류 「${o.type||''}」 를 못 찾아 품목만 채웠습니다 — 종류를 확인하십시오`
+           : `↻ ${vname} ${odShortDate(o.date)} 발주를 채웠습니다 — 수량을 고치고 기록하십시오`);
+}
+
 function renderOrderList(){
   // 발주 기록이 바뀌는 곳은 모두 여기를 부르므로, 마감 명세서도 여기서 같이 새로 그립니다
   try{ odStmtRender(); }catch(e){ console.warn('[마감 명세서] 그리기 실패', e); }
@@ -15186,9 +15352,15 @@ function renderOrderList(){
     host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:18px">아직 발주 기록이 없습니다</div>';
     return;
   }
+  // 🔎 찾기 칸·발주처 칩으로 거릅니다 (2026-10-13)
+  const shown = odFindApply();
+  if(!shown.length){
+    host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:12px;padding:18px">찾는 발주가 없습니다 — 찾기 칸을 비우거나 발주처를 「전체」로 바꿔 보십시오</div>';
+    return;
+  }
   // 월별 그룹핑 (발주일 기준 YYYY-MM)
   const groups={};
-  orderLog.forEach(o=>{
+  shown.forEach(o=>{
     const ym=(o.date||'').slice(0,7)||'기타';
     (groups[ym]=groups[ym]||[]).push(o);
   });
@@ -15265,8 +15437,9 @@ function renderOrderList(){
         const hasSize=it.w&&it.h;
         const titleLine=hasSize?`${it.w}×${it.h}`:(it.pname||'(품명)');
         const subLine=hasSize?`${it.pname?it.pname+' · ':''}${it.bigo||''}`:(it.bigo||'');
+        const hit=odFindItemHit(it);   // 찾는 글자가 걸린 줄은 노랗게
         return `
-        <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--b1)">
+        <div style="display:flex;align-items:center;gap:9px;padding:7px ${hit?'6px':'0'};border-bottom:1px solid var(--b1)${hit?';background:#fff3b0;border-radius:6px':''}">
           ${hasSize?`<button onclick="odToggleRecv('${o.id}',${i})" class="todo-check ${it.received?'done':''}" style="width:22px;height:22px;flex-shrink:0">${it.received?'✓':''}</button>`:'<span style="width:22px;flex-shrink:0;text-align:center;color:var(--tx3)">·</span>'}
           <div style="flex:1;min-width:0;${it.received?'opacity:.6':''}">
             <div style="font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;${it.received?'text-decoration:line-through':''}">${titleLine}${it.auto?' <span style="font-size:9px;font-family:Noto Sans KR,sans-serif;background:rgba(46,160,67,.14);color:var(--acc3);padding:1px 6px;border-radius:6px;font-weight:700">자동</span>':''}${it.recvHeld&&!it.received?' <span style="font-size:9px;font-family:Noto Sans KR,sans-serif;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 6px;border-radius:6px;font-weight:700">되돌림</span>':''}</div>
@@ -15286,7 +15459,7 @@ function renderOrderList(){
         : `<div style="font-size:10px;color:var(--tx3);margin-top:2px">${o.date}${o.due?' · 납기 '+o.due:''}${o.client?' · '+o.client:''}</div>`;
       return `
       <div class="day-card" style="margin-bottom:8px${editing?';border:1px solid var(--acc)':''}">
-        <div class="day-hdr">
+        <div class="day-hdr od-hdr">
           <div>
             <div style="font-size:13px;font-weight:700">${o.vendor} <span style="font-size:11px;color:var(--tx3);font-weight:400">${o.thick||o.type||''}</span></div>
             ${subHdr}
@@ -15295,6 +15468,8 @@ function renderOrderList(){
             ${editing?'':`<div class="status-tag ${allDone?'st-완료':recv>0?'st-진행중':'st-시작전'}">${allDone?'입고완료':recv>0?recv+'/'+total+' 입고':'미입고'}</div>`}
             ${editing?'':(o.items.filter(x=>x.received&&x.auto).length?`<div class="status-tag" title="납기일이 지나 앱이 찍은 것입니다 — 실물을 확인한 것이 아닙니다" style="background:rgba(234,108,0,.12);color:var(--acc2)">자동 ${o.items.filter(x=>x.received&&x.auto).length}</div>`:'')}
             <button onclick="odEditToggle('${o.id}')" class="icon-btn" title="${editing?'수정 마치기':'납기·품목 고치기'}" style="font-size:12px;margin-left:4px${editing?';color:var(--acc3);font-weight:700':''}">${editing?'✓ 마침':'✏️ 수정'}</button>
+            ${editing?'':`<button onclick="odViewSaved('${o.id}')" class="icon-btn" title="이 발주서를 양식 그대로 앱 안에서 봅니다" style="font-size:12px;margin-left:4px">👁 보기</button>`}
+            ${editing?'':`<button onclick="odReorder('${o.id}')" class="icon-btn" title="이 발주의 발주처·종류·품목을 새 발주 입력칸에 채웁니다" style="font-size:12px;margin-left:4px">↻ 다시 발주</button>`}
             ${editing?'':`<button onclick="odCopySaved('${o.id}')" class="icon-btn" title="이 발주서를 카톡용 이미지로 복사" style="font-size:12px;margin-left:4px">📋 카톡</button>`}
             ${editing?'':`<button onclick="odExcelSaved('${o.id}')" class="icon-btn" title="이 발주서를 엑셀로 내려받기" style="font-size:12px;margin-left:4px">📊 엑셀</button>`}
             ${editing?'':`<button onclick="odPdfSaved('${o.id}')" class="icon-btn" title="이 발주서를 PDF로 내려받기" style="font-size:12px;margin-left:4px">📕 PDF</button>`}
