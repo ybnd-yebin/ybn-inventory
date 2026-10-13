@@ -441,7 +441,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="main-nav-btn" onclick="showMain('delivery')">📦 납품서</button>
     <button class="main-nav-btn" onclick="showMain('worklog')">✏️ 작업일지</button>
     <button class="main-nav-btn" onclick="showMain('stock')">📋 재고관리</button>
-    <button class="main-nav-btn" onclick="showMain('glassneed')">🖨️ 인쇄유리소요</button>
+    <!-- 안 보는 탭 — 숨김만 (사장님 2026-10-13 「인쇄유리소요랑 추이는 안 봐」). 되살리려면 style 을 지우십시오 -->
+    <button class="main-nav-btn" onclick="showMain('glassneed')" style="display:none">🖨️ 인쇄유리소요</button>
     <button class="main-nav-btn" onclick="showMain('order-analysis')">📊 발주분석</button>
     <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
     <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
@@ -796,7 +797,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="sub-nav-btn" onclick="showSub('assembly')"><span class="ico">🔧</span>조립실</button>
     <button class="sub-nav-btn" onclick="showSub('activity')"><span class="ico">🕓</span>변경이력</button>
     <button class="sub-nav-btn" onclick="showSub('dashboard')"><span class="ico">📊</span>현황</button>
-    <button class="sub-nav-btn" onclick="showSub('trend')"><span class="ico">📈</span>추이</button>
+    <button class="sub-nav-btn" onclick="showSub('trend')" style="display:none"><span class="ico">📈</span>추이</button>
     <button class="sub-nav-btn" onclick="showSub('spec')"><span class="ico">📐</span>규격</button>
     <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
     <button class="sub-nav-btn" onclick="showSub('nonspec')"><span class="ico">🔲</span>비규격</button>
@@ -12963,14 +12964,22 @@ function odPresetModelOptions(p){
    짐작·꼬리표 없이 이름 그대로. 최근에 쓴 것이 위로, 옆에 마지막 발주일·수량만 적습니다.
    목록은 발주 기록(orderLog)에서 그때그때 모으므로 따로 저장하지 않습니다 — 동기화도 발주 기록을 따라갑니다. */
 function odIsBoxOrder(o){ return !!o && (/승일포장/.test(o.vendor||'') || /박스/.test(o.title||'')); }
+/* 같은 박스인데 표기만 다른 이름은 한 줄로 (2026-10-13)
+   「Euro 700 Grace CH M 3573(공용) M」(7/29) · 「EURO700 GRACE CH M 3573」(9/14) → 한 묶음, 보이는 이름은 **가장 최근 발주 표기**.
+   묶는 열쇠만 다듬습니다 — 대소문자 · 띄어쓰기 · 「(공용)」 · 끝의 「 M」. ⚠ 이름을 지어내거나 꼬리표를 붙이지 않습니다
+   (사장님 확정 — 인쇄명은 업체에 보낸 이름 그대로). */
+function odBoxNameKey(nm){
+  return String(nm||'').toUpperCase().replace(/\(\s*공용\s*\)/g,' ').replace(/\s+M\s*$/,'').replace(/\s+/g,'');
+}
 function odBoxNames(){
   const by = new Map();
   (orderLog||[]).forEach(o => {
     if(!odIsBoxOrder(o)) return;
     (o.items||[]).forEach(it => {
       const nm = String(it.pname||'').trim(); if(!nm) return;
-      const cur = by.get(nm);
-      if(!cur || String(o.date||'') > cur.date) by.set(nm, { name:nm, date:String(o.date||''), qty:Number(it.qty)||0 });
+      const k = odBoxNameKey(nm) || nm;
+      const cur = by.get(k);
+      if(!cur || String(o.date||'') > cur.date) by.set(k, { name:nm, date:String(o.date||''), qty:Number(it.qty)||0 });
     });
   });
   return [...by.values()].sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name));
