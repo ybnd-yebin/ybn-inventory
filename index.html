@@ -346,6 +346,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-plan .bd-dots{display:flex;align-items:center;gap:3px;margin-top:auto;flex-wrap:wrap}
 #pg-plan .bd-dots i,#pg-plan .bd-legend i,#pg-plan .bd-dayitem i{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none}
 #pg-plan .bd-dots b{font-size:11px;color:#7a8099;font-weight:600}
+/* 업무판에서 옮겨 온 칸 (2026-10-13) — 휴무·출장은 달력 칸에 이름 한 줄, 아래에 공지·휴무·주간일지 */
+#pg-plan .bd-brk{font-size:11px;line-height:1.25;color:#ea6c00;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#pg-plan .bd-brk.self{color:#dc2626;font-weight:700}
+#pg-plan .bd-extra{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px;font-size:13px;align-items:start}
+#pg-plan .bd-extra > #weekly-host{grid-column:1 / -1}
+#pg-plan .bd-extra .card{margin:0}
+@media (max-width:760px){ #pg-plan .bd-extra{grid-template-columns:1fr} }
 #pg-plan .bd-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:13px;color:#5a6282}
 #pg-plan .bd-legend span{display:flex;align-items:center;gap:5px}
 #pg-plan .bd-dayhead{font-size:18px;font-weight:800;margin-bottom:10px}
@@ -433,7 +440,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="main-nav-btn" onclick="showMain('order-analysis')">📊 발주분석</button>
     <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
     <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
-    <button class="main-nav-btn" onclick="showMain('deskboard')">📋 업무판</button>
+    <!-- 📋 업무판은 🗓️ 일정·업무로 합쳤습니다 (사장님 2026-10-13). 화면은 남겨 두어 되돌릴 수 있게 — 버튼만 숨김 -->
+    <button class="main-nav-btn" onclick="showMain('deskboard')" style="display:none">📋 업무판</button>
     <!-- 🗓️ 일정·업무 (2026-10-12) — 2026-10-13 부터 모두에게 보입니다(공유). 고치기는 설정의 「입력자 목록」만 -->
     <button class="main-nav-btn" id="nav-plan" onclick="showMain('plan')">🗓️ 일정·업무</button>
     <button class="main-nav-btn" onclick="showMain('settings')">⚙️ 설정</button>
@@ -453,12 +461,31 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 </div>
 
 <!-- 🗓️ 일정·업무 (2026-10-12) — 위는 달력·선택한 날, 아래는 탭 4개와 포스트잇. bdRender 가 #bd-host 에 그립니다 -->
-<div class="sec-pg" id="pg-plan"><div id="bd-host"></div></div>
+<div class="sec-pg" id="pg-plan"><div id="bd-host"></div>
+  <!-- 업무판에서 옮겨 온 것 (사장님 2026-10-13 「업무판이랑 합쳐」) — 공지 · 휴무·출장 · 주간 업무일지.
+       예전 할일·일정은 카드로 옮겼습니다(`bdMigrateOld`). 아래 칸들은 예전 함수가 그대로 그립니다. -->
+  <div class="bd-extra">
+    <div class="card">
+      <div class="card-ttl"><span>📌 공지사항</span>
+        <button onclick="openNoticeModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 작성</button>
+      </div>
+      <div id="notice-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-ttl"><span>🏭 휴무 · 출장</span>
+        <button onclick="openBreakModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 추가</button>
+      </div>
+      <div id="break-list"></div>
+      <div style="font-size:10.5px;color:var(--tx3);margin-top:8px;line-height:1.5">위 달력에도 이름이 뜹니다. 리드타임·출고일 계산에는 넣지 않습니다.</div>
+    </div>
+    <!-- 주간 업무일지 · 회의 메모 — 노션 「주간업무일지」를 참고 (2026-09-15) -->
+    <div id="weekly-host"></div>
+  </div>
+</div>
 
-<!-- 📋 업무판 — 예전 홈. 홈은 「오늘의 점검」이 되었고 이쪽으로 옮겼습니다 (2026-09-15) -->
+<!-- 📋 업무판 — 예전 홈. 2026-10-13 부터 🗓️ 일정·업무로 합쳐 버튼을 숨겼습니다(되돌릴 수 있게 화면은 남김).
+     공지·휴무·주간일지 칸은 일정·업무로 옮겼습니다. -->
 <div class="sec-pg" id="pg-deskboard">
-  <!-- 주간 업무일지 · 회의 메모 — 노션 「주간업무일지」를 참고 (2026-09-15) -->
-  <div id="weekly-host"></div>
   <div id="home-urgent"></div>
   <div class="card" style="margin-top:14px">
     <div class="card-ttl"><span>📊 오늘 현황</span><span id="home-date" style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0"></span></div>
@@ -485,13 +512,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="todo-list"></div>
   </div>
 
-  <!-- 공지사항 (편집 가능) -->
-  <div class="card">
-    <div class="card-ttl"><span>📌 공지사항</span>
-      <button onclick="openNoticeModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 작성</button>
-    </div>
-    <div id="notice-list"></div>
-  </div>
+  <!-- 공지사항 → 🗓️ 일정·업무로 옮김 (2026-10-13) -->
 
   <!-- 일정 달력 (편집 가능) -->
   <div class="card">
@@ -524,14 +545,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="sch-history"></div>
   </div>
 
-  <!-- 거래처·자사 휴무 (기간, 편집 가능) -->
-  <div class="card">
-    <div class="card-ttl"><span>🏭 휴무 · 출장</span>
-      <button onclick="openBreakModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 추가</button>
-    </div>
-    <div id="break-list"></div>
-    <div style="font-size:10.5px;color:var(--tx3);margin-top:8px;line-height:1.5">달력에 기간 막대로 표시됩니다. 리드타임·출고일 계산에는 넣지 않습니다.</div>
-  </div>
+  <!-- 휴무·출장 → 🗓️ 일정·업무로 옮김 (2026-10-13) -->
 
   <!-- 오늘 작업 요약 -->
   <div class="card">
@@ -4170,7 +4184,7 @@ function showMain(id){
   fab.style.display=(id==='todo'||(id==='stock'&&curSub==='worklog'))?'flex':'none';
   if(id==='home')renderToday();
   if(id==='deskboard'){renderHome(); if(typeof renderWeekly==='function') renderWeekly();}
-  if(id==='plan') bdRender();   // 🗓️ 일정·업무
+  if(id==='plan'){ bdRender(); bdRenderExtras(); }   // 🗓️ 일정·업무 (+ 업무판에서 옮겨 온 칸)
   if(id==='todo')renderTodo();
   if(id==='board'){renderNotices();renderSchedules();renderBreaks();}
   if(id==='stock')renderSub(curSub);
@@ -4655,9 +4669,11 @@ function renderNotices(){
 
   // 1) 공지에 띄우기 체크된 '예정' 일정 (지난 건 제외)
   let pinnedHtml='';
+  /* 2026-10-13 — 예전 일정은 🗓️ 일정·업무 달력 카드로 옮겼습니다(`bdMigrateOld`). 여기 또 띄우면
+     고치기(✏️)가 옛 일정을 고쳐 달력과 어긋나므로 더 안 띄웁니다. */
   const pinned=schedules
     .map(s=>({...s,date:safeDate(s.date)}))
-    .filter(s=>s.pin && s.date>=today)
+    .filter(s=>false && s.pin && s.date>=today)
     .sort((a,b)=>a.date.localeCompare(b.date));
   if(pinned.length){
     pinnedHtml=pinned.map(s=>{
@@ -4943,7 +4959,7 @@ function deleteBreak(id){
   if(!confirm(b.name+' 휴무를 삭제합니까?')) return;
   // 지워도 목록에는 묘비로 남깁니다 — 빼버리면 동기화 때 다른 기기 것이 되살아납니다
   b.deleted=true; b.updatedAt=new Date().toISOString();
-  saveBreaks(); renderBreaks(); renderCal(); autoSync(); showToast('삭제됨');
+  saveBreaks(); renderBreaks(); renderCal(); if(curMain==='plan') bdRender(); autoSync(); showToast('삭제됨');
 }
 function confirmBreak(){
   const name=document.getElementById('bm-name').value.trim();
@@ -4961,7 +4977,7 @@ function confirmBreak(){
     showToast('✅ '+breakKind+' 추가됨 ('+breakDays(from,to)+'일)');
   }
   editBreakId=null;
-  saveBreaks(); closeM('break-modal'); renderBreaks(); renderCal(); autoSync();
+  saveBreaks(); closeM('break-modal'); renderBreaks(); renderCal(); if(curMain==='plan') bdRender(); autoSync();
 }
 
 // ── STOCK DASHBOARD ──
@@ -8987,6 +9003,8 @@ function applyMergedFromSheet(data){
   if(data.boardCards!==undefined || data.boardEditors!==undefined){
     try{ bdMergeFromSheet(data.boardCards, data.boardEditors); }catch(e){ console.warn('[일정·업무] 받기 실패', e); }
   }
+  // 업무판 합치기 — 시트에서 옛 할일·일정이 더 들어왔으면 카드로 옮깁니다(이미 있는 것은 건너뜀)
+  try{ if(bdMigrateOld() && typeof curMain!=='undefined' && curMain==='plan') bdRender(); }catch(e){}
   /* 📒 거래처 월 마감 — 마감마다 나중에 고친 쪽. 받은 것이 요약뿐이면 이 기기의 줄은 살립니다(`clMergeFromSheet`) */
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
@@ -12383,7 +12401,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     fab.style.display=(id==='todo'||id==='worklog')?'flex':'none';
     if(id==='home')renderToday();
     else if(id==='deskboard'){renderHome();renderNotices();renderSchedules();renderCal();renderBreaks();if(typeof renderWeekly==='function')renderWeekly();}
-    else if(id==='plan') bdRender();   // 🗓️ 일정·업무 (2026-10-12)
+    else if(id==='plan'){ bdRender(); bdRenderExtras(); }   // 🗓️ 일정·업무 (2026-10-12) + 업무판 칸 (10-13)
     else if(id==='worklog')renderWorklogMain();
     else if(id==='delivery'){renderDelivery(); if(typeof renderDelivArchive==='function') renderDelivArchive();}
     else if(id==='todo')renderTodo();
@@ -16423,8 +16441,10 @@ function bdCalHtml(){
     const items=(byDay[ds]||[]).sort(bdSort);
     const dots=items.slice(0,3).map(c=>`<i style="background:${BD_KIND[c.kind].dot}"></i>`).join('')+(items.length>3?`<b>+${items.length-3}</b>`:'');
     const red=hol||dow===0, blue=!hol&&dow===6;
-    cells+=`<button class="bd-cell${ds===bdSel?' sel':''}${ds===t?' today':''}" onclick="bdPick('${ds}')" aria-label="${m+1}월 ${d}일${hol?' '+hol:''}${items.length?' 항목 '+items.length+'개':''}">
-      <span class="bd-dn" style="${red?'color:#dc2626':blue?'color:#2563eb':''}">${d}</span>${hol?`<span class="bd-hol">${bdEsc(hol)}</span>`:''}
+    const brs=(typeof breaksOn==='function')?breaksOn(ds):[];   // 휴무·출장 (업무판에서 옮겨 옴)
+    const brHtml=brs.slice(0,2).map(b=>`<span class="bd-brk${b.self?' self':''}">${(BREAK_KIND[breakKindOf(b)]||{}).ico||''}${bdEsc(b.name)}</span>`).join('')+(brs.length>2?`<span class="bd-brk">+${brs.length-2}</span>`:'');
+    cells+=`<button class="bd-cell${ds===bdSel?' sel':''}${ds===t?' today':''}" onclick="bdPick('${ds}')" aria-label="${m+1}월 ${d}일${hol?' '+hol:''}${brs.length?' '+brs.map(b=>b.name+' '+breakKindOf(b)).join(', '):''}${items.length?' 항목 '+items.length+'개':''}">
+      <span class="bd-dn" style="${red?'color:#dc2626':blue?'color:#2563eb':''}">${d}</span>${hol?`<span class="bd-hol">${bdEsc(hol)}</span>`:''}${brHtml}
       <span class="bd-dots">${dots}</span></button>`;
   }
   return `<div class="bd-calhead">
@@ -16445,8 +16465,11 @@ function bdDayHtml(){
       <i style="background:${k.dot}"></i><span class="bd-dit">${bdEsc(c.title)}${done?' <small>(완료)</small>':''}</span>
       <small>${c.kind==='order'?'입고 예정':k.label}</small></button>`;
   };
+  const brs=(typeof breaksOn==='function')?breaksOn(ds):[];
+  const brRows=brs.map(b=>{ const k=breakKindOf(b);
+    return `<button class="bd-dayitem" onclick="editBreak('${bdEsc(b.id)}')" style="border-style:dashed"><span>${(BREAK_KIND[k]||{}).ico||''}</span><span class="bd-dit">${bdEsc(b.name)}${b.self?' <small>(우리 공장)</small>':''}</span><small>${k} ${brShort(b.from)}~${brShort(b.to)}</small></button>`; }).join('');
   return `<div class="bd-dayhead">${+ds.slice(5,7)}월 ${+ds.slice(8,10)}일 (${bdDow(ds)})${hol?` <span style="color:#dc2626;font-size:14px">${bdEsc(hol)}</span>`:''}</div>
-    <div class="bd-daylist">${items.map(row).join('')||'<div class="bd-muted" style="padding:14px 2px">이날은 일정이 없습니다</div>'}</div>
+    <div class="bd-daylist">${brRows}${items.map(row).join('')||(brRows?'':'<div class="bd-muted" style="padding:14px 2px">이날은 일정이 없습니다</div>')}</div>
     ${bdCanEdit()?`<button class="bd-btn bd-primary bd-wide" onclick="bdNew(null,'${ds}')">＋ 일정 추가</button>`:''}`;
 }
 function bdSort(a,b){
@@ -16681,6 +16704,48 @@ function bdSyncSoon(){
   _bdSyncT=setTimeout(()=>{ try{ if(typeof autoSync==='function') autoSync(); }catch(e){} }, 1500);
 }
 try{ bdEditorsRender(); }catch(e){}
+
+/* ── 업무판 합치기 (사장님 2026-10-13 「업무판이랑은 합쳐버리는게 낫지않나」) ──
+   예전 할일(`todos`)·일정(`schedules`)을 카드로 **복사**합니다. 원본은 그대로 둡니다(되돌릴 수 있게).
+     할일 시작전 → 할일 · 진행중 → 진행중 · 완료 → 완료 · 일정 → 일반 일정(달력)
+   ⚠ 카드 id 는 원본 id 로 만듭니다(`bdm_t_…`·`bdm_s_…`). 기기마다 따로 옮겨도 **같은 카드**가 되어 동기화 때 둘로 안 늘어납니다.
+     updatedAt 도 원본 시각이라, 옮긴 뒤 지운 카드(묘비)가 다른 기기의 옮기기로 되살아나지 않습니다.
+   ─ 이미 있는 id 는 건너뛰니 몇 번 불러도 됩니다. 시트에서 옛 할일이 더 들어오면 그때 또 옮깁니다. */
+function bdMigrateOld(){
+  const have=new Set(boardCards.map(c=>c.id)); let n=0;
+  const base=(id,kind,at,by)=>({ id, kind, title:'', date:'', summary:'', body:'', nextStep:'', vendor:'', item:'', qty:'', orderDate:'', arriveDate:'',
+    owner:'', orderNo:'', site:'', visibility:'all', status:'open', completedAt:'', dateLog:[], createdAt:at, createdBy:by||'', updatedAt:at, updatedBy:by||'', deleted:false, from:'업무판' });
+  const add=c=>{ if(have.has(c.id)) return; boardCards.push(c); have.add(c.id); n++; };
+  (typeof todos!=='undefined'&&Array.isArray(todos)?todos:[]).forEach(t=>{
+    if(!t || !t.id || !t.content) return;
+    const at=t.updatedAt||t.createdAt||'2026-01-01T00:00:00';
+    const c=base('bdm_t_'+t.id, t.status==='진행중'?'progress':'todo', at, t.createdBy||t.by);
+    c.title=(t.priority==='긴급'?'🔴 ':'')+t.content;
+    c.date=t.dueDate?safeDate(t.dueDate):'';
+    c.owner=t.assignee||'';
+    c.body=[t.company&&t.company!=='전체'?'업체: '+t.company:'', t.priority&&t.priority!=='보통'?'우선순위: '+t.priority:''].filter(Boolean).join('\n');
+    if(t.status==='완료'){ c.status='done'; c.completedAt=at; }
+    add(c);
+  });
+  const CL={work:'작업',delivery:'납품',order:'발주',etc:'기타'};
+  (typeof schedules!=='undefined'&&Array.isArray(schedules)?schedules:[]).forEach(s=>{
+    if(!s || !s.id || !s.content || !s.date) return;
+    const at=s.updatedAt||s.createdAt||'2026-01-01T00:00:00';
+    const c=base('bdm_s_'+s.id, 'event', at, s.createdBy||s.by);
+    c.title=s.content; c.date=safeDate(s.date);
+    c.body=[CL[s.cat]||'', s.pin?'📌 공지에 띄우던 일정':''].filter(Boolean).join(' · ');
+    add(c);
+  });
+  if(n){ bdSave(true); console.info('[일정·업무] 업무판 할일·일정 '+n+'개를 카드로 옮겼습니다'); }
+  return n;
+}
+try{ bdMigrateOld(); }catch(e){ console.warn('[일정·업무] 업무판 옮기기 실패', e); }
+/* 업무판에서 옮겨 온 칸(공지 · 휴무·출장 · 주간일지) — 예전 함수가 그대로 그립니다 */
+function bdRenderExtras(){
+  try{ renderNotices(); }catch(e){}
+  try{ renderBreaks(); }catch(e){}
+  try{ if(typeof renderWeekly==='function') renderWeekly(); }catch(e){}
+}
 
 /* ══════════════════════════════════════════════════════════
    📷 이미지로 넣기 (사장님 요청 2026-09-29)
@@ -23352,6 +23417,9 @@ function renderToday(){
 
   let h='';
 
+  // ── 🗓️ 오늘·이번 주 일정 — 일정·업무 요약 (사장님 2026-10-13 (가) 「메인페이지에 넣어줘」)
+  h+=(function(){ try{ return todayPlanCard(); }catch(e){ console.warn('[오늘] 일정',e); return ''; } })();
+
   // ── 🔴 납품서 업로드가 밀렸으면 제일 먼저 (다른 숫자가 다 이것에 기댑니다)
   if(upl && upl.gap>=2){
     h+=tdyCard('var(--acc4)','📥','납품서가 '+upl.gap+'영업일째 안 올라왔습니다',
@@ -23432,20 +23500,43 @@ function renderToday(){
           '<span style="flex:1;min-width:0;font-size:12.5px;line-height:1.55;color:var(--tx1)">'+etpEsc(r.text)+'</span>' +
         '</div>').join('') +
       (wkOpen.length>6?'<div style="font-size:10.5px;color:var(--tx3);margin-top:6px">외 '+(wkOpen.length-6)+'가지</div>':''),
-      tdyGo('업무판',"showMain('deskboard')"));
+      tdyGo('주간일지',"showMain('plan');setTimeout(function(){var e=document.getElementById('weekly-host');if(e)e.scrollIntoView({behavior:'smooth'})},80)"));
   }
-
-  // ── 곁들여: 오늘 할 일 몇 가지 (예전 홈에 있던 것 중 쓰시는 것만)
-  const todoN=(typeof todos!=='undefined') ? todos.filter(t=>t&&t.status==='진행중').length : 0;
-  h+='<div class="card" style="background:var(--s2)">' +
-     '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline;font-size:12px;color:var(--tx2)">' +
-       '<span>진행중 할일 <b style="color:var(--tx1)">'+todoN+'</b></span>' +
-       '<span style="flex:1"></span>' +
-       '<span style="font-size:11px;color:var(--tx3)">할일·공지·달력은 <b>📋 업무판</b> 으로 옮겼습니다</span>' +
-       tdyGo('업무판',"showMain('deskboard')") +
-     '</div></div>';
+  // (예전 「진행중 할일 · 업무판으로 옮겼습니다」 줄은 맨 위 일정 요약으로 바꿨습니다 — 2026-10-13)
 
   body.innerHTML=h;
+}
+
+/* 🗓️ 홈 맨 위 — 일정·업무 요약 (2026-10-13)
+   날짜 지난 카드(빨강) · 오늘 · 앞으로 6일. 휴무·출장과 🔴 긴급 공지도 함께. 줄을 누르면 일정·업무 탭의 그 카드로. */
+function todayPlanCard(){
+  const td=todayStr(), end=_addDays(td,6);
+  const cards=bdCardsAll().filter(c=>c.status!=='done');
+  const over=cards.filter(c=>bdOverdue(c)).sort(bdSort);
+  const soon=cards.filter(c=>{ const d=bdDateOf(c); return d && d>=td && d<=end; }).sort(bdSort);
+  const urgentN=(typeof notices!=='undefined'?notices:[]).filter(n=>n&&n.pri==='urgent'&&!n.archived);
+  const brs=(typeof activeBreaks==='function'?activeBreaks():[]).filter(b=>b.to>=td && b.from<=end)
+    .sort((a,b)=>(b.self?1:0)-(a.self?1:0) || a.from.localeCompare(b.from));
+  const prog=cards.filter(c=>c.kind==='progress').length, ord=cards.filter(c=>c.kind==='order').length;
+  const go=id=>`showMain('plan');setTimeout(function(){bdJump('${id}')},60)`;
+  const row=(c,red)=>{ const d=bdDateOf(c), k=BD_KIND[c.kind];
+    const when = d===td ? '<b>오늘</b>' : `${bdMd(d)}(${bdDow(d)})`;
+    return `<div onclick="${go(c.id)}" style="display:flex;gap:9px;align-items:center;padding:7px 0;border-top:1px solid var(--b1);cursor:pointer">
+      <i style="flex:none;width:9px;height:9px;border-radius:50%;background:${k.dot}"></i>
+      <span style="flex:none;min-width:58px;font-size:12px;color:${red?'var(--acc4)':'var(--tx2)'}">${red?'⚠ '+bdMd(d):when}</span>
+      <span style="flex:1;min-width:0;font-size:13px;color:var(--tx1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${bdEsc(c.title)}</span>
+      <small style="flex:none;color:var(--tx3);font-size:11px">${c.kind==='order'?'입고 예정':k.label}</small></div>`; };
+  const MAX=8;
+  const list=over.map(c=>row(c,true)).concat(soon.map(c=>row(c,false)));
+  let b='';
+  b+=urgentN.map(n=>`<div style="padding:7px 10px;margin-bottom:6px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;font-size:12.5px"><b style="color:var(--acc4)">🔴 긴급공지</b> ${bdEsc(n.title)}${n.content?` — <span style="color:var(--tx2)">${bdEsc(n.content)}</span>`:''}</div>`).join('');
+  b+=brs.map(bk=>{ const k=breakKindOf(bk); return `<div style="font-size:12px;color:${bk.self?'var(--acc4)':'var(--acc2)'};padding:3px 0">${(BREAK_KIND[k]||{}).ico||''} ${bdEsc(bk.name)} ${k} ${brShort(bk.from)}~${brShort(bk.to)}${td>=bk.from&&td<=bk.to?' <b>(오늘 쉼)</b>':''}</div>`; }).join('');
+  b+=list.slice(0,MAX).join('');
+  if(list.length>MAX) b+=`<div style="font-size:11px;color:var(--tx3);margin-top:6px">외 ${list.length-MAX}가지</div>`;
+  if(!list.length && !brs.length && !urgentN.length) b+='<div style="font-size:12px;color:var(--tx3)">이번 주에 잡힌 일정이 없습니다</div>';
+  b+=`<div style="font-size:11px;color:var(--tx3);margin-top:8px">진행중 ${prog} · 발주중 ${ord}</div>`;
+  const title = over.length ? `일정 — 날짜 지난 것 ${over.length}가지` : `오늘·이번 주 일정 ${soon.length}가지`;
+  return tdyCard(over.length?'var(--acc4)':'var(--acc5)','🗓️',title,b,tdyGo('일정·업무',"showMain('plan')"));
 }
 
 /* ══════════════════════════════════════════════════════════════════════
