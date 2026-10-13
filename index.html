@@ -21402,14 +21402,18 @@ function artCmpHtml(ours){
   const n=v=>`<b style="font-family:'JetBrains Mono',monospace">${v}</b>`;
   const cell=(r,side)=>{ const v=r[side]; if(!v) return '<span style="color:var(--tx3)">없음</span>';
     return `${n(v.cur)}${v.onOrder?` <small style="color:var(--acc)">+발주 ${v.onOrder}</small>`:''}<br><small style="color:var(--tx3)">안전 ${v.safety||0}${side==='art'&&v.status?' · '+v.status:''}</small>`; };
+  // 표처럼 열을 맞춥니다 (사장님 2026-10-13 「각을 좀 지켜줘」) — 없는 값은 '-'
+  const COLS="minmax(70px,1fr) repeat(5,minmax(40px,54px))";
+  const v=(x,o)=>{ o=o||{}; const e=(x==null||(o.zd&&!Number(x))); return `<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:${o.big?'14px':'12px'};font-weight:${o.big?900:500};color:${e?'var(--tx3)':(o.c||'var(--tx1)')}">${e?'-':x}</span>`; };
   const list=pick.slice(0,200).map(r=>{
     const red=r.only || r.diff!==0;
     const models=(r.art&&r.art.models&&r.art.models.length)?r.art.models.slice(0,3).join(' · '):(r.our&&r.our.models?r.our.models.slice(0,3).join(' · '):'');
-    return `<div style="display:grid;grid-template-columns:minmax(0,1.3fr) 1fr 1fr 64px;gap:8px;align-items:center;padding:7px 10px;border-top:1px solid var(--b1);${red?'background:rgba(220,38,38,.05)':''}">
+    const dTxt=r.only?(r.only==='art'?'아티만':'우리만'):(r.diff>0?'+':'')+r.diff;
+    return `<div style="display:grid;grid-template-columns:${COLS};gap:6px;align-items:center;padding:6px 10px;border-top:1px solid var(--b1);${red?'background:rgba(220,38,38,.05)':''}">
       <div style="min-width:0"><b style="font-family:'JetBrains Mono',monospace;font-size:13px">${r.size.replace('x','×')}</b><div style="font-size:10px;color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${etpEsc(models)}</div></div>
-      <div style="font-size:12px">${cell(r,'art')}</div>
-      <div style="font-size:12px">${cell(r,'our')}</div>
-      <div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:${r.only?'var(--acc2)':r.diff?'var(--acc4)':'var(--acc3)'}">${r.only?(r.only==='art'?'아티만':'우리만'):(r.diff>0?'+':'')+r.diff}</div>
+      ${v(r.art?r.art.cur:null)}${v(r.art?r.art.onOrder:null,{zd:1,c:'var(--acc)'})}
+      ${v(r.our?r.our.cur:null)}${v(r.our?r.our.onOrder:null,{zd:1,c:'var(--acc)'})}
+      <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:${r.only?'11px':'14px'};font-weight:900;color:${r.only?'var(--acc2)':r.diff?'var(--acc4)':'var(--acc3)'}">${dTxt}</span>
     </div>`;
   }).join('');
   return `<div class="card" id="art-cmp" style="border-left:3px solid ${diff.length||only.length?'var(--acc4)':'var(--acc3)'}">
@@ -21426,7 +21430,7 @@ function artCmpHtml(ours){
     ${artAlignBtnHtml()}
     ${artOpen?`<div class="filter-row" style="margin:8px 0 4px">${chip('diff','재고 다름',diff.length)}${chip('only','한쪽에만',only.length)}${chip('all','전체',rows.length)}</div>
     <div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden">
-      <div style="display:grid;grid-template-columns:minmax(0,1.3fr) 1fr 1fr 64px;gap:8px;padding:6px 10px;background:var(--s3);font-size:10.5px;color:var(--tx2);font-weight:700"><span>사이즈</span><span>아티팩트</span><span>우리 앱</span><span style="text-align:right">차이</span></div>
+      <div style="display:grid;grid-template-columns:${COLS};gap:6px;padding:6px 10px;background:var(--s3);font-size:10px;color:var(--tx2);font-weight:700;line-height:1.3"><span>사이즈</span><span style="text-align:right">아티<br>재고</span><span style="text-align:right">아티<br>발주중</span><span style="text-align:right">우리<br>재고</span><span style="text-align:right">우리<br>발주중</span><span style="text-align:right">차이</span></div>
       ${list||'<div style="padding:14px;text-align:center;font-size:12px;color:var(--tx3)">해당하는 사이즈가 없습니다</div>'}
     </div>`:''}
   </div>`;
@@ -23273,6 +23277,26 @@ function etpFallbackCopy(txt, done){
   try{ document.execCommand('copy'); done(); }catch(e){ alert(txt); }
   document.body.removeChild(ta);
 }
+/* ── 표처럼 열 맞추기 (사장님 2026-10-13 "엑셀에서 표 만든다고 생각하고 각을 좀 지켜줘 …
+      재고줄 안전줄 발주중줄 이런 식으로 한 줄에 맞춰서 없는 건 - 찍던지")
+   값마다 제 칸(고정 폭·오른쪽 맞춤·고정폭 숫자)에 두고, 없으면 '-'. 머리줄을 한 번 둡니다.
+   새 목록을 만들 때 이 함수를 쓰십시오 — 글로 「재고 0 · 안전 3 · 발주중 1」처럼 이어 붙이지 않습니다. */
+// 숫자 칸 폭 58px — 상수로 두면 앱을 막 열 때(선언 전) 오늘 화면이 못 읽습니다
+function tblCols(n){ return 'minmax(0,1fr)' + ' 58px'.repeat(n); }
+function tblVal(v, opt){
+  opt = opt || {};
+  const empty = (v == null || v === '' || (opt.zeroDash && Number(v) === 0));
+  return `<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:${opt.big?'15px':'12px'};font-weight:${opt.big?900:500};color:${empty?'var(--tx3)':(opt.color||'var(--tx2)')}">${empty?'-':v}</span>`;
+}
+function tblHead(first, names){
+  return `<div style="display:grid;grid-template-columns:${tblCols(names.length)};gap:6px;padding:6px 11px;background:var(--s3);border-bottom:1px solid var(--b1);font-size:10.5px;font-weight:700;color:var(--tx2)">`+
+    `<span>${first}</span>`+names.map(n=>`<span style="text-align:right">${n}</span>`).join('')+`</div>`;
+}
+function tblRow(firstHtml, cellsHtml, style){
+  return `<div style="display:grid;grid-template-columns:${tblCols(cellsHtml.length)};gap:6px;align-items:center;padding:6px 11px;border-bottom:1px solid var(--b1);${style||''}">`+
+    `<span style="min-width:0">${firstHtml}</span>`+cellsHtml.join('')+`</div>`;
+}
+
 function etpDraftCardHtml(){
   const d = etpDraftOrder();
   const total = d.reduce((s, x) => s + x.qty, 0);
@@ -23290,11 +23314,10 @@ function etpDraftCardHtml(){
     '</div>' +
     (d.length
       ? '<div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden;max-height:40vh;overflow-y:auto">' +
-        d.map(x => '<div style="display:flex;gap:8px;align-items:center;padding:6px 11px;border-bottom:1px solid var(--b1)">' +
-          '<span style="flex:1;font-family:\'JetBrains Mono\',monospace;font-size:13px;font-weight:800;color:var(--tx1)">' + x.size.replace('x', '×') + '</span>' +
-          '<span style="font-size:10px;color:var(--tx3);flex:none">재고 ' + x.cur + ' · 안전 ' + x.safety + (x.onOrder ? ' · 발주중 ' + x.onOrder : '') + '</span>' +
-          '<span style="font-family:\'JetBrains Mono\',monospace;font-size:14px;font-weight:900;color:var(--acc);width:44px;text-align:right;flex:none">' + x.qty + '</span>' +
-        '</div>').join('') + '</div>'
+        tblHead('사이즈', ['재고', '안전', '발주중', '발주']) +
+        d.map(x => tblRow(
+          '<b style="font-family:\'JetBrains Mono\',monospace;font-size:13px;color:var(--tx1)">' + x.size.replace('x', '×') + '</b>',
+          [ tblVal(x.cur), tblVal(x.safety), tblVal(x.onOrder, {zeroDash:true}), tblVal(x.qty, {big:true, color:'var(--acc)'}) ])).join('') + '</div>'
       : '<div style="font-size:12px;color:var(--tx3)">안전재고를 다 채웠습니다.</div>') +
   '</div>';
 }
@@ -23924,12 +23947,10 @@ function todayOrderNowCard(etpShort){
   if(!etpShort.length) return '';
   const q=etpShort.reduce((s,x)=>s+x.qty,0);
   const nNon=etpShort.filter(x=>x.nonstd).length;
-  const rows=etpShort.slice(0,12).map(x=>
-    `<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-top:1px solid var(--b1)">
-      <b style="flex:1;min-width:0;font-family:'JetBrains Mono',monospace;font-size:14px">${x.size.replace('x','×')}${x.nonstd?' <small style="font-size:10px;color:var(--acc2);font-family:Noto Sans KR,sans-serif">비규격</small>':''}</b>
-      <span style="flex:none;font-size:10.5px;color:var(--tx3)">재고 ${x.cur} · 안전 ${x.safety}${x.onOrder?' · 발주중 '+x.onOrder:''}</span>
-      <b style="flex:none;width:46px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:17px;color:var(--acc)">${x.qty}</b>
-    </div>`).join('');
+  const rows='<div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden">'+tblHead('사이즈',['재고','안전','발주중','발주'])+
+    etpShort.slice(0,12).map(x=>tblRow(
+      `<b style="font-family:'JetBrains Mono',monospace;font-size:14px">${x.size.replace('x','×')}</b>${x.nonstd?' <small style="font-size:10px;color:var(--acc2)">비규격</small>':''}`,
+      [tblVal(x.cur), tblVal(x.safety), tblVal(x.onOrder,{zeroDash:true}), tblVal(x.qty,{big:true,color:'var(--acc)'})])).join('')+'</div>';
   return `<div id="tdy-order-now">`+tdyCard('var(--acc)','🧾','지금 발주할 것 — 현성 에토프 '+etpShort.length+'종 '+q+'장',
     `<div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:4px">안전재고까지 채우는 양입니다(이미 발주해 둔 것은 뺌 · ${etpLotSize}장 묶음).</div>`+
     rows+(etpShort.length>12?`<div style="font-size:10.5px;color:var(--tx3);margin-top:6px">외 ${etpShort.length-12}종</div>`:'')+
