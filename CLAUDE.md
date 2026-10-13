@@ -2119,3 +2119,10 @@ R)  600X0X2255X0 1                                     ← 괄호와 R 이 뒷�
 - `odPutFiles` 가 나눠 보냅니다 — 사진 → 「📷 이미지로 넣기」 창(`odImgAddFiles`, 글자 읽기) · 엑셀·PDF → 예전 「넣기 — 기록만」(`odImportAny`, `odImportFill=false`).
 - 발주 탭에서 **Ctrl+V** 로 카톡 이미지를 붙이면 바로 이미지 창이 열립니다(입력칸에 붙일 때는 안 건드림).
 - 「발주서 불러오기(품목칸에도 채우기)」 단추는 뺐습니다 — 지난 발주는 「↻ 다시 발주」. 옛 함수(`odCopyImage`·`odMakeExcel`·`odMakePdf`·`odImportPick`)는 남겨 둠.
+
+### 12-46. 🟠 에토프재고는 📋 재고관리 안 탭 (사장님 2026-10-13 「인쇄실 탭 옆에」)
+
+- 화면 덩어리를 `pg-etp`(맨 위 메뉴) → `sp-etp`(재고관리 안 `sub-pg`)로 옮겼습니다. 안의 id(`etp-body` 등)는 그대로.
+- 탭 단추는 인쇄실 바로 옆. ⚠ **`SUBS` 차례 = 단추 차례**여야 합니다 — `showSub` 가 차례로 켭니다(`'stocklist','etp','assembly',…`).
+- `showMain('etp')` 는 그대로 써도 됩니다 — 재고관리로 가서 `showSub('etp')`. 맨 위 「🟠 에토프재고」 단추는 숨김(지우지 않음).
+- 동기화 뒤 다시 그리기는 `curMain==='stock' && curSub==='etp'` 일 때.
