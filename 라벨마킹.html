@@ -1603,11 +1603,11 @@ function esc(t){ return t.replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt
 
 /* ---------- 철 확인 (사장님 2026-10-13) ----------
    "인쇄한 다음 같은 모델사이즈끼리 묶어서 철하고 있는데 수량 맞는지 … 체킹리스트"
-   프레임 수량 표와 달리 **색·HD/OB·비규격 사이즈까지** 갈라 셉니다 — `에토프 핸들 3034 1장`.
+   프레임 수량 표와 달리 **색·HD/OB·비규격 사이즈까지** 갈라 셉니다 — `에토프 HD 3034 1장` · 비규격은 `(비) 600×1522`.
    라벨은 labelNames() 로 셉니다(묶음 수량 메모와 같은 셈 — 한 장에 품명이 두 번 찍혀도 한 번).
    좌우만 다른 것은 한 줄에 `L1/R1`(묶음 메모와 같은 방식).
    체크는 파일 이름마다 이 컴퓨터에 기억합니다. 인쇄에는 안 나갑니다. */
-const CHECK_TYPE = {HD:"핸들", OB:"OB", CH:""};   // CH(유로500)는 한 가지뿐이라 안 적습니다
+const CHECK_TYPE = {HD:"HD", OB:"OB", CH:""};   // CH(유로500)는 한 가지뿐이라 안 적습니다
 function checkKeyOf(){ return "label-mark-check-v1:" + state.fileName; }
 function checkLoad(){ try{ return new Set(JSON.parse(localStorage.getItem(checkKeyOf())) || []); }catch(e){ return new Set(); } }
 function checkSave(set){ try{ localStorage.setItem(checkKeyOf(), JSON.stringify([...set])); }catch(e){} }
@@ -1617,7 +1617,7 @@ function checkItemOf(name){
   const sm = t.match(/비규격\s*\(([\d*]+)/);
   if(sm){
     const p = sm[1].split("*");                 // 가로·두께·세로·두께 — 1·3번째 (CLAUDE.md 12-6)
-    size = (p[0] && p[2]) ? p[0] + "×" + p[2] : "비규격(" + sm[1] + ")";
+    size = (p[0] && p[2]) ? "(비) " + p[0] + "×" + p[2] : "(비) " + sm[1];
     t = t.slice(0, sm.index).trim();
   }else t = t.replace(/\s+[LMR]$/, "").trim();
   let color = "", type = "", body = t;
