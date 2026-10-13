@@ -1200,54 +1200,69 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="card">
     <div class="card-ttl">📝 새 발주서 작성</div>
 
-    <span class="lbl">대분류</span>
-    <select class="sel" id="od-cat" onchange="odCatChanged()">
-      <option value="유리">유리</option>
-      <option value="알루미늄">알루미늄</option>
-      <option value="브라켓">브라켓</option>
-      <option value="힌지">힌지</option>
-      <option value="알판">알판</option>
-      <option value="박스">박스</option>
-      <option value="목대">목대</option>
-      <option value="기타용품">기타용품</option>
-    </select>
-
-    <span class="lbl">발주처</span>
-    <div style="display:flex;gap:6px;align-items:center">
-      <select class="sel" id="od-vendor" onchange="odVendorChanged()" style="flex:1;margin:0"></select>
-      <button onclick="odAddVendor()" title="발주처 추가" style="flex-shrink:0;padding:9px 12px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">＋</button>
-      <button onclick="odRemoveVendor()" title="추가한 발주처 삭제" style="flex-shrink:0;padding:9px 11px;background:var(--s3);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;cursor:pointer">🗑</button>
+    <!-- 입력칸 세 줄 (사장님 2026-10-13 「대분류·발주처·종류 한 줄 / 발주일·납기·비고·업체명 한 줄 / 메모 한 줄」).
+         id·onchange 는 예전 그대로 — 칸 자리만 옮겼습니다. 좁은 화면은 .od-top 규칙이 두 칸으로 접습니다. -->
+    <style>
+      .od-top{display:grid;gap:8px;margin-bottom:8px;align-items:end}
+      .od-top .lbl{margin-bottom:3px}
+      .od-top .inp,.od-top .sel{margin:0;padding:8px 10px;font-size:13px}
+      .od-top1{grid-template-columns:minmax(90px,.8fr) minmax(0,1.6fr) minmax(0,2fr)}
+      .od-top2{grid-template-columns:minmax(130px,1fr) minmax(90px,.7fr) minmax(0,2.2fr) minmax(90px,.9fr)}
+      @media (max-width:700px){ .od-top1,.od-top2{grid-template-columns:1fr 1fr} .od-top1>div:last-child{grid-column:1 / -1} }
+    </style>
+    <div class="od-top od-top1">
+      <div>
+        <span class="lbl">대분류</span>
+        <select class="sel" id="od-cat" onchange="odCatChanged()">
+          <option value="유리">유리</option>
+          <option value="알루미늄">알루미늄</option>
+          <option value="브라켓">브라켓</option>
+          <option value="힌지">힌지</option>
+          <option value="알판">알판</option>
+          <option value="박스">박스</option>
+          <option value="목대">목대</option>
+          <option value="기타용품">기타용품</option>
+        </select>
+      </div>
+      <div>
+        <span class="lbl">발주처</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          <select class="sel" id="od-vendor" onchange="odVendorChanged()" style="flex:1;min-width:0"></select>
+          <button onclick="odAddVendor()" title="발주처 추가" style="flex-shrink:0;padding:7px 10px;background:var(--acc3);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">＋</button>
+          <button onclick="odRemoveVendor()" title="추가한 발주처 삭제" style="flex-shrink:0;padding:7px 9px;background:var(--s3);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:12px;cursor:pointer">🗑</button>
+        </div>
+      </div>
+      <div>
+        <span class="lbl">종류 (두께 / 비고 자동)</span>
+        <select class="sel" id="od-type" onchange="odTypeChanged()"></select>
+      </div>
     </div>
+    <div id="od-type-hint" style="font-size:10px;color:var(--tx3);margin:-3px 0 8px;line-height:1.5"></div>
 
-    <span class="lbl">종류 (두께 / 비고 자동)</span>
-    <select class="sel" id="od-type" onchange="odTypeChanged()"></select>
-    <div id="od-type-hint" style="font-size:10px;color:var(--tx2);margin:-4px 0 10px;line-height:1.5"></div>
-
-    <div class="f-row">
+    <div class="od-top od-top2">
       <div>
         <span class="lbl">발주일</span>
-        <input type="date" id="od-date" class="inp" onchange="odFillDue()" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <input type="date" id="od-date" class="inp" onchange="odFillDue()" style="font-family:'Noto Sans KR',sans-serif">
       </div>
       <div>
         <span class="lbl">납기</span>
-        <input type="text" id="od-due" class="inp" oninput="delete this.dataset.auto" placeholder="예: 5/27 또는 긴급" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <input type="text" id="od-due" class="inp" oninput="delete this.dataset.auto" placeholder="5/27 · 긴급" style="font-family:'Noto Sans KR',sans-serif">
       </div>
-    </div>
-
-    <div class="f-row">
       <div>
         <span class="lbl">비고 (기본값)</span>
-        <input type="text" id="od-bigo" class="inp" placeholder="예: 각면/강화 (한 번 적으면 다음부터 저절로 들어갑니다)" onchange="odBigoRemember()" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <input type="text" id="od-bigo" class="inp" placeholder="예: 각면/강화 (한 번 적으면 다음부터 저절로)" onchange="odBigoRemember()" style="font-family:'Noto Sans KR',sans-serif">
       </div>
       <div>
         <span class="lbl">업체명</span>
-        <input type="text" id="od-client" class="inp" value="한샘" placeholder="예: 한샘" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <input type="text" id="od-client" class="inp" value="한샘" placeholder="예: 한샘" style="font-family:'Noto Sans KR',sans-serif">
       </div>
     </div>
     <!-- 참조 — 발주서 머리의 「참조 :」 옆에 찍히는 메모 (사장님 2026-10-07) -->
-    <div style="margin-top:8px">
-      <span class="lbl">참조 (메모)</span>
-      <input type="text" id="od-ref" class="inp" placeholder="발주서 「참조 :」 옆에 찍힙니다 — 예: 담당 김OO / 오전 입고 부탁" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+    <div class="od-top" style="grid-template-columns:1fr">
+      <div>
+        <span class="lbl">참조 (메모)</span>
+        <input type="text" id="od-ref" class="inp" placeholder="발주서 「참조 :」 옆에 찍힙니다 — 예: 담당 김OO / 오전 입고 부탁" style="font-family:'Noto Sans KR',sans-serif">
+      </div>
     </div>
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px">
