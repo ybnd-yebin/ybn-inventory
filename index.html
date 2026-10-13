@@ -13574,13 +13574,26 @@ function odFileVendor(v){
   const s = String(v||'').trim();
   return (s.length > 2 && /유리$/.test(s)) ? s.slice(0, -2) : s;
 }
+/* 2026-10-13 다시 맞춤 (사장님 「저장명은 전체적으로 통일해 줘」) — 뽑아 보니 셋이 어긋나 있었습니다.
+   ① 두께와 재질 사이 띄어쓰기 — `5T투명` · `5T 백유리` · `3.2T 백사틴` 이 섞임 → **붙입니다**(사장님 예시 `KB 5T투명`).
+   ② 불러온 발주서의 업체 — `대원유리 귀하` · `㈜ 승일포장` 이 그대로 → odStmtVendor 로 모은 뒤 줄입니다(`대원` · `승일포장`).
+   ③ 발주처 미설정 — `(거래처 미설정)` 을 넣지 않습니다.
+   발주와 이어진 다른 엑셀(마감 명세서 · 월 마감 · 에토프 불량)도 같은 차례 `날짜_업체_내용` 입니다 — odFileName(). */
+function odFileVendorOf(v){
+  const n = (typeof odStmtVendor === 'function') ? odStmtVendor(v) : String(v||'');
+  if(/미설정|발주처\s*없음/.test(n)) return '';
+  return odFileVendor(n);
+}
+function odFileName(parts){
+  return parts.filter(Boolean).join('_')
+    .replace(/(\d(?:\.\d+)?T)\s+/gi, '$1')                    // 5T 백유리 → 5T백유리
+    .replace(/[\\\/:*?"<>|]/g,'')                              // 윈도가 못 쓰는 글자
+    .replace(/\s+/g,' ').trim();
+}
 function odFileBase(o){
   const ymd  = String(o.date||'').replace(/-/g,'').slice(2);   // 20260910 → 260910
   const kind = [odKindName(o), odFileSpec(o)].filter(Boolean).join(' ');
-  return [ymd, odFileVendor(o.vendor), kind]
-           .filter(Boolean).join('_')
-           .replace(/[\\\/:*?"<>|]/g,'')                       // 윈도가 못 쓰는 글자
-           .replace(/\s+/g,' ').trim() || '발주서';
+  return odFileName([ymd, odFileVendorOf(o.vendor), kind]) || '발주서';
 }
 
 /* 카톡용 발주서 — 우리 엑셀 양식을 그대로 옮긴 것입니다 (사장님 2026-09-15).
@@ -15873,7 +15886,7 @@ function odStmtExcel(){
   ws['!cols']=[{wch:9},{wch:18},{wch:6},{wch:6},{wch:8},{wch:10},{wch:5},{wch:6},{wch:6},{wch:11},{wch:7},{wch:11}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '마감명세서');
-  XLSX.writeFile(wb, `마감명세서_${vendor}_${ym}마감.xlsx`);
+  XLSX.writeFile(wb, odFileName([ym.slice(2,4)+ym.slice(5,7), odFileVendorOf(vendor), '마감명세서']) + '.xlsx');   // 2610_대원_마감명세서
 }
 
 
@@ -16538,7 +16551,7 @@ function clExcel(){
   clIncoming(c).forEach(x=>push(x.it,x.src)); (c.carry||[]).forEach(it=>push(it,c));
   const w4=XLSX.utils.aoa_to_sheet(ca); w4['!cols']=[{wch:18},{wch:44},{wch:6},{wch:6},{wch:5},{wch:9},{wch:8},{wch:6},{wch:8},{wch:10}];
   XLSX.utils.book_append_sheet(wb,w4,'이월항목');
-  XLSX.writeFile(wb,`${c.ym.slice(2,4)}${c.ym.slice(5,7)}_${typeof odFileVendor==="function"?odFileVendor(c.vendor):c.vendor}_월마감.xlsx`);
+  XLSX.writeFile(wb, odFileName([c.ym.slice(2,4)+c.ym.slice(5,7), odFileVendorOf(c.vendor), '월마감']) + '.xlsx');   // 2610_현성_월마감
 }
 
 /* ── 지난 대조 결과 불러오기 (2026-10-12) ─────────────────
@@ -22530,7 +22543,7 @@ function etpDefExcel(){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws1, '불량 이력');
   XLSX.utils.book_append_sheet(wb, ws2, '사이즈별 합계');
-  XLSX.writeFile(wb, `에토프_불량_${ym ? ym.slice(2, 4) + ym.slice(5, 7) : '전체'}.xlsx`);
+  XLSX.writeFile(wb, odFileName([ym ? ym.slice(2, 4) + ym.slice(5, 7) : '전체', '현성', '에토프 불량']) + '.xlsx');   // 2610_현성_에토프 불량
   showToast(`📥 불량 ${all.length}건 · ${tot}장 엑셀로 받았습니다`);
 }
 
