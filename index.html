@@ -14655,7 +14655,8 @@ function odImportExcel(input){
 //  ※ NO가 숫자인 행만 품목. 합계('총 수량')·빈 슬롯은 자동 제외.
 //  ※ 〃(동일 기호)는 바로 위 행의 품명을 상속. 규격·수량은 각 행 값 그대로.
 // ══════════════════════════════════════════════════════════
-const OD_PDF_LABELS=['NO','품명','규격','수량','납기','비고','업체명'];
+/* 박스(승일포장) 발주서는 품명 칸 머리가 「사이즈 (가로x세로x높이)」 입니다 — 그 칸에 인쇄명이 적혀 있어 품명으로 읽습니다 (2026-10-13) */
+const OD_PDF_LABELS=['NO','품명','사이즈(가로x세로x높이)','규격','수량','납기','비고','업체명'];
 const OD_DITTO=/^["'"″〃"”\s]+$/;                 // 〃 " ″ 등
 const odNorm=s=>String(s||'').replace(/\s/g,'');
 
@@ -14722,10 +14723,12 @@ function odPdfDate(s){
 
 function odParsePdfPage(items){
   const rows=odPdfRows(items);
-  const h=rows.findIndex(r=>/NO/i.test(odPdfLine(r)) && /품/.test(odPdfLine(r)));
+  const h=rows.findIndex(r=>/NO/i.test(odPdfLine(r)) && /품|사이즈/.test(odPdfLine(r)));
   if(h<0) return null;
   const cols=odPdfHeaderCols(rows[h]);
   if(!cols.length) return null;
+  const boxForm = cols.some(c=>/^사이즈/.test(c.label));
+  cols.forEach(c=>{ if(/^사이즈/.test(c.label)) c.label='품명'; });
   const R=odPdfColRanges(cols);
 
   // 표 좌우 끝 → 좌측 40%만이 수신/발주일/대분류 영역 (우측은 회사주소·결재란)
@@ -14740,7 +14743,7 @@ function odParsePdfPage(items){
     if(!vendor && /^수신[:：]/.test(L)){
       const idx=r.items.findIndex(i=>/[:：]/.test(i.s));
       const rest=r.items.slice(idx+1).filter(i=>i.x<mid).map(i=>i.s).join(' ').trim();
-      if(rest) vendor=rest;
+      if(rest) vendor=rest.replace(/^\s*(㈜|㈱|\(주\))\s*/,'').trim();      // 「㈜ 승일포장」 → 승일포장
     }
     if(!date && /^발주일[:：]/.test(L)){
       const idx=r.items.findIndex(i=>/[:：]/.test(i.s));
@@ -14775,7 +14778,10 @@ function odParsePdfPage(items){
   if(!out.length) return null;
   // 대표 업체명(첫 행 값) — 발주서 전체에 공통
   const client=(out.find(i=>i.client)||{}).client||'';
-  return { vendor:vendor||'(미상)', type:type||'', date, client, items:out };
+  // 박스 발주서는 종류 칸이 없습니다 — 앱의 박스 발주와 같은 제목으로 둡니다(인쇄명 목록이 여기서 모입니다)
+  // 「F a x : …」 줄이 종류로 잘못 잡힙니다(박스 양식은 종류 칸이 없어 그 위 줄까지 올라감) — 박스 양식은 늘 이 제목입니다
+  if(boxForm) type='박스 발주';
+  return { vendor:vendor||'(미상)', type:type||'', date, client, items:out, boxForm };
 }
 
 async function odImportPdf(input){
@@ -14846,7 +14852,7 @@ function odImportApply(){
     const isPdf = /\.pdf\b/i.test(s.sheet||'');
     const order={
       id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
-      vendor:s.vendor, type:s.type||'', thick:'', title:s.type||'',
+      vendor:s.vendor, type:s.boxForm ? '일반' : (s.type||''), thick:'', title:s.type||'',
       date:s.date||todayStr(),
       due:(s.items.find(it=>it.due)||{}).due||'',
       client: s.client||'',
