@@ -510,8 +510,8 @@
     <!-- ===== 예시 vs 실물 대조 모드 ===== -->
     <div id="matchReconcileWrap" style="display:none">
       <div class="drop" id="dropDeliv">
-        <strong>납품서 PDF를 끌어다 놓기</strong>
-        <span>또는 클릭해서 선택 · 여러 장 한꺼번에 가능 · 오이도/그레이는 납품서 안 납품처로 자동 구분</span>
+        <strong>앱 📦 납품서 탭에 올린 납품서는 저절로 들어옵니다</strong>
+        <span>여기에는 따로 올리지 않으셔도 됩니다 · 앱에 아직 안 올린 PDF 를 급히 볼 때만 끌어다 놓기(또는 클릭)</span>
         <input type="file" id="fileDeliv" accept=".pdf" multiple style="display:none">
       </div>
       <div class="row" style="margin-top:14px;flex-wrap:wrap;gap:10px">
@@ -520,7 +520,7 @@
         <span class="tag" style="margin-left:6px">— 납품서의 납품일이 곧 발주일. 이 발주일 납품서를 전부 묶어, 품목별 리드타임 역산한 예시와 견줍니다.</span>
       </div>
       <div class="row" style="margin-top:8px;align-items:center;gap:10px">
-        <button class="btn ghost" id="matchClear" style="padding:6px 12px">올린 납품서 비우기</button>
+        <button class="btn ghost" id="matchClear" style="padding:6px 12px">여기서 올린 납품서 비우기</button>
         <span class="tag" id="delivKeep"></span>
       </div>
       <!-- 1층 머리줄 · 2층 분류 칩 · 3층 고른 분류의 목록 하나 -->
@@ -1733,10 +1733,57 @@ function delivSave(){
   try{
     const cut = addDays(isoToday(), -DELIV_KEEP_DAYS);
     DELIVS = DELIVS.filter(d => !d.orderDate || d.orderDate >= cut);
-    localStorage.setItem(DELIV_KEY, JSON.stringify(DELIVS));
+    // 앱에서 읽어 온 것(fromApp)은 앱 저장함이 정본이라 여기에는 안 적습니다 — 두 벌이 되면 어긋납니다.
+    localStorage.setItem(DELIV_KEY, JSON.stringify(DELIVS.filter(d => !d.fromApp)));
   }catch(e){ console.warn('납품서 저장 실패', e); }
 }
-let DELIVS = delivLoad();
+
+/* ── 앱 📦 납품서 탭에 올린 납품서를 그대로 읽습니다 (사장님 2026-10-13 「납품서 한 번만 올리게」)
+   예전에는 같은 PDF 를 앱(`ybn-deliv-v1`)과 여기(`ybn-delivs-v1`)에 따로 올려야 했습니다.
+   같은 주소(ybnd-yebin.github.io)라 저장함을 나눠 씁니다. 앱은 시트 동기화로 다른 기기 것도 받아 두므로
+   여기서 올리는 것보다 빠짐이 적습니다.
+   - 같은 납품번호가 양쪽에 있으면 **앱 쪽이 이깁니다**(앱 파서가 늘 최신입니다 — CLAUDE.md 12-29).
+   - 여기 올리는 칸은 남겨 둡니다 — 앱에 아직 안 올린 납품서를 급히 볼 때만 씁니다.
+   - 앱 품목은 { code, short, name(원문 품명), qty } — 여기 ingestDeliv 가 만드는 모양으로 바꿉니다. */
+const APP_DELIV_KEY = 'ybn-deliv-v1';
+const APP_DELIV_DEL_KEY = 'ybn-deliv-del-v1';   // 앱에서 지운 납품서 묘비
+function delivFromApp(){
+  let log=[], del={};
+  try{ const a=JSON.parse(localStorage.getItem(APP_DELIV_KEY)); if(Array.isArray(a)) log=a; }catch(e){ return []; }
+  try{ del=JSON.parse(localStorage.getItem(APP_DELIV_DEL_KEY))||{}; }catch(e){}
+  const cut = addDays(isoToday(), -DELIV_KEEP_DAYS);
+  const out=[];
+  for(const d of log){
+    if(!d || !d.delivNo || !Array.isArray(d.items) || !d.items.length) continue;
+    if(del[d.id||('dv_'+d.delivNo)]) continue;
+    if(d.orderDate && d.orderDate < cut) continue;
+    const merged={};
+    for(const it of d.items){
+      const qty=Number(it.qty)||0; if(qty<=0 || !it.code) continue;
+      const raw = it.name || it.short || it.code;
+      const mk = it.code + '|' + sizeSig(raw);
+      if(!merged[mk]) merged[mk] = {code:it.code, name:it.short||raw||it.code, raw, qty:0};
+      merged[mk].qty += qty;
+    }
+    const items=Object.values(merged); if(!items.length) continue;
+    out.push({ fname:'앱 납품서 탭', fromApp:true,
+      delivNo:d.delivNo, refNo:d.refNo||'',
+      reqDate:d.delivReqDate||'', orderDate:d.orderDate||'',
+      dest:delivDestCode(d.dest), items });
+  }
+  return out;
+}
+function delivMerge(own){
+  const app=delivFromApp();
+  const have=new Set(app.map(d=>d.delivNo));
+  return app.concat((own||[]).filter(d=>!d.fromApp && !have.has(d.delivNo)));
+}
+let DELIVS = delivMerge(delivLoad());
+// 앱 창에서 납품서를 올리면 이 창도 새로고침 없이 따라옵니다
+window.addEventListener('storage', e=>{
+  if(e.key!==APP_DELIV_KEY && e.key!==APP_DELIV_DEL_KEY) return;
+  try{ DELIVS = delivMerge(DELIVS); buildMatchShipPicker(); renderMatch(); }catch(err){ console.warn('[앱 납품서] 다시 읽기 실패', err); }
+});
 
 const DELIV_PROD_CODE_RE = /^[A-Z]{2,6}[0-9A-Z]*$/;
 
@@ -1905,7 +1952,7 @@ function _ymd8(s){ if(!s||s.length!==8) return ''; return s.slice(0,4)+'-'+s.sli
 async function ingestDeliv(files){
   const arr = [...files].filter(f=>/\.pdf$/i.test(f.name));
   if(!arr.length){ toast('PDF 파일만 올릴 수 있어요'); return; }
-  let ok=0, skip=0, fail=0;
+  let ok=0, skip=0, fail=0, inApp=0;
   for(const file of arr){
     try{
       const full = await pdfToFullText(file);
@@ -1923,6 +1970,8 @@ async function ingestDeliv(files){
         merged[mk].qty += it.qty;
       }
       const exist = DELIVS.findIndex(d=>d.delivNo===parsed.delivNo);
+      // 앱 납품서 탭에 이미 있으면 그쪽을 씁니다(앱 파서가 최신) — 여기 것으로 덮지 않습니다
+      if(exist>=0 && DELIVS[exist].fromApp){ inApp++; continue; }
       if(exist>=0) DELIVS.splice(exist,1);
       DELIVS.push({
         fname:file.name,
@@ -1940,7 +1989,7 @@ async function ingestDeliv(files){
   delivSave();
   buildMatchShipPicker();
   renderMatch();
-  toast(`납품서 ${ok}장 읽음${skip?` · 집계아님 ${skip}장 제외`:''}${fail?` · 실패 ${fail}장`:''} (누적 ${DELIVS.length}장)`);
+  toast(`납품서 ${ok}장 읽음${inApp?` · 앱에 이미 있음 ${inApp}장`:''}${skip?` · 집계아님 ${skip}장 제외`:''}${fail?` · 실패 ${fail}장`:''} (누적 ${DELIVS.length}장)`);
 }
 
 // 납품서 출고일 목록 = reqDate +2영업일 (창고별로 다를 수 있음)
@@ -2182,9 +2231,11 @@ function renderDelivKeep(){
   const el=document.getElementById('delivKeep'); if(!el) return;
   if(!DELIVS.length){ el.textContent='아직 올린 납품서가 없습니다.'; return; }
   const ds=[...new Set(DELIVS.map(d=>d.orderDate).filter(Boolean))].sort();
+  const nApp = DELIVS.filter(d=>d.fromApp).length, nOwn = DELIVS.length - nApp;
   el.innerHTML = `쌓인 납품서 <b>${DELIVS.length}장</b> · 발주일 <b>${ds.length}일치</b>`
     + (ds.length?` <span style="opacity:.7">(${ds[0]} ~ ${ds[ds.length-1]})</span>`:'')
-    + ` · 브라우저에 저장되어 새로 열어도 남습니다`;
+    + ` · <b>앱 납품서 탭에서 ${nApp}장</b>`
+    + (nOwn?` · 여기서 올린 것 ${nOwn}장`:'');
 }
 
 function renderMatch(){
@@ -2604,8 +2655,11 @@ fileDeliv.onchange=e=>{ ingestDeliv(e.target.files); fileDeliv.value=''; };
 dropDeliv.addEventListener('drop',e=>ingestDeliv(e.dataTransfer.files));
 document.getElementById('matchClear').onclick=()=>{
   // 이제는 저장되는 자료라, 한 번 누르면 쌓아 둔 것이 통째로 없어진다. 먼저 물어본다.
-  if(DELIVS.length && !confirm('올려둔 납품서 '+DELIVS.length+'장을 모두 지웁니다.\n계속할까요?')) return;
-  DELIVS=[]; delivSave(); buildMatchShipPicker(); renderMatch(); toast('올린 납품서를 비웠어요');
+  // 앱에서 읽어 온 것은 여기서 못 지웁니다(앱 납품서 탭이 정본) — 여기서 올린 것만 비웁니다.
+  const own = DELIVS.filter(d=>!d.fromApp).length;
+  if(!own){ toast('여기서 올린 납품서가 없습니다 — 앱 납품서 탭 것은 앱에서 지웁니다'); return; }
+  if(!confirm('여기서 올린 납품서 '+own+'장을 지웁니다.\n(앱 납품서 탭에서 읽어 온 것은 그대로 남습니다)\n계속할까요?')) return;
+  DELIVS=DELIVS.filter(d=>d.fromApp); delivSave(); buildMatchShipPicker(); renderMatch(); toast('여기서 올린 납품서를 비웠어요');
 };
 // (분류 칩·완전일치 숨기기는 renderMatch 안의 '분류 칩 5개'로 대체됐습니다)
 // 모드 전환 칩
