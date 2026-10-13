@@ -1330,6 +1330,21 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- 🧾 마감 명세서 창 (2026-09-30) — 표는 odStmtRender 가 #od-stmt 에 그대로 그립니다 -->
 <!-- 👁 지난 발주서 보기 (2026-10-13) — 카톡 이미지와 같은 그림을 앱 안에서 봅니다 -->
+<!-- 🔁 직원 아티팩트 재고 붙여넣기 (2026-10-13) — 「재고 현황」 화면을 Ctrl+A → Ctrl+C 한 글자를 받습니다 -->
+<div class="modal-bg" id="art-paste-modal">
+  <div class="modal-sheet" style="max-width:720px;margin:0 auto">
+    <button class="close-btn" onclick="closeM('art-paste-modal')">×</button>
+    <div class="modal-ttl">📋 아티팩트 재고 붙여넣기</div>
+    <div style="font-size:11.5px;color:var(--tx2);line-height:1.7;margin-bottom:8px">
+      아티팩트 <b>「재고 현황」</b> → 상태 <b>「전체」</b> · 보기 <b>「목록」</b> · 검색 칸 비우기 → 표를 한 번 누르고 <b>Ctrl+A → Ctrl+C</b> → 아래에 <b>Ctrl+V</b>.
+      메뉴 글자 등이 섞여도 사이즈 줄만 골라 읽습니다.
+    </div>
+    <textarea id="art-paste-ta" class="inp" rows="10" placeholder="여기에 붙여 넣으십시오" style="width:100%;box-sizing:border-box;font-size:12px;font-family:'JetBrains Mono',monospace"></textarea>
+    <div id="art-paste-msg" style="font-size:12px;margin:6px 0"></div>
+    <button onclick="artTakePaste()" style="width:100%;padding:11px;background:var(--acc);border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">읽고 맞춰 보기</button>
+  </div>
+</div>
+
 <div class="modal-bg" id="od-view-modal">
   <div class="modal-sheet" style="max-width:820px;margin:0 auto">
     <button class="close-btn" onclick="closeM('od-view-modal')">×</button>
@@ -21223,6 +21238,149 @@ function etpModelListHtml(){
 }
 
 // ── 본 화면 ──────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════
+   🔁 직원 아티팩트(EURO700 유리 재고관리)와 맞춰 보기          2026-10-13
+   사장님: "직원하고 공유하고 있는 아티팩트에 있는 재고들 끌고 올게요. 우리 앱으로도 관리해서
+            서로 관리하다가 어느 순간 하나로 합치면 좋을 듯"
+   ─ 그 아티팩트는 다른 조직 것이라 Claude Code 가 자료를 직접 못 읽습니다(조직 설정으로 막힘).
+     그래서 「재고 현황」 화면을 Ctrl+A → Ctrl+C 해서 여기 붙여 넣습니다.
+   ─ 붙인 것은 이 기기에 「한 장의 사진」으로 둡니다(`ybn-art-stock-v1`). 다시 붙이면 갈아끼웁니다.
+   ─ 우리 숫자는 `etpBuildRows()` 그대로 — 두 곳에 두지 않습니다.
+   ⚠ 두 앱은 빼는 때가 다릅니다: 아티팩트는 **오더가 발행되는 순간**, 우리는 **납품서로** 뺍니다.
+     그래서 나가기 전 물량만큼 아티팩트 재고가 늘 작게 보이는 것이 정상일 수 있습니다.
+   ══════════════════════════════════════════════════════════ */
+const LS_ART_STOCK = 'ybn-art-stock-v1';
+let artFilter = 'diff';
+let artOpen = false;
+function artLoad(){ try{ const o=JSON.parse(localStorage.getItem(LS_ART_STOCK)); return (o && Array.isArray(o.rows)) ? o : null; }catch(e){ return null; } }
+function artSave(o){ try{ localStorage.setItem(LS_ART_STOCK, JSON.stringify(o)); return true; }catch(e){ console.warn('[아티팩트 재고] 저장 실패', e); return false; } }
+
+// 붙여 넣은 화면 글자 → 사이즈별 줄
+//   사이즈 줄(445×729 · 592×693 R우 보링) → 모델 줄들 → 「상태 ⇥ 현재고 ⇥ 발주중 ⇥ 발주점 ⇥ 안전재고」 → 「총입고 ⇥ 총출고 ⇥ 불량 ⇥ 권장발주」
+const ART_STATUS_RE = /^(부족|정상|주의|관리안함|마이너스|발주\s*필요)(?=[\t ]|$)/;
+function artNum(t){ t=String(t==null?'':t).trim(); if(!t || t==='·' || t==='-') return 0; const n=parseInt(t.replace(/,/g,''),10); return isNaN(n)?0:n; }
+function artParse(text){
+  const lines=String(text||'').split(/\r?\n/).map(s=>s.replace(/ /g,' ').trimEnd());
+  const out=[], skipped=[];
+  let cur=null;
+  const sizeRe=/^\s*(\d{2,5})\s*[×x*]\s*(\d{2,5})\s*(?:([LR])\s*[좌우]?\s*보링)?\s*$/i;
+  for(let i=0;i<lines.length;i++){
+    const ln=lines[i].trim();
+    if(!ln) continue;
+    if(/^표 보는 법/.test(ln)) break;                    // 아래는 설명글
+    const ms=ln.match(sizeRe);
+    if(ms){ cur={ size:ms[1]+'x'+ms[2]+(ms[3]?' '+ms[3].toUpperCase():''), models:[] }; continue; }
+    if(!cur) continue;
+    const st=ln.match(ART_STATUS_RE);
+    if(st){
+      const a=ln.slice(st[0].length).split(/\t+|\s+/).filter(x=>x!=='');
+      // 다음 글자 있는 줄 = 총입고·총출고·불량·권장발주
+      let j=i+1; while(j<lines.length && !lines[j].trim()) j++;
+      const b=(lines[j]||'').trim().split(/\t+|\s+/).filter(x=>x!=='');
+      if(b.length>=4 && b.every(x=>/^[\d,·\-]+$/.test(x))) i=j; else { skipped.push(cur.size); }
+      out.push({ size:cur.size, models:cur.models, status:st[1].replace(/\s+/g,''),
+        cur:artNum(a[0]), onOrder:artNum(a[1]), reorder:artNum(a[2]), safety:artNum(a[3]),
+        inQ:artNum(b[0]), outQ:artNum(b[1]), def:artNum(b[2]), rec:artNum(b[3]) });
+      cur=null; continue;
+    }
+    if(cur.models.length<8) cur.models.push(ln);           // 모델 줄 (OB M 4573(공용) M …)
+  }
+  // 화면 머리의 「관리 SKU 129종」 · 「총 재고 763장」 도 읽어 검산에 씁니다
+  const t=String(text||'');
+  const mSku=t.match(/관리\s*SKU\s*(\d+)\s*종/), mTot=t.match(/총\s*재고\s*([\d,]+)\s*장/), mDay=t.match(/기준\s*(\d{4}-\d{2}-\d{2})/);
+  return { rows:out, skipped, headSku:mSku?+mSku[1]:null, headTotal:mTot?artNum(mTot[1]):null, basis:mDay?mDay[1]:'' };
+}
+
+function artOpenPaste(){
+  const ta=document.getElementById('art-paste-ta'); if(ta) ta.value='';
+  document.getElementById('art-paste-msg').innerHTML='';
+  document.getElementById('art-paste-modal').classList.add('on');
+  setTimeout(()=>{ if(ta) ta.focus(); },50);
+}
+function artTakePaste(){
+  const ta=document.getElementById('art-paste-ta'), msg=document.getElementById('art-paste-msg');
+  const p=artParse(ta ? ta.value : '');
+  if(!p.rows.length){ msg.innerHTML='<span style="color:var(--acc4)">사이즈 줄을 하나도 못 읽었습니다 — 아티팩트 「재고 현황」에서 Ctrl+A 로 통째로 복사했는지 봐 주십시오.</span>'; return; }
+  const managed=p.rows.length, tot=p.rows.reduce((s,r)=>s+r.cur,0);
+  // 검산 — 화면 머리 숫자와 맞는지(맞지 않으면 일부만 복사된 것)
+  const warn=[];
+  if(p.headSku!=null && p.headSku!==managed) warn.push(`머리에는 ${p.headSku}종인데 표에서 ${managed}종을 읽었습니다 — 거르기(부족만 등)를 켠 채 복사했을 수 있습니다`);
+  if(p.headTotal!=null && p.headTotal!==tot) warn.push(`머리 총 재고 ${p.headTotal}장 ≠ 읽은 합 ${tot}장`);
+  if(p.skipped.length) warn.push(`둘째 줄(총입고…)을 못 읽은 사이즈 ${p.skipped.length}개`);
+  const o={ at:new Date().toISOString(), by:(typeof getActor==='function'?getActor():'')||'', basis:p.basis, headSku:p.headSku, headTotal:p.headTotal, rows:p.rows, warn };
+  if(!artSave(o)){ msg.innerHTML='<span style="color:var(--acc4)">이 브라우저에 저장하지 못했습니다(저장함이 막혀 있음).</span>'; return; }
+  closeM('art-paste-modal'); artOpen=true;
+  renderEtp();
+  setTimeout(()=>{ const e=document.getElementById('art-cmp'); if(e) e.scrollIntoView({behavior:'smooth',block:'start'}); },80);
+  showToast(`🔁 아티팩트 ${managed}종 ${tot}장을 읽었습니다`+(warn.length?' — ⚠ 확인할 것 '+warn.length+'가지':''));
+}
+function artSetFilter(f){ artFilter=f; artOpen=true; renderEtp(); }
+function artToggle(){ artOpen=!artOpen; renderEtp(); }
+
+// 우리 줄과 아티팩트 줄을 사이즈로 맞춥니다
+function artCompare(ours){
+  const a=artLoad(); if(!a) return null;
+  const om={}; (ours||[]).forEach(r=>{ om[r.size]=r; });
+  const am={}; a.rows.forEach(r=>{ am[r.size]=r; });
+  const keys=[...new Set(Object.keys(am).concat(Object.keys(om).filter(k=>{ const r=om[k]; return !r.nonstd && (r.cur||r.onOrder||r.safety); })))];
+  const rows=keys.map(k=>{
+    const x=am[k]||null, y=om[k]||null;
+    const d=(y?y.cur:0)-(x?x.cur:0);
+    return { size:k, art:x, our:y, diff:d, only:!x?'our':!y?'art':'' };
+  });
+  rows.sort((p,q)=>(q.only?1:0)-(p.only?1:0) || Math.abs(q.diff)-Math.abs(p.diff) || p.size.localeCompare(q.size));
+  return { a, rows };
+}
+function artCmpHtml(ours){
+  const c=artCompare(ours);
+  const btn=(fn,label,pri)=>`<button onclick="${fn}" style="padding:7px 13px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;${pri?'background:var(--acc);border:none;color:#fff':'background:var(--s2);border:1px solid var(--b2);color:var(--tx1)'}">${label}</button>`;
+  if(!c){
+    return `<div class="card" id="art-cmp" style="border-left:3px solid var(--acc5)">
+      <div class="card-ttl"><span>🔁 직원 아티팩트와 맞춰 보기</span></div>
+      <div style="font-size:11.5px;color:var(--tx2);line-height:1.7;margin-bottom:8px">아티팩트 <b>「재고 현황」</b>에서 상태 「전체」·보기 「목록」으로 두고 <b>Ctrl+A → Ctrl+C</b> 한 뒤 붙여 넣으시면, 사이즈마다 우리 재고와 맞춰 봅니다.</div>
+      ${btn('artOpenPaste()','📋 아티팩트 재고 붙여넣기',1)}</div>`;
+  }
+  const {a, rows}=c;
+  const same=rows.filter(r=>!r.only && r.diff===0).length;
+  const diff=rows.filter(r=>!r.only && r.diff!==0);
+  const only=rows.filter(r=>r.only);
+  const aTot=a.rows.reduce((s,r)=>s+r.cur,0), oTot=rows.reduce((s,r)=>s+(r.our?r.our.cur:0),0);
+  // 붙인 때는 **로컬 시각**으로 (toISOString 은 세계표준시라 9시간 이르게 보입니다 — 3-1)
+  const when=(function(){ const d=new Date(a.at); if(isNaN(d)) return ''; const p=x=>String(x).padStart(2,'0'); return _ymdLocal(d)+' '+p(d.getHours())+':'+p(d.getMinutes()); })();
+  const pick = artFilter==='all' ? rows : artFilter==='only' ? only : diff;
+  const chip=(id,label,n)=>`<button class="f-btn${artFilter===id?' on':''}" onclick="artSetFilter('${id}')">${label} ${n}</button>`;
+  const n=v=>`<b style="font-family:'JetBrains Mono',monospace">${v}</b>`;
+  const cell=(r,side)=>{ const v=r[side]; if(!v) return '<span style="color:var(--tx3)">없음</span>';
+    return `${n(v.cur)}${v.onOrder?` <small style="color:var(--acc)">+발주 ${v.onOrder}</small>`:''}<br><small style="color:var(--tx3)">안전 ${v.safety||0}${side==='art'&&v.status?' · '+v.status:''}</small>`; };
+  const list=pick.slice(0,200).map(r=>{
+    const red=r.only || r.diff!==0;
+    const models=(r.art&&r.art.models&&r.art.models.length)?r.art.models.slice(0,3).join(' · '):(r.our&&r.our.models?r.our.models.slice(0,3).join(' · '):'');
+    return `<div style="display:grid;grid-template-columns:minmax(0,1.3fr) 1fr 1fr 64px;gap:8px;align-items:center;padding:7px 10px;border-top:1px solid var(--b1);${red?'background:rgba(220,38,38,.05)':''}">
+      <div style="min-width:0"><b style="font-family:'JetBrains Mono',monospace;font-size:13px">${r.size.replace('x','×')}</b><div style="font-size:10px;color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${etpEsc(models)}</div></div>
+      <div style="font-size:12px">${cell(r,'art')}</div>
+      <div style="font-size:12px">${cell(r,'our')}</div>
+      <div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:900;color:${r.only?'var(--acc2)':r.diff?'var(--acc4)':'var(--acc3)'}">${r.only?(r.only==='art'?'아티만':'우리만'):(r.diff>0?'+':'')+r.diff}</div>
+    </div>`;
+  }).join('');
+  return `<div class="card" id="art-cmp" style="border-left:3px solid ${diff.length||only.length?'var(--acc4)':'var(--acc3)'}">
+    <div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span>🔁 직원 아티팩트와 맞춰 보기</span>
+      <span style="display:flex;gap:6px">${btn('artToggle()',artOpen?'접기':'펼치기')}${btn('artOpenPaste()','📋 다시 붙여넣기')}</span>
+    </div>
+    <div style="font-size:12px;line-height:1.7">
+      아티팩트 ${n(a.rows.length)}종 ${n(aTot)}장 · 우리 ${n(oTot)}장 —
+      <b style="color:var(--acc3)">같음 ${same}</b> · <b style="color:var(--acc4)">재고 다름 ${diff.length}</b> · <b style="color:var(--acc2)">한쪽에만 ${only.length}</b>
+      <div style="font-size:10.5px;color:var(--tx3)">붙인 때 ${when}${a.basis?' · 아티팩트 기준 '+a.basis:''} · 차이 = 우리 − 아티팩트. 아티팩트는 <b>오더 발행 즉시</b> 빼고 우리는 <b>납품서로</b> 빼서, 나가기 전 물량만큼 아티팩트가 작게 보일 수 있습니다.</div>
+      ${(a.warn||[]).length?`<div style="margin-top:4px;font-size:11px;color:var(--acc2)">⚠ ${a.warn.map(etpEsc).join('<br>⚠ ')}</div>`:''}
+    </div>
+    ${artOpen?`<div class="filter-row" style="margin:8px 0 4px">${chip('diff','재고 다름',diff.length)}${chip('only','한쪽에만',only.length)}${chip('all','전체',rows.length)}</div>
+    <div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:minmax(0,1.3fr) 1fr 1fr 64px;gap:8px;padding:6px 10px;background:var(--s3);font-size:10.5px;color:var(--tx2);font-weight:700"><span>사이즈</span><span>아티팩트</span><span>우리 앱</span><span style="text-align:right">차이</span></div>
+      ${list||'<div style="padding:14px;text-align:center;font-size:12px;color:var(--tx3)">해당하는 사이즈가 없습니다</div>'}
+    </div>`:''}
+  </div>`;
+}
+
 function renderEtp(){
   const el = document.getElementById('etp-body');
   if(!el) return;
@@ -21249,7 +21407,8 @@ function renderEtp(){
     rows.forEach(r => { if(m.avgBySize[r.size] != null) r.measAvg = m.avgBySize[r.size]; });
   }
 
-  const head = etpHeadHtml(rows) + etpTodoHtml();
+  const head = etpHeadHtml(rows) + etpTodoHtml() +
+    (function(){ try{ return artCmpHtml(rows); }catch(e){ console.warn('[아티팩트 맞춰 보기]', e); return ''; } })();   // 🔁 2026-10-13
 
   const shown = rows.filter(r => {
     if(!etpMatchRow(r)) return false;
