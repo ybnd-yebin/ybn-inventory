@@ -14259,6 +14259,7 @@ function odFillSheet(ws, o){
 
   if(odIsBoxOrder(o)) odBoxWideName(ws, rows, o);
   odSplitClientCol(ws, rows, o);
+  try{ odWrapBigo(ws, rows, o); }catch(e){ console.warn('[발주서] 비고 줄바꿈', e); }
 
   /* 총수량 — 수식과 함께 **계산된 값도 넣습니다** (사장님 지적 2026-10-01 "총 14장인데 2장").
      양식 J25 에는 만들 때 계산된 값 2 가 저장돼 있습니다. 엑셀은 열 때 다시 계산하지만
@@ -14296,6 +14297,24 @@ function odBoxWideName(ws, rows, o){
    머리글 줄(11)부터 총수량 줄까지 나눠, 세로선이 표 끝까지 이어지게 합니다.
    업체명이 비어 있으면 칸만 두고 비워 둡니다. */
 const OD_CLIENT_COL = 'N';
+/* 비고가 칸보다 길면 **줄을 바꾸고 그 줄 높이를 늘립니다** (사장님 2026-10-14 「비고 내용 잘리지 않게 … 내용에 맞춰서 행 크기 조절」).
+   `5T투명/강화/비산방지필름` 이 비고 칸(L~M)을 넘어 끝이 잘렸습니다. 엑셀은 wrapText + 줄 높이,
+   카톡 이미지·PDF(odSheetToHtml)도 wrapText(pre-wrap)와 줄 높이를 그대로 읽습니다. 짧은 비고는 예전 그대로. */
+function odWrapBigo(ws, rows, o){
+  const px = ['L','M'].reduce((s, c) => s + odColPx(ws.getColumn(c).width), 0) - 10;
+  for(let i = 0; i < rows; i++){
+    const it = o.items[i]; if(!it || !it.bigo) continue;
+    const r = OD_TPL_ROW0 + i, c = ws.getCell('L' + r), v = String(c.value || '');
+    if(!v) continue;
+    const pt = (c.font && c.font.size) || 11;
+    const em = [...v].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
+    const lines = Math.ceil(em * pt * 1.32 / Math.max(20, px));
+    if(lines <= 1) continue;
+    c.alignment = Object.assign({}, c.alignment || {}, { wrapText:true, shrinkToFit:false, horizontal:'center', vertical:'middle' });
+    const row = ws.getRow(r), need = lines * pt * 1.35 + 8;
+    if(!row.height || row.height < need) row.height = need;
+  }
+}
 function odSplitClientCol(ws, rows, o){
   const head = OD_TPL_ROW0 - 1, foot = OD_TPL_ROW0 + rows;    // 머리글 줄 · 총수량 줄
   const thin = { style:'thin' };
