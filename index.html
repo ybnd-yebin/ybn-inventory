@@ -1133,6 +1133,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     명세서 사진을 올리면 내용을 읽어 자동으로 채워주고, <b>확인·수정 후 저장</b>할 수 있어요.
   </div>
 
+  <!-- 오늘 · 이번 달 합계 (사장님 2026-10-14 「오늘 총 합계, 이번달 누적합계가 간략하게 상단에」) — renderLgSummary -->
+  <div id="lg-summary" style="margin-bottom:12px"></div>
+
   <!-- 매입/매출 전환 -->
   <div class="modal-tabs" style="margin-bottom:14px">
     <button class="m-tab on" id="lg-tab-buy" onclick="setLedgerKind('buy')">📥 매입 (사오는 것)</button>
@@ -18141,7 +18144,25 @@ function mergeLedgerFromSheet(remote){
   ledgerLog=remote.map(r=>{ if(localById[r.id]) r.photo=localById[r.id]; return r; });
 }
 
+/* 맨 위 요약 — 오늘 · 이번 달(1일~오늘) 매입 · 매출 · 차이. 표처럼 열을 맞춥니다(12-41 원칙).
+   기록이 바뀌면 renderLedgerMonthly 가 늘 불리므로 거기서 같이 그립니다. */
+function renderLgSummary(){
+  const host=document.getElementById('lg-summary'); if(!host) return;
+  const td=todayStr(), ym=td.slice(0,7);
+  const sum=(f,k)=>ledgerLog.filter(r=>r&&r.kind===k&&f(String(r.date||''))).reduce((s,r)=>s+(lgRecordTotal(r)||0),0);
+  const row=(label,f)=>{ const b=sum(f,'buy'), s2=sum(f,'sell'), d=s2-b;
+    const v=(x,c)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}</span>`;
+    return `<div style="display:grid;grid-template-columns:72px repeat(3,minmax(0,1fr));gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)">
+      <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)')}${v(s2,'var(--acc3)')}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
+  host.innerHTML=`<div class="card" style="padding:0;overflow:hidden">
+    <div style="display:grid;grid-template-columns:72px repeat(3,minmax(0,1fr));gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
+      <span></span><span style="text-align:right">📥 매입</span><span style="text-align:right">📤 매출</span><span style="text-align:right">차이</span></div>
+    ${row('오늘 '+(+td.slice(5,7))+'/'+(+td.slice(8,10)), d=>d===td)}
+    ${row((+ym.slice(5,7))+'월 누적', d=>d.slice(0,7)===ym && d<=td)}
+  </div>`;
+}
 function renderLedgerMonthly(){
+  try{ renderLgSummary(); }catch(e){ console.warn('[매입매출 요약]', e); }
   const host=document.getElementById('lg-monthly');
   if(!ledgerLog.length){ host.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:11px;padding:14px">기록 없음</div>'; return; }
   const groups={};
