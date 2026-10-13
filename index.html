@@ -1147,24 +1147,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="card">
     <div class="card-ttl" id="lg-form-title">📥 매입 입력</div>
 
-    <!-- 명세서 사진 -->
-    <span class="lbl">명세서 사진 (선택)</span>
+    <!-- 한 줄로 줄임 (사장님 2026-10-14 「UI 들이 쓸데없이 폭이 넓거나 공간을 많이 씀」) — 거래처 · 날짜 · 명세서 사진 -->
     <input type="file" id="lg-photo" accept="image/*" onchange="lgPhotoSelected(event)" style="display:none">
-    <button onclick="document.getElementById('lg-photo').click()" style="width:100%;padding:12px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:13px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:8px">📷 명세서 사진 찍기 / 올리기</button>
-    <div id="lg-photo-preview" style="margin-bottom:8px"></div>
-    <div id="lg-read-status" style="font-size:11px;color:var(--tx2);margin-bottom:8px"></div>
-
-    <div class="f-row">
+    <div class="lg-top" style="display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:8px;align-items:end">
       <div>
-        <span class="lbl">거래처</span>
-        <input id="lg-vendor" class="inp" placeholder="거래처명" list="lg-vendor-list" autocomplete="off" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <span class="lbl" style="margin-bottom:3px">거래처</span>
+        <input id="lg-vendor" class="inp" placeholder="거래처명" list="lg-vendor-list" autocomplete="off" style="margin:0;padding:8px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
         <datalist id="lg-vendor-list"></datalist>
       </div>
       <div>
-        <span class="lbl">날짜</span>
-        <input type="date" id="lg-date" class="inp" style="padding:9px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
+        <span class="lbl" style="margin-bottom:3px">날짜</span>
+        <input type="date" id="lg-date" class="inp" style="margin:0;padding:8px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
       </div>
+      <button onclick="document.getElementById('lg-photo').click()" title="명세서 사진을 찍거나 올리면 읽어서 채웁니다" style="padding:8px 12px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap">📷 명세서 사진</button>
     </div>
+    <style>@media (max-width:560px){ .lg-top{grid-template-columns:1fr 1fr !important} .lg-top>button{grid-column:1 / -1} }</style>
+    <div id="lg-photo-preview" style="margin-top:6px"></div>
+    <div id="lg-read-status" style="font-size:11px;color:var(--tx2)"></div>
 
     <!-- 붙여넣기로 한 번에 입력 -->
     <details style="margin-top:8px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);padding:8px 10px">
@@ -1182,14 +1181,14 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <div id="lg-paste-status" style="font-size:11px;margin-top:6px"></div>
     </details>
 
-    <span class="lbl" style="margin-top:8px;display:block">품목 (명세서에 여러 줄이면 추가하세요)</span>
-    <div id="lg-items"></div>
-    <button onclick="lgAddItemRow()" style="width:100%;padding:10px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:13px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin:4px 0 10px">➕ 품목 추가</button>
-
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;margin-bottom:10px">
-      <span style="font-size:13px;font-weight:700">명세서 합계</span>
+    <div id="lg-items" style="margin-top:8px"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px">
+      <button onclick="lgAddItemRow()" style="padding:7px 12px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">＋ 품목</button>
+      <span style="flex:1"></span>
+      <span style="font-size:12.5px;font-weight:700;color:var(--tx2)">명세서 합계</span>
       <span id="lg-grand" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:var(--acc3)">0원</span>
     </div>
+
 
     <input id="lg-memo" class="inp" placeholder="메모 (선택)" style="padding:9px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif;margin-bottom:10px">
 
@@ -17761,7 +17760,7 @@ function hsMonthRows(ym){
   const out=[];
   (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
     if(!d || (d.id && typeof delivDeleted!=='undefined' && delivDeleted[d.id])) return;
-    const day=d.delivReqDate||d.orderDate||''; if(day.slice(0,7)!==ym) return;
+    const day=d.orderDate||d.delivReqDate||''; if(day.slice(0,7)!==ym) return;   // 매출 발생일 = 발주일 (사장님 2026-10-14)
     const whName=delivDestGroup(d.dest), as=String(d.refNo||'').startsWith('54');
     (d.items||[]).forEach(it=>{
       const q=Number(it.qty)||0; if(!q || !it.code) return;
@@ -17780,8 +17779,8 @@ function hsMonthExcel(){
   const rows=hsMonthRows(ym);
   if(!rows.length){ showToast(ym+' 납품서가 없습니다'); return; }
   const sum=(f)=>rows.filter(f).reduce((s,r)=>s+(r.amt||0),0);
-  const head=[['기간',ym,'','기준','납품요청일 · 납품서 수량 × 한샘 단가표(공급가)'],[],
-    ['납품요청일','창고','구분','납품번호','참조오더','제품코드','품명','사이즈','수량','단가','금액','비고']];
+  const head=[['기간',ym,'','기준','발주일 · 납품서 수량 × 한샘 단가표(공급가)'],[],
+    ['발주일','창고','구분','납품번호','참조오더','제품코드','품명','사이즈','수량','단가','금액','비고']];
   const body=rows.map(r=>[r.day, r.whName, r.as?'AS':'정오더', r.delivNo, r.refNo, r.code, r.name, r.size, r.qty, r.price==null?'':r.price, r.amt==null?'':r.amt, r.price==null?'단가 없음':(r.other?'다른 창고 단가':'')]);
   const tot=[[],
     ['그레이박스 정오더','','','','','','','','',' ',sum(r=>r.whName==='그레이박스'&&!r.as)],
@@ -17830,7 +17829,7 @@ function renderHsPrice(){
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
       <input type="month" id="hs-ym" value="${hsYm}" onchange="hsYm=this.value" style="padding:5px 7px;font-size:12px;border:1px solid var(--b2);border-radius:7px;background:var(--s2);color:var(--tx1)">
-      ${btn('hsMonthExcel()','📥 이 달 매출 엑셀 (납품서 × 단가)')}
+      ${btn('hsMonthExcel()','📥 이 달 매출 엑셀 (발주일 · 납품서 × 단가)')}
     </div>
     ${hsOpen && book.length?`<div class="filter-row" style="margin:10px 0 6px">${chip('','전체',book.length)}${chip('1001','그레이박스',cnt('1001'))}${chip('2001','오이도',cnt('2001'))}</div>
     <input class="inp" value="${etpEsc(hsSearch)}" oninput="hsOnSearch(this.value)" placeholder="🔍 코드 · 품명 · 사이즈" style="margin-bottom:6px;padding:8px 10px;font-size:12.5px">
@@ -17878,21 +17877,16 @@ function lgRenderItems(){
   const host=document.getElementById('lg-items');
   if(!host) return;
   if(!lgItems.length){ lgItems=[{item:'',price:'',qty:'',amount:''}]; }
-  host.innerHTML=lgItems.map((it,i)=>`
-    <div style="border:1px solid var(--b1);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--s1)">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <span style="font-size:11px;font-weight:700;color:var(--tx3)">품목 ${i+1}</span>
-        ${lgItems.length>1?`<button onclick="lgRemoveItemRow(${i})" style="margin-left:auto;background:none;border:none;color:var(--acc4);font-size:14px;cursor:pointer">🗑</button>`:''}
-      </div>
-      <input class="inp" placeholder="품목명 (규격 포함)" value="${(it.item||'').replace(/"/g,'&quot;')}" oninput="lgItemField(${i},'item',this.value)" style="padding:8px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif;margin-bottom:6px">
-      <div class="g3">
-        <div><span class="lbl" style="font-size:9px">단가</span>
-          <input type="number" inputmode="numeric" placeholder="0" value="${it.price!==''&&it.price!=null?it.price:''}" oninput="lgItemField(${i},'price',this.value)" style="padding:8px;font-size:13px;text-align:right" class="inp"></div>
-        <div><span class="lbl" style="font-size:9px">수량</span>
-          <input type="number" inputmode="numeric" placeholder="0" value="${it.qty!==''&&it.qty!=null?it.qty:''}" oninput="lgItemField(${i},'qty',this.value)" style="padding:8px;font-size:13px;text-align:right" class="inp"></div>
-        <div><span class="lbl" style="font-size:9px">금액</span>
-          <input type="number" inputmode="numeric" placeholder="0" value="${it.amount!==''&&it.amount!=null?it.amount:''}" oninput="lgItemField(${i},'amount',this.value)" style="padding:8px;font-size:13px;text-align:right" class="inp"></div>
-      </div>
+  /* 한 품목 = 표 한 줄 (사장님 2026-10-14 「공간을 많이 쓴다」) — # · 품목명 · 단가 · 수량 · 금액 · 🗑
+     좁은 화면(560px 이하)은 품목명이 한 줄을 차지하고 숫자 셋이 그 아래로 내려갑니다(.lg-row). */
+  const inp=(i,f,v,ph,num)=>`<input ${num?'type="number" inputmode="numeric"':''} class="inp" placeholder="${ph}" value="${v!==''&&v!=null?String(v).replace(/"/g,'&quot;'):''}" oninput="lgItemField(${i},'${f}',this.value)" style="margin:0;padding:7px 8px;font-size:13px;${num?'text-align:right;font-family:\'JetBrains Mono\',monospace':'font-family:\'Noto Sans KR\',sans-serif'}">`;
+  host.innerHTML=`<style>.lg-row{display:grid;grid-template-columns:22px minmax(0,1fr) 96px 64px 110px 26px;gap:6px;align-items:center;padding:4px 0}
+      @media (max-width:560px){ .lg-row{grid-template-columns:1fr 1fr 1fr 26px} .lg-row>span:first-child{display:none} .lg-row>input:first-of-type{grid-column:1 / 4} .lg-row>.lg-del{grid-row:1;grid-column:4} .lg-head{display:none !important} }</style>
+    <div class="lg-row lg-head" style="font-size:10.5px;font-weight:700;color:var(--tx3);padding:0 0 2px"><span>#</span><span>품목명 (규격 포함)</span><span style="text-align:right">단가</span><span style="text-align:right">수량</span><span style="text-align:right">금액</span><span></span></div>`+
+    lgItems.map((it,i)=>`<div class="lg-row" style="border-top:1px solid var(--b1)">
+      <span style="font-size:11px;color:var(--tx3);text-align:center">${i+1}</span>
+      ${inp(i,'item',it.item,'품목명',false)}${inp(i,'price',it.price,'0',true)}${inp(i,'qty',it.qty,'0',true)}${inp(i,'amount',it.amount,'0',true)}
+      <button class="lg-del" onclick="lgRemoveItemRow(${i})" title="이 줄 빼기" style="background:none;border:none;color:var(--acc4);font-size:14px;cursor:pointer">✕</button>
     </div>`).join('');
   const g=document.getElementById('lg-grand'); if(g) g.textContent=lgWon(lgItemsTotal());
 }
@@ -17906,7 +17900,7 @@ function lgItemField(i,field,val){
     if(p&&q) lgItems[i].amount=Math.round(p*q);
     // 금액칸만 새로고침 + 합계
     const host=document.getElementById('lg-items');
-    if(host){ const amtInput=host.querySelectorAll('.g3')[i]?.querySelectorAll('input')[2]; if(amtInput) amtInput.value=lgItems[i].amount; }
+    if(host){ const amtInput=host.querySelectorAll('.lg-row')[i+1]?.querySelectorAll('input')[3]; if(amtInput) amtInput.value=lgItems[i].amount; }   // [0]은 머리줄
   }
   const g=document.getElementById('lg-grand'); if(g) g.textContent=lgWon(lgItemsTotal());
 }
