@@ -2556,7 +2556,49 @@ function invalidateTrendAgg(){ _trendAggCache=null; _trendAggSig=''; }
 
 // ── STORAGE ──
 const LS={stock:'ybn-s5',meta:'ybn-m5',work:'ybn-w5',ink:'ybn-i5',inkRate:'ybn-ir2',notices:'ybn-n2',schedules:'ybn-sc2',todos:'ybn-t2',gsUrl:'ybn-gs2',delivLog:'ybn-deliv-v1',actor:'ybn-actor-v1',stockEvents:'ybn-sev-v1',finished:'ybn-fin-v1'};
-function J(s){try{return s?JSON.parse(s):null;}catch{return null;}}
+/* 📦 저장함 압축 (2026-10-14 「용량을 최소화하고 최대치로 저장」) — 납품서·재고이력처럼 큰 것만.
+   LZW: 글자(UTF-8 바이트)를 사전 번호로 바꿔 한 글자(0x100~0xD7FF)에 하나씩 담습니다. 서러게이트(D800~)는 안 씁니다.
+   앞에 'Z1:' 가 붙어 있으면 압축본, 아니면 예전 그대로의 JSON — **둘 다 읽습니다.**
+   ⚠ 같은 함수가 세 파일에 있습니다 — index.html · 비규격작업지시서.html · 출고예시분석.html. 고치면 셋 다. */
+function ybnZ(str){
+  const b=new TextEncoder().encode(String(str)), MAX=0xD700, dict=new Map();
+  for(let i=0;i<256;i++) dict.set(String.fromCharCode(i), i);
+  let next=256, w='', codes=[];
+  for(let i=0;i<b.length;i++){
+    const c=String.fromCharCode(b[i]), wc=w+c;
+    if(dict.has(wc)){ w=wc; continue; }
+    codes.push(dict.get(w)); if(next<MAX) dict.set(wc, next++); w=c;
+  }
+  if(w) codes.push(dict.get(w));
+  let out='Z1:';
+  for(let i=0;i<codes.length;i+=8192) out+=String.fromCharCode.apply(null, codes.slice(i,i+8192).map(k=>k+0x100));
+  return out;
+}
+function ybnUnz(s){
+  if(typeof s!=='string' || s.slice(0,3)!=='Z1:') return s;
+  const MAX=0xD700, dict=[]; for(let i=0;i<256;i++) dict[i]=String.fromCharCode(i);
+  let next=256, prev=null; const parts=[];
+  for(let i=3;i<s.length;i++){
+    const k=s.charCodeAt(i)-0x100; let e;
+    if(k<next) e=dict[k]; else if(k===next && prev!==null) e=prev+prev[0]; else throw new Error('ybnUnz: 깨진 압축본');
+    parts.push(e); if(prev!==null && next<MAX) dict[next++]=prev+e[0]; prev=e;
+  }
+  const l=parts.join(''), u=new Uint8Array(l.length);
+  for(let i=0;i<l.length;i++) u[i]=l.charCodeAt(i);
+  return new TextDecoder().decode(u);
+}
+/* 압축해 담기 — 줄어들 때만, 그리고 이 창에서 처음 한 번은 **풀어서 원래와 같은지** 확인한 뒤에만 (아니면 예전처럼 그대로).
+   ✅ 2026-10-14 실측(시트 자료): 납품서 896장 1,765,563자 → 139,143자(12.7배) · 재고이력 748,056자 → 67,366자(11.1배) · 왕복 일치. */
+let _ybnZOk = null;
+function ybnPack(json){
+  if(_ybnZOk === false || json.length < 20000) return json;
+  try{
+    const z = ybnZ(json);
+    if(_ybnZOk === null){ _ybnZOk = (ybnUnz(z) === json); if(!_ybnZOk){ console.warn('[압축] 풀어 본 것이 달라 이 창에서는 압축하지 않습니다'); return json; } }
+    return z.length < json.length ? z : json;
+  }catch(e){ console.warn('[압축] 실패 — 그대로 담습니다', e); _ybnZOk = false; return json; }
+}
+function J(s){try{return s?JSON.parse(ybnUnz(s)):null;}catch{return null;}}
 let stock=J(localStorage.getItem(LS.stock))||{};
 let meta=J(localStorage.getItem(LS.meta))||{};
 let workLog=J(localStorage.getItem(LS.work))||[];
@@ -2674,7 +2716,7 @@ function dedupeDelivLog(arr){
   if(delivLog.length!==_before){
     // 화면에만 반영하면 저장소엔 계속 남으므로 바로 덮어쓴다.
     // saveAll()은 동기화까지 건드리므로 초기화 시점엔 쓰지 않는다.
-    try{ localStorage.setItem(LS.delivLog, JSON.stringify(delivLog)); }catch(e){}
+    try{ localStorage.setItem(LS.delivLog, ybnPack(JSON.stringify(delivLog))); }catch(e){}
     console.log('[납품서] 중복 정리:', _before, '→', delivLog.length);
   }
 }
@@ -4085,8 +4127,8 @@ function syncGateMeta(quiet){
   }
   return m;
 }
-function _put(key, val){
-  try{ localStorage.setItem(key, JSON.stringify(val)); return true; }
+function _put(key, val, pack){
+  try{ const js = JSON.stringify(val); localStorage.setItem(key, pack ? ybnPack(js) : js); return true; }
   catch(e){ _saveFail.push(key); console.warn('[저장 실패]', key, e); return false; }
 }
 var _saveAlertAt = 0;
@@ -4146,8 +4188,8 @@ function saveAll(){
   if(typeof sheetLog!=='undefined') _put('ybn-sheet-v1', sheetLog);
   _put(LS.work, workLog);
   // ── 덩치 큰 것 (자리가 모자라면 여기부터 못 씁니다 — 시트에서 다시 받습니다)
-  _put(LS.stockEvents, stockEvents);
-  _put(LS.delivLog, delivLog);
+  _put(LS.stockEvents, stockEvents, true);   // 압축해 담습니다 (ybnPack — 2026-10-14)
+  _put(LS.delivLog, delivLog, true);
   /* 다 무사히 썼으면 표식을 지웁니다. 하나라도 못 썼으면 **남겨 두어**
      다음에 이 기기가 켜졌을 때 시트를 덮지 못하게 합니다. */
   if(_saveFail.length){ _diskPartial = true; }
@@ -8732,11 +8774,33 @@ function _extGaugeHtml(){
   }catch(e){ return ''; }
 }
 
+/* 빈자리를 실제로 채워 보고 바로 지웁니다 — 256K 자씩, 막히면 잘게. 1,200만 자를 넘으면 그만(넉넉함). 결과 = 한도(글자 수). */
+function lsProbeCap(){
+  if(window._lsCapChars) return window._lsCapChars;
+  let used = 0, free = 0; const keys = [];
+  try{
+    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); used += k.length + (localStorage.getItem(k)||'').length; }
+    outer: for(const size of [262144, 65536, 16384, 4096, 1024]){
+      const s = 'x'.repeat(size);
+      for(;;){
+        if(free > 12e6) break outer;
+        const k = '__ybncap' + keys.length;
+        try{ localStorage.setItem(k, s); keys.push(k); free += size + k.length; }catch(e){ break; }
+      }
+    }
+  }catch(e){ return 0; }
+  finally{ keys.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} }); }
+  window._lsCapChars = used + free;
+  return window._lsCapChars;
+}
 function renderStorageBar(){
   const host=document.getElementById('storage-bar-host');
   if(!host) return;
   // localStorage 항목별 바이트 계산 (UTF-16 기준 2바이트/문자)
-  const CAP = 5*1024*1024; // 보수적으로 5MB 기준
+  /* 한도는 **이 브라우저에서 실제로 재서** 씁니다 (2026-10-14 「꽉 찼는데 어쩌지」). 예전엔 5MB 로 어림해
+     PC 크롬(약 520만 자 = 10MB)에서도 100% 로 보였습니다. 재는 법은 lsProbeCap — 창마다 한 번. */
+  const _cap = lsProbeCap();
+  const CAP = _cap ? _cap*2 : 5*1024*1024;
   const labels={ 'ybn-deliv-log':'📦 납품서','ybn-stock':'📊 재고','ybn-stock-events':'📈 재고이력',
     'ybn-worklog':'📋 작업일지','ybn-todos':'✅ 할일','ybn-order-history':'🧾 발주이력',
     'ybn-ink':'🖋 잉크','ybn-ledger':'💰 매입매출','ybn-vendors':'🏢 거래처' };
@@ -8774,7 +8838,7 @@ function renderStorageBar(){
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--tx1);mix-blend-mode:difference">${pct>=8?'':''}</div>
     </div>
     <div style="margin-top:10px">${rows||'<div style="font-size:11px;color:var(--tx3)">저장된 데이터가 거의 없어요</div>'}</div>
-    <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.6">브라우저 저장 공간 기준이며, 구글 시트에는 별도로 백업됩니다. 80%를 넘으면 오래된 납품서를 정리하는 걸 권장해요.${_extGaugeHtml()}</div>`;
+    <div style="font-size:10px;color:var(--tx3);margin-top:8px;line-height:1.6">이 브라우저에서 실제로 잰 한도입니다${_cap?` (약 ${Math.round(_cap/10000).toLocaleString('ko-KR')}만 자)`:''}. 납품서·재고이력은 압축해 담습니다. 구글 시트에는 별도로 백업됩니다.${_extGaugeHtml()}</div>`;
 }
 function updateGsStatus(state){
   const dot=document.getElementById('gs-dot');
@@ -9413,7 +9477,7 @@ function exportBackup(){
       const k = localStorage.key(i);
       const v = localStorage.getItem(k);
       if(v == null) continue;
-      try{ all[k] = JSON.parse(v); }catch(e){ all[k] = v; }   // 글자 그대로인 것도 담습니다
+      try{ all[k] = JSON.parse(ybnUnz(v)); }catch(e){ all[k] = v; }   // 글자 그대로인 것도 담습니다 · 압축본은 풀어서(사람이 읽게)
       n++; bytes += (k.length + v.length);
     }
   }catch(e){ alert('백업을 만들지 못했습니다 — ' + (e.message||'')); return; }
@@ -17725,6 +17789,9 @@ let hsPrice = (function(){ try{ const o=JSON.parse(localStorage.getItem(LS_HS_PR
    - SRM 에 붙인 값과 다르면 **날짜가 나중인 쪽**(SRM 납품일 vs 합의서 등록일)을 쓰고 주황으로 알립니다.
    - ⚠ 단가를 코드에 적지 않습니다(저장소가 공개 — 12-37). 이 기기의 hsPrice.master 에만. */
 function hsMaster(){ return (hsPrice.master && hsPrice.master.map) ? hsPrice.master : null; }
+// 먼저 넣은 합의서(품명·기존금액까지 담김)를 코드·단가만으로 줄여 다시 저장
+(function(){ try{ const M=hsMaster(); if(!M) return; const ks=Object.keys(M.map); if(!ks.some(k=>M.map[k] && ('name' in M.map[k] || 'old' in M.map[k]))) return;
+  ks.forEach(k=>{ M.map[k]={ price:M.map[k].price }; }); hsSave(); console.log('[한샘 합의서] 코드·단가만으로 줄임', ks.length); }catch(e){} })();
 let hsWhFilter = '', hsSearch = '', hsOpen = false;
 function hsSave(){ try{ localStorage.setItem(LS_HS_PRICE, JSON.stringify(hsPrice)); return true; }catch(e){ console.warn('[한샘 단가] 저장 실패', e); return false; } }
 function hsNum(t){ const n=parseFloat(String(t==null?'':t).replace(/[,\s원]/g,'')); return isNaN(n)?null:n; }
@@ -17841,7 +17908,7 @@ function hsMasterParse(wb){
       if(typeof dv==='number' && dv>30000) dt=new Date(Math.round((dv-25569)*86400000)).toISOString().slice(0,10);   // 엑셀 날짜 = UTC 자정이라 toISOString 이 맞음(3-1 예외)
       else { const m=String(dv).match(/(20\d{2})[-.\/]?(\d{1,2})[-.\/]?(\d{1,2})/); if(m) dt=m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'); }
       if(dt>dmax) dmax=dt;
-      map[code]={ name:String(cName>=0?row[cName]:'').trim(), price:p, old:cOld>=0?hsNum(row[cOld]):null };
+      map[code]={ price:p };   // 코드·단가만 담습니다 — 품명·기존금액까지 담으니 317KB 였습니다(2026-10-14 용량)
       n++;
     }
     if(n && (!best || n>best.n)) best={ n, map, date:dmax, sheet:sn };

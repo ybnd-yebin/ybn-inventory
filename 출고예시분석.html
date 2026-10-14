@@ -1745,11 +1745,26 @@ function delivSave(){
    - 같은 납품번호가 양쪽에 있으면 **앱 쪽이 이깁니다**(앱 파서가 늘 최신입니다 — CLAUDE.md 12-29).
    - 여기 올리는 칸은 남겨 둡니다 — 앱에 아직 안 올린 납품서를 급히 볼 때만 씁니다.
    - 앱 품목은 { code, short, name(원문 품명), qty } — 여기 ingestDeliv 가 만드는 모양으로 바꿉니다. */
+/* 앱이 납품서를 압축해 담습니다(2026-10-14 · 'Z1:' 로 시작). 이 함수가 풀어 줍니다 — 압축 안 된 예전 것은 그대로.
+   ⚠ index.html 의 ybnUnz 와 같은 함수입니다. 고치면 세 파일(index · 비규격작업지시서 · 출고예시분석) 다. */
+function ybnUnz(s){
+  if(typeof s!=='string' || s.slice(0,3)!=='Z1:') return s;
+  const MAX=0xD700, dict=[]; for(let i=0;i<256;i++) dict[i]=String.fromCharCode(i);
+  let next=256, prev=null; const parts=[];
+  for(let i=3;i<s.length;i++){
+    const k=s.charCodeAt(i)-0x100; let e;
+    if(k<next) e=dict[k]; else if(k===next && prev!==null) e=prev+prev[0]; else throw new Error('ybnUnz: 깨진 압축본');
+    parts.push(e); if(prev!==null && next<MAX) dict[next++]=prev+e[0]; prev=e;
+  }
+  const l=parts.join(''), u=new Uint8Array(l.length);
+  for(let i=0;i<l.length;i++) u[i]=l.charCodeAt(i);
+  return new TextDecoder().decode(u);
+}
 const APP_DELIV_KEY = 'ybn-deliv-v1';
 const APP_DELIV_DEL_KEY = 'ybn-deliv-del-v1';   // 앱에서 지운 납품서 묘비
 function delivFromApp(){
   let log=[], del={};
-  try{ const a=JSON.parse(localStorage.getItem(APP_DELIV_KEY)); if(Array.isArray(a)) log=a; }catch(e){ return []; }
+  try{ const a=JSON.parse(ybnUnz(localStorage.getItem(APP_DELIV_KEY))); if(Array.isArray(a)) log=a; }catch(e){ return []; }
   try{ del=JSON.parse(localStorage.getItem(APP_DELIV_DEL_KEY))||{}; }catch(e){}
   const cut = addDays(isoToday(), -DELIV_KEEP_DAYS);
   const out=[];

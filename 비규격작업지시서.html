@@ -2696,12 +2696,27 @@ function _starSize(body){
    ⚠ 앱이 읽은 그대로 씁니다. 앱에서 사이즈를 못 읽은 품목은 여기서도
      못 읽습니다 — 지어내지 않고 '규격을 읽지 못함'으로 드러냅니다.
    ══════════════════════════════════════════════════════════════════════ */
+/* 앱이 납품서를 압축해 담습니다(2026-10-14 · 'Z1:' 로 시작). 이 함수가 풀어 줍니다 — 압축 안 된 예전 것은 그대로.
+   ⚠ index.html 의 ybnUnz 와 같은 함수입니다. 고치면 세 파일(index · 비규격작업지시서 · 출고예시분석) 다. */
+function ybnUnz(s){
+  if(typeof s!=='string' || s.slice(0,3)!=='Z1:') return s;
+  const MAX=0xD700, dict=[]; for(let i=0;i<256;i++) dict[i]=String.fromCharCode(i);
+  let next=256, prev=null; const parts=[];
+  for(let i=3;i<s.length;i++){
+    const k=s.charCodeAt(i)-0x100; let e;
+    if(k<next) e=dict[k]; else if(k===next && prev!==null) e=prev+prev[0]; else throw new Error('ybnUnz: 깨진 압축본');
+    parts.push(e); if(prev!==null && next<MAX) dict[next++]=prev+e[0]; prev=e;
+  }
+  const l=parts.join(''), u=new Uint8Array(l.length);
+  for(let i=0;i<l.length;i++) u[i]=l.charCodeAt(i);
+  return new TextDecoder().decode(u);
+}
 const YBN_DELIV_KEY = 'ybn-deliv-v1';
 const YBN_DELIV_DEL = 'ybn-deliv-del-v1';
 
 function ybnReadDelivs(){
   let log = [], del = {};
-  try{ log = JSON.parse(localStorage.getItem(YBN_DELIV_KEY) || '[]') || []; }
+  try{ log = JSON.parse(ybnUnz(localStorage.getItem(YBN_DELIV_KEY)) || '[]') || []; }
   catch(e){ return { err:'앱이 저장해 둔 납품서를 읽지 못했습니다.' }; }
   try{ del = JSON.parse(localStorage.getItem(YBN_DELIV_DEL) || '{}') || {}; }
   catch(e){ del = {}; }
