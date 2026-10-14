@@ -17953,7 +17953,7 @@ function hsNeedHtml(){
     <button onclick="hsNeedOpen=!hsNeedOpen;renderHsPrice()" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(234,108,0,.07);border:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:12px;color:var(--tx1)">
       <span>⚠ <b>단가가 필요한 발주 ${list.length}건</b> · ${nLines}품목 <span style="color:var(--tx3)">— SRM 에서 이 PO 를 열어 줄을 복사해 붙여 주십시오</span></span>
       <span style="color:var(--acc2);font-weight:700">${hsNeedOpen ? '접기 ▴' : '보기 ▾'}</span></button>
-    ${hsNeedOpen ? `<div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:6px 10px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)"><span>PO번호 (누르면 복사)</span><span>발주일</span><span>창고</span><span>단가 없는 품목</span></div>${rows}` + (list.length > 60 ? `<div style="padding:6px 10px;font-size:11px;color:var(--tx3)">외 ${list.length-60}건</div>` : '') : ''}
+    ${hsNeedOpen ? `<div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:6px 10px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)"><span>PO번호 (누르면 복사)</span><span title="납품서에 찍힌 둘째 날짜(납품서 만든 날) — SRM 발주일보다 보통 하루 늦습니다">납품서일</span><span>창고</span><span>단가 없는 품목</span></div>${rows}` + (list.length > 60 ? `<div style="padding:6px 10px;font-size:11px;color:var(--tx3)">외 ${list.length-60}건</div>` : '') : ''}
   </div>`;
 }
 function hsGoNeed(){
