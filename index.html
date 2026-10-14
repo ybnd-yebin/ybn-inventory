@@ -24510,11 +24510,30 @@ function tdyTile(o){
   const col = !o.n ? 'var(--tx3)' : o.tone==='red' ? 'var(--acc4)' : o.tone==='orange' ? 'var(--acc2)' : o.tone==='blue' ? 'var(--acc)' : 'var(--tx1)';
   const bd  = !o.n ? 'var(--b1)'  : o.tone==='red' ? 'var(--acc4)' : o.tone==='orange' ? 'var(--acc2)' : 'var(--b2)';
   const num = (o.n==null) ? '—' : (o.text!=null ? o.text : o.n);
-  return `<button onclick="${o.go}" title="${o.title||''}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:10px 12px;border:1px solid ${bd};border-left:3px solid ${bd};border-radius:10px;background:var(--s1);cursor:pointer;text-align:left;font-family:'Noto Sans KR',sans-serif">
-    <span style="font-size:11px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${o.ico} ${o.label}</span>
-    <span style="font-size:22px;font-weight:900;line-height:1.15;color:${col};font-family:'JetBrains Mono',monospace">${num}<small style="font-size:11px;font-weight:600;margin-left:2px;font-family:'Noto Sans KR',sans-serif">${(o.n && o.unit)?o.unit:''}</small></span>
-    <span style="font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${o.n ? (o.sub||'') : (o.zero||'없음')}</span>
+  // 크기·간격은 .tdy-t 한 곳(todayTilesHtml 의 <style>) — 휴대폰에서 작게 (사장님 2026-10-15 「모바일로 보면 너무 과하게 커서」)
+  return `<button class="tdy-t" onclick="${o.go}" title="${o.title||''}" style="border-color:${bd};border-left-color:${bd}">
+    <span class="tdy-t-l">${o.ico} ${o.label}</span>
+    <span class="tdy-t-n" style="color:${col}">${num}<small>${(o.n && o.unit)?o.unit:''}</small></span>
+    <span class="tdy-t-s">${o.n ? (o.sub||'') : (o.zero||'없음')}</span>
   </button>`;
+}
+/* 접었을 때 한 줄 — 0 이 아닌 타일만 아이콘·숫자로 (누르면 펼침) */
+function tdyTileChip(o){
+  if(!o.n) return '';
+  const col = o.tone==='red' ? 'var(--acc4)' : o.tone==='orange' ? 'var(--acc2)' : o.tone==='blue' ? 'var(--acc)' : 'var(--tx1)';
+  const num = o.text!=null ? o.text : o.n;
+  return `<span title="${o.label}" style="white-space:nowrap;font-size:12px;color:var(--tx2)">${o.ico}<b style="font-family:'JetBrains Mono',monospace;color:${col};margin-left:2px">${num}</b><small style="font-size:10px">${o.unit&&o.text==null?o.unit:''}</small></span>`;
+}
+/* 타일 접기·펴기 — 이 기기에 기억합니다. 처음엔 휴대폰(560px 이하)은 접고 PC 는 폅니다. */
+// 저장 이름은 글자 그대로 씁니다 — 앱을 막 열 때 renderToday 가 이 아래 선언보다 먼저 돌아 const 를 못 읽습니다(TDZ)
+function tdyTilesOpen(){
+  try{ const v=localStorage.getItem('ybn-tdy-tiles-open-v1'); if(v==='1') return true; if(v==='0') return false; }catch(e){}
+  return !(window.matchMedia && window.matchMedia('(max-width:560px)').matches);
+}
+function tdyTilesToggle(){
+  const open=!tdyTilesOpen();
+  try{ localStorage.setItem('ybn-tdy-tiles-open-v1', open?'1':'0'); }catch(e){}
+  try{ renderToday(); }catch(e){}
 }
 // 다른 탭의 칸으로 가서 그 자리를 보여 줍니다
 function tdyGoTo(main, elId, sub){
@@ -24535,26 +24554,49 @@ function tdyOpenOrders(){
   return { n, q, vs };
 }
 function todayTilesHtml(d){
-  const t=[];
-  t.push(tdyTile({ico:'🔴', label:'오늘 못 만드는 것', n:d.blocked==null?null:d.blocked.length, unit:'종', tone:'red',
+  const t=[]; t.chips=[];
+  const add=o=>{ t.push(tdyTile(o)); t.chips.push(tdyTileChip(o)); };
+  add(({ico:'🔴', label:'오늘 못 만드는 것', n:d.blocked==null?null:d.blocked.length, unit:'종', tone:'red',
     sub:'에토프 재고가 모자람', zero:'재고로 댈 수 있음', go:"tdyGoTo('etp')"}));
-  t.push(tdyTile({ico:'🧾', label:'지금 발주할 것', n:d.etpShort.length, unit:'종', tone:'blue',
+  add(({ico:'🧾', label:'지금 발주할 것', n:d.etpShort.length, unit:'종', tone:'blue',
     sub:d.etpShort.reduce((s,x)=>s+x.qty,0)+'장 · 현성 에토프', zero:'안전재고 다 채움', go:"tdyGoTo('home','tdy-order-now')"}));
   const op=d.open;
-  t.push(tdyTile({ico:'📦', label:'입고 대기', n:op.q, unit:'장', tone:'',
+  add(({ico:'📦', label:'입고 대기', n:op.q, unit:'장', tone:'',
     sub:Object.entries(op.vs).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([v,q])=>v.replace(/유리$/,'')+' '+q).join(' · '),
     zero:'다 들어옴', go:"tdyGoTo('order','od-order-list')"}));
-  t.push(tdyTile({ico:'⏰', label:'납기 지난 발주', n:d.late.length, unit:'건', tone:'red',
+  add(({ico:'⏰', label:'납기 지난 발주', n:d.late.length, unit:'건', tone:'red',
     sub:d.late.reduce((s,p)=>s+p.qty,0)+'장 미입고', zero:'없음', go:"tdyGoTo('etp')"}));
-  t.push(tdyTile({ico:'🆕', label:'처음 보는 품목', n:d.newItems, unit:'개', tone:'orange',
+  add(({ico:'🆕', label:'처음 보는 품목', n:d.newItems, unit:'개', tone:'orange',
     sub:'납품서 탭에서 정하기', zero:'모두 정함', go:"tdyGoTo('delivery','deliv-newitem-box')"}));
   const upl=d.upl;
-  t.push(tdyTile({ico:'📥', label:'납품서', n:upl?1:null, text:upl?(upl.gap>=1?upl.gap+'일':'오늘'):'—', tone:upl&&upl.gap>=2?'red':'',
+  add(({ico:'📥', label:'납품서', n:upl?1:null, text:upl?(upl.gap>=1?upl.gap+'일':'오늘'):'—', tone:upl&&upl.gap>=2?'red':'',
     sub:upl?('마지막 '+upl.last.slice(5).replace('-','/')+(upl.gap>=1?' · 영업일 밀림':' 올림')):'', zero:'올린 것 없음',
     title:'마지막으로 납품서를 올린 날', go:"tdyGoTo('delivery')"}));
-  t.push(tdyTile({ico:'🗓️', label:'일정 날짜 지남', n:d.overdue, unit:'가지', tone:'red',
+  add(({ico:'🗓️', label:'일정 날짜 지남', n:d.overdue, unit:'가지', tone:'red',
     sub:'아래 달력에서 완료·고치기', zero:'밀린 일정 없음', go:"tdyGoTo('home','pg-plan')"}));
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;margin:10px 0 4px">${t.join('')}</div>`;
+  const css = `<style>
+    .tdy-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;margin:10px 0 4px}
+    .tdy-t{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:10px 12px;border:1px solid var(--b1);border-left:3px solid var(--b1);border-radius:10px;background:var(--s1);cursor:pointer;text-align:left;font-family:'Noto Sans KR',sans-serif}
+    .tdy-t-l{font-size:11px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    .tdy-t-n{font-size:22px;font-weight:900;line-height:1.15;font-family:'JetBrains Mono',monospace}
+    .tdy-t-n small{font-size:11px;font-weight:600;margin-left:2px;font-family:'Noto Sans KR',sans-serif}
+    .tdy-t-s{font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    @media (max-width:560px){
+      .tdy-tiles{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0 2px}
+      .tdy-t{padding:6px 7px;border-radius:8px;gap:0}
+      .tdy-t-l{font-size:10px}
+      .tdy-t-n{font-size:16px}
+      .tdy-t-n small{font-size:9.5px}
+      .tdy-t-s{font-size:9px}
+    }</style>`;
+  if(!tdyTilesOpen()){
+    const chips = t.chips.filter(Boolean);
+    return css + `<button onclick="tdyTilesToggle()" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;margin-top:8px;padding:7px 10px;border:1px dashed var(--b2);border-radius:9px;background:var(--s2);cursor:pointer;text-align:left;font-family:'Noto Sans KR',sans-serif">
+      ${chips.length ? chips.join('') : '<span style="font-size:12px;color:var(--tx3)">걸린 것 없음</span>'}
+      <span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--acc)">펼치기 ▾</span></button>`;
+  }
+  return css + `<div class="tdy-tiles">${t.join('')}</div>
+    <div style="text-align:right"><button onclick="tdyTilesToggle()" style="background:none;border:none;padding:2px 0;font-size:11px;font-weight:700;color:var(--acc);cursor:pointer;font-family:'Noto Sans KR',sans-serif">접기 ▴</button></div>`;
 }
 
 // 🧾 지금 발주할 것 — 크게 보여 주고 단추 하나로 발주탭에 채웁니다
@@ -24634,9 +24676,9 @@ function renderToday(){
                        : '✅ 오늘은 막힌 것이 없습니다') +
         '</span>' +
       '</div>' +
-      '<div style="margin-top:6px;font-size:10.5px;color:var(--tx3)">' +
+      (tdyTilesOpen() ? '<div style="margin-top:6px;font-size:10.5px;color:var(--tx3)">' +
         '납품서·재고·발주를 훑어 스스로 찾은 것입니다. 할일에 적지 않으셔도 됩니다. 타일을 누르면 그 자리로 갑니다.' +
-      '</div>' +
+      '</div>' : '') +
       (function(){ try{
         const newItems=(function(){ try{
           const since=_addDays(td,-NEW_ITEM_RECENT_DAYS);
