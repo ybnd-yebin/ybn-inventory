@@ -17835,6 +17835,48 @@ function hsMonthExcel(){
   showToast(`📥 ${ym} 매출 엑셀 — ${rows.length}줄`+(rows.some(r=>r.price==null)?` · 단가 없음 ${rows.filter(r=>r.price==null).length}줄`:''));
 }
 
+/* ⚠ 단가가 필요한 발주 (사장님 2026-10-14 「납품서 따라서 알아서 가격 따라오게 … 없는 내용만 요청 메시지 뜨면 내가 올리는 방식」)
+   단가표에 한 번 올라간 품목은 그 뒤 납품서마다 저절로 값이 붙습니다(hsPriceOf). 못 붙은 줄만 **PO번호(납품서 참조오더 = SRM 구매오더번호)** 로 묶어
+   보여 드립니다 — SRM 에서 그 PO 를 열어 줄을 복사해 붙이시면 됩니다. ⚠ 비규격은 사이즈까지 열쇠라 새 사이즈는 매번 요청에 뜹니다. */
+let hsNeedOpen = false;
+function hsMissing(ym){
+  const by = {};
+  hsMonthRows(ym).filter(r => r.price == null).forEach(r => {
+    const k = r.refNo || r.delivNo || '(번호 없음)';
+    const g = by[k] || (by[k] = { po:k, day:r.day, wh:r.whName, as:r.as, items:[] });
+    if(r.day > g.day) g.day = r.day;
+    const it = g.items.find(x => x.code === r.code && x.size === r.size);
+    if(it) it.qty += r.qty; else g.items.push({ code:r.code, name:r.name, size:r.size, qty:r.qty });
+  });
+  return Object.values(by).sort((a, b) => String(b.day).localeCompare(String(a.day)) || String(b.po).localeCompare(String(a.po)));
+}
+function hsCopyPo(po){
+  const done = () => showToast('📋 ' + po + ' 복사 — SRM PO번호 칸에 붙여 찾으십시오');
+  try{ navigator.clipboard.writeText(po).then(done, () => { prompt('PO번호', po); }); }catch(e){ prompt('PO번호', po); }
+}
+function hsNeedHtml(){
+  const list = hsMissing(hsYm);
+  if(!list.length) return `<div style="margin-top:8px;font-size:11.5px;color:var(--acc3)">✓ ${+hsYm.slice(5,7)}월 납품서는 모두 단가가 있습니다 — 매출이 저절로 계산됩니다.</div>`;
+  const nLines = list.reduce((s, g) => s + g.items.length, 0);
+  const COLS = '120px 56px 84px minmax(0,1fr)';
+  const rows = list.slice(0, 60).map(g => `<div style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:start;padding:6px 10px;border-top:1px solid var(--b1)">
+      <button onclick="hsCopyPo('${etpEsc(g.po)}')" title="눌러서 PO번호 복사" style="text-align:left;background:none;border:none;padding:0;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:800;color:var(--acc)">${etpEsc(g.po)}${g.as?' <small style="color:var(--acc2)">AS</small>':''}</button>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2)">${g.day ? g.day.slice(5).replace('-','/') : '-'}</span>
+      <span style="font-size:11px;color:var(--tx2)">${etpEsc(g.wh||'')}</span>
+      <span style="font-size:11px;color:var(--tx1);line-height:1.5">${g.items.map(it => `<b style="font-family:'JetBrains Mono',monospace">${etpEsc(it.code)}</b> ${etpEsc(String(it.name).slice(0,28))}${it.size?' <b style="color:var(--acc2)">'+etpEsc(it.size)+'</b>':''} ×${it.qty}`).join('<br>')}</span>
+    </div>`).join('');
+  return `<div style="margin-top:10px;border:1px solid var(--acc2);border-radius:8px;overflow:hidden">
+    <button onclick="hsNeedOpen=!hsNeedOpen;renderHsPrice()" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(234,108,0,.07);border:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:12px;color:var(--tx1)">
+      <span>⚠ <b>단가가 필요한 발주 ${list.length}건</b> · ${nLines}품목 <span style="color:var(--tx3)">— SRM 에서 이 PO 를 열어 줄을 복사해 붙여 주십시오</span></span>
+      <span style="color:var(--acc2);font-weight:700">${hsNeedOpen ? '접기 ▴' : '보기 ▾'}</span></button>
+    ${hsNeedOpen ? `<div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:6px 10px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)"><span>PO번호 (누르면 복사)</span><span>발주일</span><span>창고</span><span>단가 없는 품목</span></div>${rows}` + (list.length > 60 ? `<div style="padding:6px 10px;font-size:11px;color:var(--tx3)">외 ${list.length-60}건</div>` : '') : ''}
+  </div>`;
+}
+function hsGoNeed(){
+  showMain('ledger'); setLedgerKind('sell'); hsNeedOpen = true; renderHsPrice();
+  setTimeout(() => { const e = document.getElementById('hs-price-host'); if(e) e.scrollIntoView({ behavior:'smooth', block:'start' }); }, 80);
+}
+
 function renderHsPrice(){
   const host=document.getElementById('hs-price-host'); if(!host) return;
   host.style.display=(typeof lgKind==='undefined'||lgKind==='sell')?'':'none';
@@ -17864,9 +17906,10 @@ function renderHsPrice(){
       지금 <b>${book.length}품목</b>${book.filter(e=>e.prev!=null).length?` · <b style="color:var(--acc2)">단가 바뀐 것 ${book.filter(e=>e.prev!=null).length}</b>`:''}.
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
-      <input type="month" id="hs-ym" value="${hsYm}" onchange="hsYm=this.value" style="padding:5px 7px;font-size:12px;border:1px solid var(--b2);border-radius:7px;background:var(--s2);color:var(--tx1)">
+      <input type="month" id="hs-ym" value="${hsYm}" onchange="hsYm=this.value;renderHsPrice()" style="padding:5px 7px;font-size:12px;border:1px solid var(--b2);border-radius:7px;background:var(--s2);color:var(--tx1)">
       ${btn('hsMonthExcel()','📥 이 달 매출 엑셀 (발주일 · 납품서 × 단가)')}
     </div>
+    ${(function(){ try{ return hsNeedHtml(); }catch(e){ console.warn('[한샘 단가 요청]', e); return ''; } })()}
     ${hsOpen && book.length?`<div class="filter-row" style="margin:10px 0 6px">${chip('','전체',book.length)}${chip('1001','그레이박스',cnt('1001'))}${chip('2001','오이도',cnt('2001'))}</div>
     <input class="inp" value="${etpEsc(hsSearch)}" oninput="hsOnSearch(this.value)" placeholder="🔍 코드 · 품명 · 사이즈" style="margin-bottom:6px;padding:8px 10px;font-size:12.5px">
     <div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden">
@@ -18190,7 +18233,7 @@ function renderLgSummary(){
   const won=x=>Math.round(x).toLocaleString('ko-KR');
   const row=(label,f,hk)=>{ const b=sum(f,'buy'), s2=sum(f,'sell'), H=hs(hk), sell=s2+H.amt, d=sell-b;
     const sub=[ H.amt||H.none ? '📋 한샘 SRM '+(H.amt?won(H.amt):'-') : '', H.amt&&s2 ? '기록 '+won(s2) : '',
-                H.none ? `<b style="color:var(--acc2)">단가 없음 ${H.none}줄</b>` : '' ].filter(Boolean).join('<br>');
+                H.none ? `<b onclick="hsGoNeed()" title="눌러서 단가가 필요한 발주 보기" style="color:var(--acc2);cursor:pointer;text-decoration:underline">단가 없음 ${H.none}줄 ›</b>` : '' ].filter(Boolean).join('<br>');
     return `<div style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)">
       <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)')}${v(sell,'var(--acc3)',sub)}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
   host.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div>
