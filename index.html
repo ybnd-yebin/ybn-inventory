@@ -17785,7 +17785,17 @@ function hsPriceOf(code, size, whName, book){
   const e=b[hsKey(code,size,wh)] || Object.values(b).find(x=>x.code===code && (x.size||'')===(size||''));
   return e ? { price:e.price, other: e.wh!==wh } : null;
 }
-function hsSetWh(w){ hsWhFilter=w; hsOpen=true; renderHsPrice(); }
+/* 잘못 넣은 줄 지우기 (사장님 2026-10-14 「아무 생각 없이 계속 넣었는데 … 수정을 어떻게 해」) — 그 품목(코드·사이즈·창고)의 붙여 넣은 줄을 모두 지웁니다.
+   다시 붙이면 다시 들어옵니다. 창고는 저장소 칸으로 저절로 갈리므로 오이도 줄이 섞여도 따로 담깁니다. */
+function hsDelKey(key){
+  const e = hsBook()[key]; if(!e) return;
+  if(!confirm(`${e.code} ${e.whName}${e.size?' '+e.size:''} 단가(${Number(e.price).toLocaleString('ko-KR')}원)를 지울까요?\n붙여 넣은 줄 ${e.n}개가 지워집니다. 다시 붙이면 다시 들어옵니다.`)) return;
+  hsPrice.rows = hsPrice.rows.filter(r => hsKey(r.code, r.size, r.wh) !== key);
+  hsSave(); renderHsPrice(); try{ renderLgSummary(); }catch(err){}
+  showToast('🗑 ' + e.code + ' ' + e.whName + ' 단가를 지웠습니다');
+}
+function hsSetWh(w){
+ hsWhFilter=w; hsOpen=true; renderHsPrice(); }
 function hsToggle(){ hsOpen=!hsOpen; renderHsPrice(); }
 function hsOnSearch(v){ hsSearch=String(v||''); clearTimeout(window._hsT); window._hsT=setTimeout(renderHsPrice,200); }
 
@@ -17887,7 +17897,7 @@ function renderHsPrice(){
   const cnt=w=>book.filter(e=>e.wh===w).length;
   const chip=(w,l,n)=>`<button class="f-btn${hsWhFilter===w?' on':''}" onclick="hsSetWh('${w}')">${l} ${n}</button>`;
   const btn=(fn,l,pri)=>`<button onclick="${fn}" style="padding:7px 13px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;${pri?'background:var(--acc);border:none;color:#fff':'background:var(--s2);border:1px solid var(--b2);color:var(--tx1)'}">${l}</button>`;
-  const COLS='minmax(0,1fr) 64px 76px 76px 52px';
+  const COLS='minmax(0,1fr) 64px 76px 76px 52px 24px';
   const num=(v,o)=>{ o=o||{}; const e=v==null; return `<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:${o.big?'13px':'11.5px'};font-weight:${o.big?800:500};color:${e?'var(--tx3)':(o.c||'var(--tx1)')}">${e?'-':Number(v).toLocaleString('ko-KR')}</span>`; };
   const rows=list.slice(0,300).map(e=>`<div style="display:grid;grid-template-columns:${COLS};gap:6px;align-items:center;padding:6px 10px;border-top:1px solid var(--b1);${e.prev!=null?'background:rgba(234,108,0,.06)':''}">
       <div style="min-width:0"><b style="font-family:'JetBrains Mono',monospace;font-size:12px">${etpEsc(e.code)}</b> <span style="font-size:10px;color:var(--tx3)">${etpEsc(e.whName)}</span>
@@ -17895,6 +17905,7 @@ function renderHsPrice(){
       <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3)">${e.last?e.last.slice(5).replace('-','/'):'-'}</span>
       ${num(e.prev,{c:'var(--tx3)'})}${num(e.price,{big:true,c:e.prev!=null?'var(--acc2)':''})}
       <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2)">${e.n}</span>
+      <button onclick="hsDelKey('${String(e.key).replace(/'/g,"\'")}')" title="이 단가 지우기" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:13px;padding:0">✕</button>
     </div>`).join('');
   host.innerHTML=`<div class="card" style="border-left:3px solid var(--acc)">
     <div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
@@ -17913,7 +17924,7 @@ function renderHsPrice(){
     ${hsOpen && book.length?`<div class="filter-row" style="margin:10px 0 6px">${chip('','전체',book.length)}${chip('1001','그레이박스',cnt('1001'))}${chip('2001','오이도',cnt('2001'))}</div>
     <input class="inp" value="${etpEsc(hsSearch)}" oninput="hsOnSearch(this.value)" placeholder="🔍 코드 · 품명 · 사이즈" style="margin-bottom:6px;padding:8px 10px;font-size:12.5px">
     <div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden">
-      <div style="display:grid;grid-template-columns:${COLS};gap:6px;padding:6px 10px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)"><span>제품코드 · 품명</span><span style="text-align:right">마지막</span><span style="text-align:right">이전 단가</span><span style="text-align:right">단가</span><span style="text-align:right">본 횟수</span></div>
+      <div style="display:grid;grid-template-columns:${COLS};gap:6px;padding:6px 10px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)"><span>제품코드 · 품명</span><span style="text-align:right">마지막</span><span style="text-align:right">이전 단가</span><span style="text-align:right">단가</span><span style="text-align:right">본 횟수</span><span></span></div>
       ${rows||'<div style="padding:14px;text-align:center;font-size:12px;color:var(--tx3)">해당하는 품목이 없습니다</div>'}
     </div>`:''}
   </div>`;
