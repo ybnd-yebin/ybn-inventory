@@ -17718,6 +17718,13 @@ let lgReadData=null;     // 읽기용(큰) base64 (data URL)
 const LS_HS_PRICE = 'ybn-hs-price-v1';
 const HS_WH = { '1001':'그레이박스', '2001':'오이도' };
 let hsPrice = (function(){ try{ const o=JSON.parse(localStorage.getItem(LS_HS_PRICE)); return (o && Array.isArray(o.rows)) ? o : { rows:[] }; }catch(e){ return { rows:[] }; } })();
+/* 📥 단가 합의서 (사장님 2026-10-14 「단가표 사틴은 있거든 … 대조해서 맞는지」) — 한샘이 보내는 「상품단가 조정합의서」 엑셀의 자재코드 · 변경금액.
+   SRM 에 붙인 13품목이 합의서와 한 원도 안 틀렸습니다. 1,238품목이 다 들어 있어 이것만 넣으면 매출이 거의 다 저절로 나옵니다.
+   - **비규격도 코드마다 단가 하나**(합의서가 그렇습니다) — 사이즈는 안 봅니다.
+   - 두 창고(그레이박스·오이도)에 같이 씁니다.
+   - SRM 에 붙인 값과 다르면 **날짜가 나중인 쪽**(SRM 납품일 vs 합의서 등록일)을 쓰고 주황으로 알립니다.
+   - ⚠ 단가를 코드에 적지 않습니다(저장소가 공개 — 12-37). 이 기기의 hsPrice.master 에만. */
+function hsMaster(){ return (hsPrice.master && hsPrice.master.map) ? hsPrice.master : null; }
 let hsWhFilter = '', hsSearch = '', hsOpen = false;
 function hsSave(){ try{ localStorage.setItem(LS_HS_PRICE, JSON.stringify(hsPrice)); return true; }catch(e){ console.warn('[한샘 단가] 저장 실패', e); return false; } }
 function hsNum(t){ const n=parseFloat(String(t==null?'':t).replace(/[,\s원]/g,'')); return isNaN(n)?null:n; }
@@ -17789,8 +17796,68 @@ function hsBook(){
 // 납품서 한 줄의 단가 찾기 — 같은 창고 → 다른 창고 순
 function hsPriceOf(code, size, whName, book){
   const b=book||hsBook(); const wh=Object.keys(HS_WH).find(k=>HS_WH[k]===whName)||'';
-  const e=b[hsKey(code,size,wh)] || Object.values(b).find(x=>x.code===code && (x.size||'')===(size||''));
-  return e ? { price:e.price, other: e.wh!==wh } : null;
+  /* SRM 줄: 같은 열쇠(코드·사이즈·창고) → 같은 코드·같은 창고 → 같은 코드 아무 창고 (비규격은 코드마다 단가 하나 — 합의서 2026-10) */
+  let e=b[hsKey(code,size,wh)];
+  if(!e){ const same=Object.values(b).filter(x=>x.code===code).sort((x,y)=>String(y.last||'').localeCompare(String(x.last||'')));
+          e=same.find(x=>x.wh===wh) || same[0] || null; }
+  const M=hsMaster(), m=M ? M.map[code] : null;
+  if(!e && !m) return null;
+  if(!e) return { price:m.price, other:false, src:'합의서' };
+  const diff = !!(m && m.price!==e.price);
+  if(m && diff && String(M.date||'') > String(e.last||'')) return { price:m.price, other:false, src:'합의서', diff, srm:e.price };
+  return { price:e.price, other:e.wh!==wh, src:'SRM', diff, master:m?m.price:null };
+}
+// 📥 합의서 엑셀 읽기 — 「자재코드」·「변경금액」 머리를 찾아 그 칸으로(줄·칸 자리가 바뀌어도 되게)
+function hsMasterPick(){ const el=document.getElementById('hs-master-file'); if(el){ el.value=''; el.click(); } }
+function hsMasterFile(inp){
+  const f=inp && inp.files && inp.files[0]; if(!f) return;
+  if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 — 잠시 후 다시'); return; }
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    try{ hsMasterApply(XLSX.read(new Uint8Array(ev.target.result),{type:'array'}), f.name); }
+    catch(err){ console.warn('[단가 합의서]', err); showToast('⚠ 엑셀을 읽지 못했습니다'); }
+  };
+  rd.readAsArrayBuffer(f);
+}
+function hsMasterParse(wb){
+  let best=null;
+  wb.SheetNames.forEach(sn=>{
+    const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true});
+    let cCode=-1,cName=-1,cOld=-1,cNew=-1,cDate=-1,hr=-1;
+    for(let r=0;r<Math.min(aoa.length,15);r++){
+      (aoa[r]||[]).forEach((v,c)=>{ const t=String(v).replace(/\s/g,'');
+        if(t==='자재코드'){ cCode=c; hr=Math.max(hr,r); }
+        else if(t==='자재명칭'||t==='자재명') cName=c;
+        else if(t==='기존금액') cOld=c;
+        else if(t==='변경금액'){ cNew=c; hr=Math.max(hr,r); }
+        else if(t==='등록일') cDate=c; });
+    }
+    if(cCode<0 || cNew<0) return;
+    const map={}; let dmax='', n=0;
+    for(let r=hr+1;r<aoa.length;r++){
+      const row=aoa[r]||[]; const code=String(row[cCode]||'').trim(); const p=hsNum(row[cNew]);
+      if(!/^[A-Z][A-Z0-9]{5,}$/.test(code) || p==null) continue;
+      let dt=''; const dv=cDate>=0?row[cDate]:'';
+      if(typeof dv==='number' && dv>30000) dt=new Date(Math.round((dv-25569)*86400000)).toISOString().slice(0,10);   // 엑셀 날짜 = UTC 자정이라 toISOString 이 맞음(3-1 예외)
+      else { const m=String(dv).match(/(20\d{2})[-.\/]?(\d{1,2})[-.\/]?(\d{1,2})/); if(m) dt=m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'); }
+      if(dt>dmax) dmax=dt;
+      map[code]={ name:String(cName>=0?row[cName]:'').trim(), price:p, old:cOld>=0?hsNum(row[cOld]):null };
+      n++;
+    }
+    if(n && (!best || n>best.n)) best={ n, map, date:dmax, sheet:sn };
+  });
+  return best;
+}
+function hsMasterApply(wb, fname){
+  const best=hsMasterParse(wb);
+  if(!best){ showToast('⚠ 「자재코드」·「변경금액」 칸을 못 찾았습니다 — 한샘 단가 조정합의서 엑셀인지 확인해 주십시오'); return; }
+  const prev=hsMaster();
+  const changed = prev ? Object.keys(best.map).filter(c=>prev.map[c] && prev.map[c].price!==best.map[c].price).length : 0;
+  hsPrice.master={ map:best.map, date:best.date, file:fname||'', sheet:best.sheet, n:best.n, at:new Date().toISOString() };
+  if(!hsSave()){ showToast('⚠ 이 브라우저에 저장하지 못했습니다'); return; }
+  hsOpen=true; renderHsPrice(); try{ renderLgSummary(); }catch(e){} try{ renderLedgerByVendor(); }catch(e){}
+  const bk=Object.values(hsBook()); const diff=bk.filter(e=>best.map[e.code] && best.map[e.code].price!==e.price).length;
+  showToast(`📥 단가 합의서 ${best.n.toLocaleString('ko-KR')}품목`+(best.date?` · 등록일 ${best.date}`:'')+(changed?` · 지난 합의서와 다른 단가 ${changed}`:'')+(bk.length?(diff?` · ⚠ SRM 과 다른 것 ${diff}`:` · SRM 붙인 ${bk.length}품목과 모두 같음`):''));
 }
 /* 잘못 넣은 줄 지우기 (사장님 2026-10-14 「아무 생각 없이 계속 넣었는데 … 수정을 어떻게 해」) — 그 품목(코드·사이즈·창고)의 붙여 넣은 줄을 모두 지웁니다.
    다시 붙이면 다시 들어옵니다. 창고는 저장소 칸으로 저절로 갈리므로 오이도 줄이 섞여도 따로 담깁니다. */
@@ -17821,7 +17888,7 @@ function hsMonthRows(ym){
       const size=hsSizeOf(nm);
       const p=hsPriceOf(it.code, size, whName, book);
       out.push({ day, delivNo:d.delivNo||'', refNo:d.refNo||'', as, whName, code:it.code, name:nm, size, qty:q,
-                 price:p?p.price:null, other:p?p.other:false, amt:p?p.price*q:null });
+                 price:p?p.price:null, other:p?p.other:false, src:p?p.src:'', diff:p?!!p.diff:false, amt:p?p.price*q:null });
     });
   });
   return out.sort((a,b)=>a.day.localeCompare(b.day)||a.code.localeCompare(b.code));
@@ -17834,7 +17901,7 @@ function hsMonthExcel(){
   const sum=(f)=>rows.filter(f).reduce((s,r)=>s+(r.amt||0),0);
   const head=[['기간',ym,'','기준','발주일 · 납품서 수량 × 한샘 단가표(공급가)'],[],
     ['발주일','창고','구분','납품번호','참조오더','제품코드','품명','사이즈','수량','단가','금액','비고']];
-  const body=rows.map(r=>[r.day, r.whName, r.as?'AS':'정오더', r.delivNo, r.refNo, r.code, r.name, r.size, r.qty, r.price==null?'':r.price, r.amt==null?'':r.amt, r.price==null?'단가 없음':(r.other?'다른 창고 단가':'')]);
+  const body=rows.map(r=>[r.day, r.whName, r.as?'AS':'정오더', r.delivNo, r.refNo, r.code, r.name, r.size, r.qty, r.price==null?'':r.price, r.amt==null?'':r.amt, r.price==null?'단가 없음':[r.src, r.other?'다른 창고 단가':'', r.diff?'⚠ SRM·합의서 다름':''].filter(Boolean).join(' · ')]);
   const tot=[[],
     ['그레이박스 정오더','','','','','','','','',' ',sum(r=>r.whName==='그레이박스'&&!r.as)],
     ['오이도 정오더','','','','','','','','',' ',sum(r=>r.whName==='오이도'&&!r.as)],
@@ -17854,7 +17921,7 @@ function hsMonthExcel(){
 
 /* ⚠ 단가가 필요한 발주 (사장님 2026-10-14 「납품서 따라서 알아서 가격 따라오게 … 없는 내용만 요청 메시지 뜨면 내가 올리는 방식」)
    단가표에 한 번 올라간 품목은 그 뒤 납품서마다 저절로 값이 붙습니다(hsPriceOf). 못 붙은 줄만 **PO번호(납품서 참조오더 = SRM 구매오더번호)** 로 묶어
-   보여 드립니다 — SRM 에서 그 PO 를 열어 줄을 복사해 붙이시면 됩니다. ⚠ 비규격은 사이즈까지 열쇠라 새 사이즈는 매번 요청에 뜹니다. */
+   보여 드립니다 — SRM 에서 그 PO 를 열어 줄을 복사해 붙이시면 됩니다. (합의서를 넣은 뒤로는 비규격도 코드로 찾아 새 사이즈 때문에 뜨지 않습니다) */
 let hsNeedOpen = false;
 function hsMissing(ym){
   const by = {};
@@ -17902,13 +17969,14 @@ function renderHsPrice(){
   const list=book.filter(e=>(!hsWhFilter||e.wh===hsWhFilter) && (!q || (e.code+' '+e.name+' '+e.size).toLowerCase().includes(q)))
     .sort((a,b)=>(b.prev!=null)-(a.prev!=null) || String(b.last).localeCompare(String(a.last)) || a.code.localeCompare(b.code));
   const cnt=w=>book.filter(e=>e.wh===w).length;
+  const M=hsMaster(); const mOf=e=>M&&M.map[e.code]; const nDiff=book.filter(e=>mOf(e)&&mOf(e).price!==e.price).length;
   const chip=(w,l,n)=>`<button class="f-btn${hsWhFilter===w?' on':''}" onclick="hsSetWh('${w}')">${l} ${n}</button>`;
   const btn=(fn,l,pri)=>`<button onclick="${fn}" style="padding:7px 13px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;${pri?'background:var(--acc);border:none;color:#fff':'background:var(--s2);border:1px solid var(--b2);color:var(--tx1)'}">${l}</button>`;
   const COLS='minmax(0,1fr) 64px 76px 76px 52px 24px';
   const num=(v,o)=>{ o=o||{}; const e=v==null; return `<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:${o.big?'13px':'11.5px'};font-weight:${o.big?800:500};color:${e?'var(--tx3)':(o.c||'var(--tx1)')}">${e?'-':Number(v).toLocaleString('ko-KR')}</span>`; };
   const rows=list.slice(0,300).map(e=>`<div style="display:grid;grid-template-columns:${COLS};gap:6px;align-items:center;padding:6px 10px;border-top:1px solid var(--b1);${e.prev!=null?'background:rgba(234,108,0,.06)':''}">
       <div style="min-width:0"><b style="font-family:'JetBrains Mono',monospace;font-size:12px">${etpEsc(e.code)}</b> <span style="font-size:10px;color:var(--tx3)">${etpEsc(e.whName)}</span>
-        <div style="font-size:11px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${etpEsc(e.name)}${e.size?' <b style="color:var(--acc2)">'+etpEsc(e.size)+'</b>':''}</div></div>
+        <div style="font-size:11px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${etpEsc(e.name)}${e.size?' <b style="color:var(--acc2)">'+etpEsc(e.size)+'</b>':''}${mOf(e)&&mOf(e).price!==e.price?` <b style="color:var(--acc2)" title="합의서 등록일 ${M.date||''}">⚠ 합의서 ${Number(mOf(e).price).toLocaleString('ko-KR')}</b>`:''}</div></div>
       <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3)">${e.last?e.last.slice(5).replace('-','/'):'-'}</span>
       ${num(e.prev,{c:'var(--tx3)'})}${num(e.price,{big:true,c:e.prev!=null?'var(--acc2)':''})}
       <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2)">${e.n}</span>
@@ -17917,10 +17985,13 @@ function renderHsPrice(){
   host.innerHTML=`<div class="card" style="border-left:3px solid var(--acc)">
     <div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <span>📋 한샘 단가표 <span style="font-weight:400;color:var(--tx3)">(SRM · 공급가)</span></span>
-      <span style="display:flex;gap:6px;flex-wrap:wrap">${btn('hsOpenPaste()','📋 SRM 줄 붙여넣기',1)}${book.length?btn('hsToggle()',hsOpen?'접기':'펼치기'):''}</span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap">${btn('hsMasterPick()','📥 단가 합의서 넣기',1)}${btn('hsOpenPaste()','📋 SRM 줄 붙여넣기')}${book.length?btn('hsToggle()',hsOpen?'접기':'펼치기'):''}</span>
+      <input type="file" id="hs-master-file" accept=".xlsx,.xls" style="display:none" onchange="hsMasterFile(this)">
     </div>
+    ${M?`<div style="font-size:11.5px;color:var(--tx1);line-height:1.7;margin-bottom:4px">📥 단가 합의서 <b>${M.n.toLocaleString('ko-KR')}품목</b>${M.date?` · 등록일 <b>${M.date}</b>`:''} <span style="color:var(--tx3)">— 납품서 코드로 단가를 찾습니다 (비규격도 코드마다 하나 · 두 창고 같이)</span>${nDiff?` · <b style="color:var(--acc2)">SRM 과 다른 단가 ${nDiff}</b>`:''}</div>`
+       :`<div style="font-size:11.5px;color:var(--acc2);line-height:1.7;margin-bottom:4px">📥 한샘 「상품단가 조정합의서」 엑셀을 넣으면 1천여 품목 단가가 한 번에 들어가 매일 매출이 저절로 나옵니다.</div>`}
     <div style="font-size:11.5px;color:var(--tx2);line-height:1.7">
-      SRM 「P/O 구매오더상세」 표 줄을 복사해 붙이면 <b>제품코드별 단가</b>가 쌓입니다. 창고는 저장소 칸으로 갈립니다(1001 그레이박스 · 2001 오이도).
+      SRM 「P/O 구매오더상세」 표 줄을 복사해 붙이면 <b>제품코드별 단가</b>가 쌓입니다(합의서에 없는 품목용). 창고는 저장소 칸으로 갈립니다(1001 그레이박스 · 2001 오이도).
       지금 <b>${book.length}품목</b>${book.filter(e=>e.prev!=null).length?` · <b style="color:var(--acc2)">단가 바뀐 것 ${book.filter(e=>e.prev!=null).length}</b>`:''}.
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
@@ -17930,9 +18001,9 @@ function renderHsPrice(){
     ${(function(){ try{ return hsNeedHtml(); }catch(e){ console.warn('[한샘 단가 요청]', e); return ''; } })()}
     ${hsOpen && book.length?`<div class="filter-row" style="margin:10px 0 6px">${chip('','전체',book.length)}${chip('1001','그레이박스',cnt('1001'))}${chip('2001','오이도',cnt('2001'))}</div>
     <input class="inp" value="${etpEsc(hsSearch)}" oninput="hsOnSearch(this.value)" placeholder="🔍 코드 · 품명 · 사이즈" style="margin-bottom:6px;padding:8px 10px;font-size:12.5px">
-    <div style="border:1px solid var(--b1);border-radius:8px;overflow:hidden">
+    <div style="border:1px solid var(--b1);border-radius:8px;overflow-x:auto"><div style="min-width:440px">
       <div style="display:grid;grid-template-columns:${COLS};gap:6px;padding:6px 10px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)"><span>제품코드 · 품명</span><span style="text-align:right">마지막</span><span style="text-align:right">이전 단가</span><span style="text-align:right">단가</span><span style="text-align:right">본 횟수</span><span></span></div>
-      ${rows||'<div style="padding:14px;text-align:center;font-size:12px;color:var(--tx3)">해당하는 품목이 없습니다</div>'}
+      ${rows||'<div style="padding:14px;text-align:center;font-size:12px;color:var(--tx3)">해당하는 품목이 없습니다</div>'}</div>
     </div>`:''}
   </div>`;
 }
