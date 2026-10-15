@@ -13419,9 +13419,18 @@ function odUseMini(ln){
 }
 
 // 모델명 입력 시 사이즈 자동 채움 ('… (L+R)'로 합쳐진 이름도 되짚습니다)
+/* 🔩 유리 관통보링 모델 — 줄 비고에 「관통보링」을 저절로 (사장님 2026-10-15 「특이사항 중에 유리관통보링인 게 있어서 자동으로 비고로」)
+   직원 표의 여덟 모델(BTARG 6070 L/R · WLDL 6051/9051 M · WTARG 60141 L/R · 60154 L/R)이 앱 MODELS 와 같습니다.
+   모델명 글자로 가립니다 — 모델을 더해도 이름에 TARG·WLDL 이 있으면 따라옵니다. 숫자·이름은 이 한 곳. */
+const OD_THROUGH_BORE = { re:/TARG|WLDL/, bigo:'관통보링' };
+function odThroughBore(name){ return OD_THROUGH_BORE.re.test(String(name||'')); }
 function odModelInput(i, val){
   odLines[i].pname=val;
   const m=odFindModel(val);
+  // 관통보링 — 비어 있거나 앞서 저절로 넣은 값일 때만(손으로 적으신 비고는 안 덮음). 모델을 바꾸면 따라 지웁니다.
+  const auto = odLines[i].bigoAuto && odLines[i].bigo === odLines[i].bigoAuto;
+  if(odThroughBore(val) && m){ if(!odLines[i].bigo || auto){ odLines[i].bigo = OD_THROUGH_BORE.bigo; odLines[i].bigoAuto = OD_THROUGH_BORE.bigo; } }
+  else if(auto){ odLines[i].bigo = ''; odLines[i].bigoAuto = ''; }
   if(m && m.preset){                       // 종류에 딸린 모델 — 사이즈와 (있으면) 줄 비고만
     odLines[i].w=m.glass_w; odLines[i].h=m.glass_h; odLines[i].codes=null;
     if(m.bigo && !odLines[i].bigo) odLines[i].bigo=m.bigo;
@@ -24642,7 +24651,7 @@ function tdyOrderNowFill(){
   }
   odLines=pick.map(x=>{
     const m=String(x.size).match(/^(\d+)x(\d+)(?:\s*([LR]))?/i)||[];
-    return { w:m[1]||'', h:m[2]||'', qty:x.qty, pname:'', color:'에토프', bigo:m[3]?m[3].toUpperCase():'' };
+    return { w:m[1]||'', h:m[2]||'', qty:x.qty, pname:'', color:'에토프', bigo:m[3]?(OD_THROUGH_BORE.bigo+' '+m[3].toUpperCase()):'' };   // 좌우가 갈리는 건 관통보링뿐 — 「관통보링 L」
   });
   renderOdLines();
   setTimeout(()=>{ const top=document.getElementById('od-vendor'); if(top) top.scrollIntoView({behavior:'smooth',block:'center'}); },120);
