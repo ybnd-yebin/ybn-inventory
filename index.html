@@ -13351,13 +13351,14 @@ function renderOdLines(){
   const head = { s:'<span>#</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
                  m:'<span>#</span><span>모델명</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
                  q:'<span>#</span><span>품명</span><span>수량</span><span></span>',
-                 b:'<span>#</span><span>인쇄명</span><span>수량</span><span class="h-bigo">비고</span><span></span>' }[kind];
+                 b:'<span>#</span><span>인쇄명</span><span>규격</span><span>수량</span><span class="h-bigo">비고</span><span></span>' }[kind];
   const rows = odLines.map((ln,i)=>{
     if(kind==='q') return `<div class="od-row od-q">${no(i)}
         <input value="${_odEsc(ln.pname||'')}" placeholder="품명 (예: 매직블럭, 테이프)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="${cell};text-align:left;padding-left:8px">
         ${qtyIn(i)}${del(i)}</div>`;
     if(kind==='b') return `<div class="od-row od-b">${no(i)}
         <input list="od-box-list" value="${_odEsc(ln.pname||'')}" placeholder="인쇄명 (글자 일부를 치면 지난 발주 이름이 뜹니다)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="${cell};text-align:left;padding-left:8px">
+        <input value="${_odEsc(ln.spec||'')}" placeholder="규격 (예: 680×930)" oninput="odLines[${i}].spec=this.value" class="inp" style="${cell}">
         ${qtyIn(i)}${bigo(ln,i)}${del(i)}</div>`;
     if(kind==='m') return `<div class="od-row od-m">${no(i)}
         <input list="od-model-list" value="${_odEsc(ln.pname||'')}" placeholder="모델명 또는 사이즈 (예: OB M 4073 · 595729)" oninput="odModelInput(${i},this.value)" onchange="odModelSizeTry(${i},this.value)" class="inp" style="${cell};text-align:left;padding-left:8px">
@@ -13366,7 +13367,7 @@ function renderOdLines(){
   }).join('');
   host.innerHTML = `<div class="od-tbl">
       <div class="od-row od-head od-${kind}">${head}</div>${rows}
-      <div class="od-row od-foot od-${kind}"><span></span><span style="grid-column:span ${(kind==='q'||kind==='b')?1:kind==='m'?4:3};text-align:left;padding-left:4px">합계</span><b id="od-sum" style="text-align:center;font-family:'JetBrains Mono',monospace">0</b><span></span></div>
+      <div class="od-row od-foot od-${kind}"><span></span><span style="grid-column:span ${kind==='q'?1:kind==='b'?2:kind==='m'?4:3};text-align:left;padding-left:4px">합계</span><b id="od-sum" style="text-align:center;font-family:'JetBrains Mono',monospace">0</b><span></span></div>
     </div>`;
   odUpdateCount();
 }
@@ -13381,7 +13382,7 @@ function odRowCss(){
   .od-row.od-s{grid-template-columns:22px minmax(52px,90px) 12px minmax(52px,90px) 60px minmax(90px,1fr) 64px 24px}
   .od-row.od-m{grid-template-columns:22px minmax(110px,1.2fr) minmax(48px,80px) 12px minmax(48px,80px) 56px minmax(80px,1fr) 64px 24px}
   .od-row.od-q{grid-template-columns:22px 1fr 64px 24px}
-  .od-row.od-b{grid-template-columns:22px minmax(160px,1.6fr) 64px minmax(90px,1fr) 24px}
+  .od-row.od-b{grid-template-columns:22px minmax(150px,1.6fr) minmax(80px,.6fr) 64px minmax(90px,1fr) 24px}
   .od-head{background:var(--s2);font-size:10.5px;color:var(--tx3);font-weight:700;padding-top:6px;padding-bottom:6px}
   .od-head span{text-align:center}
   /* 머리글 칸 사이 옅은 세로줄 — 어느 칸의 머리인지 보이게. × 칸 양옆은 가로·세로를 한 묶음으로 보이게 뺍니다 */
@@ -13394,7 +13395,7 @@ function odRowCss(){
   @media (max-width:560px){
     .od-row.od-s{grid-template-columns:20px 1fr 10px 1fr 46px 46px 22px}
     .od-row.od-m{grid-template-columns:20px 1.4fr 1fr 10px 1fr 44px 46px 22px}
-    .od-row.od-b{grid-template-columns:20px 1fr 52px 22px}
+    .od-row.od-b{grid-template-columns:20px 1fr 74px 52px 22px}
     .od-row .od-bigo{grid-column:2 / -1;order:9}
     .od-head .h-bigo{display:none}
   }`;
@@ -13520,6 +13521,7 @@ function odCollect(){
     /* 비고 — **그 줄에 따로 적은 것이 우선**, 비어 있으면 위쪽 공통 비고 (사장님 2026-10-07
        "개별적으로 한줄쓰게되면 그칸은 개별적으로 적은게 우선") */
     pname:((l.pname||p.pname||'')+'').trim(), color:((l.color||'')+'').trim(), req:((l.req||'')+'').trim(),
+    ...(String(l.spec||'').trim() ? { spec:String(l.spec).trim() } : {}),   // 박스 규격 글자 — 원유리 재고와 안 섞이게 w·h 에 안 넣음(2026-10-20)
     bigo:((l.bigo||'')+'').trim() || bigo || (p.lineBigo||'')   // lineBigo — 줄에만 들어가는 기본 비고(제목 옆엔 안 찍힘, 2026-10-14)
   }));
   return {vendor, cat, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, ref, items};
@@ -13553,7 +13555,7 @@ function odBuildAOA(o){
   o.items.forEach((it,i)=>{
     tot+=it.qty;
     const r=R();
-    r[1]=i+1; r[2]=it.pname||''; r[5]=(it.w&&it.h)?`${it.w}×${it.h}`:'';
+    r[1]=i+1; r[2]=it.pname||''; r[5]=(it.w&&it.h)?`${it.w}×${it.h}`:(it.spec||'');
     r[9]=it.qty; r[10]=o.due||''; r[11]=it.bigo||''; r[12]=o.client||'';
     rows.push(r);
   });
@@ -14339,13 +14341,14 @@ function odFillSheet(ws, o){
     // odPut — 양식에 맞춤이 빠진 칸이 있어도 가운데로 보정합니다 (K17·K18·K19)
     odPut(ws, 'B' + r, it ? (i + 1) : null);
     odPut(ws, 'C' + r, it ? (it.pname || '') : null);
-    odPut(ws, 'F' + r, it ? ((it.w && it.h) ? (it.w + '×' + it.h) : '') : null);
+    odPut(ws, 'F' + r, it ? ((it.w && it.h) ? (it.w + '×' + it.h) : (it.spec || '')) : null);
     odPut(ws, 'J' + r, it ? (Number(it.qty) || 0) : null);
     odPut(ws, 'K' + r, it ? (o.due || '') : null);
     odPut(ws, 'L' + r, it ? (it.bigo || '') : null);
   }
 
-  if(odIsBoxOrder(o)) odBoxWideName(ws, rows, o);
+  // 박스도 유리와 같은 칸 모양(품명 C~E · 규격 F~I) — 사장님 2026-10-20 「유리 엑셀 양식에 맞춰서」. 예전 한 칸 합치기(odBoxWideName)는 안 씁니다
+  if(odIsBoxOrder(o)) odBoxNameFit(ws, rows, o);
   odSplitClientCol(ws, rows, o);
   try{ odWrapBigo(ws, rows, o); }catch(e){ console.warn('[발주서] 비고 줄바꿈', e); }
 
@@ -14357,7 +14360,28 @@ function odFillSheet(ws, o){
   ws.getCell('J' + (last + 1)).value = { formula:'SUM(J' + OD_TPL_ROW0 + ':J' + last + ')', result:tot };
 }
 
-/* 박스 발주서 — 인쇄명이 길어(`Euro 700 Grace CH M 6086 M (595X860)`) 품명·규격 칸을 **한 칸(C~I)** 으로 합칩니다.
+/* 박스 발주서 (2026-10-20 ~) — 칸은 유리와 같습니다(품명 C~E · 규격 F~I). 머리만 「인쇄명」, 긴 인쇄명은 C~E 안에서 글자를 줄입니다. */
+function odBoxNameFit(ws, rows, o){
+  const head = OD_TPL_ROW0 - 1, px = ['C','D','E'].reduce((s, c) => s + odColPx(ws.getColumn(c).width), 0);
+  ws.getCell('C' + head).value = '인   쇄   명';
+  for(let i = 0; i < rows; i++){
+    const c = ws.getCell('C' + (OD_TPL_ROW0 + i)), v = String(c.value || '');
+    if(!v) continue;
+    /* ⚠ 양식 칸들은 서식 덩어리를 **나눠 씁니다** — 그대로 font 를 바꾸면 같은 줄 규격(F)·아래 줄까지 같이 작아집니다(2026-10-20 실측).
+       이 칸만의 서식으로 떼어 낸 뒤 고칩니다. */
+    c.style = JSON.parse(JSON.stringify(c.style || {}));
+    const em = [...v].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
+    const base = (c.font && c.font.size) || 11, one = (px - 14) / (em * 1.32);
+    if(one >= base) continue;
+    // 한 줄에 안 들어가면 **두 줄로** — 글자를 너무 작게 줄이지 않습니다(유리 발주서 품명과 비슷한 크기로)
+    const two = Math.min(base, Math.floor(one * 2 * 0.95 * 10) / 10);
+    c.alignment = Object.assign({}, c.alignment || {}, { wrapText:true, shrinkToFit:false, horizontal:'center', vertical:'middle' });
+    c.font = Object.assign({}, c.font || {}, { size: Math.max(10, two) });
+    const row = ws.getRow(OD_TPL_ROW0 + i), need = 2 * c.font.size * 1.35 + 8;
+    if(!row.height || row.height < need) row.height = need;
+  }
+}
+/* (예전) 박스 발주서 — 인쇄명이 길어(`Euro 700 Grace CH M 6086 M (595X860)`) 품명·규격 칸을 **한 칸(C~I)** 으로 합칩니다. 2026-10-20 부터 안 부릅니다.
    예전 승일포장 양식도 한 칸이었습니다. 그래도 길면 글자를 줄입니다(엑셀 shrinkToFit · 카톡/PDF 는 글자 크기). */
 function odBoxWideName(ws, rows, o){
   const head = OD_TPL_ROW0 - 1, px = ['C','D','E','F','G','H','I'].reduce((s, c) => s + odColPx(ws.getColumn(c).width), 0);
@@ -14870,7 +14894,7 @@ function odImportExcel(input){
             // 규격도 없고 수량도 0이면 빈 더미행 → 제외
             if(!(sp.w&&sp.h) && qty===0){ blank++; if(blank>=20) break; }
             else {
-              items.push({ w:sp.w, h:sp.h, qty:qty,
+              items.push({ w:sp.w, h:sp.h, qty:qty, specRaw:(''+(cell(r,6)||'')).trim(),
                 pname:pname, due:odXlsxDue(cell(r,11)), bigo:'' });
               blank=0;
             }
@@ -15021,7 +15045,7 @@ function odParsePdfPage(items){
     let due=odPdfCell(r,R,'납기');    if(OD_DITTO.test(due))    due='';
     let bigo=odPdfCell(r,R,'비고');   if(OD_DITTO.test(bigo))   bigo='';
     let client=odPdfCell(r,R,'업체명'); if(OD_DITTO.test(client)) client='';
-    out.push({ w:sp.w, h:sp.h, qty, pname, due, bigo, client });
+    out.push({ w:sp.w, h:sp.h, qty, pname, due, bigo, client, specRaw:odPdfCell(r,R,'규격') });
   }
   if(!out.length) return null;
   // 대표 업체명(첫 행 값) — 발주서 전체에 공통
@@ -15107,6 +15131,7 @@ function odImportApply(){
     const recvD=(typeof odDueToDate==='function' && odDueToDate(due0, s.date)) || s.date || '';
     const past=!!(recvD && recvD < today);
     if(past) pastN++;
+    const isBoxS = !!s.boxForm || odIsBoxOrder({ vendor:s.vendor, title:s.type });
     const order={
       id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
       vendor:s.vendor, type:s.boxForm ? '일반' : (s.type||''), thick:'', title:s.type||'',
@@ -15116,7 +15141,9 @@ function odImportApply(){
       createdAt:new Date().toISOString(),
       by:getActor()||'',
       src: isPdf?'pdf-import':'excel-import', srcSheet:s.sheet,
-      items:s.items.map(it=>({ w:it.w, h:it.h, qty:it.qty, pname:it.pname, bigo:it.bigo||'',
+      /* 박스 발주서는 규격(박스 크기)을 w·h 에 넣지 않습니다 — 넣으면 입고 체크 때 원유리 재고에 「680x930」이 생깁니다(2026-10-20) */
+      items:s.items.map(it=>Object.assign(isBoxS ? { w:0, h:0, spec:String(it.specRaw||((it.w&&it.h)?it.w+'×'+it.h:'')).trim() } : { w:it.w, h:it.h },
+        { qty:it.qty, pname:it.pname, bigo:it.bigo||'',
         received:past, recvAt:past?nowIso:null, recvDate:past?recvD:undefined, recvBy:past?'past-import':undefined, eventId:null }))
     };
     orderLog.unshift(order);
@@ -15564,7 +15591,7 @@ function odReorder(orderId){
     if(ti>=0){ document.getElementById('od-type').value=String(ti); odTypeChanged(); typeOk=true; }
   }
   // 줄 비고는 공통 비고와 다를 때만 줄에 남깁니다(같으면 공통 비고 칸이 채워 줍니다)
-  odLines=(o.items||[]).map(it=>({w:it.w||'', h:it.h||'', qty:it.qty||1, pname:it.pname||'', color:it.color||'',
+  odLines=(o.items||[]).map(it=>({w:it.w||'', h:it.h||'', qty:it.qty||1, pname:it.pname||'', color:it.color||'', spec:it.spec||'',
                                   bigo:(it.bigo && it.bigo!==o.bigo)?it.bigo:''}));
   if(!odLines.length) odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}];
   // 공통 비고도 그때 적힌 그대로(비었으면 비움) — 종류를 고르며 들어간 기억값을 덮습니다
