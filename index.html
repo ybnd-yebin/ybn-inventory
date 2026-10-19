@@ -14423,6 +14423,17 @@ function odSplitClientCol(ws, rows, o){
 
 async function odWriteExcelForm(o){
   const { wb } = await odFilledSheet(o);
+  /* 열 때 고를 시트를 「발주서」로 (사장님 2026-10-19 「엑셀 켜면 프린터 설정 창부터 · 다 회색 · 인쇄 미리 보기가 안 나옴」).
+     양식 파일(발주서양식.xlsx)에 activeTab=1 이 박혀 있는데 시트는 하나(0번)뿐이라, 엑셀이 **고른 시트 없이** 열렸습니다.
+     양식 파일은 그대로 두고 내보낼 때만 0번·선택됨으로 맞춥니다. */
+  try{
+    const v0 = (wb.views && wb.views[0]) || {};
+    wb.views = [Object.assign({ x:0, y:0, width:20000, height:12000, visibility:'visible' }, v0, { activeTab:0, firstSheet:0 })];
+    wb.worksheets.forEach((s, i) => {
+      const sv = (s.views && s.views[0]) || {};
+      s.views = [Object.assign({}, sv, { tabSelected: i === 0 })];
+    });
+  }catch(e){ console.warn('[발주서] 시트 선택 맞추기 실패', e); }
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
