@@ -1136,10 +1136,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <!-- 오늘 · 이번 달 합계 (사장님 2026-10-14 「오늘 총 합계, 이번달 누적합계가 간략하게 상단에」) — renderLgSummary -->
   <div id="lg-summary" style="margin-bottom:12px"></div>
 
-  <!-- 매입/매출 전환 -->
-  <div class="modal-tabs" style="margin-bottom:14px">
-    <button class="m-tab on" id="lg-tab-buy" onclick="setLedgerKind('buy')">📥 매입 (사오는 것)</button>
-    <button class="m-tab" id="lg-tab-sell" onclick="setLedgerKind('sell')">📤 매출 (파는 것)</button>
+  <!-- 매입/매출 전환 — 왼쪽에 작은 꼬리표 탭 (사장님 2026-10-19 「50% 이상 줄여서 왼쪽에 포스트잇처럼 살짝 탭만」) -->
+  <style>
+    .lg-kind-tabs{display:flex;gap:4px;margin:0 0 -1px 12px;position:relative;z-index:1}
+    .lg-kind-tabs .m-tab{flex:0 0 auto;padding:6px 14px;font-size:12px;border:1px solid var(--b2);border-bottom:none;border-radius:8px 8px 0 0;background:var(--s2);color:var(--tx3)}
+    .lg-kind-tabs #lg-tab-buy.on{background:#fde8e8;color:#b91c1c;border-color:#f5b5b5}
+    .lg-kind-tabs #lg-tab-sell.on{background:#e3f6ea;color:#15803d;border-color:#a6dcb8}
+  </style>
+  <div class="lg-kind-tabs" role="tablist">
+    <button class="m-tab on" id="lg-tab-buy" onclick="setLedgerKind('buy')" title="매입 — 사오는 것">📥 매입</button>
+    <button class="m-tab" id="lg-tab-sell" onclick="setLedgerKind('sell')" title="매출 — 파는 것">📤 매출</button>
   </div>
   <!-- 📋 한샘 단가표 (2026-10-14) — 매출 탭에서만 보입니다. renderHsPrice 가 그립니다 -->
   <div id="hs-price-host" style="display:none"></div>
@@ -1149,7 +1155,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
     <!-- 한 줄로 줄임 (사장님 2026-10-14 「UI 들이 쓸데없이 폭이 넓거나 공간을 많이 씀」) — 거래처 · 날짜 · 명세서 사진 -->
     <input type="file" id="lg-photo" accept="image/*" onchange="lgPhotoSelected(event)" style="display:none">
-    <div class="lg-top" style="display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:8px;align-items:end">
+    <div class="lg-top" style="display:grid;grid-template-columns:minmax(0,240px) 150px auto;justify-content:start;gap:8px;align-items:end">
       <div>
         <span class="lbl" style="margin-bottom:3px">거래처</span>
         <input id="lg-vendor" class="inp" placeholder="거래처명" list="lg-vendor-list" autocomplete="off" style="margin:0;padding:8px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
@@ -18411,18 +18417,23 @@ function renderLgSummary(){
   const COLS='72px repeat(3,minmax(0,1fr))';
   const v=(x,c,sub)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}${sub?`<br><small style="font-size:10px;font-weight:600;color:var(--tx3);font-family:'Noto Sans KR',sans-serif;line-height:1.5">${sub}</small>`:''}</span>`;
   const won=x=>Math.round(x).toLocaleString('ko-KR');
-  const row=(label,f,hk)=>{ const b=sum(f,'buy'), s2=sum(f,'sell'), H=hs(hk), sell=s2+H.amt, d=sell-b;
+  const row=(label,f,hk,click)=>{ const b=sum(f,'buy'), s2=sum(f,'sell'), H=hs(hk), sell=s2+H.amt, d=sell-b;
     const sub=[ H.amt||H.none ? '📋 한샘 SRM '+(H.amt?won(H.amt):'-') : '', H.amt&&s2 ? '기록 '+won(s2) : '',
-                H.none ? `<b onclick="hsGoNeed()" title="눌러서 단가가 필요한 발주 보기" style="color:var(--acc2);cursor:pointer;text-decoration:underline">단가 없음 ${H.none}줄 ›</b>` : '' ].filter(Boolean).join('<br>');
-    return `<div style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)">
+                H.none ? `<b onclick="event.stopPropagation();hsGoNeed()" title="눌러서 단가가 필요한 발주 보기" style="color:var(--acc2);cursor:pointer;text-decoration:underline">단가 없음 ${H.none}줄 ›</b>` : '' ].filter(Boolean).join('<br>');
+    return `<div ${click?`onclick="${click}" title="눌러서 업체별 보기" `:''}style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)${click?';cursor:pointer':''}">
       <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)')}${v(sell,'var(--acc3)',sub)}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
+  /* 업체별 표는 「N월 누적」 줄을 눌러야 펼칩니다 (사장님 2026-10-19 「누적 눌렀을 때 펼쳐서 보이면」). 펼침은 이 기기에 기억. */
+  const vOpen=lgVendOpen();
+  const vend=vOpen ? lgVendorTableHtml(ym, td) : '';
   host.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div>
     <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
       <span></span><span style="text-align:right">📥 매입</span><span style="text-align:right" title="손 기록 + 📋 한샘 SRM(단가표 × 납품서, 발주일 기준)">📤 매출</span><span style="text-align:right">차이</span></div>
     ${row('오늘 '+(+td.slice(5,7))+'/'+(+td.slice(8,10)), d=>d===td, td)}
-    ${row((+ym.slice(5,7))+'월 누적', d=>d.slice(0,7)===ym && d<=td, ym)}
-  </div></div>` + lgVendorTableHtml(ym, td);
+    ${row((+ym.slice(5,7))+'월 누적<br><span style="font-size:10px;font-weight:600;color:var(--acc);white-space:nowrap">'+(vOpen?'업체별 ▴':'업체별 ▾')+'</span>', d=>d.slice(0,7)===ym && d<=td, ym, 'lgVendToggle()')}
+  </div></div>` + vend;
 }
+function lgVendOpen(){ if(window._lgVendOpen!=null) return window._lgVendOpen; try{ return localStorage.getItem('ybn-lg-vend-open-v1')==='1'; }catch(e){ return false; } }
+function lgVendToggle(){ window._lgVendOpen=!lgVendOpen(); try{ localStorage.setItem('ybn-lg-vend-open-v1', window._lgVendOpen?'1':'0'); }catch(e){} renderLgSummary(); }
 /* 🏢 이번 달 업체별 (사장님 2026-10-14 「매출·매입 업체별로도 구분해 줘야」) — 1일 ~ 오늘, 공급가.
    매입 = 발주 기록(마감 명세서와 같은 계산 — odStmtRows, 입고일/납기 기준) + 손으로 적은 매입(ledgerLog).
    매출 = 📋 한샘 SRM(발주일) + 손으로 적은 매출. 업체 이름은 odStmtVendor 로 모읍니다(「대원유리 귀하」 → 대원유리).
