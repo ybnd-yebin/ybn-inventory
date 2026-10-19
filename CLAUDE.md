@@ -2316,6 +2316,10 @@ R)  600X0X2255X0 1                                     ← 괄호와 R 이 뒷�
   시트 쪽에도 `tabSelected` 가 없습니다. 엑셀이 **고른 시트 없이** 열려 프린터 설정 창이 먼저 뜨고, 리본이 잠기고, 「인쇄 미리 보기를 사용할 수 없습니다」.
 - 고침: `odWriteExcelForm` 이 내보내기 직전에 `wb.views[0]` 을 `activeTab:0 · firstSheet:0` 으로, 시트 0 에 `tabSelected:true`. **양식 파일은 그대로**입니다.
 - ✅ 실측(시트 끊은 사본): 내보낸 파일 `<workbookView … firstSheet="0" activeTab="0"/>` · `<sheetView … tabSelected="1" …>`. PDF·카톡 이미지는 엑셀을 안 거쳐 원래 멀쩡했습니다.
+- ⚠ **위만으로는 회색이 안 풀렸습니다** (사장님 2026-10-20 「아직 문제해결 안된 듯」). 진짜 까닭은 양식의 **`view="pageBreakPreview"` · 60%** 였습니다 —
+  사장님 기기에 받은 10/20 파일을 엑셀(COM, 읽기 전용)로 열어 보니 `View=2`(페이지 나누기 미리 보기) · Zoom 60.
+  이제 `odWriteExcelForm` 이 보기를 **기본(normal) · 85%** 로 바꿔 내보냅니다(ExcelJS 는 이것을 `style` 로 읽어 지움). 인쇄 설정(한 장 맞춤 · 인쇄 영역)은 그대로.
+  ✅ 내보낸 파일 `<sheetView workbookViewId="0" tabSelected="1" zoomScale="85" zoomScaleNormal="85">` — `view` 속성이 없으면 기본 보기입니다.
 - 곁들여 본 것(안 고침): 도장·결재란 두 그림의 `a16:creationId` 가 같습니다 — ExcelJS 가 늘 같은 값을 씁니다. 지금은 탈이 없어 그대로 둡니다.
 
 ### 12-60. 🏠 오늘 — 📦 발주중 카드 (사장님 2026-10-19 「발주일-발주처-발주명-납기일 접혀 있고 클릭하면 상세」)
