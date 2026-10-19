@@ -18440,12 +18440,15 @@ function lgVendToggle(){ window._lgVendOpen=!lgVendOpen(); try{ localStorage.set
    ⚠ 발주 매입은 **달력 달**입니다 — 마감 명세서(대원 25일 마감 등)와 기간이 다를 수 있습니다. */
 function lgVendorTableHtml(ym, td){
   const from=ym+'-01', V={};
-  const take=v=>V[v]||(V[v]={ v, buyOd:0, buyLg:0, sell:0, sellHs:0, odN:0, odNone:0, lgN:0, hsNone:0 });
+  const take=v=>V[v]||(V[v]={ v, buyOd:0, buyLg:0, sell:0, sellHs:0, odN:0, odNone:0, lgN:0, hsNone:0, recvOnly:false, recvQty:0, skipNo:0, skipAuto:0 });
   // 발주 매입 — 단가가 있는 발주처
+  // 입고된 것만 세는 발주처(현성)는 빠진 장수도 남깁니다 — 0원이라도 줄이 사라지지 않게 (사장님 2026-10-19 「현성은 매입가가 안 잡혔나?」 → 가)
   try{ Object.keys(OD_VENDOR_PRICE).forEach(v=>{
     const rows=odStmtRows(v, ym, {from, to:td});
-    if(!rows.length) return;
+    const sk=rows.skipped||{미입고:0, 자동:0};
+    if(!rows.length && !sk.미입고 && !sk.자동) return;
     const e=take(v); e.odN+=rows.length; e.odNone+=rows.filter(r=>r.amt==null).length; e.buyOd+=rows.reduce((s,r)=>s+(r.amt||0),0);
+    if(OD_STMT_RECEIVED_ONLY.has(v)){ e.recvOnly=true; e.recvQty+=rows.reduce((s,r)=>s+(r.qty||0),0); e.skipNo+=sk.미입고; e.skipAuto+=sk.자동; }
   }); }catch(e){ console.warn('[업체별] 발주 매입', e); }
   // 손으로 적은 매입·매출
   ledgerLog.forEach(r=>{ const d=String(r.date||''); if(!(d>=from && d<=td)) return;
@@ -18453,14 +18456,16 @@ function lgVendorTableHtml(ym, td){
     if(r.kind==='buy') e.buyLg+=lgRecordTotal(r)||0; else if(r.kind==='sell') e.sell+=lgRecordTotal(r)||0; });
   // 한샘 SRM 매출
   try{ const hr=hsMonthRows(ym).filter(r=>r.day<=td); if(hr.length){ const e=take('한샘'); e.sellHs=hr.reduce((s,r)=>s+(r.amt||0),0); e.hsNone=hr.filter(r=>r.price==null).length; } }catch(e){}
-  const list=Object.values(V).filter(e=>e.buyOd||e.buyLg||e.sell||e.sellHs||e.odNone||e.hsNone)
+  const list=Object.values(V).filter(e=>e.buyOd||e.buyLg||e.sell||e.sellHs||e.odNone||e.hsNone||e.skipNo||e.skipAuto)
     .sort((a,b)=>(b.buyOd+b.buyLg+b.sell+b.sellHs)-(a.buyOd+a.buyLg+a.sell+a.sellHs));
   if(!list.length) return '';
   const won=x=>x?Math.round(x).toLocaleString('ko-KR'):'-';
   const COLS='minmax(84px,1fr) 110px 110px minmax(120px,1.3fr)';
   const cell=(x,c)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:${x?c:'var(--tx3)'}">${won(x)}</span>`;
   const rows=list.map(e=>{
-    const why=[ e.odN?`발주 ${e.odN}줄`+(OD_VENDOR_PRICE_EST.has(e.v)?' <b style="color:var(--acc2)">(추정 단가)</b>':'')+(e.odNone?` · <b style="color:var(--acc2)">단가 없음 ${e.odNone}</b>`:''):'',
+    const skip=(e.skipNo||e.skipAuto)?' · <b style="color:var(--acc2)">빠진 것 '+[e.skipNo?`미입고 ${e.skipNo}장`:'', e.skipAuto?`자동 ${e.skipAuto}장`:''].filter(Boolean).join(' · ')+'</b>':'';
+    const why=[ e.recvOnly ? `입고 체크 ${e.recvQty}장`+skip+(e.odNone?` · <b style="color:var(--acc2)">단가 없음 ${e.odNone}</b>`:'') :
+                e.odN?`발주 ${e.odN}줄`+(OD_VENDOR_PRICE_EST.has(e.v)?' <b style="color:var(--acc2)">(추정 단가)</b>':'')+(e.odNone?` · <b style="color:var(--acc2)">단가 없음 ${e.odNone}</b>`:''):'',
                 e.sellHs||e.hsNone?'SRM'+(e.hsNone?` · <b style="color:var(--acc2)">단가 없음 ${e.hsNone}</b>`:''):'',
                 e.lgN?`기록 ${e.lgN}건`:'' ].filter(Boolean).join(' · ');
     return `<div style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:7px 12px;border-top:1px solid var(--b1)">
