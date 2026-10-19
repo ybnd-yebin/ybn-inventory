@@ -17540,17 +17540,20 @@ function odAutoRevertMonth(ym){
   showToast(`자동 입고 ${hits.length}품목 ${q}장을 풀었습니다`);
 }
 
+/* 한 줄 입고 — 그 날짜로 원유리 입고 이벤트를 넣고 표시합니다. 발주 리스트(오늘)와 오늘 화면 「발주중」 탭(고른 날짜)이 같이 씁니다. */
+function _odRecvItem(o, it, day){
+  const ev=addStockEvent(`${it.w}x${it.h}`,{at:`${day}T00:00:00.000Z`,type:'in',qty:it.qty,note:`발주입고 ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`,source:'order'});
+  it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=day; it.eventId=ev.id; it.auto=false;
+  o.updatedAt=new Date().toISOString();
+  if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
+}
 function odToggleRecv(orderId, idx){
   const o=orderLog.find(x=>x.id===orderId); if(!o)return;
   const it=o.items[idx]; if(!it)return;
   if(!it.received){
     // 입고 처리 → 체크한 날짜(오늘)로 원유리 입고 이벤트
     const today=todayStr();
-    const atIso=`${today}T00:00:00.000Z`;
-    const ev=addStockEvent(`${it.w}x${it.h}`,{at:atIso,type:'in',qty:it.qty,note:`발주입고 ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`,source:'order'});
-    it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=today; it.eventId=ev.id;
-    o.updatedAt=new Date().toISOString();
-    if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
+    _odRecvItem(o, it, today);
     saveAll();
     showToast(`📦 ${it.w}×${it.h} ${it.qty}장 입고 (${today.slice(5).replace('-','/')})`);
   } else {
@@ -24707,6 +24710,47 @@ function tdyPendingOrders(){
   return out.sort((a,b)=> String(b.o.date||'').localeCompare(String(a.o.date||'')) || String(a.dueDate||'9').localeCompare(String(b.dueDate||'9')));
 }
 function tdyOrdToggle(id){ window._tdyOrdOpen[id] = !window._tdyOrdOpen[id]; try{ bdRender(); }catch(e){} }
+/* 입고 날짜 묻기 — idx 가 -1 이면 그 발주의 남은 줄 전부. 고를 수 있는 날: 오늘 · 납기(지났으면 이게 기본) · 직접(오늘까지만).
+   입고 자체는 발주 리스트와 같은 _odRecvItem 을 씁니다 — 원유리 재고에 그 날짜로 들어갑니다. 취소는 발주 리스트에서. */
+function tdyRecvAsk(orderId, idx){
+  const o=orderLog.find(x=>x.id===orderId); if(!o) return;
+  const wait=(o.items||[]).map((it,i)=>({it,i})).filter(x=>x.it.w && x.it.h && !x.it.received && (idx<0 || x.i===idx));
+  if(!wait.length){ showToast('입고할 줄이 없습니다'); return; }
+  const td=todayStr(), due=(typeof odDueToDate==='function') ? odDueToDate(o.due, o.date) : null;
+  const def=(due && due<td) ? due : td;
+  const md=d=>`${+d.slice(5,7)}/${+d.slice(8,10)}`;
+  const q=wait.reduce((s,x)=>s+(Number(x.it.qty)||0),0);
+  let m=document.getElementById('tdy-recv-modal');
+  if(!m){ m=document.createElement('div'); m.id='tdy-recv-modal'; m.className='modal-bg'; m.onclick=e=>{ if(e.target===m) m.classList.remove('on'); }; document.body.appendChild(m); }
+  const pick=(d,lab)=>`<button onclick="document.getElementById('tdy-recv-date').value='${d}'" style="padding:7px 12px;border:1px solid var(--b2);border-radius:8px;background:var(--s2);font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${lab} ${md(d)}</button>`;
+  m.innerHTML=`<div class="modal-sheet" style="max-width:420px;margin:0 auto">
+    <div class="modal-ttl">📦 언제로 입고 잡을까요?</div>
+    <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">${etpEsc(odStmtVendor(o.vendor)||o.vendor||'')} · 발주 ${md(o.date||td)} — ${wait.length===1?`${wait[0].it.w}×${wait[0].it.h} `:`${wait.length}줄 `}${q}장</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pick(td,'오늘')}${due && due<=td && due!==td ? pick(due,'납기') : ''}</div>
+    <input type="date" id="tdy-recv-date" class="inp" value="${def}" max="${td}" style="margin:0 0 6px;padding:8px 10px;font-size:13px">
+    <div style="font-size:10.5px;color:var(--tx3);margin-bottom:12px">원유리 재고에 이 날짜로 들어갑니다. 잘못 잡으면 발주 리스트에서 날짜를 고치거나 입고를 취소할 수 있습니다.</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('tdy-recv-modal').classList.remove('on')" style="flex:1;padding:11px;border:1px solid var(--b2);border-radius:10px;background:var(--s1);font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">취소</button>
+      <button onclick="tdyRecvDo('${etpEsc(orderId)}',${idx})" style="flex:2;padding:11px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">이 날짜로 입고</button>
+    </div></div>`;
+  m.classList.add('on');
+}
+function tdyRecvDo(orderId, idx){
+  const o=orderLog.find(x=>x.id===orderId); if(!o) return;
+  const td=todayStr(), day=(document.getElementById('tdy-recv-date')||{}).value||'';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(day)){ showToast('날짜를 골라 주십시오'); return; }
+  if(day>td){ showToast('오늘 이후 날짜로는 입고를 잡지 않습니다'); return; }
+  const wait=(o.items||[]).map((it,i)=>({it,i})).filter(x=>x.it.w && x.it.h && !x.it.received && (idx<0 || x.i===idx));
+  wait.forEach(x=>_odRecvItem(o, x.it, day));
+  saveAll(); saveOrderLog();
+  try{ renderOrderList(); }catch(e){}
+  if(typeof renderDash==='function') try{ renderDash(); }catch(e){}
+  if(typeof autoSync==='function') autoSync();
+  document.getElementById('tdy-recv-modal').classList.remove('on');
+  const q=wait.reduce((s,x)=>s+(Number(x.it.qty)||0),0);
+  showToast(`📦 ${wait.length}줄 ${q}장 입고 (${+day.slice(5,7)}/${+day.slice(8,10)})`);
+  try{ renderToday(); }catch(e){ try{ bdRender(); }catch(e2){} }
+}
 function todayOrdersCard(){
   const list = tdyPendingOrders();
   if(!list.length) return '';
@@ -24730,10 +24774,13 @@ function todayOrdersCard(){
         <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${q}</span>
         <span style="font-size:10px;color:var(--tx3)">${open?'▴':'▾'}</span></button>`;
     if(!open) return head;
-    const items = (o.items||[]).map(it=>{
+    // 입고 체크 — 여기서도 합니다 (사장님 2026-10-19 「여기서 입고 체크할 수 있게 … 언제로 입고 잡을지 물어봐 주면」). 누르면 날짜를 묻는 창(tdyRecvAsk).
+    const btn = (lab, arg) => `<button onclick="event.stopPropagation();tdyRecvAsk('${esc(o.id)}',${arg})" style="padding:3px 9px;border:1px solid var(--acc);border-radius:6px;background:var(--s1);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">${lab}</button>`;
+    const nWait = (o.items||[]).filter(it => it.w && it.h && !it.received).length;
+    const items = (o.items||[]).map((it,i)=>{
       const sz = (it.w && it.h) ? `${it.w}×${it.h}` : '-';
-      const st = (it.w && it.h) ? (it.received ? `<span style="color:var(--acc3)">입고 ${md(it.recvDate)}</span>` : '<span style="color:var(--acc2)">대기</span>') : '-';
-      return `<div style="display:grid;grid-template-columns:72px minmax(0,1fr) 40px minmax(0,1fr) 58px;gap:6px;align-items:center;padding:5px 0;border-top:1px dashed var(--b1);font-size:11.5px;${it.received?'opacity:.55':''}">
+      const st = (it.w && it.h) ? (it.received ? `<span style="color:var(--acc3)">입고 ${md(it.recvDate)}</span>` : btn('입고', i)) : '-';
+      return `<div style="display:grid;grid-template-columns:72px minmax(0,1fr) 40px minmax(0,1fr) 64px;gap:6px;align-items:center;padding:5px 0;border-top:1px dashed var(--b1);font-size:11.5px;${it.received?'opacity:.55':''}">
           <span style="font-family:'JetBrains Mono',monospace;font-weight:700">${sz}</span>
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx2)">${esc(it.pname||'-')}</span>
           <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700">${Number(it.qty)||0}</span>
@@ -24741,11 +24788,13 @@ function todayOrdersCard(){
           <span style="text-align:right">${st}</span></div>`;
     }).join('');
     return head + `<div style="padding:4px 10px 10px;background:var(--s2)">
-        <div style="display:grid;grid-template-columns:72px minmax(0,1fr) 40px minmax(0,1fr) 58px;gap:6px;font-size:10px;font-weight:700;color:var(--tx3);padding:2px 0"><span>규격</span><span>품명</span><span style="text-align:right">수량</span><span>비고</span><span style="text-align:right">입고</span></div>
+        <div style="display:grid;grid-template-columns:72px minmax(0,1fr) 40px minmax(0,1fr) 64px;gap:6px;font-size:10px;font-weight:700;color:var(--tx3);padding:2px 0"><span>규격</span><span>품명</span><span style="text-align:right">수량</span><span>비고</span><span style="text-align:right">입고</span></div>
         ${items}
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;font-size:10.5px;color:var(--tx3)">
           <span>${o.client?'업체 '+esc(o.client)+' · ':''}${o.ref?'참조 '+esc(o.ref):''}</span>
-          <button onclick="tdyGoTo('order','od-order-list')" style="padding:5px 10px;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">입고 체크는 발주 리스트에서 ›</button>
+          <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+            ${nWait>1 ? btn(`📦 남은 ${nWait}줄 전부 입고`, -1) : ''}
+            <button onclick="tdyGoTo('order','od-order-list')" style="padding:3px 9px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:var(--tx2);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">발주 리스트 ›</button></span>
         </div></div>`;
   }).join('');
   return `<div id="tdy-orders" style="margin:4px 0 12px;border:1px solid var(--b1);border-radius:10px;overflow:hidden;background:var(--s1);border-left:3px solid ${nLate?'var(--acc4)':'var(--acc)'}">
