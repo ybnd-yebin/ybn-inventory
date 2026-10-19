@@ -16132,6 +16132,7 @@ let _clSyncT=null;
 function clTouch(c){
   c.updatedAt=new Date().toISOString(); c.by=getActor()||'';
   clRecalc(c); clSave();
+  try{ renderLgSummary(); }catch(e){}   // 매입매출 요약이 마감 금액을 씁니다(2026-10-19)
   clearTimeout(_clSyncT);
   _clSyncT=setTimeout(()=>{ try{ if(typeof autoSync==='function') autoSync(); }catch(e){} }, 1500);
 }
@@ -18403,60 +18404,101 @@ function mergeLedgerFromSheet(remote){
   ledgerLog=remote.map(r=>{ if(localById[r.id]) r.photo=localById[r.id]; return r; });
 }
 
-/* 맨 위 요약 — 오늘 · 이번 달(1일~오늘) 매입 · 매출 · 차이. 표처럼 열을 맞춥니다(12-41 원칙).
-   기록이 바뀌면 renderLedgerMonthly 가 늘 불리므로 거기서 같이 그립니다. */
+/* 맨 위 요약 — 매입 · 매출 · 차이. 표처럼 열을 맞춥니다(12-41 원칙).
+   기록이 바뀌면 renderLedgerMonthly 가 늘 불리므로 거기서 같이 그립니다.
+   2026-10-19 (사장님 「마감자료 합산될 수 있도록 앱에 연결」):
+   ① 매입 = 손 기록 + **발주 매입**(마감 명세서와 같은 계산 — odStmtRows). 예전에는 손 기록만 세어 「-」로 나왔습니다.
+   ② ◀ ▶ 로 지난 달을 봅니다(lgSumYm, 이번 달이면 null).
+   ③ 그 달 📒 거래처 월 마감이 들어온 발주처는 **마감 금액**을 씁니다 — 확정이면 확정 공급가, 대조중이면 거래처가 보낸 공급가.
+      ⚠ 마감은 그 발주처의 마감 기간(대원 전달 26일~25일 · 현성 1일~말일)이라 달력 달과 조금 다를 수 있습니다. 근거 칸에 적습니다. */
+var lgSumYm=null;   // var — 앱을 막 열 때 이 줄보다 먼저 renderLgSummary 가 불려도 TDZ 로 안 죽게(12-57과 같은 함정)
+function lgSumMove(n){
+  const cur=todayStr().slice(0,7);
+  let [y,m]=(lgSumYm||cur).split('-').map(Number); m+=n;
+  if(m<1){ m=12; y--; } if(m>12){ m=1; y++; }
+  const ym=y+'-'+String(m).padStart(2,'0');
+  lgSumYm = ym>=cur ? null : ym;
+  renderLgSummary();
+}
+function lgMonthEnd(ym){ const [y,m]=ym.split('-').map(Number); return _ymdLocal(new Date(y,m,0)); }
+function lgClosingOf(vendor, ym){
+  try{ for(const id in closings){ const c=closings[id]; if(c && c.ym===ym && odStmtVendor(c.vendor)===vendor) return c; } }catch(e){}
+  return null;
+}
+function lgClosingAmt(c){ return c.status==='확정' ? (c.supply||0) : (c.vendorSupply!=null ? Math.round(c.vendorSupply) : (c.supply||0)); }
+/* 발주처별 매입 — useClosing 이면 그 달 마감이 있는 발주처는 마감 금액 */
+function lgOdBuy(ym, from, to, useClosing){
+  const out={}, vendors=new Set(Object.keys(OD_VENDOR_PRICE));
+  if(useClosing){ try{ for(const id in closings){ const c=closings[id]; if(c && c.ym===ym) vendors.add(odStmtVendor(c.vendor)); } }catch(e){} }
+  vendors.forEach(v=>{
+    const c = useClosing ? lgClosingOf(v, ym) : null;
+    if(c){ out[v]={ v, amt:lgClosingAmt(c), closing:c }; return; }
+    if(!OD_VENDOR_PRICE[v]) return;
+    let rows=[]; try{ rows=odStmtRows(v, ym, {from, to}); }catch(e){ console.warn('[매입 요약] 발주', v, e); return; }
+    const sk=rows.skipped||{미입고:0, 자동:0};
+    if(!rows.length && !sk.미입고 && !sk.자동) return;
+    out[v]={ v, amt:Math.round(rows.reduce((s,r)=>s+(r.amt||0),0)), n:rows.length,   // 반올림은 합계에서 한 번(12-24)
+      none:rows.filter(r=>r.amt==null).length,
+      recvOnly:OD_STMT_RECEIVED_ONLY.has(v), recvQty:rows.reduce((s,r)=>s+(r.qty||0),0), skipNo:sk.미입고, skipAuto:sk.자동 };
+  });
+  return out;
+}
 function renderLgSummary(){
   const host=document.getElementById('lg-summary'); if(!host) return;
-  const td=todayStr(), ym=td.slice(0,7);
+  const td=todayStr(), cur=td.slice(0,7), ym=lgSumYm||cur, isCur=ym===cur;
+  const from=ym+'-01', to=isCur?td:lgMonthEnd(ym), mm=+ym.slice(5,7);
   const sum=(f,k)=>ledgerLog.filter(r=>r&&r.kind===k&&f(String(r.date||''))).reduce((s,r)=>s+(lgRecordTotal(r)||0),0);
   /* 한샘 매출 — 📋 한샘 단가표 × 그날(그달) 납품서, **발주일** 기준 (사장님 2026-10-14 「매출은 올려놨는데 왜 위에 금액이 안 나오지」).
      손으로 적은 매출(ledgerLog)과 따로 칸을 둡니다 — 같은 한샘 매출을 손으로도 적으셨으면 두 번 셉니다. */
-  const hs=(key)=>{ try{ const r=(typeof hsMonthRows==='function')?hsMonthRows(key):[]; return { amt:r.reduce((s,x)=>s+(x.amt||0),0), none:r.filter(x=>x.price==null).length }; }catch(e){ return {amt:0,none:0}; } };
-  /* 위 요약은 **매입 · 매출 · 차이** 세 칸만 (사장님 2026-10-14 「상단 간략하게 보는 거에는 매출 매입만 보게 하고 매출 안에 한샘 SRM 을 볼 수 있게」).
-     매출 = 손 기록 + 한샘 SRM. 매출 숫자 아래에 작게 「한샘 SRM … · 기록 …」(둘 다 있을 때) · 「단가 없음 N줄」. */
+  const hs=(key, upto)=>{ try{ let r=(typeof hsMonthRows==='function')?hsMonthRows(key):[]; if(upto) r=r.filter(x=>x.day<=upto); return { amt:r.reduce((s,x)=>s+(x.amt||0),0), none:r.filter(x=>x.price==null).length }; }catch(e){ return {amt:0,none:0}; } };
+  /* 위 요약은 **매입 · 매출 · 차이** 세 칸만 (사장님 2026-10-14). 숫자 아래에 작게 무엇으로 이뤄졌는지 적습니다. */
   const COLS='72px repeat(3,minmax(0,1fr))';
   const v=(x,c,sub)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}${sub?`<br><small style="font-size:10px;font-weight:600;color:var(--tx3);font-family:'Noto Sans KR',sans-serif;line-height:1.5">${sub}</small>`:''}</span>`;
   const won=x=>Math.round(x).toLocaleString('ko-KR');
-  const row=(label,f,hk,click)=>{ const b=sum(f,'buy'), s2=sum(f,'sell'), H=hs(hk), sell=s2+H.amt, d=sell-b;
+  const row=(label,f,hk,hUpto,od,click)=>{
+    const lgB=sum(f,'buy'), s2=sum(f,'sell'), H=hs(hk,hUpto), sell=s2+H.amt;
+    const odList=Object.values(od), odAmt=odList.filter(x=>!x.closing).reduce((s,x)=>s+x.amt,0), clAmt=odList.filter(x=>x.closing).reduce((s,x)=>s+x.amt,0);
+    const clWait=odList.some(x=>x.closing && x.closing.status!=='확정');
+    const b=lgB+odAmt+clAmt, d=sell-b;
+    const bParts=[odAmt?'발주 '+won(odAmt):'', clAmt?'📒 마감 '+won(clAmt)+(clWait?' (대조중)':''):'', lgB?'기록 '+won(lgB):''].filter(Boolean);
+    const bSub=bParts.length>1||clAmt ? bParts.join('<br>') : '';
     const sub=[ H.amt||H.none ? '📋 한샘 SRM '+(H.amt?won(H.amt):'-') : '', H.amt&&s2 ? '기록 '+won(s2) : '',
                 H.none ? `<b onclick="event.stopPropagation();hsGoNeed()" title="눌러서 단가가 필요한 발주 보기" style="color:var(--acc2);cursor:pointer;text-decoration:underline">단가 없음 ${H.none}줄 ›</b>` : '' ].filter(Boolean).join('<br>');
     return `<div ${click?`onclick="${click}" title="눌러서 업체별 보기" `:''}style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)${click?';cursor:pointer':''}">
-      <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)')}${v(sell,'var(--acc3)',sub)}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
-  /* 업체별 표는 「N월 누적」 줄을 눌러야 펼칩니다 (사장님 2026-10-19 「누적 눌렀을 때 펼쳐서 보이면」). 펼침은 이 기기에 기억. */
+      <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)',bSub)}${v(sell,'var(--acc3)',sub)}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
+  /* 업체별 표는 「N월 누적(합계)」 줄을 눌러야 펼칩니다 (사장님 2026-10-19). 펼침은 이 기기에 기억. */
   const vOpen=lgVendOpen();
-  const vend=vOpen ? lgVendorTableHtml(ym, td) : '';
+  const odMonth=lgOdBuy(ym, from, to, true);
+  const vend=vOpen ? lgVendorTableHtml(ym, from, to, odMonth, isCur) : '';
+  const tog='<br><span style="font-size:10px;font-weight:600;color:var(--acc);white-space:nowrap">'+(vOpen?'업체별 ▴':'업체별 ▾')+'</span>';
+  const navBtn=(n,dis)=>`<button onclick="lgSumMove(${n})" ${dis?'disabled':''} style="padding:2px 9px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:${dis?'var(--tx3)':'var(--tx1)'};font-size:11px;cursor:${dis?'default':'pointer'};opacity:${dis?'.4':'1'}">${n<0?'◀':'▶'}</button>`;
   host.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:1px solid var(--b1)">
+      <span style="display:flex;align-items:center;gap:6px">${navBtn(-1,false)}<b style="font-size:12.5px;min-width:78px;text-align:center">${ym.slice(0,4)}년 ${mm}월</b>${navBtn(1,isCur)}</span>
+      ${isCur?'':`<button onclick="lgSumYm=null;renderLgSummary()" style="padding:2px 9px;border:none;background:none;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">이번 달로 ›</button>`}</div>
     <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
-      <span></span><span style="text-align:right">📥 매입</span><span style="text-align:right" title="손 기록 + 📋 한샘 SRM(단가표 × 납품서, 발주일 기준)">📤 매출</span><span style="text-align:right">차이</span></div>
-    ${row('오늘 '+(+td.slice(5,7))+'/'+(+td.slice(8,10)), d=>d===td, td)}
-    ${row((+ym.slice(5,7))+'월 누적<br><span style="font-size:10px;font-weight:600;color:var(--acc);white-space:nowrap">'+(vOpen?'업체별 ▴':'업체별 ▾')+'</span>', d=>d.slice(0,7)===ym && d<=td, ym, 'lgVendToggle()')}
+      <span></span><span style="text-align:right" title="발주 매입(마감 명세서와 같은 계산) + 📒 거래처 월 마감 금액(들어온 달) + 손 기록">📥 매입</span><span style="text-align:right" title="손 기록 + 📋 한샘 SRM(단가표 × 납품서, 발주일 기준)">📤 매출</span><span style="text-align:right">차이</span></div>
+    ${isCur ? row('오늘 '+(+td.slice(5,7))+'/'+(+td.slice(8,10)), d=>d===td, td, null, lgOdBuy(ym, td, td, false)) : ''}
+    ${row(mm+'월 '+(isCur?'누적':'합계')+tog, d=>d>=from && d<=to, ym, to, odMonth, 'lgVendToggle()')}
   </div></div>` + vend;
 }
 function lgVendOpen(){ if(window._lgVendOpen!=null) return window._lgVendOpen; try{ return localStorage.getItem('ybn-lg-vend-open-v1')==='1'; }catch(e){ return false; } }
 function lgVendToggle(){ window._lgVendOpen=!lgVendOpen(); try{ localStorage.setItem('ybn-lg-vend-open-v1', window._lgVendOpen?'1':'0'); }catch(e){} renderLgSummary(); }
-/* 🏢 이번 달 업체별 (사장님 2026-10-14 「매출·매입 업체별로도 구분해 줘야」) — 1일 ~ 오늘, 공급가.
-   매입 = 발주 기록(마감 명세서와 같은 계산 — odStmtRows, 입고일/납기 기준) + 손으로 적은 매입(ledgerLog).
-   매출 = 📋 한샘 SRM(발주일) + 손으로 적은 매출. 업체 이름은 odStmtVendor 로 모읍니다(「대원유리 귀하」 → 대원유리).
-   ⚠ 발주 매입은 **달력 달**입니다 — 마감 명세서(대원 25일 마감 등)와 기간이 다를 수 있습니다. */
-function lgVendorTableHtml(ym, td){
-  const from=ym+'-01', V={};
-  const take=v=>V[v]||(V[v]={ v, buyOd:0, buyLg:0, sell:0, sellHs:0, odN:0, odNone:0, lgN:0, hsNone:0, recvOnly:false, recvQty:0, skipNo:0, skipAuto:0 });
-  // 발주 매입 — 단가가 있는 발주처
-  // 입고된 것만 세는 발주처(현성)는 빠진 장수도 남깁니다 — 0원이라도 줄이 사라지지 않게 (사장님 2026-10-19 「현성은 매입가가 안 잡혔나?」 → 가)
-  try{ Object.keys(OD_VENDOR_PRICE).forEach(v=>{
-    const rows=odStmtRows(v, ym, {from, to:td});
-    const sk=rows.skipped||{미입고:0, 자동:0};
-    if(!rows.length && !sk.미입고 && !sk.자동) return;
-    const e=take(v); e.odN+=rows.length; e.odNone+=rows.filter(r=>r.amt==null).length; e.buyOd+=rows.reduce((s,r)=>s+(r.amt||0),0);
-    if(OD_STMT_RECEIVED_ONLY.has(v)){ e.recvOnly=true; e.recvQty+=rows.reduce((s,r)=>s+(r.qty||0),0); e.skipNo+=sk.미입고; e.skipAuto+=sk.자동; }
-  }); }catch(e){ console.warn('[업체별] 발주 매입', e); }
-  // 손으로 적은 매입·매출
-  ledgerLog.forEach(r=>{ const d=String(r.date||''); if(!(d>=from && d<=td)) return;
+/* 🏢 업체별 (사장님 2026-10-14 「매출·매입 업체별로도 구분해 줘야」) — 고른 달, 공급가.
+   매입 = lgOdBuy(발주 기록 또는 📒 거래처 월 마감) + 손으로 적은 매입(ledgerLog).
+   매출 = 📋 한샘 SRM(발주일) + 손으로 적은 매출. 업체 이름은 odStmtVendor 로 모읍니다(「대원유리 귀하」 → 대원유리). */
+function lgVendorTableHtml(ym, from, to, odMap, isCur){
+  const V={};
+  const take=v=>V[v]||(V[v]={ v, buyOd:0, buyLg:0, sell:0, sellHs:0, odN:0, odNone:0, lgN:0, hsNone:0, recvOnly:false, recvQty:0, skipNo:0, skipAuto:0, closing:null });
+  Object.values(odMap||{}).forEach(o=>{ const e=take(o.v); e.buyOd+=o.amt;
+    if(o.closing){ e.closing=o.closing; return; }
+    e.odN+=o.n; e.odNone+=o.none;
+    if(o.recvOnly){ e.recvOnly=true; e.recvQty+=o.recvQty; e.skipNo+=o.skipNo; e.skipAuto+=o.skipAuto; } });
+  ledgerLog.forEach(r=>{ const d=String(r.date||''); if(!(d>=from && d<=to)) return;
     const e=take(odStmtVendor(r.vendor||'(거래처 없음)')); e.lgN++;
     if(r.kind==='buy') e.buyLg+=lgRecordTotal(r)||0; else if(r.kind==='sell') e.sell+=lgRecordTotal(r)||0; });
-  // 한샘 SRM 매출
-  try{ const hr=hsMonthRows(ym).filter(r=>r.day<=td); if(hr.length){ const e=take('한샘'); e.sellHs=hr.reduce((s,r)=>s+(r.amt||0),0); e.hsNone=hr.filter(r=>r.price==null).length; } }catch(e){}
-  const list=Object.values(V).filter(e=>e.buyOd||e.buyLg||e.sell||e.sellHs||e.odNone||e.hsNone||e.skipNo||e.skipAuto)
+  try{ const hr=hsMonthRows(ym).filter(r=>r.day<=to); if(hr.length){ const e=take('한샘'); e.sellHs=hr.reduce((s,r)=>s+(r.amt||0),0); e.hsNone=hr.filter(r=>r.price==null).length; } }catch(e){}
+  const list=Object.values(V).filter(e=>e.buyOd||e.buyLg||e.sell||e.sellHs||e.odNone||e.hsNone||e.skipNo||e.skipAuto||e.closing)
     .sort((a,b)=>(b.buyOd+b.buyLg+b.sell+b.sellHs)-(a.buyOd+a.buyLg+a.sell+a.sellHs));
   if(!list.length) return '';
   const won=x=>x?Math.round(x).toLocaleString('ko-KR'):'-';
@@ -18464,7 +18506,9 @@ function lgVendorTableHtml(ym, td){
   const cell=(x,c)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:${x?c:'var(--tx3)'}">${won(x)}</span>`;
   const rows=list.map(e=>{
     const skip=(e.skipNo||e.skipAuto)?' · <b style="color:var(--acc2)">빠진 것 '+[e.skipNo?`미입고 ${e.skipNo}장`:'', e.skipAuto?`자동 ${e.skipAuto}장`:''].filter(Boolean).join(' · ')+'</b>':'';
-    const why=[ e.recvOnly ? `입고 체크 ${e.recvQty}장`+skip+(e.odNone?` · <b style="color:var(--acc2)">단가 없음 ${e.odNone}</b>`:'') :
+    const c=e.closing;
+    const why=[ c ? (c.status==='확정' ? `📒 ${+ym.slice(5,7)}월 마감 확정` : `📒 ${+ym.slice(5,7)}월 마감 <b style="color:var(--acc2)">대조중</b>(거래처 금액)`) :
+                e.recvOnly ? `입고 체크 ${e.recvQty}장`+skip+(e.odNone?` · <b style="color:var(--acc2)">단가 없음 ${e.odNone}</b>`:'') :
                 e.odN?`발주 ${e.odN}줄`+(OD_VENDOR_PRICE_EST.has(e.v)?' <b style="color:var(--acc2)">(추정 단가)</b>':'')+(e.odNone?` · <b style="color:var(--acc2)">단가 없음 ${e.odNone}</b>`:''):'',
                 e.sellHs||e.hsNone?'SRM'+(e.hsNone?` · <b style="color:var(--acc2)">단가 없음 ${e.hsNone}</b>`:''):'',
                 e.lgN?`기록 ${e.lgN}건`:'' ].filter(Boolean).join(' · ');
@@ -18473,8 +18517,9 @@ function lgVendorTableHtml(ym, td){
       <span style="font-size:10.5px;color:var(--tx3);text-align:right">${why}</span></div>`; }).join('');
   return `<div class="card" style="padding:0;overflow-x:auto;margin-top:8px"><div style="min-width:440px">
     <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
-      <span>🏢 ${+ym.slice(5,7)}월 업체별 <span style="font-weight:400;color:var(--tx3)">(1일~오늘 · 공급가)</span></span><span style="text-align:right">📥 매입</span><span style="text-align:right">📤 매출</span><span style="text-align:right">근거</span></div>
+      <span>🏢 ${+ym.slice(5,7)}월 업체별 <span style="font-weight:400;color:var(--tx3)">(${isCur?'1일~오늘':'한 달'} · 공급가)</span></span><span style="text-align:right">📥 매입</span><span style="text-align:right">📤 매출</span><span style="text-align:right">근거</span></div>
     ${rows}
+    ${list.some(e=>e.closing)?'<div style="padding:6px 12px;font-size:10px;color:var(--tx3);border-top:1px solid var(--b1)">📒 마감 금액은 그 발주처의 마감 기간 기준입니다(대원 전달 26일~25일 · 현성 1일~말일) — 달력 달과 며칠 다를 수 있습니다.</div>':''}
   </div></div>`;
 }
 function renderLedgerMonthly(){
