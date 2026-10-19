@@ -16077,8 +16077,10 @@ function clGlass(t){
   if(/백유리/.test(t)) return '백유리';
   return '';
 }
-function clKindOf(L,P){
+function clKindOf(L,P,vendor){
   if(!(L.w&&L.h)) return '기타비용';
+  // 대원 — 단가 구분은 물건이 아니라 **줄 수량**(10장 이상 = 정규격 단가). 거래처가 다르게 받았으면 「평단가 … → …」로 드러납니다
+  if(vendor && OD_KIND_BY_QTY.has(vendor)) return (Number(L.qty)||0)>=OD_STD_MIN_QTY ? '정규격' : '비규격';
   if(/사하라/.test(L.model)) return '사하라';
   if(/팬톤/.test(L.model)) return '팬톤';
   if(L.glassCls==='5T백유리') return (/정규격/.test(L.model)&&!/비규격/.test(L.model))?'정규격':'비규격';
@@ -16106,6 +16108,11 @@ function clCalcLine(L,P,vendor){
   r.amtCalc=r.unit==null?null:r.unit*L.qty;
   r.amt=r.unit==null?(Number(L.amtFile)||0):r.unit*r.settleQty;
   if(r.amtCalc!=null && L.amtFile!=null && Math.abs(L.amtFile-r.amtCalc)>0.5) r.flags.push(`공급가액 ${clWon(L.amtFile)} → ${clWon(r.amtCalc)}`);
+  /* 거래처가 앱 계산보다 **싸게** 받은 줄은 거래처 금액으로 셉니다 (사장님 2026-10-19 — 우리에게 유리하니 확정을 막지 않음).
+     비싸게 받은 줄은 예전대로 앱 계산 — 차이가 남아 확정이 막힙니다. */
+  if(r.amtCalc!=null && L.amtFile>0 && L.amtFile < r.amtCalc-0.5){
+    r.amt=(L.amtFile/L.qty)*r.settleQty; r.cheaper=true; r.flags.push('거래처가 쌈 — 거래처 금액 인정');
+  }
   return r;
 }
 function clCalcDefect(d,vendor){
@@ -16186,8 +16193,61 @@ function clXlDate(v, ym){
   m=s.match(/^(\d{1,2})[\/.\-월]\s*(\d{1,2})/); if(m && ym) return `${ym.slice(0,4)}-${('0'+m[1]).slice(-2)}-${('0'+m[2]).slice(-2)}`;
   return '';
 }
+/* 대원유리 마감 양식 (사장님 2026-10-19 「대원은 여기서 정리하고 갈게」) — `.xls`, 시트 「11월」 같은 이름.
+   머리글 줄: NO · 업체명 · 주문처 · 입고일 · 입고처 · 품명 · 규격(가로·세로 두 칸) · 면적 · 사양 · 단위 · 수 량 · 가공 단가 · 금액 · … · 특이사항
+   · 마감월은 맨 윗줄의 「26년 9월 마감」(여러 개면 가장 늦은 것 — 앞 칸에 「2026년 5월 마감」 같은 묵은 글자가 남아 있음).
+   · 입고일은 「8월26일」 다음에 「27일」처럼 **달이 빠진 채 이어집니다** — 앞 줄의 달을 이어 씁니다.
+   · 사이즈 없이 수량·금액만 있는 줄 = 합계 줄 → 공급가액(소수는 반올림). VAT·합계는 파일에 없습니다.
+   · 면적 = 가로×세로÷90,000 **반올림 없음**(odPyeong 대원), 단가는 **줄 수량**으로 가름(OD_KIND_BY_QTY — clKindOf). */
+function clFindDaewonHdr(rows){
+  for(let i=0;i<Math.min(15,rows.length);i++){
+    const t=rows[i].map(x=>String(x||'').replace(/\s/g,''));
+    if(t.includes('입고일') && t.some(x=>x==='가공단가') && t.some(x=>/^수량$/.test(x))) return i;
+  }
+  return -1;
+}
+function clParseDaewon(rows, hdr){
+  const H=rows[hdr].map(x=>String(x||'').replace(/\s/g,''));
+  const col=n=>H.findIndex(x=>x===n);
+  const cD=col('입고일'), cG=col('품명'), cW=col('규격'), cA=col('면적'), cQ=col('수량'), cU=col('가공단가'), cM=col('금액'), cN=col('특이사항');
+  if([cD,cW,cQ,cU,cM].some(x=>x<0)) throw new Error('대원 마감 머리글(입고일·규격·수 량·가공 단가·금액)을 다 못 찾았습니다');
+  let ym='';
+  rows.slice(0,hdr).forEach(r=>r.forEach(v=>{
+    const s=String(v||''); const re=/(\d{2,4})\s*년\s*(\d{1,2})\s*월\s*마감/g; let m;
+    while((m=re.exec(s))){ const y=m[1].length===2?2000+(+m[1]):+m[1]; const k=`${y}-${('0'+m[2]).slice(-2)}`; if(k>ym) ym=k; }
+  }));
+  const lines=[], sums={};
+  let mon=0;
+  for(let i=hdr+1;i<rows.length;i++){
+    const r=rows[i], rowNo=i+1;
+    const w=clNum(r[cW]), h=clNum(r[cW+1]), q=clNum(r[cQ]), amt=clNum(r[cM]);
+    const dRaw=String(r[cD]??'').trim();
+    let day='';
+    if(typeof r[cD]==='number'){ day=clXlDate(r[cD]); mon=+day.slice(5,7); }
+    else if(dRaw){
+      const m=dRaw.match(/(?:(\d{1,2})\s*월)?\s*(\d{1,2})\s*일?/);
+      if(m){ if(m[1]) mon=+m[1]; if(mon && ym){ let y=+ym.slice(0,4); if(mon>+ym.slice(5,7)) y--; day=`${y}-${('0'+mon).slice(-2)}-${('0'+m[2]).slice(-2)}`; } }
+    }
+    if(!w && !h){ if(q && amt) sums['공급가액']=Math.round(amt); continue; }
+    if(!q) continue;
+    lines.push({ row:rowNo, dateRaw:day||null, model:'', thick:'', glass:String(cG>=0?r[cG]:'').trim(),
+      w, h, qty:q, pyFile:cA>=0&&r[cA]!==''?clNum(r[cA]):null, pUnitFile:clNum(r[cU])||null,
+      unitFile:(cA>=0?clNum(r[cA]):w*h/OD_JA_MM2)*clNum(r[cU]), amtFile:amt, note:String(cN>=0?r[cN]:'').trim() });
+  }
+  // 이어진 날짜 채우기 — 입고일이 빈 줄은 위 줄 날짜
+  let last='';
+  lines.forEach(L=>{ if(L.dateRaw) last=L.dateRaw; L.date=last; delete L.dateRaw; });
+  if(!ym){ const cnt={}; lines.forEach(L=>{ if(L.date) cnt[L.date.slice(0,7)]=(cnt[L.date.slice(0,7)]||0)+1; }); ym=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||''; }
+  return { vendor:'대원유리', ym, lines, defects:[], sums };
+}
 function clParseVendorXlsx(buf){
   const wb=XLSX.read(buf,{type:'array'});
+  // 대원 양식이 든 시트가 있으면 그것으로 읽습니다(시트가 여럿이고 묵은 시트가 섞여 옵니다)
+  for(const sn of wb.SheetNames){
+    const rs=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
+    const dh=clFindDaewonHdr(rs);
+    if(dh>=0) return clParseDaewon(rs, dh);
+  }
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
   let vendor='';
@@ -16226,7 +16286,7 @@ function clPrepLines(c){
   const P=clPrice(c.vendor);
   c.lines.forEach(L=>{
     L.glassCls=clGlass([L.thick,L.glass,L.model].join(' '));
-    L.kind=L.kind||clKindOf(L,P);
+    L.kind=L.kind||clKindOf(L,P,c.vendor);
     if(L.bore==null){
       L.bore=0;
       if(/보링/.test(L.note) && L.pyFile && L.pUnitFile && P.bore){
