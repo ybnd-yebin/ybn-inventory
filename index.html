@@ -16910,6 +16910,9 @@ function bdSort(a,b){
 function bdBoardHtml(){
   const all=bdCardsAll().filter(c=>c.kind!=='event');
   const cnt={}; BD_TABS.forEach(t=>cnt[t]=all.filter(c=>bdTabOf(c)===t).length);
+  // 발주중 탭 = 앱 발주 기록 가운데 아직 안 들어온 것(tdyPendingOrders) + 손으로 적은 발주중 카드 (사장님 2026-10-19 「여기 발주중 탭에 넣어 달라」)
+  let pendOrd=[]; try{ pendOrd=tdyPendingOrders(); }catch(e){}
+  cnt.order=(cnt.order||0)+pendOrd.length;
   const tabs=`<div class="bd-tabs" role="tablist">${BD_TABS.map(t=>`<button role="tab" class="bd-tab${bdTab===t?' on':''}" onclick="bdTab='${t}';bdRender()">${t==='done'?'완료':BD_KIND[t].label} <span>${cnt[t]}</span></button>`).join('')}
       <span style="flex:1"></span>
       ${boardCards.some(c=>c.sample&&!c.deleted)?`<button class="bd-btn bd-ghost" onclick="bdClearSamples()">샘플 지우기</button>`:''}
@@ -16925,7 +16928,8 @@ function bdBoardHtml(){
     list.sort(bdSort);
     body=`<div class="bd-cards">${list.map(bdCardHtml).join('')}</div>`;
   }
-  if(!list.length) body=`<div class="bd-muted" style="padding:28px 4px;text-align:center">${bdTab==='done'?'완료한 카드가 없습니다':'카드가 없습니다'}</div>`;
+  if(!list.length) body=(bdTab==='order'&&pendOrd.length)?'':`<div class="bd-muted" style="padding:28px 4px;text-align:center">${bdTab==='done'?'완료한 카드가 없습니다':'카드가 없습니다'}</div>`;
+  if(bdTab==='order'){ let ord=''; try{ ord=todayOrdersCard(); }catch(e){ console.warn('[일정판] 발주중',e); } body=ord+body; }
   return tabs+body;
 }
 function bdCardHtml(c){
@@ -24641,7 +24645,7 @@ function tdyPendingOrders(){
   });
   return out.sort((a,b)=> String(b.o.date||'').localeCompare(String(a.o.date||'')) || String(a.dueDate||'9').localeCompare(String(b.dueDate||'9')));
 }
-function tdyOrdToggle(id){ window._tdyOrdOpen[id] = !window._tdyOrdOpen[id]; try{ renderToday(); }catch(e){} }
+function tdyOrdToggle(id){ window._tdyOrdOpen[id] = !window._tdyOrdOpen[id]; try{ bdRender(); }catch(e){} }
 function todayOrdersCard(){
   const list = tdyPendingOrders();
   if(!list.length) return '';
@@ -24683,9 +24687,9 @@ function todayOrdersCard(){
           <button onclick="tdyGoTo('order','od-order-list')" style="padding:5px 10px;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">입고 체크는 발주 리스트에서 ›</button>
         </div></div>`;
   }).join('');
-  return `<div class="card" id="tdy-orders" style="padding:0;overflow:hidden;border-left:3px solid ${nLate?'var(--acc4)':'var(--acc)'}">
+  return `<div id="tdy-orders" style="margin:4px 0 12px;border:1px solid var(--b1);border-radius:10px;overflow:hidden;background:var(--s1);border-left:3px solid ${nLate?'var(--acc4)':'var(--acc)'}">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;padding:10px 12px 8px">
-      <span style="font-size:13px;font-weight:800;color:var(--tx1)">📦 발주중 ${list.length}건 <span style="font-weight:500;color:var(--tx3);font-size:11px">· 미입고 ${nQty}장${nLate?` · <b style="color:var(--acc4)">납기 지남 ${nLate}</b>`:''}</span></span>
+      <span style="font-size:13px;font-weight:800;color:var(--tx1)">📦 발주 리스트에서 아직 안 들어온 것 ${list.length}건 <span style="font-weight:500;color:var(--tx3);font-size:11px">· 미입고 ${nQty}장${nLate?` · <b style="color:var(--acc4)">납기 지남 ${nLate}</b>`:''}</span></span>
       <button onclick="tdyGoTo('order','od-order-list')" style="background:none;border:none;padding:0;font-size:11px;font-weight:700;color:var(--acc);cursor:pointer;font-family:'Noto Sans KR',sans-serif">발주 리스트 ›</button>
     </div>
     <div style="display:grid;grid-template-columns:${COLS};gap:6px;padding:5px 10px;background:var(--s3);font-size:10px;font-weight:700;color:var(--tx3)"><span>발주일</span><span>발주처</span><span>발주명</span><span style="text-align:right">납기</span><span style="text-align:right">장</span><span></span></div>
@@ -24780,8 +24784,8 @@ function renderToday(){
         const overdue=(function(){ try{ return bdCardsAll().filter(c=>c.status!=='done' && bdOverdue(c)).length; }catch(e){ return null; } })();
         return todayTilesHtml({ blocked, etpShort, late, upl, open:tdyOpenOrders(), newItems, overdue });
       }catch(e){ console.warn('[오늘] 타일',e); return ''; } })() +
-    '</div>' +
-    (function(){ try{ return todayOrdersCard(); }catch(e){ console.warn('[오늘] 발주중',e); return ''; } })();
+    '</div>';
+    // 2026-10-19: 발주중 목록은 아래 일정·업무 「발주중」 탭 안으로 옮겼습니다(bdBoardHtml) — 한 화면에 발주중이 둘 생겼습니다.
 
   let h='';
 
