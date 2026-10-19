@@ -24619,6 +24619,80 @@ function todayTilesHtml(d){
     <div style="text-align:right"><button onclick="tdyTilesToggle()" style="background:none;border:none;padding:2px 0;font-size:11px;font-weight:700;color:var(--acc);cursor:pointer;font-family:'Noto Sans KR',sans-serif">접기 ▴</button></div>`;
 }
 
+/* 📦 발주중 — 낸 발주 가운데 아직 다 안 들어온 것 (사장님 2026-10-19 「오늘 메인 화면에 발주중 리스트 … 발주일-발주처-발주명-납기일 접혀 있고 클릭하면 상세」)
+   ─ 사이즈 있는 줄: 입고 체크가 안 된 줄이 하나라도 있으면 발주중(「입고 대기」 타일과 같은 기준).
+   ─ 사이즈 없는 발주(박스 등)는 입고 체크 칸이 없어, 납기가 오늘 이후이거나(날짜로 읽힐 때) 납기를 못 읽으면 발주일 14일 안일 때만.
+   ─ 여기서는 **보기만** 합니다. 입고 체크는 발주 리스트에서(재고가 움직이는 일이라 한 곳에서만). 펼친 것은 이 창에서 기억(_tdyOrdOpen). */
+window._tdyOrdOpen = window._tdyOrdOpen || {};
+function tdyPendingOrders(){
+  const td = todayStr(), out = [];
+  (typeof orderLog!=='undefined' ? orderLog : []).forEach(o=>{
+    const items = o.items || [];
+    const sized = items.filter(it => it.w && it.h);
+    const open = sized.filter(it => !it.received);
+    let pending = open.length > 0;
+    if(!sized.length && items.length){
+      const dd = (typeof odDueToDate==='function') ? odDueToDate(o.due, o.date) : null;
+      pending = dd ? dd >= td : (String(o.date||'') >= _addDays(td, -14));
+    }
+    if(!pending) return;
+    const dd = (typeof odDueToDate==='function') ? odDueToDate(o.due, o.date) : null;
+    out.push({ o, open: sized.length ? open : items, late: !!(dd && dd < td), dueDate: dd });
+  });
+  return out.sort((a,b)=> String(b.o.date||'').localeCompare(String(a.o.date||'')) || String(a.dueDate||'9').localeCompare(String(b.dueDate||'9')));
+}
+function tdyOrdToggle(id){ window._tdyOrdOpen[id] = !window._tdyOrdOpen[id]; try{ renderToday(); }catch(e){} }
+function todayOrdersCard(){
+  const list = tdyPendingOrders();
+  if(!list.length) return '';
+  const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const md = d => d ? String(d).slice(5).replace('-','/') : '-';
+  const COLS = '52px minmax(0,0.9fr) minmax(0,1.6fr) 52px 48px 14px';
+  const nLate = list.filter(x=>x.late).length, nQty = list.reduce((s,x)=>s+x.open.reduce((t,it)=>t+(Number(it.qty)||0),0),0);
+  const rows = list.slice(0, 30).map(x=>{
+    const o = x.o, open = !!window._tdyOrdOpen[o.id];
+    // 발주명 = 저장 이름과 같은 꼴(날짜·업체 뗀 뒷부분 — 「3.2T백사틴 에토프 정규격」). 제목만으로는 「3.2T 백사틴」이 여럿이라 못 가립니다.
+    let name = ''; try{ name = String(odFileBase(o)).split('_').slice(2).join('_'); }catch(e){}
+    name = name || (typeof odTitleParts==='function' ? odTitleParts(o).title : '') || o.title || o.type || '';
+    const vend = (typeof odStmtVendor==='function' ? odStmtVendor(o.vendor) : o.vendor) || '-';
+    const q = x.open.reduce((t,it)=>t+(Number(it.qty)||0),0);
+    const due = x.dueDate ? md(x.dueDate) : (o.due || '-');
+    const head = `<button class="tdy-ord-row" onclick="tdyOrdToggle('${esc(o.id)}')" style="display:grid;grid-template-columns:${COLS};gap:6px;align-items:center;width:100%;padding:8px 10px;border:none;border-top:1px solid var(--b1);background:${open?'var(--s2)':'none'};cursor:pointer;text-align:left;font-family:'Noto Sans KR',sans-serif">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${md(o.date)}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--tx1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(vend.replace(/유리$/,''))}</span>
+        <span style="font-size:12px;color:var(--tx1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>
+        <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:${x.late?800:500};color:${x.late?'var(--acc4)':'var(--tx1)'}">${esc(due)}</span>
+        <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${q}</span>
+        <span style="font-size:10px;color:var(--tx3)">${open?'▴':'▾'}</span></button>`;
+    if(!open) return head;
+    const items = (o.items||[]).map(it=>{
+      const sz = (it.w && it.h) ? `${it.w}×${it.h}` : '-';
+      const st = (it.w && it.h) ? (it.received ? `<span style="color:var(--acc3)">입고 ${md(it.recvDate)}</span>` : '<span style="color:var(--acc2)">대기</span>') : '-';
+      return `<div style="display:grid;grid-template-columns:72px minmax(0,1fr) 40px minmax(0,1fr) 58px;gap:6px;align-items:center;padding:5px 0;border-top:1px dashed var(--b1);font-size:11.5px;${it.received?'opacity:.55':''}">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700">${sz}</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx2)">${esc(it.pname||'-')}</span>
+          <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700">${Number(it.qty)||0}</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx3)">${esc(it.bigo||'-')}</span>
+          <span style="text-align:right">${st}</span></div>`;
+    }).join('');
+    return head + `<div style="padding:4px 10px 10px;background:var(--s2)">
+        <div style="display:grid;grid-template-columns:72px minmax(0,1fr) 40px minmax(0,1fr) 58px;gap:6px;font-size:10px;font-weight:700;color:var(--tx3);padding:2px 0"><span>규격</span><span>품명</span><span style="text-align:right">수량</span><span>비고</span><span style="text-align:right">입고</span></div>
+        ${items}
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;font-size:10.5px;color:var(--tx3)">
+          <span>${o.client?'업체 '+esc(o.client)+' · ':''}${o.ref?'참조 '+esc(o.ref):''}</span>
+          <button onclick="tdyGoTo('order','od-order-list')" style="padding:5px 10px;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">입고 체크는 발주 리스트에서 ›</button>
+        </div></div>`;
+  }).join('');
+  return `<div class="card" id="tdy-orders" style="padding:0;overflow:hidden;border-left:3px solid ${nLate?'var(--acc4)':'var(--acc)'}">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;padding:10px 12px 8px">
+      <span style="font-size:13px;font-weight:800;color:var(--tx1)">📦 발주중 ${list.length}건 <span style="font-weight:500;color:var(--tx3);font-size:11px">· 미입고 ${nQty}장${nLate?` · <b style="color:var(--acc4)">납기 지남 ${nLate}</b>`:''}</span></span>
+      <button onclick="tdyGoTo('order','od-order-list')" style="background:none;border:none;padding:0;font-size:11px;font-weight:700;color:var(--acc);cursor:pointer;font-family:'Noto Sans KR',sans-serif">발주 리스트 ›</button>
+    </div>
+    <div style="display:grid;grid-template-columns:${COLS};gap:6px;padding:5px 10px;background:var(--s3);font-size:10px;font-weight:700;color:var(--tx3)"><span>발주일</span><span>발주처</span><span>발주명</span><span style="text-align:right">납기</span><span style="text-align:right">장</span><span></span></div>
+    ${rows}${list.length>30?`<div style="padding:6px 10px;font-size:11px;color:var(--tx3);border-top:1px solid var(--b1)">외 ${list.length-30}건 — 발주 리스트에서</div>`:''}
+  </div>`;
+}
+
 // 🧾 지금 발주할 것 — 크게 보여 주고 단추 하나로 발주탭에 채웁니다
 function todayOrderNowCard(etpShort){
   if(!etpShort.length) return '';
@@ -24706,7 +24780,8 @@ function renderToday(){
         const overdue=(function(){ try{ return bdCardsAll().filter(c=>c.status!=='done' && bdOverdue(c)).length; }catch(e){ return null; } })();
         return todayTilesHtml({ blocked, etpShort, late, upl, open:tdyOpenOrders(), newItems, overdue });
       }catch(e){ console.warn('[오늘] 타일',e); return ''; } })() +
-    '</div>';
+    '</div>' +
+    (function(){ try{ return todayOrdersCard(); }catch(e){ console.warn('[오늘] 발주중',e); return ''; } })();
 
   let h='';
 
