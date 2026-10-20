@@ -1130,6 +1130,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- LEDGER (매입/매출) -->
 <div class="sec-pg" id="pg-ledger">
+  <!-- 🔒 관리자 PIN (사장님 2026-10-20) — 잠겨 있으면 이 칸만 보입니다(lgGate) -->
+  <style>#pg-ledger.lg-locked > :not(#lg-gate){display:none !important}</style>
+  <div id="lg-gate"></div>
   <div class="info-note" style="margin-bottom:12px">
     💰 매입(사오는 것)·매출(파는 것)을 기록하고 월별·거래처별 합계를 봅니다.<br>
     명세서 사진을 올리면 내용을 읽어 자동으로 채워주고, <b>확인·수정 후 저장</b>할 수 있어요.
@@ -9454,6 +9457,8 @@ function metaForSync(){
   /* 📒 거래처 월 마감 (2026-10-12) — 확정된 달은 요약·이월만(`clForSync`). 묘비도 같이 — 안 보내면 지운 마감이 되살아납니다.
      try 로 감싼 까닭: `closings` 는 뒤쪽 let 이라, 화면이 다 뜨기 전에 불리면 typeof 도 오류를 냅니다. */
   try{ put('closings', clForSync()); put('closingDeleted', closingDeleted); }catch(e){}
+  /* 🔒 매입매출 관리자 PIN (2026-10-20) — 흔적(해시)만 보냅니다. 어느 기기든 같은 PIN 으로 잠깁니다 */
+  try{ if(lgLock && lgLock.h) put('lgLock', lgLock); }catch(e){}
   /* 🛁 바스재고 (2026-10-20) — 묶음마다 고친 때를 같이 보냅니다. 창고 출고는 최근 120일만, 예시 스냅샷은 안 보냅니다(`BAS.forSync`).
      BAS 는 맨 아래 따로 된 <script> 라, 아직 안 읽혔으면 typeof 가 'undefined' 입니다 */
   try{ if(typeof BAS!=='undefined') put('basState', BAS.forSync()); }catch(e){ console.warn('[바스재고] 보내기 준비 실패', e); }
@@ -9636,6 +9641,8 @@ function applyMergedFromSheet(data){
   // 업무판 합치기 — 시트에서 옛 할일·일정이 더 들어왔으면 카드로 옮깁니다(이미 있는 것은 건너뜀)
   try{ if(bdMigrateOld() && typeof curMain!=='undefined' && (curMain==='plan'||curMain==='home')) bdRender(); }catch(e){}
   /* 📒 거래처 월 마감 — 마감마다 나중에 고친 쪽. 받은 것이 요약뿐이면 이 기기의 줄은 살립니다(`clMergeFromSheet`) */
+  // 🔒 매입매출 PIN — 나중에 정한 쪽. 바뀌면 이 기기도 다시 잠깁니다(풀어 둔 흔적이 옛 PIN 것이라)
+  try{ if(data.lgLock && data.lgLock.h && String(data.lgLock.at||'')>String((lgLock&&lgLock.at)||'')){ lgLock=data.lgLock; lgLockSave(false); if(typeof curMain!=='undefined' && curMain==='ledger') lgGate(); } }catch(e){}
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
   }
@@ -13047,7 +13054,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     else if(id==='order-analysis')renderAnalysis();
     else if(id==='glassneed')renderGlassNeed();
     else if(id==='etp')renderEtp();
-    else if(id==='ledger')renderLedger();
+    else if(id==='ledger'){ if(lgGate()) renderLedger(); }   // 🔒 관리자 PIN (2026-10-20)
     else if(id==='vendors')renderVendors();
     else if(id==='settings')initGsUI();
   };
@@ -19097,7 +19104,8 @@ function renderLgSummary(){
   host.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:1px solid var(--b1)">
       <span style="display:flex;align-items:center;gap:6px">${navBtn(-1,false)}<b style="font-size:12.5px;min-width:78px;text-align:center">${ym.slice(0,4)}년 ${mm}월</b>${navBtn(1,isCur)}</span>
-      ${isCur?'':`<button onclick="lgSumYm=null;renderLgSummary()" style="padding:2px 9px;border:none;background:none;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">이번 달로 ›</button>`}</div>
+      <span style="display:flex;align-items:center;gap:4px">${isCur?'':`<button onclick="lgSumYm=null;renderLgSummary()" style="padding:2px 9px;border:none;background:none;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">이번 달로 ›</button>`}
+      ${(typeof lgLock!=='undefined' && lgLock && lgLock.h)?`<button onclick="lgPinChange()" style="padding:2px 6px;border:none;background:none;color:var(--tx3);font-size:10.5px;cursor:pointer">PIN 바꾸기</button><button onclick="lgLockNow()" title="이 기기에서 다시 잠급니다" style="padding:2px 8px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:var(--tx2);font-size:11px;font-weight:700;cursor:pointer">🔒 잠그기</button>`:''}</span></div>
     <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
       <span></span><span style="text-align:right" title="발주 매입(마감 명세서와 같은 계산) + 📒 거래처 월 마감 금액(들어온 달) + 손 기록">📥 매입</span><span style="text-align:right" title="손 기록 + 📋 한샘 SRM(단가표 × 납품서, 발주일 기준)">📤 매출</span><span style="text-align:right">차이</span></div>
     ${isCur ? row('<span style="font-size:15px;font-weight:900;color:var(--acc4)">오늘</span><br><span style="font-size:11px;font-weight:600;color:var(--tx3);font-family:\'JetBrains Mono\',monospace;white-space:nowrap">'+td.slice(2,4)+'. '+td.slice(5,7)+'. '+td.slice(8,10)+'. '+'일월화수목금토'[new Date(td+'T00:00:00').getDay()]+'</span>', d=>d===td, td, null, lgOdBuy(ym, td, td, false)) : ''}
@@ -19109,6 +19117,63 @@ function renderLgSummary(){
 /* 이번 달 누적은 **접어 두는 것이 기본** — 펼치면 그 기기에서 기억 (사장님 2026-10-20 「누적은 접었다 폈다 · 기본값은 오늘만」). 지난 달은 합계 한 줄뿐이라 늘 보입니다. */
 function lgAccOpen(){ if(window._lgAccOpen!=null) return window._lgAccOpen; try{ return localStorage.getItem('ybn-lg-acc-open-v1')==='1'; }catch(e){ return false; } }
 function lgAccToggle(){ window._lgAccOpen=!lgAccOpen(); try{ localStorage.setItem('ybn-lg-acc-open-v1', window._lgAccOpen?'1':'0'); }catch(e){} renderLgSummary(); }
+
+/* ── 🔒 매입매출 관리자 PIN (사장님 2026-10-20 「관리자만 볼 수 있도록 … 비밀번호 누르면」) ──────────
+   · 숫자 4자리. 앱에는 **PIN 자체가 아니라 흔적(SHA-256, 소금 섞음)** 만 저장하고 시트로 모든 기기에 나눕니다(lgLock).
+   · 한 번 맞히면 **그 기기는 계속 열림**(`ybn-lg-unlock-v1` = 그때 흔적). 「🔒 잠그기」로 다시 잠급니다. PIN 을 바꾸면 모든 기기가 다시 잠깁니다.
+   · ⚠ **가림막입니다.** 공개 홈페이지·시트·기기 저장소에 숫자가 그대로 있어, 마음먹고 뒤지면 볼 수 있습니다. 4자리는 흔적만으로도 금방 풀립니다.
+     제대로 막으려면 시트(Apps Script)에서 PIN 을 확인해야 합니다(나중 일). 범위는 💰 매입매출 탭만(사장님 확정). */
+var LS_LG_LOCK='ybn-lg-lock-v1', LS_LG_UNLOCK='ybn-lg-unlock-v1';
+var lgLock=(function(){ try{ return JSON.parse(localStorage.getItem(LS_LG_LOCK))||{}; }catch(e){ return {}; } })();
+function lgLockSave(sync){ try{ localStorage.setItem(LS_LG_LOCK, JSON.stringify(lgLock)); }catch(e){} if(sync!==false && typeof autoSync==='function') autoSync(); }
+async function lgPinHash(pin, salt){
+  const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(salt)+':'+String(pin)));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function lgUnlocked(){ if(!lgLock || !lgLock.h) return false; try{ return localStorage.getItem(LS_LG_UNLOCK)===lgLock.h; }catch(e){ return window._lgUnlockMem===lgLock.h; } }
+/* 열어도 되면 true. 아니면 잠금 칸을 그리고 false */
+function lgGate(){
+  const pg=document.getElementById('pg-ledger'), g=document.getElementById('lg-gate'); if(!pg||!g) return true;
+  if(lgUnlocked()){ pg.classList.remove('lg-locked'); g.innerHTML=''; return true; }
+  pg.classList.add('lg-locked');
+  const setup=!(lgLock && lgLock.h);
+  const inp=(id,ph)=>`<input id="${id}" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="${ph}" onkeydown="if(event.key==='Enter')lgPinGo()" class="inp" style="margin:0;width:150px;text-align:center;letter-spacing:8px;font-size:18px;font-family:'JetBrains Mono',monospace">`;
+  g.innerHTML=`<div class="card" style="max-width:360px;margin:30px auto;text-align:center;padding:22px 18px">
+    <div style="font-size:30px;margin-bottom:6px">🔒</div>
+    <div style="font-size:14px;font-weight:800;margin-bottom:4px">${setup?'매입매출 관리자 PIN 정하기':'매입매출은 관리자만 봅니다'}</div>
+    <div style="font-size:11.5px;color:var(--tx3);margin-bottom:14px">${setup?'숫자 4자리를 두 번 넣어 주십시오. 정하면 모든 기기에서 잠깁니다.':'PIN 4자리를 넣어 주십시오. 이 기기는 「잠그기」 전까지 열려 있습니다.'}</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">${inp('lg-pin1','••••')}${setup?inp('lg-pin2','한 번 더'):''}</div>
+    <div id="lg-pin-msg" style="font-size:11.5px;color:var(--acc4);min-height:16px;margin-top:8px"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:6px"><button onclick="lgPinGo()" style="padding:8px 18px;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${setup?'정하기':'열기'}</button></div>
+  </div>`;
+  setTimeout(()=>{ const e=document.getElementById('lg-pin1'); if(e) try{ e.focus(); }catch(_){} }, 50);
+  return false;
+}
+async function lgPinGo(){
+  const v=id=>((document.getElementById(id)||{}).value||'').trim(), msg=t=>{ const m=document.getElementById('lg-pin-msg'); if(m) m.textContent=t; };
+  const p1=v('lg-pin1');
+  if(!/^\d{4}$/.test(p1)){ msg('숫자 4자리를 넣어 주십시오'); return; }
+  if(!(lgLock && lgLock.h)){
+    if(p1!==v('lg-pin2')){ msg('두 번 넣은 PIN 이 다릅니다'); return; }
+    const salt=[...crypto.getRandomValues(new Uint8Array(8))].map(b=>b.toString(16).padStart(2,'0')).join('');
+    lgLock={ salt, h:await lgPinHash(p1,salt), at:new Date().toISOString(), by:(typeof getActor==='function'&&getActor())||'' };
+    lgLockSave(); showToast('🔒 매입매출 PIN 을 정했습니다');
+  } else if(await lgPinHash(p1,lgLock.salt)!==lgLock.h){ msg('PIN 이 맞지 않습니다'); const e=document.getElementById('lg-pin1'); if(e){ e.value=''; e.focus(); } return; }
+  try{ localStorage.setItem(LS_LG_UNLOCK, lgLock.h); }catch(e){ window._lgUnlockMem=lgLock.h; }
+  if(lgGate()) renderLedger();
+}
+function lgLockNow(){ try{ localStorage.removeItem(LS_LG_UNLOCK); }catch(e){} window._lgUnlockMem=null; lgGate(); showToast('🔒 잠갔습니다'); }
+async function lgPinChange(){
+  const cur=prompt('지금 PIN 4자리'); if(cur==null) return;
+  if(await lgPinHash(cur.trim(),lgLock.salt)!==lgLock.h){ alert('지금 PIN 이 맞지 않습니다'); return; }
+  const n1=prompt('새 PIN 4자리'); if(n1==null) return;
+  if(!/^\d{4}$/.test(n1.trim())){ alert('숫자 4자리로 넣어 주십시오'); return; }
+  if(prompt('새 PIN 한 번 더')!==n1){ alert('두 번 넣은 PIN 이 다릅니다'); return; }
+  const salt=[...crypto.getRandomValues(new Uint8Array(8))].map(b=>b.toString(16).padStart(2,'0')).join('');
+  lgLock={ salt, h:await lgPinHash(n1.trim(),salt), at:new Date().toISOString(), by:(typeof getActor==='function'&&getActor())||'' };
+  lgLockSave(); try{ localStorage.setItem(LS_LG_UNLOCK, lgLock.h); }catch(e){}
+  showToast('🔒 PIN 을 바꿨습니다 — 다른 기기는 다시 잠깁니다');
+}
 function lgVendOpen(){ if(window._lgVendOpen!=null) return window._lgVendOpen; try{ return localStorage.getItem('ybn-lg-vend-open-v1')==='1'; }catch(e){ return false; } }
 function lgVendToggle(){ window._lgVendOpen=!lgVendOpen(); try{ localStorage.setItem('ybn-lg-vend-open-v1', window._lgVendOpen?'1':'0'); }catch(e){} renderLgSummary(); }
 /* 🏢 업체별 (사장님 2026-10-14 「매출·매입 업체별로도 구분해 줘야」) — 고른 달, 공급가.
