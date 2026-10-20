@@ -17982,11 +17982,17 @@ function hsBook(){
     const e=b[k]||(b[k]={ key:k, code:r.code, name:r.name, size:r.size, wh:r.wh, whName:r.whName, price:r.price, prev:null, first:r.deliv, last:r.deliv, n:0, qty:0, hist:[] });
     if(e.price!==r.price){ e.prev=e.price; e.hist.push({ d:r.deliv, from:e.price, to:r.price }); e.price=r.price; }
     e.name=r.name; e.last=r.deliv||e.last; e.n++; e.qty+=r.qty;
+    (e.obs||(e.obs=[])).push({ d:String(r.deliv||''), p:r.price });   // 날짜별 단가 — 그 달 매출을 그때 단가로(hsPriceOf day)
   });
   return b;
 }
 // 납품서 한 줄의 단가 찾기 — 같은 창고 → 다른 창고 순
-function hsPriceOf(code, size, whName, book){
+/* day(발주일)를 주면 **그때 단가**로 찾습니다 (사장님 2026-10-20 「9월 단가 10월 단가 다를 거야 … 각 달에 맞게 매칭」).
+   · 합의서: 등록일(M.date, 10/01) **전** 발주 → 기존금액(old) · 그 뒤 → 변경금액(price).
+   · SRM 줄: 그 날짜까지 본 마지막 단가. 합의서 등록일 뒤의 SRM 값만 합의서를 이깁니다(그 전 값은 조정 전 단가라서).
+   · 그때 단가를 못 찾으면 가장 가까운 값을 쓰고 `approx` 로 드러냅니다(지어내지 않음 — 엑셀 비고에 적힘).
+   day 를 안 주면 예전처럼 오늘 기준입니다. */
+function hsPriceOf(code, size, whName, book, day){
   const b=book||hsBook(); const wh=Object.keys(HS_WH).find(k=>HS_WH[k]===whName)||'';
   /* SRM 줄: 같은 열쇠(코드·사이즈·창고) → 같은 코드·같은 창고 → 같은 코드 아무 창고 (비규격은 코드마다 단가 하나 — 합의서 2026-10) */
   let e=b[hsKey(code,size,wh)];
@@ -17994,10 +18000,22 @@ function hsPriceOf(code, size, whName, book){
           e=same.find(x=>x.wh===wh) || same[0] || null; }
   const M=hsMaster(), m=M ? M.map[code] : null;
   if(!e && !m) return null;
-  if(!e) return { price:m.price, other:false, src:'합의서' };
-  const diff = !!(m && m.price!==e.price);
-  if(m && diff && String(M.date||'') > String(e.last||'')) return { price:m.price, other:false, src:'합의서', diff, srm:e.price };
-  return { price:e.price, other:e.wh!==wh, src:'SRM', diff, master:m?m.price:null };
+  const D=String(day||todayStr()), MD=String((M&&M.date)||''), before = !!(MD && D<MD);
+  // 합의서 값 — 등록일 전이면 기존금액(없으면 모름)
+  const mP = !m ? null : before ? (m.old!=null ? m.old : null) : m.price;
+  // SRM 값 — D 까지 본 마지막 줄(등록일 뒤 발주면 등록일 뒤에 본 줄만 「새 단가 근거」)
+  const obs = e ? (e.obs||[{d:String(e.last||''),p:e.price}]) : [];
+  const upto = obs.filter(o=>o.d && o.d<=D);
+  const sAt = upto.length ? upto[upto.length-1] : null;
+  const sNew = sAt && (!MD || before || sAt.d>=MD) ? sAt : null;     // 이 시기 단가로 믿을 SRM 값
+  const other = !!(e && e.wh!==wh);
+  const diff = !!(mP!=null && sAt && mP!==sAt.p);
+  if(sNew) return { price:sNew.p, other, src:'SRM', diff, master:mP };
+  if(mP!=null) return { price:mP, other:false, src: before?'합의서(조정 전)':'합의서', diff, srm:sAt?sAt.p:null };
+  // 그때 단가를 못 찾음 — 가장 가까운 값(조정 전 SRM 이 있으면 그것, 아니면 나중 SRM · 합의서 변경금액)
+  const near = sAt || (obs.length ? obs[0] : null);
+  if(near) return { price:near.p, other, src:'SRM', diff:false, approx:true };
+  return { price:m.price, other:false, src:'합의서', approx:true };
 }
 // 📥 합의서 엑셀 읽기 — 「자재코드」·「변경금액」 머리를 찾아 그 칸으로(줄·칸 자리가 바뀌어도 되게)
 function hsMasterPick(){ const el=document.getElementById('hs-master-file'); if(el){ el.value=''; el.click(); } }
@@ -18033,7 +18051,10 @@ function hsMasterParse(wb){
       if(typeof dv==='number' && dv>30000) dt=new Date(Math.round((dv-25569)*86400000)).toISOString().slice(0,10);   // 엑셀 날짜 = UTC 자정이라 toISOString 이 맞음(3-1 예외)
       else { const m=String(dv).match(/(20\d{2})[-.\/]?(\d{1,2})[-.\/]?(\d{1,2})/); if(m) dt=m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'); }
       if(dt>dmax) dmax=dt;
-      map[code]={ price:p };   // 코드·단가만 담습니다 — 품명·기존금액까지 담으니 317KB 였습니다(2026-10-14 용량)
+      /* 코드·단가만 담습니다 — 품명까지 담으니 317KB 였습니다(2026-10-14 용량).
+         기존금액(조정 전)은 **다를 때만** old 로 남깁니다 — 등록일 이전 발주의 매출을 그때 단가로 셉니다(사장님 2026-10-20 「각 달에 맞게」). */
+      const old=cOld>=0 ? hsNum(row[cOld]) : null;
+      map[code]= (old!=null && old>0 && old!==p) ? { price:p, old } : { price:p };
       n++;
     }
     if(n && (!best || n>best.n)) best={ n, map, date:dmax, sheet:sn };
@@ -18078,9 +18099,9 @@ function hsMonthRows(ym){
       const q=Number(it.qty)||0; if(!q || !it.code) return;
       const nm=it.name||it.short||'';
       const size=hsSizeOf(nm);
-      const p=hsPriceOf(it.code, size, whName, book);
+      const p=hsPriceOf(it.code, size, whName, book, day);   // 발주일 그때 단가(2026-10-20)
       out.push({ day, delivNo:d.delivNo||'', refNo:d.refNo||'', as, whName, code:it.code, name:nm, size, qty:q,
-                 price:p?p.price:null, other:p?p.other:false, src:p?p.src:'', diff:p?!!p.diff:false, amt:p?p.price*q:null });
+                 price:p?p.price:null, other:p?p.other:false, src:p?p.src:'', diff:p?!!p.diff:false, approx:p?!!p.approx:false, amt:p?p.price*q:null });
     });
   });
   return out.sort((a,b)=>a.day.localeCompare(b.day)||a.code.localeCompare(b.code));
@@ -18093,7 +18114,7 @@ function hsMonthExcel(){
   const sum=(f)=>rows.filter(f).reduce((s,r)=>s+(r.amt||0),0);
   const head=[['기간',ym,'','기준','발주일 · 납품서 수량 × 한샘 단가표(공급가)'],[],
     ['발주일','창고','구분','납품번호','참조오더','제품코드','품명','사이즈','수량','단가','금액','비고']];
-  const body=rows.map(r=>[r.day, r.whName, r.as?'AS':'정오더', r.delivNo, r.refNo, r.code, r.name, r.size, r.qty, r.price==null?'':r.price, r.amt==null?'':r.amt, r.price==null?'단가 없음':[r.src, r.other?'다른 창고 단가':'', r.diff?'⚠ SRM·합의서 다름':''].filter(Boolean).join(' · ')]);
+  const body=rows.map(r=>[r.day, r.whName, r.as?'AS':'정오더', r.delivNo, r.refNo, r.code, r.name, r.size, r.qty, r.price==null?'':r.price, r.amt==null?'':r.amt, r.price==null?'단가 없음':[r.src, r.other?'다른 창고 단가':'', r.diff?'⚠ SRM·합의서 다름':'', r.approx?'⚠ 그때 단가 못 찾음(가까운 값)':''].filter(Boolean).join(' · ')]);
   const tot=[[],
     ['그레이박스 정오더','','','','','','','','',' ',sum(r=>r.whName==='그레이박스'&&!r.as)],
     ['오이도 정오더','','','','','','','','',' ',sum(r=>r.whName==='오이도'&&!r.as)],
@@ -18180,7 +18201,7 @@ function renderHsPrice(){
       <span style="display:flex;gap:6px;flex-wrap:wrap">${btn('hsMasterPick()','📥 단가 합의서 넣기',1)}${btn('hsOpenPaste()','📋 SRM 줄 붙여넣기')}${book.length?btn('hsToggle()',hsOpen?'접기':'펼치기'):''}</span>
       <input type="file" id="hs-master-file" accept=".xlsx,.xls" style="display:none" onchange="hsMasterFile(this)">
     </div>
-    ${M?`<div style="font-size:11.5px;color:var(--tx1);line-height:1.7;margin-bottom:4px">📥 단가 합의서 <b>${M.n.toLocaleString('ko-KR')}품목</b>${M.date?` · 등록일 <b>${M.date}</b>`:''} <span style="color:var(--tx3)">— 납품서 코드로 단가를 찾습니다 (비규격도 코드마다 하나 · 두 창고 같이)</span>${nDiff?` · <b style="color:var(--acc2)">SRM 과 다른 단가 ${nDiff}</b>`:''}</div>`
+    ${M?`<div style="font-size:11.5px;color:var(--tx1);line-height:1.7;margin-bottom:4px">📥 단가 합의서 <b>${M.n.toLocaleString('ko-KR')}품목</b>${M.date?` · 등록일 <b>${M.date}</b>`:''} <span style="color:var(--tx3)">— 납품서 코드로 단가를 찾습니다 (비규격도 코드마다 하나 · 두 창고 같이)</span>${nDiff?` · <b style="color:var(--acc2)">SRM 과 다른 단가 ${nDiff}</b>`:''}${Object.values(M.map).some(x=>x&&x.old!=null)?'':` <div style="color:var(--acc2);font-weight:700">⚠ 조정 전 단가(기존금액)가 저장돼 있지 않습니다 — 합의서 엑셀을 한 번 더 넣어 주시면 ${M.date?M.date.slice(5).replace('-','/'):'등록일'} 이전 발주는 조정 전 단가로 셉니다.</div>`}</div>`
        :`<div style="font-size:11.5px;color:var(--acc2);line-height:1.7;margin-bottom:4px">📥 한샘 「상품단가 조정합의서」 엑셀을 넣으면 1천여 품목 단가가 한 번에 들어가 매일 매출이 저절로 나옵니다.</div>`}
     <div style="font-size:11.5px;color:var(--tx2);line-height:1.7">
       SRM 「P/O 구매오더상세」 표 줄을 복사해 붙이면 <b>제품코드별 단가</b>가 쌓입니다(합의서에 없는 품목용). 창고는 저장소 칸으로 갈립니다(1001 그레이박스 · 2001 오이도).
