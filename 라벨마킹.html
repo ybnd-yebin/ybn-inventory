@@ -1280,9 +1280,12 @@ function applyBundleNotes(pend){
   const done = new Set();
   for(const l of labels){                     // labelNames() 는 쪽·사분면 차례대로 줍니다
     const k = keyOf(l.name), g = grp.get(k);
-    if(g.n < 2 || done.has(k)) continue;      // 한 장뿐이거나 이미 적었으면 넘어갑니다
+    if(done.has(k)) continue;                 // 이미 적었으면 넘어갑니다
     done.add(k);
-    const text = (g.L && g.R)
+    /* 한 장뿐이면 숫자 `1` 만 (사장님 2026-10-21 「1장짜리도 숫자 1 넣을 수 있게」) — 좌우가 있어도 `1`.
+       좌우는 L/R 규칙 메모가 따로 적습니다. */
+    const text = g.n === 1 ? "1"
+      : (g.L && g.R)
       ? ["L"+g.L, "R"+g.R].concat(g.N ? ["미표기"+g.N] : []).join("/")
       : g.n + "장";
     addPend(pend, l.page, l.line, "bundle", text);
@@ -1922,7 +1925,7 @@ function renderStats(){
   // 쪼가리 메모는 한 줄에 여럿이 붙을 수 있어, 글자로 셉니다
   const strip = state.notes.filter(n=>n.rule==="__strip__");
   const has = re => strip.filter(n=>re.test(n.text)).length;
-  if(state.extras.bundle) rows.push(["묶음 표시", has(/(?:^|·\s)\d+장(?:\s|$)/)+"묶음"]);
+  if(state.extras.bundle) rows.push(["묶음 표시", has(/(?:^|·\s)(?:\d+장|1)(?:\s|$)/)+"묶음"]);
   if(state.extras.glass){
     const bad = has(/유리\?/);
     rows.push(["유리 사이즈", has(/\d+×\d+/)+"장" + (bad ? ` (확인 필요 ${bad})` : "")]);
