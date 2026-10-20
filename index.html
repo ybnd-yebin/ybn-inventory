@@ -19089,7 +19089,7 @@ function renderLgSummary(){
     return `<div ${click?`onclick="${click}" title="눌러서 업체별 보기" `:''}style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)${click?';cursor:pointer':''}">
       <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)',bSub)}${v(sell,'var(--acc3)',sub)}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
   /* 업체별 표는 「N월 누적(합계)」 줄을 눌러야 펼칩니다 (사장님 2026-10-19). 펼침은 이 기기에 기억. */
-  const vOpen=lgVendOpen();
+  const vOpen=lgVendOpen(), accOpen=!isCur || lgAccOpen();
   const odMonth=lgOdBuy(ym, from, to, true);
   const vend=vOpen ? lgVendorTableHtml(ym, from, to, odMonth, isCur) : '';
   const tog='<br><span style="font-size:10px;font-weight:600;color:var(--acc);white-space:nowrap">'+(vOpen?'업체별 ▴':'업체별 ▾')+'</span>';
@@ -19100,10 +19100,15 @@ function renderLgSummary(){
       ${isCur?'':`<button onclick="lgSumYm=null;renderLgSummary()" style="padding:2px 9px;border:none;background:none;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">이번 달로 ›</button>`}</div>
     <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
       <span></span><span style="text-align:right" title="발주 매입(마감 명세서와 같은 계산) + 📒 거래처 월 마감 금액(들어온 달) + 손 기록">📥 매입</span><span style="text-align:right" title="손 기록 + 📋 한샘 SRM(단가표 × 납품서, 발주일 기준)">📤 매출</span><span style="text-align:right">차이</span></div>
-    ${isCur ? row('오늘<br><span style="font-size:11px;font-weight:600;color:var(--tx3);font-family:\'JetBrains Mono\',monospace;white-space:nowrap">'+td.slice(2,4)+'. '+td.slice(5,7)+'. '+td.slice(8,10)+'. '+'일월화수목금토'[new Date(td+'T00:00:00').getDay()]+'</span>', d=>d===td, td, null, lgOdBuy(ym, td, td, false)) : ''}
-    ${row(mm+'월 '+(isCur?'누적':'합계')+tog, d=>d>=from && d<=to, ym, to, odMonth, 'lgVendToggle()')}
-  </div></div>` + vend;
+    ${isCur ? row('<span style="font-size:15px;font-weight:900;color:var(--acc4)">오늘</span><br><span style="font-size:11px;font-weight:600;color:var(--tx3);font-family:\'JetBrains Mono\',monospace;white-space:nowrap">'+td.slice(2,4)+'. '+td.slice(5,7)+'. '+td.slice(8,10)+'. '+'일월화수목금토'[new Date(td+'T00:00:00').getDay()]+'</span>', d=>d===td, td, null, lgOdBuy(ym, td, td, false)) : ''}
+    ${accOpen ? row(mm+'월 '+(isCur?'누적':'합계')+tog, d=>d>=from && d<=to, ym, to, odMonth, 'lgVendToggle()')
+              : `<button onclick="lgAccToggle()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;border-top:1px solid var(--b1);background:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:11.5px;font-weight:700;color:var(--acc)">${mm}월 누적 보기 ▾</button>`}
+    ${isCur && accOpen ? `<button onclick="lgAccToggle()" style="display:block;width:100%;text-align:right;padding:5px 12px;border:none;border-top:1px dashed var(--b1);background:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:11px;color:var(--tx3)">누적 접기 ▴</button>` : ''}
+  </div></div>` + (accOpen ? vend : '');
 }
+/* 이번 달 누적은 **접어 두는 것이 기본** — 펼치면 그 기기에서 기억 (사장님 2026-10-20 「누적은 접었다 폈다 · 기본값은 오늘만」). 지난 달은 합계 한 줄뿐이라 늘 보입니다. */
+function lgAccOpen(){ if(window._lgAccOpen!=null) return window._lgAccOpen; try{ return localStorage.getItem('ybn-lg-acc-open-v1')==='1'; }catch(e){ return false; } }
+function lgAccToggle(){ window._lgAccOpen=!lgAccOpen(); try{ localStorage.setItem('ybn-lg-acc-open-v1', window._lgAccOpen?'1':'0'); }catch(e){} renderLgSummary(); }
 function lgVendOpen(){ if(window._lgVendOpen!=null) return window._lgVendOpen; try{ return localStorage.getItem('ybn-lg-vend-open-v1')==='1'; }catch(e){ return false; } }
 function lgVendToggle(){ window._lgVendOpen=!lgVendOpen(); try{ localStorage.setItem('ybn-lg-vend-open-v1', window._lgVendOpen?'1':'0'); }catch(e){} renderLgSummary(); }
 /* 🏢 업체별 (사장님 2026-10-14 「매출·매입 업체별로도 구분해 줘야」) — 고른 달, 공급가.
