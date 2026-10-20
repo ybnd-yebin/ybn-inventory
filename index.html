@@ -18089,6 +18089,10 @@ function hsOnSearch(v){ hsSearch=String(v||''); clearTimeout(window._hsT); windo
 // 📥 한 달 매출 — 그달 납품서(납품요청일) 수량 × 단가표
 let hsYm = todayStr().slice(0,7);
 /* ym = 'YYYY-MM' 이면 그달, 'YYYY-MM-DD' 이면 그날 (발주일 기준) */
+/* 바스 = 드림하이텍 제품 — 제품코드 BB 로 시작 (한샘 납품서). 판별은 이 함수 하나로(CLAUDE.md 6-1).
+   매출은 **법인별로 갈라** 봅니다(사장님 2026-10-20 「바스는 드림하이텍 매출 … 세무서류상 구분」) — 합계는 둘을 더한 하나의 주머니. */
+function isBasCode(code){ return /^BB\d/i.test(String(code||'').trim()); }
+function hsCorpOf(code){ return isBasCode(code) ? '드림하이텍' : '와이비앤디'; }
 function hsMonthRows(ym){
   const out=[], book=hsBook();
   (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
@@ -18100,7 +18104,7 @@ function hsMonthRows(ym){
       const nm=it.name||it.short||'';
       const size=hsSizeOf(nm);
       const p=hsPriceOf(it.code, size, whName, book, day);   // 발주일 그때 단가(2026-10-20)
-      out.push({ day, delivNo:d.delivNo||'', refNo:d.refNo||'', as, whName, code:it.code, name:nm, size, qty:q,
+      out.push({ day, delivNo:d.delivNo||'', refNo:d.refNo||'', as, whName, corp:hsCorpOf(it.code), code:it.code, name:nm, size, qty:q,
                  price:p?p.price:null, other:p?p.other:false, src:p?p.src:'', diff:p?!!p.diff:false, approx:p?!!p.approx:false, amt:p?p.price*q:null });
     });
   });
@@ -18113,16 +18117,21 @@ function hsMonthExcel(){
   if(!rows.length){ showToast(ym+' 납품서가 없습니다'); return; }
   const sum=(f)=>rows.filter(f).reduce((s,r)=>s+(r.amt||0),0);
   const head=[['기간',ym,'','기준','발주일 · 납품서 수량 × 한샘 단가표(공급가)'],[],
-    ['발주일','창고','구분','납품번호','참조오더','제품코드','품명','사이즈','수량','단가','금액','비고']];
-  const body=rows.map(r=>[r.day, r.whName, r.as?'AS':'정오더', r.delivNo, r.refNo, r.code, r.name, r.size, r.qty, r.price==null?'':r.price, r.amt==null?'':r.amt, r.price==null?'단가 없음':[r.src, r.other?'다른 창고 단가':'', r.diff?'⚠ SRM·합의서 다름':'', r.approx?'⚠ 그때 단가 못 찾음(가까운 값)':''].filter(Boolean).join(' · ')]);
+    ['발주일','법인','창고','구분','납품번호','참조오더','제품코드','품명','사이즈','수량','단가','금액','비고']];
+  const body=rows.map(r=>[r.day, r.corp, r.whName, r.as?'AS':'정오더', r.delivNo, r.refNo, r.code, r.name, r.size, r.qty, r.price==null?'':r.price, r.amt==null?'':r.amt, r.price==null?'단가 없음':[r.src, r.other?'다른 창고 단가':'', r.diff?'⚠ SRM·합의서 다름':'', r.approx?'⚠ 그때 단가 못 찾음(가까운 값)':''].filter(Boolean).join(' · ')]);
+  // 합계 줄 — 금액은 L열(12번째). 법인별을 먼저 적고, 와이비앤디 안을 창고·AS 로 가릅니다
+  const T=(lab,v)=>[lab,'','','','','','','','','','',v];
+  const yb=r=>r.corp==='와이비앤디';
   const tot=[[],
-    ['그레이박스 정오더','','','','','','','','',' ',sum(r=>r.whName==='그레이박스'&&!r.as)],
-    ['오이도 정오더','','','','','','','','',' ',sum(r=>r.whName==='오이도'&&!r.as)],
-    ['AS','','','','','','','','',' ',sum(r=>r.as)],
-    ['합계(공급가)','','','','','','','','',' ',sum(()=>true)],
-    ['단가 없음',rows.filter(r=>r.price==null).length+'줄','','','','','','',rows.filter(r=>r.price==null).reduce((s,r)=>s+r.qty,0)+'개']];
+    T('와이비앤디 합계', sum(yb)),
+    T('  그레이박스 정오더', sum(r=>yb(r)&&r.whName==='그레이박스'&&!r.as)),
+    T('  오이도 정오더', sum(r=>yb(r)&&r.whName==='오이도'&&!r.as)),
+    T('  AS', sum(r=>yb(r)&&r.as)),
+    T('드림하이텍 합계 (바스)', sum(r=>r.corp==='드림하이텍')),
+    T('전체 합계(공급가)', sum(()=>true)),
+    ['단가 없음',rows.filter(r=>r.price==null).length+'줄','','','','','','','',rows.filter(r=>r.price==null).reduce((s,r)=>s+r.qty,0)+'개']];
   const ws=XLSX.utils.aoa_to_sheet(head.concat(body,tot));
-  ws['!cols']=[{wch:11},{wch:10},{wch:7},{wch:12},{wch:12},{wch:12},{wch:40},{wch:11},{wch:6},{wch:10},{wch:12},{wch:14}];
+  ws['!cols']=[{wch:11},{wch:10},{wch:10},{wch:7},{wch:12},{wch:12},{wch:12},{wch:40},{wch:11},{wch:6},{wch:10},{wch:12},{wch:14}];
   const book=Object.values(hsBook()).sort((a,b)=>a.whName.localeCompare(b.whName)||a.code.localeCompare(b.code));
   const ws2=XLSX.utils.aoa_to_sheet([['창고','제품코드','품명','사이즈','단가','이전 단가','처음','마지막','본 횟수']].concat(
     book.map(e=>[e.whName,e.code,e.name,e.size,e.price,e.prev==null?'':e.prev,e.first,e.last,e.n])));
@@ -18567,7 +18576,8 @@ function renderLgSummary(){
   const sum=(f,k)=>ledgerLog.filter(r=>r&&r.kind===k&&f(String(r.date||''))).reduce((s,r)=>s+(lgRecordTotal(r)||0),0);
   /* 한샘 매출 — 📋 한샘 단가표 × 그날(그달) 납품서, **발주일** 기준 (사장님 2026-10-14 「매출은 올려놨는데 왜 위에 금액이 안 나오지」).
      손으로 적은 매출(ledgerLog)과 따로 칸을 둡니다 — 같은 한샘 매출을 손으로도 적으셨으면 두 번 셉니다. */
-  const hs=(key, upto)=>{ try{ let r=(typeof hsMonthRows==='function')?hsMonthRows(key):[]; if(upto) r=r.filter(x=>x.day<=upto); return { amt:r.reduce((s,x)=>s+(x.amt||0),0), none:r.filter(x=>x.price==null).length }; }catch(e){ return {amt:0,none:0}; } };
+  const hs=(key, upto)=>{ try{ let r=(typeof hsMonthRows==='function')?hsMonthRows(key):[]; if(upto) r=r.filter(x=>x.day<=upto);
+    return { amt:r.reduce((s,x)=>s+(x.amt||0),0), dream:r.filter(x=>x.corp==='드림하이텍').reduce((s,x)=>s+(x.amt||0),0), none:r.filter(x=>x.price==null).length }; }catch(e){ return {amt:0,dream:0,none:0}; } };
   /* 위 요약은 **매입 · 매출 · 차이** 세 칸만 (사장님 2026-10-14). 숫자 아래에 작게 무엇으로 이뤄졌는지 적습니다. */
   const COLS='72px repeat(3,minmax(0,1fr))';
   const v=(x,c,sub)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}${sub?`<br><small style="font-size:10px;font-weight:600;color:var(--tx3);font-family:'Noto Sans KR',sans-serif;line-height:1.5">${sub}</small>`:''}</span>`;
@@ -18579,7 +18589,10 @@ function renderLgSummary(){
     const b=lgB+odAmt+clAmt, d=sell-b;
     const bParts=[odAmt?'발주 '+won(odAmt):'', clAmt?'📒 마감 '+won(clAmt)+(clWait?' (대조중)':''):'', lgB?'기록 '+won(lgB):''].filter(Boolean);
     const bSub=bParts.length>1||clAmt ? bParts.join('<br>') : '';
-    const sub=[ H.amt||H.none ? '📋 한샘 SRM '+(H.amt?won(H.amt):'-') : '', H.amt&&s2 ? '기록 '+won(s2) : '',
+    // 법인별 — 바스(BB 코드)는 드림하이텍 매출로 따로 적습니다(사장님 2026-10-20). 매출 큰 숫자는 둘을 더한 것
+    const sub=[ H.amt||H.none ? '📋 한샘 SRM '+(H.amt?won(H.amt):'-') : '',
+                H.dream ? `└ 와이비앤디 ${won(H.amt-H.dream)} · 드림하이텍(바스) ${won(H.dream)}` : '',
+                H.amt&&s2 ? '기록 '+won(s2) : '',
                 H.none ? `<b onclick="event.stopPropagation();hsGoNeed('${hk}')" title="눌러서 단가가 필요한 발주 보기" style="color:var(--acc2);cursor:pointer;text-decoration:underline">단가 없음 ${H.none}줄 ›</b>` : '' ].filter(Boolean).join('<br>');
     return `<div ${click?`onclick="${click}" title="눌러서 업체별 보기" `:''}style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)${click?';cursor:pointer':''}">
       <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)',bSub)}${v(sell,'var(--acc3)',sub)}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
@@ -18614,7 +18627,11 @@ function lgVendorTableHtml(ym, from, to, odMap, isCur){
   ledgerLog.forEach(r=>{ const d=String(r.date||''); if(!(d>=from && d<=to)) return;
     const e=take(odStmtVendor(r.vendor||'(거래처 없음)')); e.lgN++;
     if(r.kind==='buy') e.buyLg+=lgRecordTotal(r)||0; else if(r.kind==='sell') e.sell+=lgRecordTotal(r)||0; });
-  try{ const hr=hsMonthRows(ym).filter(r=>r.day<=to); if(hr.length){ const e=take('한샘'); e.sellHs=hr.reduce((s,r)=>s+(r.amt||0),0); e.hsNone=hr.filter(r=>r.price==null).length; } }catch(e){}
+  // 한샘 SRM 매출 — 법인별로 두 줄(바스 = 드림하이텍, 사장님 2026-10-20)
+  try{ const hr=hsMonthRows(ym).filter(r=>r.day<=to);
+    [['한샘','와이비앤디'],['한샘 · 바스 (드림하이텍)','드림하이텍']].forEach(([lab,corp])=>{
+      const rr=hr.filter(r=>r.corp===corp); if(!rr.length) return;
+      const e=take(lab); e.sellHs=rr.reduce((s,r)=>s+(r.amt||0),0); e.hsNone=rr.filter(r=>r.price==null).length; }); }catch(e){}
   const list=Object.values(V).filter(e=>e.buyOd||e.buyLg||e.sell||e.sellHs||e.odNone||e.hsNone||e.skipNo||e.skipAuto||e.closing)
     .sort((a,b)=>(b.buyOd+b.buyLg+b.sell+b.sellHs)-(a.buyOd+a.buyLg+a.sell+a.sellHs));
   if(!list.length) return '';
@@ -20503,7 +20520,7 @@ function unmatchedKind(name, code){
   const n=String(name||''), c=String(code||'');
   if(/비규격/.test(n) || /^\(\s*비\s*\)/.test(n.trim())) return 'nonstd';
   if(/Veil/i.test(n))                                    return 'veil';
-  if(/^BB\d/i.test(c))                                   return 'bas';    // 바스(드림하이텍) — 바스재고운영에서 봅니다
+  if(isBasCode(c))                                       return 'bas';    // 바스(드림하이텍) — 바스재고운영에서 봅니다
   if(/^MAL/i.test(c) || /\bAL\s*(45|55)\b/i.test(n))     return 'al';     // AL 계열 — 인쇄유리가 아닙니다
   if(/Euro\s*500|EURO5\b/i.test(n))                      return 'euro500';
   // 카탈로그에 대분류가 있으면 그것을 먼저 믿습니다 (이름 표기가 흔들려도 걸립니다)
