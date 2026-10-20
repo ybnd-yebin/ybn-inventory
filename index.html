@@ -1157,7 +1157,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
     <!-- 한 줄로 줄임 (사장님 2026-10-14 「UI 들이 쓸데없이 폭이 넓거나 공간을 많이 씀」) — 거래처 · 날짜 · 명세서 사진 -->
     <input type="file" id="lg-photo" accept="image/*" onchange="lgPhotoSelected(event)" style="display:none">
-    <div class="lg-top" style="display:grid;grid-template-columns:minmax(0,240px) 150px auto;justify-content:start;gap:8px;align-items:end">
+    <div class="lg-top" style="display:grid;grid-template-columns:minmax(0,240px) 150px auto auto;justify-content:start;gap:8px;align-items:end">
       <div>
         <span class="lbl" style="margin-bottom:3px">거래처</span>
         <input id="lg-vendor" class="inp" placeholder="거래처명" list="lg-vendor-list" autocomplete="off" style="margin:0;padding:8px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
@@ -1168,40 +1168,46 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
         <input type="date" id="lg-date" class="inp" style="margin:0;padding:8px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif">
       </div>
       <button onclick="document.getElementById('lg-photo').click()" title="명세서 사진을 찍거나 올리면 읽어서 채웁니다" style="padding:8px 12px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap">📷 명세서 사진</button>
+      <!-- 붙여넣기 입력도 단추로 접어 둡니다 (사장님 2026-10-20 「명세서 사진 옆에 버튼 … 누르면 펼쳐지게」) -->
+      <button id="lg-paste-btn" onclick="lgFold('lg-paste-box','lg-paste-btn')" title="클로드가 정리해 준 명세서 내용을 붙여 넣어 한 번에 채웁니다" style="padding:8px 12px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc3);font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap">📋 붙여넣기</button>
     </div>
-    <style>@media (max-width:560px){ .lg-top{grid-template-columns:1fr 1fr !important} .lg-top>button{grid-column:1 / -1} }</style>
+    <style>@media (max-width:560px){ .lg-top{grid-template-columns:1fr 1fr !important} .lg-top>button{grid-column:auto} }</style>
     <div id="lg-photo-preview" style="margin-top:6px"></div>
     <div id="lg-read-status" style="font-size:11px;color:var(--tx2)"></div>
 
     <!-- 붙여넣기로 한 번에 입력 -->
-    <details style="margin-top:8px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);padding:8px 10px">
-      <summary style="font-size:12px;font-weight:700;color:var(--acc3);cursor:pointer;list-style:none">📋 붙여넣기로 한 번에 입력 (클로드가 정리해준 내용)</summary>
-      <div style="font-size:10px;color:var(--tx3);margin:6px 0">
+    <div id="lg-paste-box" style="display:none;margin-top:8px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);padding:8px 10px">
+      <div style="font-size:10px;color:var(--tx3);margin:0 0 6px">
         클로드 채팅에 명세서 사진을 보내고, 정리해준 내용을 그대로 복사해서 아래에 붙여넣고 "불러오기"를 누르세요.<br>
         한 줄에 한 품목 · 쉼표(,)나 탭으로 구분 · 순서는 <b>품목, 단가, 수량, 금액</b>.<br>
         "거래처: …", "날짜: …" 줄이 있으면 거래처·날짜도 같이 채워져요.
       </div>
       <textarea id="lg-paste" rows="5" placeholder="거래처: 아름지엠에스&#10;날짜: 2026-06-01&#10;5T 투명 505*2073, 43706, 20, 874111&#10;5T 브론즈 500*2476, 57104, 2, 114208" style="width:100%;box-sizing:border-box;padding:8px;font-size:12px;font-family:'JetBrains Mono',monospace;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);resize:vertical"></textarea>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <button onclick="lgParsePaste(false)" style="flex:1;padding:9px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📥 불러오기 (기존에 추가)</button>
-        <button onclick="lgParsePaste(true)" style="flex:1;padding:9px;background:var(--s3);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">🔄 새로 채우기</button>
+      <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;flex-wrap:wrap">
+        <button onclick="lgParsePaste(true)" style="padding:7px 14px;background:var(--s3);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">🔄 새로 채우기</button>
+        <button onclick="lgParsePaste(false)" style="padding:7px 14px;background:var(--acc3);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📥 불러오기 (기존에 추가)</button>
       </div>
       <div id="lg-paste-status" style="font-size:11px;margin-top:6px"></div>
-    </details>
+    </div>
 
     <div id="lg-items" style="margin-top:8px"></div>
     <div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px">
       <button onclick="lgAddItemRow()" style="padding:7px 12px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc);font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">＋ 품목</button>
+      <!-- 메모는 선택이라 단추로 접어 둡니다 (사장님 2026-10-20) — 적어 둔 메모가 있으면 펼쳐 보입니다 -->
+      <button id="lg-memo-btn" onclick="lgFold('lg-memo-box','lg-memo-btn')" style="padding:7px 12px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--tx2);font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">📝 메모</button>
       <span style="flex:1"></span>
       <span style="font-size:12.5px;font-weight:700;color:var(--tx2)">명세서 합계</span>
       <span id="lg-grand" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:900;color:var(--acc3)">0원</span>
     </div>
+    <div id="lg-memo-box" style="display:none;margin-bottom:8px">
+      <input id="lg-memo" class="inp" placeholder="메모" style="margin:0;padding:8px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif">
+    </div>
 
-
-    <input id="lg-memo" class="inp" placeholder="메모 (선택)" style="padding:9px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif;margin-bottom:10px">
-
-    <button class="act-btn blue" id="lg-save-btn" onclick="lgSave()" style="background:var(--acc3)">💾 기록 저장</button>
-    <div id="lg-edit-cancel" style="display:none;text-align:center;margin-top:6px"><button onclick="lgResetForm()" style="background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;text-decoration:underline">수정 취소</button></div>
+    <!-- 저장은 오른쪽 작은 단추 (사장님 2026-10-20 「한 줄에 다 쓰지 않았으면」) -->
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px">
+      <span id="lg-edit-cancel" style="display:none"><button onclick="lgResetForm()" style="background:none;border:none;color:var(--tx3);font-size:11.5px;cursor:pointer;text-decoration:underline">수정 취소</button></span>
+      <button id="lg-save-btn" onclick="lgSave()" style="padding:9px 20px;border:none;border-radius:9px;background:var(--acc3);color:#fff;font-size:13px;font-weight:800;font-family:'Noto Sans KR',sans-serif;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.12)">💾 기록 저장</button>
+    </div>
   </div>
 
   <!-- 월별 집계 -->
@@ -18828,8 +18834,17 @@ function lgParsePaste(replace){
   document.getElementById('lg-paste').value='';
 }
 
+/* 접어 둔 칸 펼치기·접기 — 붙여넣기(lg-paste-box)·메모(lg-memo-box). 펼쳐지면 단추를 진하게 (사장님 2026-10-20 「선택사항은 단추로 숨겨 두기」) */
+function lgFold(boxId, btnId, open){
+  const b=document.getElementById(boxId), t=document.getElementById(btnId); if(!b) return;
+  const on = open==null ? b.style.display==='none' : !!open;
+  b.style.display = on ? '' : 'none';
+  if(t){ t.style.borderStyle = on ? 'solid' : 'dashed'; t.style.background = on ? 'var(--s3)' : 'var(--s2)'; }
+  if(on && open==null){ const f=b.querySelector('textarea,input'); if(f) try{ f.focus(); }catch(e){} }
+}
 function lgResetForm(){
   lgEditId=null; lgPhotoData=null; lgReadData=null;
+  try{ lgFold('lg-memo-box','lg-memo-btn',false); }catch(e){}
   lgItems=[{item:'',price:'',qty:'',amount:''}];
   ['lg-vendor','lg-memo'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const d=document.getElementById('lg-date'); if(d)d.value=todayStr();
@@ -18973,6 +18988,7 @@ function lgEdit(id){
   document.getElementById('lg-vendor').value=r.vendor||'';
   document.getElementById('lg-date').value=r.date||'';
   document.getElementById('lg-memo').value=r.memo||'';
+  lgFold('lg-memo-box','lg-memo-btn',!!r.memo);   // 메모가 있는 기록을 고칠 때는 펼쳐 보입니다
   const items=lgRecordItems(r);
   lgItems=items.length?items.map(it=>({item:it.item||'',price:it.price||'',qty:it.qty||'',amount:it.amount||''})):[{item:'',price:'',qty:'',amount:''}];
   lgRenderItems();
