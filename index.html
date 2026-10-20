@@ -19084,7 +19084,7 @@ function renderLgSummary(){
       ${isCur?'':`<button onclick="lgSumYm=null;renderLgSummary()" style="padding:2px 9px;border:none;background:none;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">이번 달로 ›</button>`}</div>
     <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
       <span></span><span style="text-align:right" title="발주 매입(마감 명세서와 같은 계산) + 📒 거래처 월 마감 금액(들어온 달) + 손 기록">📥 매입</span><span style="text-align:right" title="손 기록 + 📋 한샘 SRM(단가표 × 납품서, 발주일 기준)">📤 매출</span><span style="text-align:right">차이</span></div>
-    ${isCur ? row('오늘 '+(+td.slice(5,7))+'/'+(+td.slice(8,10)), d=>d===td, td, null, lgOdBuy(ym, td, td, false)) : ''}
+    ${isCur ? row('오늘<br><span style="font-size:11px;font-weight:600;color:var(--tx3);font-family:\'JetBrains Mono\',monospace;white-space:nowrap">'+td.slice(2,4)+'. '+td.slice(5,7)+'. '+td.slice(8,10)+'. '+'일월화수목금토'[new Date(td+'T00:00:00').getDay()]+'</span>', d=>d===td, td, null, lgOdBuy(ym, td, td, false)) : ''}
     ${row(mm+'월 '+(isCur?'누적':'합계')+tog, d=>d>=from && d<=to, ym, to, odMonth, 'lgVendToggle()')}
   </div></div>` + vend;
 }
