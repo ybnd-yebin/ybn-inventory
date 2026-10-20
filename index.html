@@ -13087,15 +13087,17 @@ const OD_CATALOG = {
          sizes:['293*794','313*446','393*794'],
          fname:'바스 백사틴',
          hint:'한샘바스에 들어가는 백사틴 · 비고 각면/강화'},
-      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'', noBigoMemo:true,     pname:'',        modelMode:true,
+      /* 줄 비고 「각면/강화」 — 제목은 「3.2T 백사틴」 그대로, 품목 줄 비고 칸에만 (사장님 2026-10-21 「매번 지워지고 새로 넣게」).
+         공통 비고는 기억하지 않으므로(noBigoMemo) 넘겨받기·종류 고르기 때마다 비어 있었습니다. lineBigo 는 종류에 붙어 있어 늘 들어갑니다. */
+      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'', noBigoMemo:true, lineBigo:'각면/강화', pname:'',        modelMode:true,
          fname:'3.2T 백사틴',
-         hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동'},
+         hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 줄 비고 각면/강화'},
       /* 대원유리에서 **제일 많이 쓰는 종류**라 기본으로 골라 둡니다 (사장님 2026-09-22
          "그걸 제일 많이 쓰는데 매번 클릭하려니 귀찮아서"). 목록 차례는 그대로 두고
          고르는 값만 여기로 옵니다 — `def:true` 한 줄이면 다른 발주처에도 똑같이 됩니다. */
-      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'', noBigoMemo:true,     pname:'비규격',  sizeMode:true, def:true,
+      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'', noBigoMemo:true, lineBigo:'각면/강화', pname:'비규격',  sizeMode:true, def:true,
          fname:'3.2T 백사틴',
-         hint:'3.2T 백사틴 비규격'}
+         hint:'3.2T 백사틴 비규격 · 줄 비고 각면/강화'}
     ],
     '아름유리': [
       {type:'5T 투명', pick:'5T 투명 비규격', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
