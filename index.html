@@ -1771,36 +1771,65 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 @media(max-width:720px){
 #pg-bas .gauge .big{font-size:26px}}
 
-/* 앱 안에서 — 앱 메뉴가 위에 있으므로 머리는 붙박지 않습니다. 좁은 화면은 여백을 줄입니다 */
-#pg-bas .bas-head{position:static;border-radius:12px;border:1px solid var(--line);margin:12px 12px 0}
-#pg-bas .bas-head .tabs{margin-left:0}
+/* 앱 안에서 — 분류는 왼쪽 세로 꼬리표(2026-10-21). 머리 카드는 없애고 제목·요약 글은 왼쪽 줄에 작게 */
+#pg-bas .bas-wrap{display:flex;align-items:flex-start;gap:0}
+#pg-bas .bas-head{position:sticky;top:0;flex:0 0 118px;display:block;padding:14px 0 14px 10px;
+  background:none;border:none;margin:0}
+#pg-bas .bas-head h1{font-size:13px;margin:0 0 10px 4px;line-height:1.3}
+#pg-bas .bas-head h1 .sub{display:block;font-size:11px;font-weight:500}
+#pg-bas .bas-head .tabs{display:flex;flex-direction:column;gap:3px;margin:0}
+#pg-bas .tab{padding:6px 10px;font-size:12.5px;border-radius:8px 0 0 8px;background:none;color:var(--sub);
+  border:1px solid transparent;border-right:none;white-space:nowrap}
+#pg-bas .tab:hover{background:var(--chip)}
+#pg-bas .tab.active{background:var(--panel);color:var(--accent);border-color:var(--line);font-weight:700}
+#pg-bas .bas-tab-sub{margin-top:10px;font-size:11.5px;opacity:.7}
+#pg-bas .bas-side-note{margin:12px 6px 0 4px;font-size:10.5px;color:var(--sub);line-height:1.5;word-break:keep-all}
+#pg-bas .bas-side-note>div+div{margin-top:4px}
+#pg-bas .bas-main{flex:1 1 auto;min-width:0;max-width:none;margin:0;padding:12px 12px 12px 0}
+#pg-bas .card{padding:12px 14px;margin-bottom:10px;border-radius:12px}
+#pg-bas .card h2{margin-bottom:8px}
+#pg-bas #bas-migrate:not(:empty){margin-bottom:10px}
 @media(max-width:560px){
-  #pg-bas .bas-main{padding:10px}
-  #pg-bas .bas-head{margin:8px 8px 0;padding:10px 12px}
-  #pg-bas .card{padding:12px}
-  #pg-bas .tab{padding:6px 10px;font-size:12.5px}
+  #pg-bas .bas-wrap{display:block}
+  #pg-bas .bas-head{position:static;padding:8px 8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  #pg-bas .bas-head h1{margin:0;font-size:12.5px}
+  #pg-bas .bas-head h1 .sub{display:inline;margin-left:4px}
+  #pg-bas .bas-head .tabs{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:4px;width:100%;
+    border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
+  #pg-bas .tab{border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none;padding:5px 9px;font-size:12px}
+  #pg-bas .tab.active{border-color:var(--line)}
+  #pg-bas .bas-tab-sub{margin-top:0}
+  #pg-bas .bas-side-note{display:flex;gap:8px;flex-wrap:wrap;margin:0;width:100%}
+  #pg-bas .bas-side-note>div+div{margin-top:0}
+  #pg-bas .bas-main{padding:8px}
+  #pg-bas .card{padding:10px}
   #pg-bas input:not([type=checkbox]){max-width:100%}
   #pg-bas .card h2 .muted{display:block;margin-left:0}
 }
 </style>
+<!-- 분류는 왼쪽 세로 꼬리표 (사장님 2026-10-21 「왼쪽행으로 … 좀더 간략」). 휴대폰은 위 한 줄 -->
+<div class="bas-wrap">
 <div class="bas-head">
-  <h1>바스 재고운영 <span class="sub">· 드림하이텍</span></h1>
+  <h1>🛁 바스 <span class="sub">드림하이텍</span></h1>
   <div class="tabs">
     <div class="tab active" data-p="now">현황</div>
-    <div class="tab" data-p="srm">창고 출고(SRM)</div>
+    <div class="tab" data-p="srm">창고 출고</div>
     <div class="tab" data-p="deliv">발주·납품</div>
     <div class="tab" data-p="stock">실사·입고예정</div>
     <div class="tab" data-p="close">월 마감</div>
-    <div class="tab" data-p="snap" style="opacity:.55">예시 입력</div>
+    <div class="tab bas-tab-sub" data-p="snap">예시 입력</div>
     <div class="tab" data-p="hit" style="display:none">예시 적중률</div>
+  </div>
+  <div class="bas-side-note">
+    <div id="bas-nowMeta"></div>
+    <div id="bas-sideNote"></div>
   </div>
 </div>
 <div class="bas-main">
 
 <!-- 현황 -->
 <section class="page active" id="bas-page-now">
-  <div id="bas-migrate" style="margin-bottom:10px"></div>
-  <div class="right mini" id="bas-nowMeta" style="text-align:right;margin-bottom:8px"></div>
+  <div id="bas-migrate"></div>
   <div class="card">
     <h2>📊 창고 출고 올린 범위 <span class="muted">재고 추측이 어디까지 반영됐는지</span></h2>
     <div id="bas-srmCov"></div>
@@ -2143,6 +2172,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 </section>
 
 </div>
+</div><!-- /bas-wrap -->
 </div>
 
 <div class="sec-pg" id="pg-settings" style="padding:14px 14px 80px">
@@ -26234,7 +26264,8 @@ function renderMigrate(){
   el.innerHTML = empty
     ? `<div class="alert warn" style="margin-top:0"><b>아직 바스 자료가 없습니다.</b> 옛 화면(바스재고운영.html)에 쌓인 자료를 한 번 넣어 주시면 이어서 씁니다.<br>
         <span class="mini">옛 화면 → 「실사·입고예정」 탭 → <b>📤 내보내기</b> → 받은 .json 을 아래 단추로 넣으십시오. 다른 기기에서 넣으셨으면 시트에서 저절로 받아집니다.</span></div>`
-    : `<div class="mini">${from}${_syncNote?` · <span style="color:var(--warn)">${_syncNote}</span>`:''}</div>`;
+    : (_syncNote?`<div class="alert warn" style="margin-top:0">${_syncNote}</div>`:'');
+  const sn=$b('sideNote'); if(sn) sn.textContent = empty ? '' : from;   // 이어받은 곳은 왼쪽 줄 아래 작게 (2026-10-21)
   const b=$b('btnOldLocal'); if(b) b.style.display=hasOld?'':'none';
 }
 
