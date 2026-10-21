@@ -1174,7 +1174,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <!-- 붙여넣기 입력도 단추로 접어 둡니다 (사장님 2026-10-20 「명세서 사진 옆에 버튼 … 누르면 펼쳐지게」) -->
       <button id="lg-paste-btn" onclick="lgFold('lg-paste-box','lg-paste-btn')" title="클로드가 정리해 준 명세서 내용을 붙여 넣어 한 번에 채웁니다" style="padding:8px 12px;background:var(--s2);border:1px dashed var(--b2);border-radius:8px;color:var(--acc3);font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap">📋 붙여넣기</button>
     </div>
-    <style>@media (max-width:560px){ .lg-top{grid-template-columns:1fr 1fr !important} .lg-top>button{grid-column:auto} }</style>
+    <style>@media (max-width:560px){ .lg-top{grid-template-columns:1fr 1fr !important} .lg-top>button{grid-column:auto}
+      /* 휴대폰에서 날짜 칸이 오른쪽으로 넘치던 것 (사장님 2026-10-21) — 아이폰 날짜 칸은 제 너비를 고집해 칸 밖으로 나갑니다 */
+      .lg-top>div{min-width:0} .lg-top input{width:100%;min-width:0;max-width:100%;box-sizing:border-box} .lg-top input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-height:36px} }</style>
     <div id="lg-photo-preview" style="margin-top:6px"></div>
     <div id="lg-read-status" style="font-size:11px;color:var(--tx2)"></div>
 
@@ -18460,21 +18462,36 @@ function hsSave(sync){
    · SRM 줄: 칸을 배열로 줄여 보내고, 받을 때 id 로 합칩니다(두 기기에서 붙인 것이 다 남음).
    · ✕ 로 지운 품목은 묘비(del: 열쇠→지운 때) — 그때보다 먼저 붙인 줄은 어느 기기에서든 지웁니다. 다시 붙인 줄은 남습니다.
    · 다 합쳐 `HS_SYNC_MAX` 를 넘으면 **오래된 SRM 줄부터** 덜어 보냅니다(이 기기에는 남음) — 넘치면 동기화 전체가 멈춥니다(12-37·12-56). */
-const HS_SYNC_MAX=70000;
+const HS_SYNC_MAX=90000;
+/* 줄 꼴 v2 (2026-10-21) — v1 은 id 에 코드·순번·수량·단가·납품일·창고를 또 적어 한 줄이 120자였고, 70k 에 걸려 **9월 SRM 줄이 잘렸습니다**
+   (휴대폰 9월 「단가 없음」). id 는 칸에서 다시 만들고(끝 번호만 보냄), 품명·적은 때는 표로 모아 번호로 — 한 줄 약 50자.
+   [코드, 품명번호, 사이즈, 창고, 수량, 단가, 납품일, 순번, AS, 적은때번호, 끝번호(또는 id 그대로)] */
+function hsRowBase(code, seq, qty, price, deliv, wh){ return [code,seq,qty,price,deliv,wh].join('~'); }
+function hsRowIdOf(a, v){
+  if(!Array.isArray(a)) return '';
+  if(v!==2) return String(a[0]||'');                       // v1: 맨 앞이 id
+  const t=a[10], b=hsRowBase(a[0],a[7],a[4],a[5],a[6],a[3]);
+  return typeof t==='number' ? (t ? b+'#'+t : b) : String(t||'');   // 0 = 끝 번호 없는 옛 id(10-14 겹침 고치기 전)
+}
 function hsForSync(){
   if(!hsPrice || (!(hsPrice.rows||[]).length && !hsMaster() && !Object.keys(hsPrice.del||{}).length)) return undefined;
-  const out={ v:1, del:hsPrice.del||{} };
+  const out={ v:2, del:hsPrice.del||{} };
   const M=hsMaster();
   if(M){ const m={}; Object.keys(M.map).forEach(c=>{ const x=M.map[c]; m[c]= x.old!=null ? [x.price,x.old] : [x.price]; });
          out.master={ m, date:M.date||'', file:M.file||'', sheet:M.sheet||'', n:M.n||0, at:M.at||'' }; }
   const rows=(hsPrice.rows||[]).slice().sort((a,b)=>String(b.deliv||b.at).localeCompare(String(a.deliv||a.at)));   // 최근 먼저
-  const names=[], ni={};   // 품명은 표 하나에 모아 번호로 — 같은 품명이 줄마다 되풀이됩니다
-  const nIdx=s=>{ s=String(s||''); if(!(s in ni)){ ni[s]=names.length; names.push(s); } return ni[s]; };
-  out.rows=rows.map(r=>[r.id, r.code, nIdx(r.name), r.size||'', r.wh||'', r.qty, r.price, r.deliv||'', r.seq||'', r.as?1:0, r.at||'']);
-  out.names=names;
+  const tbl=()=>{ const a=[], ix={}; return { a, of:s=>{ s=String(s||''); if(!(s in ix)){ ix[s]=a.length; a.push(s); } return ix[s]; } }; };
+  const N=tbl(), T=tbl();
+  out.rows=rows.map(r=>{
+    const m=String(r.id||'').match(/^(.*)#(\d+)$/);
+    const b=hsRowBase(r.code,r.seq||'',r.qty,r.price,r.deliv||'',r.wh||'');
+    const tail = (m && m[1]===b) ? +m[2] : String(r.id||'')===b ? 0 : String(r.id||'');
+    return [r.code, N.of(r.name), r.size||'', r.wh||'', r.qty, r.price, r.deliv||'', r.seq||'', r.as?1:0, T.of(r.at), tail];
+  });
+  out.names=N.a; out.ats=T.a;
   let n=JSON.stringify(out).length;
   while(n>HS_SYNC_MAX && out.rows.length){ out.rows.length=Math.floor(out.rows.length*0.8); out.cut=true; n=JSON.stringify(out).length; }
-  if(out.cut) console.warn('[한샘 단가] 시트 칸이 작아 오래된 SRM 줄은 이 기기에만 둡니다 — 보낸 줄', out.rows.length);
+  if(out.cut) console.warn('[한샘 단가] 시트 칸이 작아 오래된 SRM 줄은 이 기기에만 둡니다 — 보낸 줄', out.rows.length, '/', rows.length);
   return out;
 }
 /* 시트가 이 기기보다 모자란가 — 앱을 열 때는 받기만 하므로, 단가표를 넣은 뒤 다른 것을 안 고치면 시트로 안 올라갔습니다
@@ -18483,8 +18500,9 @@ function hsSheetBehind(x){
   const out=hsForSync(); if(!out) return false;
   if(!x || typeof x!=='object') return true;
   if(out.master && String(out.master.at||'')>String((x.master&&x.master.at)||'')) return true;
-  const ids=new Set((x.rows||[]).map(a=>Array.isArray(a)?a[0]:''));
-  if(out.rows.some(a=>!ids.has(a[0]))) return true;
+  if((x.v||1)!==2) return true;                                   // 옛 꼴이면 새 꼴로 다시 올림
+  const ids=new Set((x.rows||[]).map(a=>hsRowIdOf(a,2)));
+  if(out.rows.some(a=>!ids.has(hsRowIdOf(a,2)))) return true;
   const d=x.del||{}; return Object.keys(out.del||{}).some(k=>String(out.del[k])>String(d[k]||''));
 }
 function hsMergeFromSheet(x){
@@ -18498,13 +18516,15 @@ function hsMergeFromSheet(x){
   }
   const del=hsPrice.del||(hsPrice.del={});
   Object.keys(x.del||{}).forEach(k=>{ if(String(x.del[k])>String(del[k]||'')){ del[k]=x.del[k]; ch=true; } });
-  const have=new Set((hsPrice.rows||[]).map(r=>r.id));
+  const v=x.v||1, have=new Set((hsPrice.rows||[]).map(r=>r.id));
+  const nm=i=>typeof i==='number' ? String((x.names||[])[i]||'') : String(i||'');
   (x.rows||[]).forEach(a=>{
-    if(!Array.isArray(a) || have.has(a[0])) return;
-    const [id,code,nm,size,wh,qty,price,deliv,seq,as,at]=a;
-    const name = typeof nm==='number' ? String((x.names||[])[nm]||'') : String(nm||'');
-    hsPrice.rows.push({ id, code, name, size, wh, whName:HS_WH[wh]||('저장소 '+wh), qty, price, amt:(Number(qty)||0)*(Number(price)||0), deliv, seq, as:!!as, at });
-    have.add(id); ch=true;
+    const id=hsRowIdOf(a,v); if(!id || have.has(id)) return;
+    let r;
+    if(v===2){ const [code,ni,size,wh,qty,price,deliv,seq,as,ti]=a; r={ id, code, name:nm(ni), size, wh, qty, price, deliv, seq, as:!!as, at:String((x.ats||[])[ti]||'') }; }
+    else { const [,code,ni,size,wh,qty,price,deliv,seq,as,at]=a; r={ id, code, name:nm(ni), size, wh, qty, price, deliv, seq, as:!!as, at }; }
+    r.whName=HS_WH[r.wh]||('저장소 '+r.wh); r.amt=(Number(r.qty)||0)*(Number(r.price)||0);
+    hsPrice.rows.push(r); have.add(id); ch=true;
   });
   const before=hsPrice.rows.length;
   hsPrice.rows=hsPrice.rows.filter(r=>{ const t=del[hsKey(r.code,r.size,r.wh)]; return !t || String(r.at||'')>String(t); });
@@ -19184,7 +19204,11 @@ function renderLgSummary(){
     return { amt:r.reduce((s,x)=>s+(x.amt||0),0), dream:r.filter(x=>x.corp==='드림하이텍').reduce((s,x)=>s+(x.amt||0),0), none:r.filter(x=>x.price==null).length }; }catch(e){ return {amt:0,dream:0,none:0}; } };
   /* 위 요약은 **매입 · 매출 · 차이** 세 칸만 (사장님 2026-10-14). 숫자 아래에 작게 무엇으로 이뤄졌는지 적습니다. */
   const COLS='72px repeat(3,minmax(0,1fr))';
-  const v=(x,c,sub)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}${sub?`<br><small style="font-size:10px;font-weight:600;color:var(--tx3);font-family:'Noto Sans KR',sans-serif;line-height:1.5">${sub}</small>`:''}</span>`;
+  /* 휴대폰(560px 이하)에서는 금액이 칸보다 길어 「원」이 아래로 떨어졌습니다 (사장님 2026-10-21) — 글자를 줄이고 줄바꿈을 막습니다 */
+  const CSS=`<style>@media (max-width:560px){ .lgs-row{grid-template-columns:50px repeat(3,minmax(0,1fr)) !important;gap:4px !important;padding:8px 8px !important}
+    .lgs-num{font-size:12px !important;white-space:nowrap;letter-spacing:-.3px} .lgs-num small{white-space:normal;font-size:9.5px !important;letter-spacing:0}
+    .lgs-nav{flex-wrap:wrap;padding:6px 8px !important} .lgs-nav button{white-space:nowrap} }</style>`;
+  const v=(x,c,sub)=>`<span class="lgs-num" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}${sub?`<br><small style="font-size:10px;font-weight:600;color:var(--tx3);font-family:'Noto Sans KR',sans-serif;line-height:1.5">${sub}</small>`:''}</span>`;
   const won=x=>Math.round(x).toLocaleString('ko-KR');
   const row=(label,f,hk,hUpto,od,click)=>{
     const lgB=sum(f,'buy'), s2=sum(f,'sell'), H=hs(hk,hUpto), sell=s2+H.amt;
@@ -19198,7 +19222,7 @@ function renderLgSummary(){
                 H.dream ? `└ 와이비앤디 ${won(H.amt-H.dream)} · 드림하이텍(바스) ${won(H.dream)}` : '',
                 H.amt&&s2 ? '기록 '+won(s2) : '',
                 H.none ? `<b onclick="event.stopPropagation();hsGoNeed('${hk}')" title="눌러서 단가가 필요한 발주 보기" style="color:var(--acc2);cursor:pointer;text-decoration:underline">단가 없음 ${H.none}줄 ›</b>` : '' ].filter(Boolean).join('<br>');
-    return `<div ${click?`onclick="${click}" title="눌러서 업체별 보기" `:''}style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)${click?';cursor:pointer':''}">
+    return `<div ${click?`onclick="${click}" title="눌러서 업체별 보기" `:''}class="lgs-row" style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)${click?';cursor:pointer':''}">
       <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)',bSub)}${v(sell,'var(--acc3)',sub)}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
   /* 업체별 표는 「N월 누적(합계)」 줄을 눌러야 펼칩니다 (사장님 2026-10-19). 펼침은 이 기기에 기억. */
   const vOpen=lgVendOpen(), accOpen=!isCur || lgAccOpen();
@@ -19206,12 +19230,12 @@ function renderLgSummary(){
   const vend=vOpen ? lgVendorTableHtml(ym, from, to, odMonth, isCur) : '';
   const tog='<br><span style="font-size:10px;font-weight:600;color:var(--acc);white-space:nowrap">'+(vOpen?'업체별 ▴':'업체별 ▾')+'</span>';
   const navBtn=(n,dis)=>`<button onclick="lgSumMove(${n})" ${dis?'disabled':''} style="padding:2px 9px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:${dis?'var(--tx3)':'var(--tx1)'};font-size:11px;cursor:${dis?'default':'pointer'};opacity:${dis?'.4':'1'}">${n<0?'◀':'▶'}</button>`;
-  host.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:1px solid var(--b1)">
+  host.innerHTML=CSS+`<div class="card" style="padding:0;overflow:hidden"><div>
+    <div class="lgs-nav" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:1px solid var(--b1)">
       <span style="display:flex;align-items:center;gap:6px">${navBtn(-1,false)}<b style="font-size:12.5px;min-width:78px;text-align:center">${ym.slice(0,4)}년 ${mm}월</b>${navBtn(1,isCur)}</span>
       <span style="display:flex;align-items:center;gap:4px">${isCur?'':`<button onclick="lgSumYm=null;renderLgSummary()" style="padding:2px 9px;border:none;background:none;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">이번 달로 ›</button>`}
       ${(typeof lgLock!=='undefined' && lgLock && lgLock.h)?`<button onclick="lgPinChange()" style="padding:2px 6px;border:none;background:none;color:var(--tx3);font-size:10.5px;cursor:pointer">PIN 바꾸기</button><button onclick="lgLockNow()" title="이 기기에서 다시 잠급니다" style="padding:2px 8px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:var(--tx2);font-size:11px;font-weight:700;cursor:pointer">🔒 잠그기</button>`:''}</span></div>
-    <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
+    <div class="lgs-row" style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
       <span></span><span style="text-align:right" title="발주 매입(마감 명세서와 같은 계산) + 📒 거래처 월 마감 금액(들어온 달) + 손 기록">📥 매입</span><span style="text-align:right" title="손 기록 + 📋 한샘 SRM(단가표 × 납품서, 발주일 기준)">📤 매출</span><span style="text-align:right">차이</span></div>
     ${isCur ? row('<span style="font-size:15px;font-weight:900;color:var(--acc4)">오늘</span><br><span style="font-size:11px;font-weight:600;color:var(--tx3);font-family:\'JetBrains Mono\',monospace;white-space:nowrap">'+td.slice(2,4)+'. '+td.slice(5,7)+'. '+td.slice(8,10)+'. '+'일월화수목금토'[new Date(td+'T00:00:00').getDay()]+'</span>', d=>d===td, td, null, lgOdBuy(ym, td, td, false)) : ''}
     ${accOpen ? row(mm+'월 '+(isCur?'누적':'합계')+tog, d=>d>=from && d<=to, ym, to, odMonth, 'lgVendToggle()')
