@@ -9682,6 +9682,7 @@ function applyMergedFromSheet(data){
   // 🔒 매입매출 PIN — 나중에 정한 쪽. 바뀌면 이 기기도 다시 잠깁니다(풀어 둔 흔적이 옛 PIN 것이라)
   try{ if(data.lgLock && data.lgLock.h && String(data.lgLock.at||'')>String((lgLock&&lgLock.at)||'')){ lgLock=data.lgLock; lgLockSave(false); if(typeof curMain!=='undefined' && curMain==='ledger') lgGate(); } }catch(e){}
   if(data.hsPrice!==undefined){ try{ if(hsMergeFromSheet(data.hsPrice)){ renderHsPrice(); try{ renderLgSummary(); }catch(e){} try{ renderLedgerByVendor(); }catch(e){} } }catch(e){ console.warn('[한샘 단가] 받기 실패', e); } }
+  try{ window._hsNeedPush = hsSheetBehind(data.hsPrice); }catch(e){}
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
   }
@@ -18476,6 +18477,16 @@ function hsForSync(){
   if(out.cut) console.warn('[한샘 단가] 시트 칸이 작아 오래된 SRM 줄은 이 기기에만 둡니다 — 보낸 줄', out.rows.length);
   return out;
 }
+/* 시트가 이 기기보다 모자란가 — 앱을 열 때는 받기만 하므로, 단가표를 넣은 뒤 다른 것을 안 고치면 시트로 안 올라갔습니다
+   (2026-10-21 「모바일에서 단가 없음 65줄」 — 시트에 단가표가 아예 없었음). 모자라면 열 때 한 번 올립니다(autoSyncOnLoad). */
+function hsSheetBehind(x){
+  const out=hsForSync(); if(!out) return false;
+  if(!x || typeof x!=='object') return true;
+  if(out.master && String(out.master.at||'')>String((x.master&&x.master.at)||'')) return true;
+  const ids=new Set((x.rows||[]).map(a=>Array.isArray(a)?a[0]:''));
+  if(out.rows.some(a=>!ids.has(a[0]))) return true;
+  const d=x.del||{}; return Object.keys(out.del||{}).some(k=>String(out.del[k])>String(d[k]||''));
+}
 function hsMergeFromSheet(x){
   if(!x || typeof x!=='object') return false;
   let ch=false;
@@ -19629,6 +19640,8 @@ async function autoSyncOnLoad(){
     // 에토프도 같이 — 납품서를 올리자마자 반영되게
     try{ if(typeof etpAutoDeduct==='function') etpAutoDeduct(); }catch(e){ console.warn('[에토프 자동차감]', e); }
     updateGsStatus('ok');
+    // 📋 한샘 단가표가 시트보다 앞서 있으면 한 번 올립니다(받은 뒤라 다른 기기 것은 이미 합쳐져 있음)
+    if(window._hsNeedPush){ window._hsNeedPush=false; console.log('[한샘 단가] 시트에 없는 단가표를 올립니다'); setTimeout(()=>{ try{ autoSync(); }catch(e){} },2000); }
     // 현재 보고 있는 탭 전체 갱신 (납품서·재고 등도 함께 다시 그림)
     if(typeof rerenderAfterSync==='function'){ try{ rerenderAfterSync(); }catch(e){ renderHome(); } }
     else renderHome();
