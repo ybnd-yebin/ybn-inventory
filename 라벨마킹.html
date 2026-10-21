@@ -178,7 +178,8 @@ button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-vis
   opacity:1;
   mix-blend-mode:normal;
   background:none !important;
-  border:2.3px solid currentColor;
+  /* 선 굵기는 여기 한 곳 — 선명하게 인쇄(PDF)도 이 값을 읽습니다. 2.3 → 1.2 (사장님 2026-10-22 「HD 동그라미 라인 얇게」) */
+  border:1.2px solid currentColor;
   border-radius:50%;
 }
 
@@ -2184,7 +2185,7 @@ async function makeSharpPdf(){
       const cs = getComputedStyle(el);
       const x = pctOf(el.style.left), y = pctOf(el.style.top), w = pctOf(el.style.width), h = pctOf(el.style.height);
       if(el.classList.contains("circle")){
-        const c = cssColor(el.style.borderColor || cs.borderTopColor), bw = 2.3*pxPt;
+        const c = cssColor(el.style.borderColor || cs.borderTopColor), bw = (parseFloat(cs.borderTopWidth)||1.2)*pxPt;   // 굵기는 CSS .mark.circle 한 곳
         pg.drawEllipse({ x:X(x+w/2), y:Y(y+h/2),
           xScale: w*box.width/2 - bw/2, yScale: h*box.height/2 - bw/2,
           borderColor: L.rgb(c.r,c.g,c.b), borderWidth: bw, borderOpacity: (+cs.opacity||1)*c.a });
