@@ -19205,25 +19205,40 @@ function renderLgSummary(){
   /* 위 요약은 **매입 · 매출 · 차이** 세 칸만 (사장님 2026-10-14). 숫자 아래에 작게 무엇으로 이뤄졌는지 적습니다. */
   const COLS='72px repeat(3,minmax(0,1fr))';
   /* 휴대폰(560px 이하)에서는 금액이 칸보다 길어 「원」이 아래로 떨어졌습니다 (사장님 2026-10-21) — 글자를 줄이고 줄바꿈을 막습니다 */
-  const CSS=`<style>@media (max-width:560px){ .lgs-row{grid-template-columns:50px repeat(3,minmax(0,1fr)) !important;gap:4px !important;padding:8px 8px !important}
+  const CSS=`<style>@media (max-width:560px){ .lgs-row{grid-template-columns:60px repeat(3,minmax(0,1fr)) !important;gap:4px !important;padding-left:8px !important;padding-right:8px !important} .lgs-sub{font-size:10px !important;letter-spacing:-.3px} .lgs-day{font-size:10px !important}
     .lgs-num{font-size:12px !important;white-space:nowrap;letter-spacing:-.3px} .lgs-num small{white-space:normal;font-size:9.5px !important;letter-spacing:0}
     .lgs-nav{flex-wrap:wrap;padding:6px 8px !important} .lgs-nav button{white-space:nowrap} }</style>`;
-  const v=(x,c,sub)=>`<span class="lgs-num" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}${sub?`<br><small style="font-size:10px;font-weight:600;color:var(--tx3);font-family:'Noto Sans KR',sans-serif;line-height:1.5">${sub}</small>`:''}</span>`;
+  /* 큰 숫자는 한 줄로만 — 무엇으로 이뤄졌는지(한샘 SRM·발주·마감…)는 **바로 아래 세부 줄**에 같은 칸으로 맞춰 둡니다
+     (사장님 2026-10-21 「한샘 SRM … 레이아웃이 굉장히 거슬려 … 한 칸 내려서 줄 맞추고 행 맞추고 … 접었다 폈다」). 펼침은 이 기기에 기억(`lgSubOpen`). */
+  const v=(x,c)=>`<span class="lgs-num" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;white-space:nowrap;color:${x?c:'var(--tx3)'}">${x?lgWon(x):'-'}</span>`;
   const won=x=>Math.round(x).toLocaleString('ko-KR');
+  const subOpen=lgSubOpen();
+  const sv=(x,c)=>`<span class="lgs-sub" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;white-space:nowrap;color:${c||'var(--tx2)'}">${x==null?'':x}</span>`;
+  const subRow=(lab,buy,sell,note)=>`<div class="lgs-row" style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:3px 12px;background:var(--s2);font-size:11px;color:var(--tx3)">
+      <span style="font-size:10.5px;font-weight:700;color:var(--tx3);line-height:1.2;word-break:keep-all" title="${String(lab).replace(/<[^>]*>/g,'')}">${lab}</span>${sv(buy)}${sv(sell)}<span style="text-align:right;font-size:10.5px">${note||''}</span></div>`;
   const row=(label,f,hk,hUpto,od,click)=>{
     const lgB=sum(f,'buy'), s2=sum(f,'sell'), H=hs(hk,hUpto), sell=s2+H.amt;
     const odList=Object.values(od), odAmt=odList.filter(x=>!x.closing).reduce((s,x)=>s+x.amt,0), clAmt=odList.filter(x=>x.closing).reduce((s,x)=>s+x.amt,0);
     const clWait=odList.some(x=>x.closing && x.closing.status!=='확정');
     const b=lgB+odAmt+clAmt, d=sell-b;
-    const bParts=[odAmt?'발주 '+won(odAmt):'', clAmt?'📒 마감 '+won(clAmt)+(clWait?' (대조중)':''):'', lgB?'기록 '+won(lgB):''].filter(Boolean);
-    const bSub=bParts.length>1||clAmt ? bParts.join('<br>') : '';
-    // 법인별 — 바스(BB 코드)는 드림하이텍 매출로 따로 적습니다(사장님 2026-10-20). 매출 큰 숫자는 둘을 더한 것
-    const sub=[ H.amt||H.none ? '📋 한샘 SRM '+(H.amt?won(H.amt):'-') : '',
-                H.dream ? `└ 와이비앤디 ${won(H.amt-H.dream)} · 드림하이텍(바스) ${won(H.dream)}` : '',
-                H.amt&&s2 ? '기록 '+won(s2) : '',
-                H.none ? `<b onclick="event.stopPropagation();hsGoNeed('${hk}')" title="눌러서 단가가 필요한 발주 보기" style="color:var(--acc2);cursor:pointer;text-decoration:underline">단가 없음 ${H.none}줄 ›</b>` : '' ].filter(Boolean).join('<br>');
-    return `<div ${click?`onclick="${click}" title="눌러서 업체별 보기" `:''}class="lgs-row" style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)${click?';cursor:pointer':''}">
-      <span style="font-size:12px;font-weight:700;color:var(--tx2)">${label}</span>${v(b,'var(--acc4)',bSub)}${v(sell,'var(--acc3)',sub)}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`; };
+    // 세부 줄 — 매입은 둘 이상으로 이뤄졌거나 마감이 섞일 때만, 매출은 한샘 SRM 이 있을 때
+    const subs=[];
+    if((odAmt?1:0)+(clAmt?1:0)+(lgB?1:0)>1 || clAmt){
+      if(odAmt) subs.push(subRow('발주', won(odAmt), null));
+      if(clAmt) subs.push(subRow('📒 마감'+(clWait?' (대조중)':''), won(clAmt), null));
+      if(lgB) subs.push(subRow('기록', won(lgB), null));
+    }
+    const need = H.none ? `<b onclick="event.stopPropagation();hsGoNeed('${hk}')" title="눌러서 단가가 필요한 발주 보기" style="color:var(--acc2);cursor:pointer;text-decoration:underline;white-space:nowrap">단가 없음 ${H.none}줄 ›</b>` : '';
+    if(H.amt||H.none){
+      subs.push(subRow('한샘 SRM', null, H.amt?won(H.amt):'-', need));
+      // 법인별 — 바스(BB 코드)는 드림하이텍 매출로 따로 적습니다(사장님 2026-10-20). 매출 큰 숫자는 둘을 더한 것
+      if(H.dream){ subs.push(subRow('└ 와이비앤디', null, won(H.amt-H.dream))); subs.push(subRow('└ 드림하이텍(바스)', null, won(H.dream))); }
+      if(s2) subs.push(subRow('기록', null, won(s2)));
+    }
+    // 세부를 접어도 「단가 없음」은 큰 줄 오른쪽 아래에 작게 남겨 둡니다 — 놓치면 매출이 모자라게 보입니다
+    const main=`<div ${click?`onclick="${click}" title="눌러서 업체별 보기" `:''}class="lgs-row" style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:9px 12px;border-top:1px solid var(--b1)${click?';cursor:pointer':''}">
+      <span style="font-size:12px;font-weight:700;color:var(--tx2);text-align:center;line-height:1.35">${label}</span>${v(b,'var(--acc4)')}${v(sell,'var(--acc3)')}${v(d,d>=0?'var(--acc3)':'var(--acc4)')}</div>`;
+    return main + (subOpen ? subs.join('') : (need ? `<div style="text-align:right;padding:0 12px 5px;font-size:10.5px">${need}</div>` : '')); };
   /* 업체별 표는 「N월 누적(합계)」 줄을 눌러야 펼칩니다 (사장님 2026-10-19). 펼침은 이 기기에 기억. */
   const vOpen=lgVendOpen(), accOpen=!isCur || lgAccOpen();
   const odMonth=lgOdBuy(ym, from, to, true);
@@ -19236,8 +19251,8 @@ function renderLgSummary(){
       <span style="display:flex;align-items:center;gap:4px">${isCur?'':`<button onclick="lgSumYm=null;renderLgSummary()" style="padding:2px 9px;border:none;background:none;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">이번 달로 ›</button>`}
       ${(typeof lgLock!=='undefined' && lgLock && lgLock.h)?`<button onclick="lgPinChange()" style="padding:2px 6px;border:none;background:none;color:var(--tx3);font-size:10.5px;cursor:pointer">PIN 바꾸기</button><button onclick="lgLockNow()" title="이 기기에서 다시 잠급니다" style="padding:2px 8px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:var(--tx2);font-size:11px;font-weight:700;cursor:pointer">🔒 잠그기</button>`:''}</span></div>
     <div class="lgs-row" style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
-      <span></span><span style="text-align:right" title="발주 매입(마감 명세서와 같은 계산) + 📒 거래처 월 마감 금액(들어온 달) + 손 기록">📥 매입</span><span style="text-align:right" title="손 기록 + 📋 한샘 SRM(단가표 × 납품서, 발주일 기준)">📤 매출</span><span style="text-align:right">차이</span></div>
-    ${isCur ? row('<span style="font-size:15px;font-weight:900;color:var(--acc4)">오늘</span><br><span style="font-size:11px;font-weight:600;color:var(--tx3);font-family:\'JetBrains Mono\',monospace;white-space:nowrap">'+td.slice(2,4)+'. '+td.slice(5,7)+'. '+td.slice(8,10)+'. '+'일월화수목금토'[new Date(td+'T00:00:00').getDay()]+'</span>', d=>d===td, td, null, lgOdBuy(ym, td, td, false)) : ''}
+      <button onclick="lgSubToggle()" title="한샘 SRM·발주·마감 같은 세부 줄을 펼치거나 접습니다" style="justify-self:start;padding:1px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:var(--acc);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Noto Sans KR',sans-serif">${subOpen?'세부 ▴':'세부 ▾'}</button><span style="text-align:right" title="발주 매입(마감 명세서와 같은 계산) + 📒 거래처 월 마감 금액(들어온 달) + 손 기록">📥 매입</span><span style="text-align:right" title="손 기록 + 📋 한샘 SRM(단가표 × 납품서, 발주일 기준)">📤 매출</span><span style="text-align:right">차이</span></div>
+    ${isCur ? row('<span style="font-size:15px;font-weight:900;color:var(--acc4)">오늘</span><br><span style="font-size:11px;font-weight:600;color:var(--tx3);font-family:\'JetBrains Mono\',monospace;white-space:nowrap" class="lgs-day">'+td.slice(5,7)+'. '+td.slice(8,10)+'. '+'일월화수목금토'[new Date(td+'T00:00:00').getDay()]+'</span>', d=>d===td, td, null, lgOdBuy(ym, td, td, false)) : ''}
     ${accOpen ? row(mm+'월 '+(isCur?'누적':'합계')+tog, d=>d>=from && d<=to, ym, to, odMonth, 'lgVendToggle()')
               : `<button onclick="lgAccToggle()" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;border-top:1px solid var(--b1);background:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:11.5px;font-weight:700;color:var(--acc)">${mm}월 누적 보기 ▾</button>`}
     ${isCur && accOpen ? `<button onclick="lgAccToggle()" style="display:block;width:100%;text-align:right;padding:5px 12px;border:none;border-top:1px dashed var(--b1);background:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:11px;color:var(--tx3)">누적 접기 ▴</button>` : ''}
@@ -19245,6 +19260,9 @@ function renderLgSummary(){
 }
 /* 이번 달 누적은 **접어 두는 것이 기본** — 펼치면 그 기기에서 기억 (사장님 2026-10-20 「누적은 접었다 폈다 · 기본값은 오늘만」). 지난 달은 합계 한 줄뿐이라 늘 보입니다. */
 function lgAccOpen(){ if(window._lgAccOpen!=null) return window._lgAccOpen; try{ return localStorage.getItem('ybn-lg-acc-open-v1')==='1'; }catch(e){ return false; } }
+/* 세부 줄(한샘 SRM·발주·마감) 펼침 — 처음엔 펼침, 이 기기에 기억 (사장님 2026-10-21) */
+function lgSubOpen(){ if(window._lgSubOpen!=null) return window._lgSubOpen; try{ return localStorage.getItem('ybn-lg-sub-open-v1')!=='0'; }catch(e){ return true; } }
+function lgSubToggle(){ window._lgSubOpen=!lgSubOpen(); try{ localStorage.setItem('ybn-lg-sub-open-v1', window._lgSubOpen?'1':'0'); }catch(e){} renderLgSummary(); }
 function lgAccToggle(){ window._lgAccOpen=!lgAccOpen(); try{ localStorage.setItem('ybn-lg-acc-open-v1', window._lgAccOpen?'1':'0'); }catch(e){} renderLgSummary(); }
 
 /* ── 🔒 매입매출 관리자 PIN (사장님 2026-10-20 「관리자만 볼 수 있도록 … 비밀번호 누르면」) ──────────
@@ -19340,7 +19358,7 @@ function lgVendorTableHtml(ym, from, to, odMap, isCur){
     return `<div style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:7px 12px;border-top:1px solid var(--b1)">
       <b style="font-size:12.5px">${etpEsc(e.v)}</b>${cell(e.buyOd+e.buyLg,'var(--acc4)')}${cell(e.sell+e.sellHs,'var(--acc3)')}
       <span style="font-size:10.5px;color:var(--tx3);text-align:right">${why}</span></div>`; }).join('');
-  return `<div class="card" style="padding:0;overflow-x:auto;margin-top:8px"><div style="min-width:440px">
+  return `<div class="card" style="padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px"><div style="min-width:480px">
     <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
       <span>🏢 ${+ym.slice(5,7)}월 업체별 <span style="font-weight:400;color:var(--tx3)">(${isCur?'1일~오늘':'한 달'} · 공급가)</span></span><span style="text-align:right">📥 매입</span><span style="text-align:right">📤 매출</span><span style="text-align:right">근거</span></div>
     ${rows}
