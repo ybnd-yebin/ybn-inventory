@@ -9459,6 +9459,8 @@ function metaForSync(){
   try{ put('closings', clForSync()); put('closingDeleted', closingDeleted); }catch(e){}
   /* 🔒 매입매출 관리자 PIN (2026-10-20) — 흔적(해시)만 보냅니다. 어느 기기든 같은 PIN 으로 잠깁니다 */
   try{ if(lgLock && lgLock.h) put('lgLock', lgLock); }catch(e){}
+  /* 📋 한샘 단가표 (2026-10-21) — 합의서·SRM 줄·지운 표시(`hsForSync`). hsPrice 는 뒤쪽 let 이라 try 로 감쌉니다 */
+  try{ put('hsPrice', hsForSync()); }catch(e){}
   /* 🛁 바스재고 (2026-10-20) — 묶음마다 고친 때를 같이 보냅니다. 창고 출고는 최근 120일만, 예시 스냅샷은 안 보냅니다(`BAS.forSync`).
      BAS 는 맨 아래 따로 된 <script> 라, 아직 안 읽혔으면 typeof 가 'undefined' 입니다 */
   try{ if(typeof BAS!=='undefined') put('basState', BAS.forSync()); }catch(e){ console.warn('[바스재고] 보내기 준비 실패', e); }
@@ -9643,6 +9645,7 @@ function applyMergedFromSheet(data){
   /* 📒 거래처 월 마감 — 마감마다 나중에 고친 쪽. 받은 것이 요약뿐이면 이 기기의 줄은 살립니다(`clMergeFromSheet`) */
   // 🔒 매입매출 PIN — 나중에 정한 쪽. 바뀌면 이 기기도 다시 잠깁니다(풀어 둔 흔적이 옛 PIN 것이라)
   try{ if(data.lgLock && data.lgLock.h && String(data.lgLock.at||'')>String((lgLock&&lgLock.at)||'')){ lgLock=data.lgLock; lgLockSave(false); if(typeof curMain!=='undefined' && curMain==='ledger') lgGate(); } }catch(e){}
+  if(data.hsPrice!==undefined){ try{ if(hsMergeFromSheet(data.hsPrice)){ renderHsPrice(); try{ renderLgSummary(); }catch(e){} try{ renderLedgerByVendor(); }catch(e){} } }catch(e){ console.warn('[한샘 단가] 받기 실패', e); } }
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
   }
@@ -18393,7 +18396,7 @@ let lgReadData=null;     // 읽기용(큰) base64 (data URL)
    ─ 단가는 **공급가**(부가세 뺌) — 줄 합계의 합이 SRM 「총합계금액」과 같습니다(600,378).
    ─ 비규격은 같은 코드라도 사이즈마다 단가가 다를 수 있어 **코드 + 사이즈**가 열쇠입니다(delivSizeLR).
    ─ 같은 줄을 두 번 붙여도 안 늘어납니다 — 코드·순번·수량·단가·납품일·저장소가 같으면 같은 줄.
-   ─ 저장: 이 기기 `ybn-hs-price-v1`. ⚠ 시트 동기화는 아직 안 합니다(용량 — 할일.md).
+   ─ 저장: 이 기기 `ybn-hs-price-v1` + 시트(`hsPrice` — hsForSync · hsMergeFromSheet, 2026-10-21).
    ══════════════════════════════════════════════════════════ */
 const LS_HS_PRICE = 'ybn-hs-price-v1';
 const HS_WH = { '1001':'그레이박스', '2001':'오이도' };
@@ -18405,11 +18408,63 @@ let hsPrice = (function(){ try{ const o=JSON.parse(localStorage.getItem(LS_HS_PR
    - SRM 에 붙인 값과 다르면 **날짜가 나중인 쪽**(SRM 납품일 vs 합의서 등록일)을 쓰고 주황으로 알립니다.
    - ⚠ 단가를 코드에 적지 않습니다(저장소가 공개 — 12-37). 이 기기의 hsPrice.master 에만. */
 function hsMaster(){ return (hsPrice.master && hsPrice.master.map) ? hsPrice.master : null; }
-// 먼저 넣은 합의서(품명·기존금액까지 담김)를 코드·단가만으로 줄여 다시 저장
-(function(){ try{ const M=hsMaster(); if(!M) return; const ks=Object.keys(M.map); if(!ks.some(k=>M.map[k] && ('name' in M.map[k] || 'old' in M.map[k]))) return;
-  ks.forEach(k=>{ M.map[k]={ price:M.map[k].price }; }); hsSave(); console.log('[한샘 합의서] 코드·단가만으로 줄임', ks.length); }catch(e){} })();
+// 먼저 넣은 합의서(품명까지 담김)를 코드·단가로 줄여 다시 저장
+/* ⚠ 예전에는 기존금액(old)까지 지워, 합의서를 넣고 새로고침하면 조정 전 단가가 사라졌습니다(2026-10-21 바로잡음). 이제 품명만 뗍니다 */
+(function(){ try{ const M=hsMaster(); if(!M) return; const ks=Object.keys(M.map); if(!ks.some(k=>M.map[k] && ('name' in M.map[k]))) return;
+  ks.forEach(k=>{ const x=M.map[k]; M.map[k]=(x.old!=null && x.old!==x.price) ? { price:x.price, old:x.old } : { price:x.price }; }); hsSave(false); console.log('[한샘 합의서] 품명 뗌', ks.length); }catch(e){} })();
 let hsWhFilter = '', hsSearch = '', hsOpen = false;
-function hsSave(){ try{ localStorage.setItem(LS_HS_PRICE, JSON.stringify(hsPrice)); return true; }catch(e){ console.warn('[한샘 단가] 저장 실패', e); return false; } }
+function hsSave(sync){
+  try{ localStorage.setItem(LS_HS_PRICE, JSON.stringify(hsPrice)); }catch(e){ console.warn('[한샘 단가] 저장 실패', e); return false; }
+  if(sync!==false && typeof autoSync==='function'){ clearTimeout(window._hsSyncT); window._hsSyncT=setTimeout(()=>{ try{ autoSync(); }catch(e){} },1500); }
+  return true;
+}
+/* 🔄 시트로 나누기 (사장님 2026-10-21 「컴퓨터에서만 하고 동기화할 수 있도록」) — PC 에서 넣은 합의서·SRM 줄이 휴대폰에도 갑니다.
+   · 합의서: 코드마다 [변경금액, 기존금액] 만. 받을 때 **나중에 넣은 합의서**(at)가 이깁니다.
+   · SRM 줄: 칸을 배열로 줄여 보내고, 받을 때 id 로 합칩니다(두 기기에서 붙인 것이 다 남음).
+   · ✕ 로 지운 품목은 묘비(del: 열쇠→지운 때) — 그때보다 먼저 붙인 줄은 어느 기기에서든 지웁니다. 다시 붙인 줄은 남습니다.
+   · 다 합쳐 `HS_SYNC_MAX` 를 넘으면 **오래된 SRM 줄부터** 덜어 보냅니다(이 기기에는 남음) — 넘치면 동기화 전체가 멈춥니다(12-37·12-56). */
+const HS_SYNC_MAX=70000;
+function hsForSync(){
+  if(!hsPrice || (!(hsPrice.rows||[]).length && !hsMaster() && !Object.keys(hsPrice.del||{}).length)) return undefined;
+  const out={ v:1, del:hsPrice.del||{} };
+  const M=hsMaster();
+  if(M){ const m={}; Object.keys(M.map).forEach(c=>{ const x=M.map[c]; m[c]= x.old!=null ? [x.price,x.old] : [x.price]; });
+         out.master={ m, date:M.date||'', file:M.file||'', sheet:M.sheet||'', n:M.n||0, at:M.at||'' }; }
+  const rows=(hsPrice.rows||[]).slice().sort((a,b)=>String(b.deliv||b.at).localeCompare(String(a.deliv||a.at)));   // 최근 먼저
+  const names=[], ni={};   // 품명은 표 하나에 모아 번호로 — 같은 품명이 줄마다 되풀이됩니다
+  const nIdx=s=>{ s=String(s||''); if(!(s in ni)){ ni[s]=names.length; names.push(s); } return ni[s]; };
+  out.rows=rows.map(r=>[r.id, r.code, nIdx(r.name), r.size||'', r.wh||'', r.qty, r.price, r.deliv||'', r.seq||'', r.as?1:0, r.at||'']);
+  out.names=names;
+  let n=JSON.stringify(out).length;
+  while(n>HS_SYNC_MAX && out.rows.length){ out.rows.length=Math.floor(out.rows.length*0.8); out.cut=true; n=JSON.stringify(out).length; }
+  if(out.cut) console.warn('[한샘 단가] 시트 칸이 작아 오래된 SRM 줄은 이 기기에만 둡니다 — 보낸 줄', out.rows.length);
+  return out;
+}
+function hsMergeFromSheet(x){
+  if(!x || typeof x!=='object') return false;
+  let ch=false;
+  const M0=hsMaster();
+  if(x.master && x.master.m && String(x.master.at||'')>String((M0&&M0.at)||'')){
+    const map={}; Object.keys(x.master.m).forEach(c=>{ const a=x.master.m[c]; map[c]= a.length>1 ? { price:a[0], old:a[1] } : { price:a[0] }; });
+    hsPrice.master={ map, date:x.master.date||'', file:x.master.file||'', sheet:x.master.sheet||'', n:x.master.n||Object.keys(map).length, at:x.master.at||'' };
+    ch=true;
+  }
+  const del=hsPrice.del||(hsPrice.del={});
+  Object.keys(x.del||{}).forEach(k=>{ if(String(x.del[k])>String(del[k]||'')){ del[k]=x.del[k]; ch=true; } });
+  const have=new Set((hsPrice.rows||[]).map(r=>r.id));
+  (x.rows||[]).forEach(a=>{
+    if(!Array.isArray(a) || have.has(a[0])) return;
+    const [id,code,nm,size,wh,qty,price,deliv,seq,as,at]=a;
+    const name = typeof nm==='number' ? String((x.names||[])[nm]||'') : String(nm||'');
+    hsPrice.rows.push({ id, code, name, size, wh, whName:HS_WH[wh]||('저장소 '+wh), qty, price, amt:(Number(qty)||0)*(Number(price)||0), deliv, seq, as:!!as, at });
+    have.add(id); ch=true;
+  });
+  const before=hsPrice.rows.length;
+  hsPrice.rows=hsPrice.rows.filter(r=>{ const t=del[hsKey(r.code,r.size,r.wh)]; return !t || String(r.at||'')>String(t); });
+  if(hsPrice.rows.length!==before) ch=true;
+  if(ch) hsSave(false);
+  return ch;
+}
 function hsNum(t){ const n=parseFloat(String(t==null?'':t).replace(/[,\s원]/g,'')); return isNaN(n)?null:n; }
 function hsSizeOf(name){ try{ return isNonStd(name) ? (delivSizeLR(name).size || '') : ''; }catch(e){ return ''; } }
 function hsKey(code, size, wh){ return [code, size||'', wh||''].join('|'); }
@@ -18569,6 +18624,7 @@ function hsDelKey(key){
   const e = hsBook()[key]; if(!e) return;
   if(!confirm(`${e.code} ${e.whName}${e.size?' '+e.size:''} 단가(${Number(e.price).toLocaleString('ko-KR')}원)를 지울까요?\n붙여 넣은 줄 ${e.n}개가 지워집니다. 다시 붙이면 다시 들어옵니다.`)) return;
   hsPrice.rows = hsPrice.rows.filter(r => hsKey(r.code, r.size, r.wh) !== key);
+  (hsPrice.del||(hsPrice.del={}))[key]=new Date().toISOString();   // 묘비 — 다른 기기에서 되살아나지 않게
   hsSave(); renderHsPrice(); try{ renderLgSummary(); }catch(err){}
   showToast('🗑 ' + e.code + ' ' + e.whName + ' 단가를 지웠습니다');
 }
