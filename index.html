@@ -20798,12 +20798,16 @@ function delivAutoDeduct(){
     const r=delivDeductStock(d,{silent:true});
     docs++; ok+=r.ok; skip+=r.skip;
   });
-  if(!docs) return;
+  // 같은 납품서가 두 번 빠진 것은 여기서 함께 덜어냅니다 (CLAUDE.md 12-64) — 사장님 손이 안 가게
+  let trimmed=0;
+  try{ trimmed=delivDupTrim(); }catch(e){ console.warn('[납품 중복]', e); }
+  if(!docs && !trimmed) return;
   saveAll();
   if(typeof renderDelivery==='function') renderDelivery();
   if(typeof renderDash==='function') renderDash();
   if(typeof autoSync==='function') autoSync();
-  showToast(`📤 출고일 지난 납품서 ${docs}건 자동 차감${skip?` · 확인 필요 ${skip}품목`:''}`);
+  if(!docs){ showToast(`🧹 같은 납품서로 두 번 빠진 ${trimmed}장을 바로잡았습니다`); return; }
+  showToast(`📤 출고일 지난 납품서 ${docs}건 자동 차감${skip?` · 확인 필요 ${skip}품목`:''}${trimmed?` · 두 번 빠진 ${trimmed}장 바로잡음`:''}`);
   console.log(`[자동출고] 납품서 ${docs}건 · 차감 ${ok}품목 · 미매칭 ${skip}품목`);
 }
 function delivUndoDeduct(d){
@@ -21084,21 +21088,43 @@ function openDelivDateDelete(){
   const groups={};
   delivLog.forEach(d=>{
     const k=_delivUploadDay(d);
-    if(!groups[k]) groups[k]={docs:0,qty:0};
+    if(!groups[k]) groups[k]={docs:0,qty:0,list:[]};
+    const q=(d.items||[]).reduce((a,i)=>a+(i.qty||0),0);
     groups[k].docs++;
-    groups[k].qty+=(d.items||[]).reduce((a,i)=>a+(i.qty||0),0);
+    groups[k].qty+=q;
+    groups[k].list.push({no:d.delivNo||'', od:d.orderDate||'', dest:d.dest||'', q});
   });
   const keys=Object.keys(groups).sort((a,b)=>b.localeCompare(a)); // 최신 업로드일 위로
+  /* 그 날짜에 무엇이 들었는지 — 납품번호를 표처럼 접어 둡니다 (사장님 2026-10-21).
+     펼치는 칸은 label 밖에 둡니다. 안에 두면 누를 때 체크가 같이 바뀝니다. */
+  const cell='padding:3px 6px;white-space:nowrap';
   const rows=keys.map(k=>{
     const g=groups[k];
     const label=k==='(날짜없음)'?k:k.replace(/-/g,'.');
-    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--b1);cursor:pointer">
-      <input type="checkbox" class="deliv-datedel-cb" value="${k}" style="width:18px;height:18px;flex-shrink:0;accent-color:var(--acc4)">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700">📅 ${label}</div>
-        <div style="font-size:11px;color:var(--tx2)">${g.docs}건 · ${g.qty}장</div>
-      </div>
-    </label>`;
+    const list=g.list.slice().sort((a,b)=>String(a.no).localeCompare(String(b.no)));
+    const tbl=`<table style="border-collapse:collapse;font-size:11px;font-family:'JetBrains Mono',monospace;margin:2px 0 4px">
+        <tr style="color:var(--tx3);font-family:'Noto Sans KR',sans-serif">
+          <th style="${cell};text-align:left;font-weight:600">납품번호</th><th style="${cell};text-align:left;font-weight:600">발주일</th>
+          <th style="${cell};text-align:left;font-weight:600">납품처</th><th style="${cell};text-align:right;font-weight:600">장수</th></tr>
+        ${list.map(x=>`<tr style="border-top:1px solid var(--b1)">
+          <td style="${cell};color:var(--tx1)">${brEsc(x.no)||'-'}</td>
+          <td style="${cell};color:var(--tx2)">${x.od?x.od.slice(5).replace('-','/'):'-'}</td>
+          <td style="${cell};color:var(--tx2);font-family:'Noto Sans KR',sans-serif">${brEsc(x.dest)||'-'}</td>
+          <td style="${cell};text-align:right;color:var(--tx1)">${x.q}</td></tr>`).join('')}
+      </table>`;
+    return `<div style="border-bottom:1px solid var(--b1)">
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px 4px;cursor:pointer">
+        <input type="checkbox" class="deliv-datedel-cb" value="${k}" style="width:18px;height:18px;flex-shrink:0;accent-color:var(--acc4)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700">📅 ${label}</div>
+          <div style="font-size:11px;color:var(--tx2)">${g.docs}건 · ${g.qty}장</div>
+        </div>
+      </label>
+      <details style="padding:0 12px 8px 40px">
+        <summary style="font-size:11px;color:var(--acc);cursor:pointer;list-style-position:inside">납품번호 ${g.docs}건 보기</summary>
+        <div style="overflow-x:auto">${tbl}</div>
+      </details>
+    </div>`;
   }).join('');
   host.innerHTML=`
   <div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:flex;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closeDelivDateDelete()">
@@ -21319,126 +21345,71 @@ function renderDelivUnmatched(){
     +(list.length>30?`<div style="font-size:10px;color:var(--tx3);padding-top:6px">외 ${list.length-30}품목</div>`:'')+`</div>`;
 }
 /* ════════════════════════════════════════════════════════════════
-   🧹 중복으로 빠진 납품서 정리
-   같은 납품서가 두 번 세 번 차감된 것이 이미 쌓여 있습니다.
-   납품서에 적힌 수량과 장부에 빠진 수량을 견주어 어긋난 것을 찾고,
-   그 납품서의 기록을 걷어낸 뒤 한 번만 다시 넣습니다.
-   ※ 납품서 원본은 건드리지 않습니다. 장부 기록만 정리합니다.
+   🧹 같은 납품서가 두 번 빠진 것 — 앱이 알아서 덜어냅니다 (2026-10-21)
+   예전에는 빨간 카드와 「정리하기」 단추를 띄웠는데, 거의 다 헛경보였습니다.
+   「빠져야 할 장수」를 도어 1개 = 유리 1장으로 세어, BD2R·BD3U 같은
+   합적 도어(유리 2~3장)를 「2배로 빠졌다」고 보았습니다. 정리하기를 눌러도
+   똑같이 다시 빼므로 카드가 영영 안 없어졌습니다.
+   이제는 ① 차감(delivDeductStock)과 똑같이 셉니다 — 합적·에토프·베일까지.
+   ② 진짜로 넘친 것(두 기기가 동기화 전에 각각 뺀 것 등)만 덜어냅니다.
+      장부 병합이 id 합집합이라 걷어낸 기록이 다른 기기에서 되살아나므로,
+      모든 기기가 같은 기준(id 차례)으로 넘친 만큼만 덜어 같은 결과가 됩니다.
+   ※ 납품서 원본은 건드리지 않습니다. 장부의 넘친 출고 기록만 덜어냅니다.
    ════════════════════════════════════════════════════════════════ */
-// 이 납품서가 인쇄유리에서 빼야 할 정상 수량
-function delivShouldQty(d){
-  let q=0;
+// 이 납품서가 장부에서 빼야 할 장수 — 칸(사이즈_색상)마다. delivDeductStock 과 반드시 같은 기준.
+function delivExpectByKey(d){
+  const out={};
   (d&&d.items||[]).forEach(it=>{
-    /* 반드시 delivDeductStock 과 같은 기준으로 세야 합니다 (2026-09-04).
-       한쪽만 이름 경로를 쓰면, 새 기준으로 제대로 빠진 납품서를
-       '있어야 할 양보다 많이 빠졌다'고 오해해서 중복으로 잡습니다.
-       그러면 정리하기가 방금 고친 차감을 도로 걷어냅니다. */
-    const m=(typeof findModel==='function')?findModel(it.code, it.name):null;
-    if(m && m.glass_w && m.glass_h) q+=(it.qty||0);
+    const color=delivGlassColor(it);
+    if(!color) return;
+    if(delivSkipEtp(d, color)) return;
+    delivGlassOf(it).forEach(g=>{
+      const q=(it.qty||0)*g.per;
+      if(q>0){ const k=`${g.w}x${g.h}_${color}`; out[k]=(out[k]||0)+q; }
+    });
   });
-  return q;
+  return out;
 }
-// 읽기 전용 검사 — 아무것도 바꾸지 않습니다
+// 넘친 출고 기록 찾기 (읽기만). 칸마다 id 차례로 쌓아 「빠져야 할 장수」에 딱 닿는 데서 끊고,
+// 그 뒤 것을 덜어낼 대상으로 냅니다. 딱 안 맞으면(규칙이 바뀐 것 등) 건드리지 않습니다.
 function delivDupScan(){
   const rows=[];
   (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
     if(!d || !d.delivNo) return;
-    const should=delivShouldQty(d);
-    if(!should) return;                       // 인쇄유리와 상관없는 납품서
-    const hits=delivStockEvents(d.delivNo);
-    const got=hits.reduce((s,h)=>s+(h.ev.qty||0),0);
-    if(!d.deducted && !hits.length) return;   // 아직 차감하지 않은 납품서 — 어긋난 게 아닙니다
-    if(got===should) return;                  // 맞는 것은 건너뜁니다
-    rows.push({ no:String(d.delivNo), date:d.orderDate||'', dest:d.dest||'',
-                should, got, diff:got-should, events:hits.length,
-                times: should ? Math.round(got/should*100)/100 : 0 });
+    const hits=delivStockEvents(d.delivNo); if(!hits.length) return;
+    const exp=delivExpectByKey(d), byKey={};
+    hits.forEach(h=>{ (byKey[h.key]=byKey[h.key]||[]).push(h.ev); });
+    for(const k in byKey){
+      const want=exp[k]||0; if(!want) continue;          // 빼야 할 것이 없는 칸 — 규칙이 바뀐 것이지 중복이 아닙니다
+      const evs=byKey[k].slice().sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+      const got=evs.reduce((s,e)=>s+(parseInt(e.qty)||0),0);
+      if(got<=want) continue;
+      let acc=0, i=0;
+      while(i<evs.length && acc<want){ acc+=(parseInt(evs[i].qty)||0); i++; }
+      if(acc!==want) continue;                           // 딱 안 맞으면 손대지 않습니다
+      rows.push({no:String(d.delivNo), key:k, want, got, drop:evs.slice(i).map(e=>e.id)});
+    }
   });
-  rows.sort((a,b)=>b.diff-a.diff);
   return rows;
 }
-// 실제 정리 — 되돌리기와 같은 방식(기록 걷어내고 한 번만 다시 넣기)
-function delivDupFix(){
-  const rows=delivDupScan().filter(r=>r.diff>0);   // 더 빠진 것만 손봅니다
-  if(!rows.length) return {docs:0, freed:0};
-  const keepUnmatched=JSON.stringify(typeof delivUnmatched!=='undefined'?delivUnmatched:[]);
-  const sizes=new Set();
-  let docs=0, freed=0;
-  rows.forEach(r=>{
-    const d=delivLog.find(x=>String(x.delivNo)===r.no); if(!d) return;
-    delivStockEvents(r.no).forEach(h=>{ const m=h.key.match(/^(\d+)x(\d+)_/); if(m) sizes.add(m[1]+'x'+m[2]); });
-    removeDelivStockEvents(r.no);
-    d.deducted=false; d.deductedAt=null;
-    delivDeductStock(d,{silent:true});
-    docs++; freed+=r.diff;
+// 넘친 것 덜어내기 — 차감·병합 뒤에 부릅니다. 덜어낸 장수를 돌려줍니다.
+function delivDupTrim(){
+  if(typeof findModel!=='function' || typeof stockEvents==='undefined') return 0;
+  const rows=delivDupScan(); if(!rows.length) return 0;
+  const ids=[], keys=new Set(); let q=0;
+  rows.forEach(r=>{ ids.push(...r.drop); keys.add(r.key); q+=r.got-r.want; });
+  removeStockEventsByIds(ids);
+  keys.forEach(k=>{
+    if(stockEvents[k] && stockEvents[k].some(e=>e.type==='count')) recalcAutoAdjusts(k);
+    const m=k.match(/^(\d+)x(\d+)_/);
+    if(m && typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(+m[1],+m[2]);
   });
-  // 미매핑 목록은 이번 정리로 늘어나면 안 됩니다 (이미 잡혀 있던 것이라)
-  try{ delivUnmatched=JSON.parse(keepUnmatched); if(typeof saveUnmatched==='function') saveUnmatched(); }catch(e){}
-  // 옛 재고 숫자도 장부에 맞춰 다시 맞춥니다
-  sizes.forEach(s=>{ const [w,h]=s.split('x'); if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(+w,+h); });
-  saveAll();
-  if(typeof renderDelivery==='function') renderDelivery();
-  if(typeof renderDash==='function') renderDash();
-  if(typeof autoSync==='function') autoSync();
-  return {docs, freed};
+  console.log(`[납품 중복] ${new Set(rows.map(r=>r.no)).size}건 · ${q}장 덜어냄`, rows);
+  return q;
 }
-
-// ── 정리 카드 (납품서 화면 맨 위) ──
-let delivDupOpen=false;
-function delivDupToggle(){ delivDupOpen=!delivDupOpen; renderDelivDup(); }
-function delivDupRun(){
-  const rows=delivDupScan().filter(r=>r.diff>0);
-  if(!rows.length){ showToast('정리할 것이 없습니다'); return; }
-  const n=rows.length, q=rows.reduce((s,r)=>s+r.diff,0);
-  if(!confirm(`납품서 ${n}건에서 ${q}장이 더 빠져 있습니다.\n그 기록을 걷어내고 한 번만 다시 넣습니다.\n\n납품서 원본은 건드리지 않습니다. 계속할까요?`)) return;
-  const res=delivDupFix();
-  showToast(`🧹 ${res.docs}건 정리 · ${res.freed}장 되돌림`);
-  renderDelivDup();
-}
+// 예전 카드 자리 — 이제 그리지 않습니다 (덜어내기는 delivAutoDeduct 가 함께 돌립니다)
 function renderDelivDup(){
-  const anchor=document.getElementById('deliv-active'); if(!anchor||!anchor.parentNode) return;
-  let host=document.getElementById('deliv-dup-card');
-  if(!host){
-    host=document.createElement('div'); host.id='deliv-dup-card'; host.style.margin='2px 0 10px';
-    anchor.parentNode.insertBefore(host, document.getElementById('deliv-view-toggle')||anchor);
-  }
-  const rows=delivDupScan().filter(r=>r.diff>0);
-  if(!rows.length){ host.innerHTML=''; return; }
-  const q=rows.reduce((s,r)=>s+r.diff,0);
-  const tbl = !delivDupOpen ? '' : `
-    <div style="overflow-x:auto;margin-top:8px;max-height:280px;overflow-y:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:11px">
-        <tr style="color:var(--tx3);text-align:right">
-          <th style="text-align:left;padding:4px 6px;font-weight:700">납품번호</th>
-          <th style="text-align:left;padding:4px 6px;font-weight:700">발주일</th>
-          <th style="padding:4px 6px;font-weight:700">있어야</th>
-          <th style="padding:4px 6px;font-weight:700">실제 빠짐</th>
-          <th style="padding:4px 6px;font-weight:700">더 빠짐</th>
-          <th style="padding:4px 6px;font-weight:700">배수</th>
-        </tr>
-        ${rows.map(r=>`
-        <tr style="border-top:1px solid var(--b1);text-align:right;font-family:'JetBrains Mono',monospace">
-          <td style="text-align:left;padding:4px 6px;color:var(--tx1)">${r.no}</td>
-          <td style="text-align:left;padding:4px 6px;color:var(--tx3)">${r.date}</td>
-          <td style="padding:4px 6px;color:var(--tx2)">${r.should}</td>
-          <td style="padding:4px 6px;color:var(--tx1);font-weight:700">${r.got}</td>
-          <td style="padding:4px 6px;color:#f85149;font-weight:800">+${r.diff}</td>
-          <td style="padding:4px 6px;color:var(--tx3)">${r.times}배</td>
-        </tr>`).join('')}
-      </table>
-    </div>`;
-  host.innerHTML=`
-    <div style="background:rgba(248,81,73,.06);border:1px solid #f85149;border-radius:10px;padding:10px 12px">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <div style="font-size:12px;font-weight:800;color:var(--tx1)">🧹 중복으로 빠진 납품서</div>
-        <div style="font-size:11.5px;color:var(--tx2)">${rows.length}건 · <b style="color:#f85149">${q}장</b>이 실제보다 더 빠져 있습니다</div>
-        <button onclick="delivDupToggle()" style="margin-left:auto;padding:3px 9px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--acc);font-size:10.5px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${delivDupOpen?'▲ 접기':'▼ 어느 것인지'}</button>
-        <button onclick="delivDupRun()" style="padding:4px 12px;background:#f85149;border:none;border-radius:6px;color:#fff;font-size:11px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">정리하기</button>
-      </div>
-      <div style="font-size:10.5px;color:var(--tx3);margin-top:5px;line-height:1.5">
-        같은 납품서가 두 번 세 번 차감된 것입니다. 그 기록을 걷어내고 한 번만 다시 넣습니다 — <b>납품서 원본은 건드리지 않습니다.</b>
-      </div>
-      ${tbl}
-    </div>`;
+  const host=document.getElementById('deliv-dup-card'); if(host) host.remove();
 }
 
 function renderDelivery(){
