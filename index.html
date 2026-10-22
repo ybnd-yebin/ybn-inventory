@@ -16320,7 +16320,8 @@ const OD_JA_MM2 = 90000;                 // 1자 = 300mm × 300mm
    `5T 백유리`(원/평) · `보링`(원/개)은 📒 거래처 월 마감(`clPrice`)만 씁니다 — 단가는 이 표 한 곳입니다. */
 const OD_VENDOR_PRICE = {
   '대원유리': { '3.2T 백사틴 정규격': 1000, '3.2T 백사틴 비규격': 1300 },
-  '현성유리': { '3.2T 백사틴 정규격': 4300, '3.2T 백사틴 비규격': 5000, '5T 백유리': 2800, '보링': 1000 },
+  /* 5T 백유리 — 정규격 2,300 · 비규격 2,800 (사장님 2026-10-22). 정규격인지는 **사이즈**로 봅니다 — 발주탭 「5T 백유리 정규격」의 모델 사이즈(od5tStdSize) */
+  '현성유리': { '3.2T 백사틴 정규격': 4300, '3.2T 백사틴 비규격': 5000, '5T 백유리 정규격': 2300, '5T 백유리 비규격': 2800, '보링': 1000 },
   /* 아름유리 — 사장님 표의 값(2026-10-13 「참조용」, 맞는지 미확인) → **추정**. 종류 이름은 odStmtKind 와 같아야 합니다. */
   '아름유리': { '에어힌지 5T 투명 정규격': 2697, '에어힌지 5T 투명 비규격': 3758, 'KB 빗면 5T 브론즈 정규격': 3450, 'KB 빗면 5T 브론즈 비규격': 4150 },
 };
@@ -16389,8 +16390,8 @@ function odStmtKind(o,it,vendor){
     const std = /정규격/.test(t) && !/비규격/.test(t);
     return (col==='B' ? 'KB 빗면 5T 브론즈 ' : '에어힌지 5T 투명 ') + (std ? '정규격' : '비규격');
   }
-  // 5T 백유리 — 정·비규격 같은 단가(9월 최종 마감 2,800원/평). 단가표에 있는 발주처(현성)만 값이 붙습니다
-  if(/5\s*T\s*백유리/.test(t)) return '5T 백유리';
+  // 5T 백유리 — 정규격 사이즈면 정규격 단가, 아니면 비규격(사장님 2026-10-22 「정규격은 정규격 사이즈로」). 단가표에 있는 발주처(현성)만 값이 붙습니다
+  if(/5\s*T\s*백유리/.test(t)) return od5tStdSize(it.w, it.h) ? '5T 백유리 정규격' : '5T 백유리 비규격';
   if(!/사틴|샤틴/.test(t)) return null;
   if(/바스/.test(t) || /바스/.test(it.pname||'')) return null;
   const colorNonStd = !OD_KIND_BY_QTY.has(vendor) && OD_NONSTD_COLOR_RE.test([it.color, it.bigo, o.bigo, o.title, it.pname].join(' '));
@@ -16398,6 +16399,18 @@ function odStmtKind(o,it,vendor){
     ? (Number(it.qty)||0) >= OD_STD_MIN_QTY                                        // 대원: 줄 수량
     : !colorNonStd && /정규격/.test(t) && !/비규격/.test(t) && !/비규격/.test(it.pname||'');   // 그 밖: 발주 종류(웜코튼·사하라·팬톤은 늘 비규격)
   return std ? '3.2T 백사틴 정규격' : '3.2T 백사틴 비규격';
+}
+/* 5T 백유리 정규격 사이즈인가 — 발주탭 종류 「5T 백유리 정규격」의 모델 목록(models) 한 곳에서 읽습니다(숫자를 두 곳에 두지 않음). 가로·세로 뒤집혀도 같음 */
+function od5tStdSize(w,h){
+  w=Number(w)||0; h=Number(h)||0; if(!w||!h) return false;
+  if(!window._od5tStd){
+    const s=new Set();
+    try{ Object.values(OD_CATALOG).forEach(g=>Object.values(g).forEach(list=>(list||[]).forEach(p=>{
+      if(p && p.type==='5T 백유리 정규격') odPresetModels(p).forEach(m=>{ s.add(m.w+'x'+m.h); s.add(m.h+'x'+m.w); });
+    }))); }catch(e){}
+    window._od5tStd=s;
+  }
+  return window._od5tStd.has(w+'x'+h);
 }
 function odCloseDay(vendor){ return OD_VENDOR_CLOSE_DAY[vendor] || OD_CLOSE_DAY; }
 function odStmtRange(ym, vendor){
@@ -16645,7 +16658,7 @@ const clEsc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').r
 const clMd=s=>/^\d{4}-\d{2}-\d{2}/.test(s||'')?`${+s.slice(5,7)}/${+s.slice(8,10)}`:(s||'-');
 function clPrice(vendor){
   const p=OD_VENDOR_PRICE[vendor]||{};
-  return { std:p['3.2T 백사틴 정규격'], non:p['3.2T 백사틴 비규격'], w5:p['5T 백유리'], bore:p['보링'] };
+  return { std:p['3.2T 백사틴 정규격'], non:p['3.2T 백사틴 비규격'], w5:p['5T 백유리 비규격'], w5std:p['5T 백유리 정규격'], bore:p['보링'] };
 }
 /* 유리 종류 — 마감 줄과 발주 기록을 같은 이름으로 맞춥니다 */
 function clGlass(t){
@@ -16661,14 +16674,16 @@ function clKindOf(L,P,vendor){
   if(vendor && OD_KIND_BY_QTY.has(vendor)) return (Number(L.qty)||0)>=OD_STD_MIN_QTY ? '정규격' : '비규격';
   if(/사하라/.test(L.model)) return '사하라';
   if(/팬톤/.test(L.model)) return '팬톤';
-  if(L.glassCls==='5T백유리') return (/정규격/.test(L.model)&&!/비규격/.test(L.model))?'정규격':'비규격';
+  // 5T 백유리 — 마감 파일이 「비규격/정규격」이라 적었으면 그것, 안 적었으면 사이즈(정규격 사이즈 = 2,300 · 사장님 2026-10-22).
+  // 9월 최종 파일에 571×836(정규격 사이즈)이 「백유리 비규격」 2,800 으로 와 있어, 파일 글자를 먼저 봅니다.
+  if(L.glassCls==='5T백유리') return /비규격/.test(L.model) ? '비규격' : (/정규격/.test(L.model) || od5tStdSize(L.w,L.h)) ? '정규격' : '비규격';
   if(L.pUnitFile && L.pUnitFile===P.std) return '정규격';
   if(L.pUnitFile && L.pUnitFile===P.non) return '비규격';
   return /비규격/.test(L.model)?'비규격':'정규격';
 }
 function clExpPUnit(L,P){
   if(L.kind==='기타비용') return null;
-  if(L.glassCls==='5T백유리') return P.w5||null;
+  if(L.glassCls==='5T백유리') return (L.kind==='정규격' ? P.w5std : P.w5)||null;
   return L.kind==='정규격' ? (P.std||null) : (P.non||null);
 }
 /* 줄 하나를 앱 규칙으로 다시 셉니다. flags = 거래처 엑셀과 다른 곳 */
