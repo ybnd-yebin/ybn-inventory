@@ -1697,18 +1697,28 @@ function checkItemOf(name){
   return {color, tok, type, line, side, full:[type, body, size].filter(Boolean).join(" "),
           text:[body, size].filter(Boolean).join(" ")};
 }
+/* 그 품명 줄에 형광펜이 칠해져 있나 — 규칙·손으로 칠한 것. 같은 쪽 · 같은 줄 높이 · 같은 좌우 칸.
+   ⚠ 색상 이름 칠(`__color__`)과 HD 동그라미는 셈에서 뺍니다 — 공용도 색 이름은 칠해져 있어 다 「칠함」으로 보였습니다. */
+function checkLineHl(page, line){
+  const side = line.x < 0.5;
+  return state.marks.some(m => m.page === page && m.style !== "circle" && m.rule !== "__color__"
+    && Math.abs(m.y - line.y) < 0.005 && (m.x < 0.5) === side);
+}
 function buildCheckList(){
   const grp = new Map();
   for(const l of labelNames()){
     const it = checkItemOf(l.name), k = (it.color ? it.color + " " : "") + it.full;
-    const g = grp.get(k) || {key:k, color:it.color, tok:it.tok, type:it.type, line:it.line, text:it.text, n:0, L:0, R:0, N:0, pages:new Set()};
+    const g = grp.get(k) || {key:k, color:it.color, tok:it.tok, type:it.type, line:it.line, text:it.text, n:0, L:0, R:0, N:0, pages:new Set(), hl:false};
     g.n++; g[it.side || "N"]++; g.pages.add(l.page);
+    if(!g.hl && checkLineHl(l.page, l.line)) g.hl = true;
     grp.set(k, g);
   }
   const rows = [...grp.values()];
   const typeOrd = t => t==="HD" ? 0 : t==="OB" ? 1 : 2;
+  /* 같은 색·HD/OB 안에서 형광펜 칠한 것 먼저, 안 칠한 것(공용 M …73 등)은 뒤에 모아 (사장님 2026-10-22) */
   rows.sort((a,b)=> (!a.color - !b.color) || a.color.localeCompare(b.color, "ko")
                  || typeOrd(a.type) - typeOrd(b.type)
+                 || (b.hl - a.hl)
                  || a.text.localeCompare(b.text, "ko", {numeric:true}));
   return rows;
 }
