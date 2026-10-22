@@ -13773,8 +13773,44 @@ function odColorLine(u){
    목록을 통째로 다시 그리면 **탭으로 넘어갈 칸이 그 순간 새 것으로 바뀌어**
    탭이 엉뚱한 데로 튑니다. onchange 는 칸을 벗어날 때 일어나므로
    바로 그 순간과 겹칩니다. 그래서 DOM 을 건드리지 않고 배지만 고칩니다. */
+/* ⚠ 비규격으로 발주하는 사이즈가 **정규격 유리 사이즈**와 같은가 (사장님 2026-10-22 「정규격 사이즈를 매번 기억하고 있지 않아서
+   비규격 프레임만 풀고 그냥 유리를 시켰는데 … 재고에서 사용 가능한지 확인할 수 있게」). 막지 않고 알리기만 합니다.
+   · 3.2T 백사틴 — 유로700 모델 유리 사이즈(SIZE_TO_MODELS) · 재고 = 원유리 · 웜코튼 인쇄 · 에토프
+   · 5T 백유리·투명·브론즈 — 같은 유리 정규격 종류의 모델 목록(`models`, 발주탭 OD_CATALOG 한 곳). 앱에 재고가 없어 모델만 알립니다.
+   · 정규격 종류로 내는 발주는 안 봅니다. 가로·세로 뒤집혀도 같게 봅니다. */
+function odStdSizeHit(w, h, p){
+  w=parseInt(w)||0; h=parseInt(h)||0; if(!w || !h || !p) return null;
+  const t=[p.type, p.thick, p.title].join(' ');
+  if(/정규격/.test(t) && !/비규격/.test(t)) return null;
+  if(/사틴|샤틴/.test(t)){
+    if(typeof SIZE_TO_MODELS==='undefined') return null;
+    const k=SIZE_TO_MODELS[w+'x'+h] ? w+'x'+h : SIZE_TO_MODELS[h+'x'+w] ? h+'x'+w : null;
+    if(!k) return null;
+    const [sw, sh]=k.split('x').map(Number), st=[];
+    try{ const n=getRawQty(sw, sh); if(n>0) st.push('원유리 '+n); }catch(e){}
+    try{ const n=getPrintedQty(sw, sh, 'WC'); if(n>0) st.push('웜코튼 '+n); }catch(e){}
+    try{ const e=etpStockMap()[k]; if(e && e.cur>0) st.push('에토프 '+e.cur); }catch(e){}
+    return { models:SIZE_TO_MODELS[k].map(m=>String(m).replace(/^OB\s+|\s+M$/g,'')), stock:st, hasStock:true };
+  }
+  const fam = /백유리/.test(t) ? /백유리/ : (/브론즈/.test(t) && !/투명/.test(t)) ? /브론즈/ : (/투명/.test(t) && !/브론즈/.test(t)) ? /투명/ : /5\s*T/.test(t) ? /5\s*T/ : null;
+  if(!fam) return null;
+  const names=[];
+  try{ Object.values(OD_CATALOG).forEach(g=>Object.values(g).forEach(list=>(list||[]).forEach(q=>{
+    if(!q || !q.models || !fam.test(q.thick||'')) return;
+    odPresetModels(q).forEach(m=>{ if(((m.w===w && m.h===h) || (m.w===h && m.h===w)) && names.indexOf(m.name)<0) names.push(m.name); });
+  }))); }catch(e){}
+  return names.length ? { models:names, stock:[], hasStock:false } : null;
+}
+function odStdNote(ln){
+  const {p}=curPreset();
+  const hit=odStdSizeHit(ln.w, ln.h, p);
+  if(!hit) return '';
+  const st = hit.hasStock ? (hit.stock.length ? ' · 재고 '+hit.stock.join(' · ') : ' · 재고 없음') : '';
+  return `⚠ 정규격 사이즈입니다 (${_odEsc(hit.models.slice(0,2).join(', '))}${hit.models.length>2?' 외':''})${st} — 재고에서 쓸 수 있는지 확인하십시오`;
+}
 function odLineSized(i){
   const ln = odLines[i];
+  { const n=document.getElementById('od-std-' + i); if(n && ln){ try{ n.innerHTML=odStdNote(ln); }catch(e){ n.innerHTML=''; } } }
   const box = document.getElementById('od-badge-' + i);
   if(!ln || !box) return;
   try{ box.innerHTML = (typeof odUseMini === 'function') ? odUseMini(ln) : ''; }
@@ -13872,6 +13908,7 @@ function renderOdLines(){
   const del = i => `<button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:14px;padding:2px" title="이 줄 지우기">✕</button>`;
   const bigo = (ln, i) => `<input type="text" value="${_odEsc(ln.bigo||'')}" placeholder="${bigoPh ? '공통: '+bigoPh : '비고'}" oninput="odLines[${i}].bigo=this.value" class="inp od-bigo" style="margin:0;padding:6px 8px;font-size:12px;min-width:0">`;
   const mini = (ln, i) => `<span id="od-badge-${i}" class="od-mini">${odUseMini(ln)}</span>`;
+  const stdNote = (ln, i) => { let s=''; try{ s=odStdNote(ln); }catch(e){} return `<span id="od-std-${i}" class="od-std">${s}</span>`; };   // 정규격 사이즈 알림(odStdSizeHit)
   const sizeIns = i => num(i,'w','가로',`onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})"`)
                      + `<span style="color:var(--tx3);text-align:center">×</span>`
                      + num(i,'h','세로',`onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})"`);
@@ -13895,8 +13932,8 @@ function renderOdLines(){
         ${qtyIn(i)}${bigo(ln,i)}${del(i)}</div>`;
     if(kind==='m') return `<div class="od-row od-m">${no(i)}
         <input list="od-model-list" value="${_odEsc(ln.pname||'')}" placeholder="모델명 또는 사이즈 (예: OB M 4073 · 595729)" oninput="odModelInput(${i},this.value)" onchange="odModelSizeTry(${i},this.value)" class="inp" style="${cell};text-align:left;padding-left:8px">
-        ${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}</div>`;
-    return `<div class="od-row od-s">${no(i)}${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}</div>`;
+        ${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}${stdNote(ln,i)}</div>`;
+    return `<div class="od-row od-s">${no(i)}${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}${stdNote(ln,i)}</div>`;
   }).join('');
   host.innerHTML = `<div class="od-tbl">
       <div class="od-row od-head od-${kind}">${head}</div>${rows}
@@ -13925,6 +13962,8 @@ function odRowCss(){
   .od-foot{background:var(--s2);font-size:11px;color:var(--tx2)}
   .od-no{font-size:11px;color:var(--tx3);text-align:center;font-family:'JetBrains Mono',monospace}
   .od-mini{font-size:11px;text-align:center;white-space:nowrap;cursor:help}
+  .od-std{grid-column:2 / -1;order:10;font-size:11px;font-weight:700;color:#c2410c;line-height:1.35;padding:1px 0 2px}
+  .od-std:empty{display:none}
   @media (max-width:560px){
     .od-row.od-s{grid-template-columns:20px 1fr 10px 1fr 46px 46px 22px}
     .od-row.od-m{grid-template-columns:20px 1.4fr 1fr 10px 1fr 44px 46px 22px}
@@ -15226,6 +15265,9 @@ function odSaveImageFallback(blobP, o){
 function odSaveOrder(){
   const o=odCollect();
   if(!o.items.length){ showToast('품목을 입력하세요'); return; }
+  // 정규격 사이즈를 비규격으로 내는 줄이 있으면 한 번 여쭙니다(막지는 않음 — odStdSizeHit)
+  try{ const {p}=curPreset(); const hits=o.items.filter(it=>odStdSizeHit(it.w, it.h, p));
+    if(hits.length && !confirm(`⚠ 정규격 사이즈 ${hits.length}줄이 있습니다 — ${hits.slice(0,4).map(it=>it.w+'×'+it.h).join(', ')}${hits.length>4?' …':''}\n재고에서 쓸 수 있는지 확인하셨으면 그대로 기록합니다.\n\n그대로 기록할까요?`)) return; }catch(e){}
   const order={
     id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
     vendor:o.vendor, type:o.type, thick:o.thick||'', title:o.title,
