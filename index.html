@@ -14059,7 +14059,7 @@ function renderOdLines(){
   /* 머리글은 **아래 칸과 똑같이 한 칸씩** 둡니다 (사장님 2026-10-08 "위에 목록이랑 밑에 칸이랑 글씨를 맞춰").
      예전에는 「가로 × 세로」를 세 칸에 걸친 한 덩어리로 써서, 머리의 가로·세로가 아래 칸 한가운데가 아니라 × 쪽으로 몰렸습니다. */
   const head = { s:'<span>#</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
-                 m:'<span>#</span><span>모델명</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
+                 m:'<span>#</span><span class="h-model">모델명</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
                  q:'<span>#</span><span>품명</span><span>수량</span><span></span>',
                  b:'<span>#</span><span>인쇄명</span><span>규격</span><span>수량</span><span class="h-bigo">비고</span><span></span>' }[kind];
   const rows = odLines.map((ln,i)=>{
@@ -14071,13 +14071,13 @@ function renderOdLines(){
         <input value="${_odEsc(ln.spec||'')}" placeholder="규격 (예: 680×930)" oninput="odLines[${i}].spec=this.value" class="inp" style="${cell}">
         ${qtyIn(i)}${bigo(ln,i)}${del(i)}</div>`;
     if(kind==='m') return `<div class="od-row od-m">${no(i)}
-        <input list="od-model-list" value="${_odEsc(ln.pname||'')}" placeholder="모델명 또는 사이즈 (예: OB M 4073 · 595729)" oninput="odModelInput(${i},this.value)" onchange="odModelSizeTry(${i},this.value)" class="inp" style="${cell};text-align:left;padding-left:8px">
+        <input list="od-model-list" value="${_odEsc(ln.pname||'')}" placeholder="모델명 또는 사이즈 (예: OB M 4073 · 595729)" oninput="odModelInput(${i},this.value)" onchange="odModelSizeTry(${i},this.value)" class="inp od-model" style="${cell};text-align:left;padding-left:8px">
         ${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}${stdNote(ln,i)}</div>`;
     return `<div class="od-row od-s">${no(i)}${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}${stdNote(ln,i)}</div>`;
   }).join('');
   host.innerHTML = `<div class="od-tbl">
       <div class="od-row od-head od-${kind}">${head}</div>${rows}
-      <div class="od-row od-foot od-${kind}"><span></span><span style="grid-column:span ${kind==='q'?1:kind==='b'?2:kind==='m'?4:3};text-align:left;padding-left:4px">합계</span><b id="od-sum" style="text-align:center;font-family:'JetBrains Mono',monospace">0</b><span></span></div>
+      <div class="od-row od-foot od-${kind}"><span></span><span class="od-foot-lbl" style="grid-column:span ${kind==='q'?1:kind==='b'?2:kind==='m'?4:3};text-align:left;padding-left:4px">합계</span><b id="od-sum" style="text-align:center;font-family:'JetBrains Mono',monospace">0</b><span></span></div>
     </div>`;
   odUpdateCount();
 }
@@ -14099,14 +14099,19 @@ function odRowCss(){
   .od-head > span + span:not(.h-x):not(:empty){box-shadow:-4px 0 0 -3px var(--b2)}
   .od-head > span.h-x + span{box-shadow:none}
   .od-head .h-x{color:var(--tx3);font-weight:400}
-  .od-foot{background:var(--s2);font-size:11px;color:var(--tx2)}
+  .od-row.od-foot{display:grid;gap:4px;margin:0;flex-wrap:nowrap;background:var(--s2);font-size:11px;color:var(--tx2)}   /* 아래 단추 줄(.od-foot, flex)과 이름이 겹쳐 합계가 수량 칸 밑으로 안 갔습니다 */
   .od-no{font-size:11px;color:var(--tx3);text-align:center;font-family:'JetBrains Mono',monospace}
   .od-mini{font-size:11px;text-align:center;white-space:nowrap;cursor:help}
   .od-std{grid-column:2 / -1;order:10;font-size:11px;font-weight:700;color:#c2410c;line-height:1.35;padding:1px 0 2px}
   .od-std:empty{display:none}
   @media (max-width:560px){
     .od-row.od-s{grid-template-columns:20px 1fr 10px 1fr 46px 46px 22px}
-    .od-row.od-m{grid-template-columns:20px 1.4fr 1fr 10px 1fr 44px 46px 22px}
+    /* 모델명은 휴대폰에서 제 줄을 통째로 씁니다 — 칸이 53px 뿐이라 「OB」만 보였습니다 (사장님 2026-10-23) */
+    .od-row.od-m{grid-template-columns:20px 1fr 10px 1fr 46px 46px 22px}
+    .od-row.od-m .od-model{grid-column:2 / -1}
+    .od-row.od-m .od-model + input{grid-column-start:2}
+    .od-head.od-m .h-model{display:none}
+    .od-foot.od-m .od-foot-lbl{grid-column:span 3 !important}
     .od-row.od-b{grid-template-columns:20px 1fr 74px 52px 22px}
     .od-row .od-bigo{grid-column:2 / -1;order:9}
     .od-head .h-bigo{display:none}
