@@ -16343,7 +16343,15 @@ const OD_KIND_BY_QTY = new Set(['대원유리']);
 /* **직접 입고 체크한 것만** 마감에 넣는 발주처 (사장님 2026-10-01 — 현성은 시작 단계라
    "발주낸걸 전부 마감하기보다 입고된것만"). 미입고·자동(앱이 찍은 입고)은 빼고 장수만 화면에 적습니다.
    자리 잡으면 여기서 빼면 대원처럼 돌아갑니다. */
-const OD_STMT_RECEIVED_ONLY = new Set(['현성유리']);
+/* 2026-10-22 사장님 「둘 다 고쳐줘」 — 현성도 대원처럼 자동 입고·미입고(납기일)까지 셉니다. 거의 다 자동 입고라 매입이 0 으로 보였습니다.
+   📒 거래처 월 마감이 들어온 달은 매입매출 요약에서 마감 금액이 우선합니다(lgClosingAmt). 되돌리려면 '현성유리' 를 다시 넣으십시오. */
+const OD_STMT_RECEIVED_ONLY = new Set([]);
+/* 관통보링 — 보링 단가(OD_VENDOR_PRICE 의 '보링', 원/개)가 있는 발주처에서 유리 한 장에 **늘 2개** (사장님 2026-10-22 「모든 관통보링은 2개로」).
+   관통보링 모델은 OD_THROUGH_BORE(12-58) 한 곳 — 줄 품명이 그 모델이거나 줄·공통 비고에 「관통보링」. */
+const OD_THROUGH_BORE_N = 2;
+/* 현성 백사틴 가운데 색으로 늘 비규격 단가(5,000)인 것 — 9월 최종 마감 파일의 사하라·팬톤 + 웜코튼(사장님 2026-10-22).
+   발주 줄 색·줄 비고·공통 비고·제목에 이 글자가 있으면 됩니다. 수량으로 가르는 발주처(대원)는 안 봅니다. */
+const OD_NONSTD_COLOR_RE = /웜\s*코튼|W\/?\s*Cotton|사하라|팬톤/i;
 let odStmtYm = null;                     // 'YYYY-MM' = 몇 월 마감인지
 let odStmtVendorSel = null;
 
@@ -16381,11 +16389,14 @@ function odStmtKind(o,it,vendor){
     const std = /정규격/.test(t) && !/비규격/.test(t);
     return (col==='B' ? 'KB 빗면 5T 브론즈 ' : '에어힌지 5T 투명 ') + (std ? '정규격' : '비규격');
   }
+  // 5T 백유리 — 정·비규격 같은 단가(9월 최종 마감 2,800원/평). 단가표에 있는 발주처(현성)만 값이 붙습니다
+  if(/5\s*T\s*백유리/.test(t)) return '5T 백유리';
   if(!/사틴|샤틴/.test(t)) return null;
   if(/바스/.test(t) || /바스/.test(it.pname||'')) return null;
+  const colorNonStd = !OD_KIND_BY_QTY.has(vendor) && OD_NONSTD_COLOR_RE.test([it.color, it.bigo, o.bigo, o.title, it.pname].join(' '));
   const std = OD_KIND_BY_QTY.has(vendor)
     ? (Number(it.qty)||0) >= OD_STD_MIN_QTY                                        // 대원: 줄 수량
-    : /정규격/.test(t) && !/비규격/.test(t) && !/비규격/.test(it.pname||'');        // 그 밖: 발주 종류
+    : !colorNonStd && /정규격/.test(t) && !/비규격/.test(t) && !/비규격/.test(it.pname||'');   // 그 밖: 발주 종류(웜코튼·사하라·팬톤은 늘 비규격)
   return std ? '3.2T 백사틴 정규격' : '3.2T 백사틴 비규격';
 }
 function odCloseDay(vendor){ return OD_VENDOR_CLOSE_DAY[vendor] || OD_CLOSE_DAY; }
@@ -16437,9 +16448,12 @@ function odStmtRows(vendor, ym, range){
       const ja = (w&&h) ? odPyeong(w,h,vendor) : null;
       const kind=odStmtKind(o,it,vendor);
       const unit = kind ? (price[kind]||null) : null;
-      const amt = (ja!=null && unit) ? ja*qty*unit : null;
-      rows.push({ day, st, w, h, ja, qty, unit, amt, kind,
-        pname: kind || o.thick || o.type || it.pname || '', bigo: it.bigo||o.bigo||'',
+      // 관통보링 — 한 장에 OD_THROUGH_BORE_N 개 × 보링 단가(있는 발주처만)
+      const tb = price['보링'] && (OD_THROUGH_BORE.re.test(it.pname||'') || /관통보링/.test([it.bigo, o.bigo].join(' ')));
+      const bore = tb ? OD_THROUGH_BORE_N : 0;
+      const amt = (ja!=null && unit) ? ja*qty*unit + (bore ? bore*price['보링']*qty : 0) : null;
+      rows.push({ day, st, w, h, ja, qty, unit, amt, kind, bore,
+        pname: (kind || o.thick || o.type || it.pname || '')+(bore?' +관통보링'+bore:''), bigo: it.bigo||o.bigo||'',
         odate:o.date||'', oid:o.id, i });
     });
   });
