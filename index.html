@@ -18526,6 +18526,8 @@ let lgReadData=null;     // 읽기용(큰) base64 (data URL)
 const LS_HS_PRICE = 'ybn-hs-price-v1';
 const HS_WH = { '1001':'그레이박스', '2001':'오이도' };
 let hsPrice = (function(){ try{ const o=JSON.parse(localStorage.getItem(LS_HS_PRICE)); return (o && Array.isArray(o.rows)) ? o : { rows:[] }; }catch(e){ return { rows:[] }; } })();
+// 앱을 열 때 칸이 밀린 줄을 걸러 냅니다(hsRowOk — 함수 선언이라 여기서 부를 수 있음)
+try{ const n0=hsPrice.rows.length; hsPrice.rows=hsPrice.rows.filter(hsRowOk); if(hsPrice.rows.length!==n0){ console.warn('[한샘 단가] 칸이 밀린 줄 걸러냄', n0-hsPrice.rows.length); try{ localStorage.setItem(LS_HS_PRICE, JSON.stringify(hsPrice)); }catch(e){} } }catch(e){}
 /* 📥 단가 합의서 (사장님 2026-10-14 「단가표 사틴은 있거든 … 대조해서 맞는지」) — 한샘이 보내는 「상품단가 조정합의서」 엑셀의 자재코드 · 변경금액.
    SRM 에 붙인 13품목이 합의서와 한 원도 안 틀렸습니다. 1,238품목이 다 들어 있어 이것만 넣으면 매출이 거의 다 저절로 나옵니다.
    - **비규격도 코드마다 단가 하나**(합의서가 그렇습니다) — 사이즈는 안 봅니다.
@@ -18565,7 +18567,7 @@ function hsForSync(){
   const M=hsMaster();
   if(M){ const m={}; Object.keys(M.map).forEach(c=>{ const x=M.map[c]; m[c]= x.old!=null ? [x.price,x.old] : [x.price]; });
          out.master={ m, date:M.date||'', file:M.file||'', sheet:M.sheet||'', n:M.n||0, at:M.at||'' }; }
-  const rows=(hsPrice.rows||[]).slice().sort((a,b)=>String(b.deliv||b.at).localeCompare(String(a.deliv||a.at)));   // 최근 먼저
+  const rows=(hsPrice.rows||[]).filter(hsRowOk).sort((a,b)=>String(b.deliv||b.at).localeCompare(String(a.deliv||a.at)));   // 최근 먼저
   const tbl=()=>{ const a=[], ix={}; return { a, of:s=>{ s=String(s||''); if(!(s in ix)){ ix[s]=a.length; a.push(s); } return ix[s]; } }; };
   const N=tbl(), T=tbl();
   out.rows=rows.map(r=>{
@@ -18591,6 +18593,14 @@ function hsSheetBehind(x){
   if(out.rows.some(a=>!ids.has(hsRowIdOf(a,2)))) return true;
   const d=x.del||{}; return Object.keys(out.del||{}).some(k=>String(out.del[k])>String(d[k]||''));
 }
+/* 칸이 밀린 SRM 줄 걸러내기 (2026-10-22 — 시트 879줄 중 458줄이 코드 자리에 숫자). 옛 판 앱이 새 꼴(v2)을 옛 꼴(v1)로 읽어 칸이 밀린 채
+   다시 올린 것입니다. 이 줄 때문에 단가표 화면이 오류로 멈춰 「단가 없음 N줄 ›」을 눌러도 아무것도 안 떴습니다.
+   제품코드 꼴 · 단가 · 수량 · 납품일 꼴이 맞는 줄만 씁니다 — 받을 때 · 앱을 열 때 · 보낼 때 모두. */
+function hsRowOk(r){
+  return !!r && typeof r.code==='string' && /^[A-Z][A-Z0-9]{5,}$/.test(r.code)
+    && isFinite(Number(r.price)) && Number(r.price)>0 && isFinite(Number(r.qty))
+    && /^(\d{4}-\d{2}-\d{2})?$/.test(String(r.deliv||''));
+}
 function hsMergeFromSheet(x){
   if(!x || typeof x!=='object') return false;
   let ch=false;
@@ -18609,11 +18619,12 @@ function hsMergeFromSheet(x){
     let r;
     if(v===2){ const [code,ni,size,wh,qty,price,deliv,seq,as,ti]=a; r={ id, code, name:nm(ni), size, wh, qty, price, deliv, seq, as:!!as, at:String((x.ats||[])[ti]||'') }; }
     else { const [,code,ni,size,wh,qty,price,deliv,seq,as,at]=a; r={ id, code, name:nm(ni), size, wh, qty, price, deliv, seq, as:!!as, at }; }
+    if(!hsRowOk(r)) return;            // 칸이 밀린 줄은 받지 않습니다(hsRowOk)
     r.whName=HS_WH[r.wh]||('저장소 '+r.wh); r.amt=(Number(r.qty)||0)*(Number(r.price)||0);
     hsPrice.rows.push(r); have.add(id); ch=true;
   });
   const before=hsPrice.rows.length;
-  hsPrice.rows=hsPrice.rows.filter(r=>{ const t=del[hsKey(r.code,r.size,r.wh)]; return !t || String(r.at||'')>String(t); });
+  hsPrice.rows=hsPrice.rows.filter(r=>{ if(!hsRowOk(r)) return false; const t=del[hsKey(r.code,r.size,r.wh)]; return !t || String(r.at||'')>String(t); });
   if(hsPrice.rows.length!==before) ch=true;
   if(ch) hsSave(false);
   return ch;
