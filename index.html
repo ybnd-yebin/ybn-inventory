@@ -19206,18 +19206,50 @@ function lgClosingOf(vendor, ym){
 }
 function lgClosingAmt(c){ return c.status==='확정' ? (c.supply||0) : (c.vendorSupply!=null ? Math.round(c.vendorSupply) : (c.supply||0)); }
 /* 발주처별 매입 — useClosing 이면 그 달 마감이 있는 발주처는 마감 금액 */
+/* 종류별 매입 (사장님 2026-10-22 「현성이랑 대원 3.2T(비규격/정규격)랑 5T(비규격/정규격) 매입금 구분」) — 업체별 표의 회색 세부 줄.
+   차례·이름은 LG_KIND_GROUPS 한 곳. 단가를 못 붙인 줄은 「단가 없음」(장수만). 반올림은 묶음 합에서 한 번. */
+const LG_KIND_VENDORS = new Set(['현성유리','대원유리']);
+const LG_KIND_GROUPS = ['3.2T 정규격','3.2T 비규격','5T 정규격','5T 비규격','기타','단가 없음'];
+function lgKindGroupOf(kind){
+  const k=String(kind||'');
+  if(!k) return '단가 없음';
+  const g=/5T/.test(k)?'5T':/3\.2T|사틴/.test(k)?'3.2T':null;
+  if(!g) return '기타';
+  return g+(/비규격|사하라|팬톤/.test(k)?' 비규격':' 정규격');
+}
+function lgKindPack(m){ return LG_KIND_GROUPS.filter(g=>m[g]&&(m[g].q||m[g].a)).map(g=>({ g, q:m[g].q, a:Math.round(m[g].a) })); }
+function lgKindSplit(v, rows){
+  if(!LG_KIND_VENDORS.has(v)) return null;
+  const m={}; rows.forEach(r=>{ const g=r.amt==null?'단가 없음':lgKindGroupOf(r.kind); const e=m[g]||(m[g]={q:0,a:0}); e.q+=r.qty||0; e.a+=r.amt||0; });
+  return lgKindPack(m);
+}
+// 📒 마감이 든 달 — 마감 줄(이 기기에 줄이 있을 때만)로 나눕니다. 불량은 「불량 차감」 한 줄. 확정된 달을 다른 기기에서 받으면 줄이 없어 안 나눕니다(12-37)
+function lgKindSplitClosing(v, c){
+  if(!LG_KIND_VENDORS.has(v) || !c || !(c.lines||[]).length) return null;
+  try{
+    const P=clPrice(c.vendor), m={};
+    c.lines.forEach(L=>{ const r=clCalcLine(L,P,c.vendor);   // 기타비용(잉크비 등)은 「기타」
+      const g = L.kind==='기타비용' ? '기타' : L.glassCls==='5T백유리' ? '5T'+(L.kind==='정규격'?' 정규격':' 비규격')
+              : L.glassCls==='사틴' ? '3.2T'+(L.kind==='정규격'?' 정규격':' 비규격') : '기타';
+      const e=m[g]||(m[g]={q:0,a:0}); e.q+=(r.settleQty!=null?r.settleQty:Number(L.qty)||0); e.a+=r.amt||0; });
+    const out=lgKindPack(m);
+    const def=(c.defects||[]).filter(d=>d.how!=='이월').reduce((s,d)=>s+(clCalcDefect(d,c.vendor).amt||0),0);
+    if(def) out.push({ g:'불량 차감', q:null, a:-Math.round(def) });
+    return out;
+  }catch(e){ console.warn('[종류별 매입] 마감', e); return null; }
+}
 function lgOdBuy(ym, from, to, useClosing){
   const out={}, vendors=new Set(Object.keys(OD_VENDOR_PRICE));
   if(useClosing){ try{ for(const id in closings){ const c=closings[id]; if(c && c.ym===ym) vendors.add(odStmtVendor(c.vendor)); } }catch(e){} }
   vendors.forEach(v=>{
     const c = useClosing ? lgClosingOf(v, ym) : null;
-    if(c){ out[v]={ v, amt:lgClosingAmt(c), closing:c }; return; }
+    if(c){ out[v]={ v, amt:lgClosingAmt(c), closing:c, kinds:lgKindSplitClosing(v, c) }; return; }
     if(!OD_VENDOR_PRICE[v]) return;
     let rows=[]; try{ rows=odStmtRows(v, ym, {from, to}); }catch(e){ console.warn('[매입 요약] 발주', v, e); return; }
     const sk=rows.skipped||{미입고:0, 자동:0};
     if(!rows.length && !sk.미입고 && !sk.자동) return;
     out[v]={ v, amt:Math.round(rows.reduce((s,r)=>s+(r.amt||0),0)), n:rows.length,   // 반올림은 합계에서 한 번(12-24)
-      none:rows.filter(r=>r.amt==null).length,
+      none:rows.filter(r=>r.amt==null).length, kinds:lgKindSplit(v, rows),
       recvOnly:OD_STMT_RECEIVED_ONLY.has(v), recvQty:rows.reduce((s,r)=>s+(r.qty||0),0), skipNo:sk.미입고, skipAuto:sk.자동 };
   });
   return out;
@@ -19356,9 +19388,9 @@ function lgVendToggle(){ window._lgVendOpen=!lgVendOpen(); try{ localStorage.set
    매입 = lgOdBuy(발주 기록 또는 📒 거래처 월 마감) + 손으로 적은 매입(ledgerLog).
    매출 = 📋 한샘 SRM(발주일) + 손으로 적은 매출. 업체 이름은 odStmtVendor 로 모읍니다(「대원유리 귀하」 → 대원유리). */
 function lgVendorTableHtml(ym, from, to, odMap, isCur){
-  const V={};
+  const V={}, subOpen=(typeof lgSubOpen==='function')?lgSubOpen():true;
   const take=v=>V[v]||(V[v]={ v, buyOd:0, buyLg:0, sell:0, sellHs:0, odN:0, odNone:0, lgN:0, hsNone:0, recvOnly:false, recvQty:0, skipNo:0, skipAuto:0, closing:null });
-  Object.values(odMap||{}).forEach(o=>{ const e=take(o.v); e.buyOd+=o.amt;
+  Object.values(odMap||{}).forEach(o=>{ const e=take(o.v); e.buyOd+=o.amt; e.kinds=o.kinds||null;
     if(o.closing){ e.closing=o.closing; return; }
     e.odN+=o.n; e.odNone+=o.none;
     if(o.recvOnly){ e.recvOnly=true; e.recvQty+=o.recvQty; e.skipNo+=o.skipNo; e.skipAuto+=o.skipAuto; } });
@@ -19386,7 +19418,12 @@ function lgVendorTableHtml(ym, from, to, odMap, isCur){
                 e.lgN?`기록 ${e.lgN}건`:'' ].filter(Boolean).join(' · ');
     return `<div style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:7px 12px;border-top:1px solid var(--b1)">
       <b style="font-size:12.5px">${etpEsc(e.v)}</b>${cell(e.buyOd+e.buyLg,'var(--acc4)')}${cell(e.sell+e.sellHs,'var(--acc3)')}
-      <span style="font-size:10.5px;color:var(--tx3);text-align:right">${why}</span></div>`; }).join('');
+      <span style="font-size:10.5px;color:var(--tx3);text-align:right">${why}</span></div>`
+      // 종류별 회색 세부 줄 — 요약의 「세부 ▾/▴」와 같이 접고 폅니다(lgSubOpen)
+      + ((subOpen && e.kinds && e.kinds.length) ? e.kinds.map(k=>`<div style="display:grid;grid-template-columns:${COLS};gap:8px;align-items:center;padding:3px 12px;background:var(--s2)">
+      <span style="font-size:10.5px;font-weight:700;color:var(--tx3);padding-left:8px">└ ${k.g}</span>
+      <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;color:${k.g==='단가 없음'?'var(--tx3)':'var(--tx2)'}">${k.g==='단가 없음'?'-':(k.a<0?'−'+won(-k.a):won(k.a))}</span>
+      <span></span><span style="text-align:right;font-size:10.5px;color:${k.g==='단가 없음'?'var(--acc2)':'var(--tx3)'};font-family:'JetBrains Mono',monospace">${k.q!=null?k.q+'장':''}</span></div>`).join('') : ''); }).join('');
   return `<div class="card" style="padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px"><div style="min-width:480px">
     <div style="display:grid;grid-template-columns:${COLS};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
       <span>🏢 ${+ym.slice(5,7)}월 업체별 <span style="font-weight:400;color:var(--tx3)">(${isCur?'1일~오늘':'한 달'} · 공급가)</span></span><span style="text-align:right">📥 매입</span><span style="text-align:right">📤 매출</span><span style="text-align:right">근거</span></div>
