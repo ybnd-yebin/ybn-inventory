@@ -199,6 +199,7 @@ button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-vis
 }
 /* 쪼가리에 들어가는 자동 메모 — 자리가 좁아 테두리·여백을 뺍니다 */
 .note.strip{padding:0 1px;border:none;letter-spacing:-.01em}
+.note.thin{font-weight:400}   /* 묶음 숫자(2 · 4 · L1/R1)만 보통 굵기 — 선명하게 인쇄(PDF)도 이 굵기를 읽습니다 (2026-10-23) */
 /* A/S — 품명 아래 빈칸에 굵고 크게 (2026-10-07) */
 .note.ascell{font-weight:900;padding:0 2px;border:none;letter-spacing:.02em}
 /* 유리 사이즈는 세로로 — 라벨의 다른 세로 글자와 같은 방향(아래에서 위로) 입니다.
@@ -442,7 +443,8 @@ const COLORS = [
 ];
 
 // HD 는 포함해서, OB / CH 는 빼고 그 뒤부터 모델명 끝까지 (뒤에 붙은 치수코드는 제외)
-const MODEL_RE  = "/\\bHD\\s+.*?(?=\\s+\\d+X\\d+X\\d+X\\d+|$)|(?<=\\b(?:OB|CH)\\s).*?(?=\\s+\\d+X\\d+X\\d+X\\d+|$)/";
+// AL45 연장P 는 색 뒤 모델명(`WFGO 9037 M`)부터 칠합니다 (사장님 2026-10-23)
+const MODEL_RE  = "/\\bHD\\s+.*?(?=\\s+\\d+X\\d+X\\d+X\\d+|$)|(?<=\\b(?:OB|CH)\\s).*?(?=\\s+\\d+X\\d+X\\d+X\\d+|$)|(?<=\\bAL45\\s+\\S+\\s).*?(?=\\s+\\d+X\\d+X\\d+X\\d+|$)/";
 // 유리장식벽장·키큰장처럼 Euro 계열이 아닌 수납도어류.
 // **비규격만 칠합니다.** 정규격(`유리장식키큰장 AL도어 45222 M`)은 표시하지 않습니다
 // — 규격이 정해진 물건이라 형광펜이 필요 없습니다 (사용자 확정 2026-09-22).
@@ -501,6 +503,7 @@ const RULE_MIGRATE = [
   ["r4",  "piece-wrwf-1019",      {name:"피스 동봉 (WR·WF 계열)", target:PIECE_RE}],
   ["r4a", "mokdae1-brwti-1019",   {name:"목대 1개 (BLD1R/BLD1UA/BRWTI)", target:MOKDAE1_RE}],
   ["r1",  "no73-gongyong-1022",   {name:"모델명 (공용 73 제외)", except:NO73}],   // (공용) 만 빼기 (2026-10-22)
+  ["r1",  "al45-model-1023",      {target:MODEL_RE}],                             // AL45 연장P 모델명도 칠하기 (2026-10-23)
 ];
 
 const state = {
@@ -1095,7 +1098,15 @@ function layoutStripNotes(pend){
          한 줄에 하나씩이면 `2장` / `HD` / `R` 로 깔끔하게 떨어집니다.
        ⚠ 글자를 줄여 한 줄에 몰아넣지 않습니다. `2장 · 421×708 · R` 을 한 줄로 욱여넣다가
          9px 까지 작아진 적이 있습니다 (같은 날 "글씨가 너무 작아졌어. 줄바꿈으로 해줘"). */
-    const cands = splitCandidates(texts);
+    /* 묶음 숫자는 **보통 굵기**라 제 줄에 따로 섭니다 (사장님 2026-10-23 「숫자는 얇게」) —
+       맨 앞 줄이 숫자 하나뿐인 나눔만 씁니다. 그런 나눔이 하나도 안 맞으면 예전처럼 다 굵게 이어 붙입니다. */
+    const allCands = splitCandidates(texts);
+    const soloCands = o.bundle ? allCands.filter(ls => ls[0] === o.bundle) : allCands;
+    const fits = cs => STRIP_FS.some(fs => {
+      cx.font = "700 " + fs + "px " + fam;
+      return cs.some(ls => ls.length*fs*STRIP_LH <= maxH && Math.max(...ls.map(l => cx.measureText(l).width)) <= maxW);
+    });
+    const cands = (soloCands.length && fits(soloCands)) ? soloCands : allCands;
     let best = null;
     for(const fs of STRIP_FS){
       cx.font = "700 " + fs + "px " + fam;
@@ -1121,7 +1132,7 @@ function layoutStripNotes(pend){
     best.lines.forEach((t,i)=>{
       state.notes.push({id:uid(), page:+pageStr, x:box.x0,
                         y: (top + i*best.lh + best.lh/2)/pxH,
-                        text:t, cell, align:"left", cls:"strip", fs:best.fs,
+                        text:t, cell, align:"left", cls:(i === 0 && t === o.bundle) ? "strip thin" : "strip", fs:best.fs,
                         auto:true, rule:"__strip__"});
     });
   }
@@ -1273,7 +1284,8 @@ function labelNames(){
     for(const line of p.lines){
       /* 품명 줄 — Euro·AL도어만 보다가 **에어힌지(AL프레임)·KB 빗면·글래스도어**가 철 확인에서 빠졌습니다 (사장님 2026-10-14
          「라벨에 나오는 모든 품목 리스트가 나와야 하는데 수납유리 중에 에어힌지는 빠져 있었음」). 수납도어 품명을 다 봅니다. */
-      if(!/Euro\d{3}|AL도어|AL프레임|에어힌지|빗면|빗각|미러장식|글래스\s*(?:행잉\s*)?(?:채널\s*)?도어|유리장식|키큰장유리|벽장유리/.test(line.text)) continue;
+      /* AL45(연장P, `(P)AL45 PG새틴그레이[연장P] WFGO 9037 M`)도 품명입니다 — 유로500 으로 셉니다 (사장님 2026-10-23, 빠져서 철 확인·묶음 수량에 안 잡혔음) */
+      if(!/Euro\d{3}|AL45|AL도어|AL프레임|에어힌지|빗면|빗각|미러장식|글래스\s*(?:행잉\s*)?(?:채널\s*)?도어|유리장식|키큰장유리|벽장유리/.test(line.text)) continue;
       if(line.text.includes("(Euro")) continue;   // AS 라벨의 내용참조 줄은 품명이 아닙니다
       const q = (line.x<0.5?0:1) + "-" + (line.y<0.5?0:1);
       if(!byQuad[q] || line.text.length > byQuad[q].text.length) byQuad[q] = line;
@@ -1310,7 +1322,7 @@ function applyBundleNotes(pend){
     const text = g.n === 1 ? "1"
       : (g.L && g.R)
       ? ["L"+g.L, "R"+g.R].concat(g.N ? ["미표기"+g.N] : []).join("/")
-      : g.n + "장";
+      : String(g.n);                          // 「장」은 빼고 숫자만 (사장님 2026-10-23)
     addPend(pend, l.page, l.line, "bundle", text);
   }
 }
@@ -1663,7 +1675,8 @@ const CHECK_CHIP = {
   '로즈그레이':['#eee0e1','#d8c2c4','#5b3e42'], '로즈골드':'로즈그레이', 'PG/RG':'로즈그레이',
   '사하라':['#fbe3d0','#f0c5a4','#7a4622'],   '미드나잇':['#dbe0ee','#b6c0da','#26304e'],
   '포레스트':['#dde8dc','#b4c9b3','#22402a'], '브론즈':['#e8d5bd','#cfb392','#573413'],
-  'RW':['#ecdfc9','#d4c19f','#5a4526'],       '러프우드':'RW'
+  'RW':['#ecdfc9','#d4c19f','#5a4526'],       '러프우드':'RW',
+  '새틴그레이':['#e8eaee','#ccd1d8','#333a44'], 'PG새틴그레이':'새틴그레이'   // AL45 연장P (COLOR_CHIP 의 그레이)
 };
 function checkChipStyle(...keys){
   for(let k of keys){
@@ -1685,7 +1698,7 @@ function checkItemOf(name){
     size = (p[0] && p[2]) ? "(비) " + p[0] + "×" + p[2] : "(비) " + sm[1];
     t = t.slice(0, sm.index).trim();
   }else t = t.replace(/\s+[LMR]$/, "").trim();
-  let color = "", type = "", body = t, line = "", tok = "";
+  let color = "", type = "", body = t, line = "", tok = "", m2 = null;
   const m = t.match(/^(?:\(P\))?Euro(\d{3})\s+(?:(?:Grace|Veil)\s+)?(.+?)\s+(OB|HD|CH)\s+(.*)$/);
   if(m){
     line  = m[1];                                 // 700 · 500
@@ -1693,6 +1706,12 @@ function checkItemOf(name){
     color = (state.colorNames && state.colorNames[m[2]]) || m[2];
     type  = m[3] in CHECK_TYPE ? CHECK_TYPE[m[3]] : m[3];
     body  = m[4];
+  }else if((m2 = t.match(/^(?:\(P\))?AL45\s+(\S+?)(?:\[[^\]]*\])?\s+(.*)$/))){
+    /* AL45 연장P — 유로500 칸으로 (사장님 2026-10-23). 색은 `PG새틴그레이` → 이름표(colorNames)가 없으면 앞 PG/ 를 뗀 이름 */
+    line  = "500";
+    tok   = m2[1];
+    color = (state.colorNames && state.colorNames[tok]) || tok.replace(/^PG\/?/, "");
+    body  = m2[2];
   }else body = t.replace(/\s*AL도어\s*/, " ").trim();
   /* full = 예전 줄 글자(체크 기억의 열쇠라 그대로 둡니다) · text = HD/OB 를 묶음 제목으로 올린 뒤의 줄 글자 */
   return {color, tok, type, line, side, full:[type, body, size].filter(Boolean).join(" "),
@@ -2016,7 +2035,7 @@ function renderStats(){
   // 쪼가리 메모는 한 줄에 여럿이 붙을 수 있어, 글자로 셉니다
   const strip = state.notes.filter(n=>n.rule==="__strip__");
   const has = re => strip.filter(n=>re.test(n.text)).length;
-  if(state.extras.bundle) rows.push(["묶음 표시", has(/(?:^|·\s)(?:\d+장|1)(?:\s|$)/)+"묶음"]);
+  if(state.extras.bundle) rows.push(["묶음 표시", has(/(?:^|·\s)\d+(?:\s|$)/)+"묶음"]);
   if(state.extras.glass){
     const bad = has(/유리\?/);
     rows.push(["유리 사이즈", has(/\d+×\d+/)+"장" + (bad ? ` (확인 필요 ${bad})` : "")]);
