@@ -17333,11 +17333,29 @@ function clPrepLines(c){
    같은 유리종류 + 가로×세로로 묶고, 발주일이 입고일(명세서일)보다 앞서거나 같은 발주부터
    **오래된 것부터** 수량을 나눠 줍니다. 다른 마감이 이미 가져간 수량은 빼고 셉니다.
    손으로 바꾼 상태(stManual)는 다시 맞춰도 건드리지 않습니다. */
+/* C8 (2026-10-23 사장님 「uid 먼저, 없으면 예전 차례 번호」) — 마감 줄이 가리키는 발주 품목을 **품목 번호(uid)** 로 찾습니다.
+   예전에는 차례 번호(oid|i)만 봐서, 앞 줄을 빼면 다른 달이 이미 가져간 수량이 「남음」으로 다시 보였습니다.
+   찾는 차례: ① p.uid ② 옛 참조는 `발주id#차례` — 옛 품목에 처음 붙인 번호가 바로 이 값이라(odEnsureUids), 그 뒤 줄이 밀려도 같은 품목을 가리킵니다
+              ③ 그래도 없으면(새 판을 안 연 기기가 오늘 이후 만든 참조) 예전처럼 그 차례의 품목.
+   ⚠ 마감 기록(L.po)은 고쳐 쓰지 않습니다 — 읽을 때만 이렇게 찾습니다. 새로 맞추는 줄에는 uid 를 같이 적고, 옛 판 기기를 위해 i 도 그대로 둡니다. */
+function clPoItemKey(p, byId){
+  const o=byId.get(p.oid);
+  if(o){
+    const items=o.items||[];
+    const want=p.uid || (p.oid+'#'+p.i);
+    let it=items.find(x=>x && x.uid===want);
+    if(!it && !p.uid) it=items[p.i];
+    if(it && it.uid) return it.uid;
+  }
+  return '?|'+p.oid+'|'+(p.uid||p.i);     // 지운 발주 등 — 어느 품목에도 안 걸리게
+}
 function clOrderPool(c){
+  try{ odEnsureUids(); }catch(e){}
+  const byId=new Map((orderLog||[]).map(o=>[o && o.id, o]));
   const used={};
   Object.values(closings).forEach(o=>{
     if(o.id===c.id || o.vendor!==c.vendor) return;
-    (o.lines||[]).forEach(L=>(L.po||[]).forEach(p=>{ if(p.oid!=null) used[p.oid+'|'+p.i]=(used[p.oid+'|'+p.i]||0)+p.qty; }));
+    (o.lines||[]).forEach(L=>(L.po||[]).forEach(p=>{ if(p.oid!=null){ const k=clPoItemKey(p, byId); used[k]=(used[k]||0)+p.qty; } }));
   });
   const pool={};
   orderLog.forEach(o=>{
@@ -17345,9 +17363,9 @@ function clOrderPool(c){
     const t=[o.type,o.title,o.thick].join(' '), g=clGlass(t);
     (o.items||[]).forEach((it,i)=>{
       const w=Number(it.w)||0, h=Number(it.h)||0, q=Number(it.qty)||0; if(!w||!h||!q) return;
-      const left=q-(used[o.id+'|'+i]||0); if(left<=0) return;
+      const left=q-(used[it.uid]||0); if(left<=0) return;
       const key=g+'|'+w+'|'+h;
-      (pool[key]=pool[key]||[]).push({ oid:o.id, i, date:o.date||'', file:o.srcSheet||o.title||o.type||'', left,
+      (pool[key]=pool[key]||[]).push({ oid:o.id, i, uid:it.uid, date:o.date||'', file:o.srcSheet||o.title||o.type||'', left,
         as: /A\s*\/\s*S|\bAS\b/i.test([o.title,o.type,o.bigo,it.pname,it.bigo].join(' ')) });
     });
   });
@@ -17373,7 +17391,7 @@ function clAutoMatch(c){
       (pool[L.glassCls+'|'+L.w+'|'+L.h]||[]).forEach(e=>{
         if(need<=0 || e.left<=0 || e.date>L.date) return;
         const take=Math.min(need,e.left); e.left-=take; need-=take;
-        L.po.push({ oid:e.oid, i:e.i, date:e.date, file:e.file, qty:take }); if(e.as) L.as=true;
+        L.po.push({ oid:e.oid, i:e.i, uid:e.uid, date:e.date, file:e.file, qty:take }); if(e.as) L.as=true;
       });
       if(L.po.length){ L.poQty=L.po.reduce((s,p)=>s+p.qty,0); L.diff=L.qty-L.poQty; }
     }
