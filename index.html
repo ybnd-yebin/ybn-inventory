@@ -29763,8 +29763,13 @@ var GNAV=(function(){
     var it=GNAV_MENU[c]&&GNAV_MENU[c].items[i]; if(!it) return;
     if(it.href){ window.open(it.href,'_blank','noopener'); return; }
     cur={c:c,i:i};
-    var b=mainBtn(it.m);
-    if(b) b.click(); else if(typeof showMain==='function') showMain(it.m);   // 옛 단추와 같은 길(매입매출 PIN 등 그대로)
+    /* ⚠ 이미 그 화면이면 옛 단추를 **다시 누르지 않습니다**(운영 반영 전 점검 2026-10-23).
+       발주 화면은 다시 그릴 때(renderOrderPage → odCatChanged) 고른 발주처·종류·공통 비고가 기본값으로 돌아갑니다 — 옛 앱에서 탭을 다시 눌러도 같은 일.
+       같은 화면 안 소분류(발주 작성 ↔ 발주 목록 · 월 마감 · 마감 명세서)를 오갈 때 적던 발주서·고치던 발주가 바뀌지 않게 막습니다. */
+    if(it.m!==nowMain()){
+      var b=mainBtn(it.m);
+      if(b) b.click(); else if(typeof showMain==='function') showMain(it.m);   // 옛 단추와 같은 길(매입매출 PIN 등 그대로)
+    }
     if(it.s && typeof showSub==='function'){ try{ showSub(it.s); }catch(e){ console.warn('[메뉴] showSub', e); } }
     render();
     setTimeout(function(){
