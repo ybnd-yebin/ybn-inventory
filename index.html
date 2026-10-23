@@ -9533,6 +9533,7 @@ function metaForSync(){
   put('wkExamples',    typeof wkExamples!=='undefined'    ? wkExamples    : undefined);
   put('wlPostponed',   typeof wlPostponed!=='undefined'   ? wlPostponed   : undefined);
   put('orderDeleted',  typeof orderDeleted!=='undefined'  ? orderDeleted  : undefined);
+  put('odEvDel',       typeof odEvDel!=='undefined'       ? odEvDel       : undefined);   // C9 — 푼 발주 입고 이벤트의 지운 표시(2026-10-23)
   put('vendorBreaks',  typeof vendorBreaks!=='undefined'  ? vendorBreaks  : undefined);
   put('wlTombs',       typeof wlTombs!=='undefined'       ? wlTombs       : undefined);
   put('delivUnmatched',typeof delivUnmatched!=='undefined'? delivUnmatched: undefined);
@@ -9825,6 +9826,15 @@ function applyMergedFromSheet(data){
   if(data.matStock!==undefined) matStock=data.matStock;
   if(data.inklog!==undefined) inkLog=data.inklog;
   if(data.meta!==undefined) Object.assign(meta, data.meta);
+  /* C9 (2026-10-23) — 지운 표시를 합치고(나중 시각), 발주·재고 이벤트를 다 받은 뒤 입고를 맞춥니다(odEvReconcile).
+     맨 끝에 두는 까닭: 발주 기록(orderLog)과 재고 이벤트(stockEvents)가 **둘 다** 합쳐진 뒤여야 맞출 수 있습니다. */
+  try{
+    if(data.odEvDel && typeof data.odEvDel==='object' && typeof odEvDel!=='undefined'){
+      for(const k in data.odEvDel){ if(!odEvDel[k] || String(data.odEvDel[k])>String(odEvDel[k])) odEvDel[k]=data.odEvDel[k]; }
+      odEvDelSave();
+    }
+    if(typeof odEvReconcile==='function') odEvReconcile();
+  }catch(e){ console.warn('[발주 입고 맞추기] 실패', e); }
 }
 
 async function gsFetch(method,body,qs=''){
@@ -13162,7 +13172,107 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
 // 발주 (Order) 기능
 // ════════════════════════════════════════════
 var orderLog = JSON.parse(localStorage.getItem('ybn-order-v1')||'[]');
-function saveOrderLog(){ _put('ybn-order-v1', orderLog); }
+function saveOrderLog(){ try{ odEnsureUids(); }catch(e){} _put('ybn-order-v1', orderLog); }
+
+/* ── C9 · 발주 입고 재고 이벤트 지키기 (사장님 2026-10-23 「재고이벤트 보완 먼저」) ─────────────────────
+   점검에서 실측한 두 사고:
+     ① 입고를 풀어 지운 재고 이벤트가, 아직 그것을 가진 다른 기기·시트와 합쳐지면 **되살아났습니다**(발주는 미입고 · 재고 +10).
+        재고 이벤트는 id 로 합치기(합집합)만 하고 「지웠다」는 표시가 없었기 때문입니다.
+     ② 두 기기가 동기화 전에 같은 줄을 각각 입고하면 이벤트가 **둘** 생겨 재고가 두 배(5장 발주 → +10).
+   고치는 법 — 새 칸 셋(덧붙이기만, 옛 자료는 그대로 읽힘):
+     · 품목 번호 `it.uid` — 새 품목은 만들 때, 옛 품목은 처음 볼 때 `발주id#차례`(기기마다 같은 값이 나오게). 한 번 붙으면 안 바뀝니다.
+     · 입고 이벤트에 `oid`(발주 id) · `oiu`(품목 번호) — 이 변경 뒤에 잡는 입고부터.
+     · 지운 표시 `odEvDel` {이벤트 id: 지운 때} — 발주 입고 이벤트를 풀 때만 남깁니다(납품서·실사 등 다른 이벤트는 손대지 않음).
+       이 기기 `ybn-od-evdel-v1` + 시트(metaForSync 의 odEvDel). 180일 지나면 덜어냅니다.
+   병합 뒤 맞추기 `odEvReconcile` (시트에서 받은 뒤 한 번):
+     ⓐ 지운 표시가 있는 이벤트는 걷어냅니다.
+     ⓑ 한 품목(oiu)에 입고 이벤트가 둘 이상이면 품목의 eventId 것만 남깁니다(그게 없으면 먼저 생긴 것).
+     ⓒ 품목은 미입고인데 그 품목의 이벤트가 남아 있으면(지운 표시 없음 = 다른 기기에서 실제로 입고했는데 발주 기록 병합에서 밀린 것)
+        **재고를 지우지 않고 입고로 되살립니다** — 실제로 한 일을 지우지 않습니다.
+   ⚠ 지운 발주의 이벤트(발주를 지워도 재고는 남김 — odDeleteOrder)와 oiu 가 없는 옛 이벤트는 건드리지 않습니다. */
+var odEvDel = (function(){ try{ return JSON.parse(localStorage.getItem('ybn-od-evdel-v1')||'{}')||{}; }catch(e){ return {}; } })();
+function odEvDelSave(){
+  const cut=new Date(Date.now()-180*86400000).toISOString();
+  for(const k in odEvDel) if(String(odEvDel[k])<cut) delete odEvDel[k];
+  try{ localStorage.setItem('ybn-od-evdel-v1', JSON.stringify(odEvDel)); }catch(e){}
+}
+function odEvDelMark(ids){
+  const t=new Date().toISOString(); let n=0;
+  (ids||[]).forEach(id=>{ if(id){ odEvDel[id]=t; n++; } });
+  if(n) odEvDelSave();
+}
+function odNewUid(){ return 'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function odEnsureUids(){
+  let n=0;
+  (orderLog||[]).forEach(o=>{
+    if(!o || !Array.isArray(o.items)) return;
+    const used=new Set(o.items.map(it=>it && it.uid).filter(Boolean));
+    o.items.forEach((it,i)=>{
+      if(!it || it.uid) return;
+      let u=o.id+'#'+i;                       // 옛 품목 — 어느 기기에서 붙여도 같은 값
+      if(used.has(u)) u=odNewUid();
+      it.uid=u; used.add(u); n++;
+    });
+  });
+  return n;
+}
+// 입고 이벤트에 발주·품목 번호를 적습니다 (addStockEvent 는 그대로 두고, 돌려받은 이벤트에 덧붙입니다)
+function odTagEvent(ev, o, it){
+  if(!ev || !o || !it) return;
+  if(!it.uid){ it.uid=odNewUid(); }
+  ev.oid=o.id; ev.oiu=it.uid;
+}
+function odEvReconcile(){
+  const out={ dropped:0, dedup:0, restored:0, keys:new Set() };
+  if(typeof stockEvents==='undefined' || !stockEvents) return out;
+  odEnsureUids();
+  // ⓐ 지운 표시
+  Object.keys(stockEvents).forEach(k=>{
+    const a=stockEvents[k]; if(!Array.isArray(a)) return;
+    const b=a.filter(e=>!(e && odEvDel[e.id]));
+    if(b.length!==a.length){ out.dropped+=a.length-b.length; stockEvents[k]=b; out.keys.add(k); }
+  });
+  // 품목 번호 → 이벤트들
+  const byUid={};
+  Object.keys(stockEvents).forEach(k=>(stockEvents[k]||[]).forEach(e=>{
+    if(e && e.oiu && e.source==='order' && e.type==='in') (byUid[e.oiu]=byUid[e.oiu]||[]).push({k,e});
+  }));
+  const drop=new Set();
+  (orderLog||[]).forEach(o=>(o.items||[]).forEach(it=>{
+    if(!it || !it.uid) return;
+    const evs=byUid[it.uid]; if(!evs || !evs.length) return;
+    if(it.received){
+      // ⓑ 둘 이상이면 하나만
+      if(evs.length>1){
+        const keep=evs.find(x=>x.e.id===it.eventId) || evs.slice().sort((a,b)=>String(a.e.byAt||'').localeCompare(String(b.e.byAt||'')))[0];
+        evs.forEach(x=>{ if(x!==keep){ drop.add(x.e.id); out.keys.add(x.k); out.dedup++; } });
+        if(it.eventId!==keep.e.id){ it.eventId=keep.e.id; o.updatedAt=new Date().toISOString(); }
+      }
+    } else if(it.recvHeld){
+      // 손으로 입고를 푼 줄(recvHeld) — 남은 이벤트는 지운 표시 없이 되살아난 것(옛 판 기기에서 푼 경우)이라 걷어냅니다
+      evs.forEach(x=>{ drop.add(x.e.id); out.keys.add(x.k); out.dropped++; });
+    } else {
+      // ⓒ 입고로 되살림 (하나만 — 나머지는 ⓑ 처럼 걷어냄)
+      const keep=evs.slice().sort((a,b)=>String(a.e.byAt||'').localeCompare(String(b.e.byAt||'')))[0];
+      evs.forEach(x=>{ if(x!==keep){ drop.add(x.e.id); out.keys.add(x.k); out.dedup++; } });
+      it.received=true; it.eventId=keep.e.id; it.recvDate=String(keep.e.at||'').slice(0,10)||todayStr();
+      it.recvAt=keep.e.byAt||new Date().toISOString(); it.auto=/자동/.test(keep.e.note||''); it.recvHeld=false;
+      o.updatedAt=new Date().toISOString(); out.restored++; out.keys.add(keep.k);
+      console.warn('[발주 입고 맞추기] 다른 기기에서 잡은 입고를 되살렸습니다 —', o.vendor, o.date, it.w+'x'+it.h, it.qty+'장');
+    }
+  }));
+  if(drop.size){
+    odEvDelMark([...drop]);                     // 걷어낸 중복도 지운 표시 — 다른 기기에서 다시 안 들어오게
+    Object.keys(stockEvents).forEach(k=>{ const a=stockEvents[k]; if(Array.isArray(a)) stockEvents[k]=a.filter(e=>!drop.has(e && e.id)); });
+  }
+  out.keys.forEach(k=>{ const m=String(k).match(/^(\d+)x(\d+)/); if(m && typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(+m[1], +m[2]); });
+  if(out.dropped||out.dedup||out.restored){
+    try{ if(typeof _delivEvNoCache!=='undefined') _delivEvNoCache=null; }catch(e){}
+    console.log('[발주 입고 맞추기] 지운 표시', out.dropped, '· 중복', out.dedup, '· 되살림', out.restored);
+  }
+  return out;
+}
+try{ if(odEnsureUids()) _put('ybn-order-v1', orderLog); }catch(e){ console.warn('[발주] 품목 번호 붙이기 실패', e); }
 
 // 발주처별 종류 프리셋
 //  thick: 유리 두께표시 / title: 발주서 제목 / bigo: 비고 자동 / pname: 품명 기본값
@@ -15066,8 +15176,12 @@ function odGrowItemRows(ws, extra){
   below.forEach(m => { try{ ws.unMergeCells(m[0]); }catch(e){} });
   ws.duplicateRow(OD_TPL_ROW0, extra, true);
   below.forEach(m => { try{ ws.mergeCells(`${m[1]}${+m[2]+extra}:${m[3]}${+m[4]+extra}`); }catch(e){} });
-  for(let r = lastTpl + 1; r <= lastTpl + extra; r++){
-    rowPat.forEach(m => { try{ ws.mergeCells(`${m[1]}${r}:${m[3]}${r}`); }catch(e){} });
+  /* 품목 줄 **전부**(13행부터)에 첫 줄 모양으로 합치기를 겁니다 — duplicateRow 가 끼워 넣은 자리(13~24행)의 합치기를 지워,
+     22줄 발주서에서 2~13번째 품명·규격이 왼쪽으로 쏠렸습니다(사장님 엑셀 화면 2026-10-23). 이미 합쳐진 칸은 try 가 건너뜁니다. */
+  /* ⚠ duplicateRow 뒤 13~24행은 목록(_merges)에는 합치기가 남아 있는데 칸 자체는 풀려 있어, 파일에 쓸 때 빠집니다.
+     그래서 한 번 풀고(unMergeCells) 다시 겁니다 — 그냥 mergeCells 하면 「이미 합쳐짐」으로 거절됩니다(2026-10-23 실측). */
+  for(let r = OD_TPL_ROW0 + 1; r <= lastTpl + extra; r++){
+    rowPat.forEach(m => { const a = `${m[1]}${r}:${m[3]}${r}`; try{ ws.unMergeCells(a); }catch(e){} try{ ws.mergeCells(a); }catch(e){} });
   }
   // 인쇄 영역도 늘린 만큼 아래로 (A1:O27 → A1:O34)
   const pa = ws.pageSetup && ws.pageSetup.printArea;
@@ -15120,6 +15234,14 @@ function odFillSheet(ws, o){
     odPut(ws, 'J' + r, it ? (Number(it.qty) || 0) : null);
     odPut(ws, 'K' + r, it ? (o.due || '') : null);
     odPut(ws, 'L' + r, it ? (it.bigo || '') : null);
+  }
+  /* 양식 J24(13번째 수량 칸)만 글자가 16pt 라(나머지 22pt) 그 줄 수량이 작게 찍혔습니다 — 품목 줄 수량 칸은 첫 줄(J12) 글자로 맞춥니다 */
+  {
+    const f0 = ws.getCell('J' + OD_TPL_ROW0).font;
+    if(f0) for(let i = 1; i < rows; i++){
+      const c = ws.getCell('J' + (OD_TPL_ROW0 + i));
+      if(!c.font || c.font.size !== f0.size){ c.style = JSON.parse(JSON.stringify(c.style || {})); c.font = Object.assign({}, c.font || {}, { size: f0.size }); }
+    }
   }
 
   // 박스도 유리와 같은 칸 모양(품명 C~E · 규격 F~I) — 사장님 2026-10-20 「유리 엑셀 양식에 맞춰서」. 예전 한 칸 합치기(odBoxWideName)는 안 씁니다
@@ -15478,7 +15600,7 @@ function odSaveOrder(){
     date:o.date, due:o.due, client:o.client, bigo:o.bigo||'', ref:o.ref||'',
     createdAt:new Date().toISOString(),
     by:getActor()||'',
-    items:o.items.map(it=>({...it, received:false, recvAt:null, eventId:null}))
+    items:o.items.map(it=>({...it, uid:odNewUid(), received:false, recvAt:null, eventId:null}))
   };
   orderLog.unshift(order);
   saveOrderLog();
@@ -18502,7 +18624,7 @@ function odAutoRevertMonth(ym){
     it.recvHeld=true;
     o.updatedAt=new Date().toISOString();
   });
-  if(evIds.length && typeof removeStockEventsByIds==='function') removeStockEventsByIds(evIds);
+  if(evIds.length){ odEvDelMark(evIds); if(typeof removeStockEventsByIds==='function') removeStockEventsByIds(evIds); }   // C9 — 지운 표시
   hits.forEach(({it})=>{ if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h); });
   saveAll(); saveOrderLog(); renderOrderList();
   if(typeof renderDash==='function') renderDash();
@@ -18513,6 +18635,7 @@ function odAutoRevertMonth(ym){
 /* 한 줄 입고 — 그 날짜로 원유리 입고 이벤트를 넣고 표시합니다. 발주 리스트(오늘)와 오늘 화면 「발주중」 탭(고른 날짜)이 같이 씁니다. */
 function _odRecvItem(o, it, day){
   const ev=addStockEvent(`${it.w}x${it.h}`,{at:`${day}T00:00:00.000Z`,type:'in',qty:it.qty,note:`발주입고 ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`,source:'order'});
+  odTagEvent(ev, o, it);   // C9 — 발주·품목 번호
   it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=day; it.eventId=ev.id; it.auto=false;
   o.updatedAt=new Date().toISOString();
   if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
@@ -18530,7 +18653,7 @@ function odToggleRecv(orderId, idx){
     // 입고 취소 → 이벤트 제거
     { const lock=(typeof odClosedLock==='function')?odClosedLock(o):null;
       if(lock && !confirm(`🔒 ${lock}인 발주입니다.\n입고를 풀면 원유리 재고에서 ${it.qty}장이 빠집니다(확정된 마감 금액은 그대로). 풀까요?`)) return; }
-    if(it.eventId) removeStockEventsByIds([it.eventId]);
+    if(it.eventId){ odEvDelMark([it.eventId]); removeStockEventsByIds([it.eventId]); }   // C9 — 지운 표시를 남겨 다른 기기에서 되살아나지 않게
     const wasAuto=!!it.auto;
     it.received=false; it.recvAt=null; it.recvDate=null; it.eventId=null; it.auto=false;
     it.recvHeld=true;   // 손으로 되돌린 것 — 자동이 다시 잡지 않습니다(납품서 shipHeld와 같은 뜻)
@@ -18561,7 +18684,7 @@ function odSplitRecv(orderId, idx){
   if(s==null) return;
   const n=parseInt(String(s).trim());
   if(!(n>=1 && n<q)){ showToast(`1~${q-1} 사이로 넣어 주십시오`); return; }
-  const rest=Object.assign({}, it, {qty:q-n, received:false, recvAt:null, recvDate:null, eventId:null, auto:false});
+  const rest=Object.assign({}, it, {uid:odNewUid(), qty:q-n, received:false, recvAt:null, recvDate:null, eventId:null, auto:false});
   it.qty=n;
   const today=todayStr();
   _odRecvItem(o, it, today);
@@ -18667,6 +18790,7 @@ function odAutoRecvRun(opt){
       at:`${h.base}T00:00:00.000Z`, type:'in', qty:it.qty,
       note:`발주입고(자동) ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`, source:'order'
     });
+    odTagEvent(ev, o, it);   // C9 — 발주·품목 번호
     it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=h.base;
     it.eventId=ev.id; it.auto=true;
     o.updatedAt=new Date().toISOString();
@@ -18812,6 +18936,7 @@ function odEditUi(){
   bar.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <b style="color:var(--acc)">✏️ 수정 중</b><span>${_odEsc(odStmtVendor(o.vendor))} · 발주 ${_odEsc(o.date||'')} · ${_odEsc(o.type||'')}</span>
       <button onclick="odEditCancel()" style="margin-left:auto;padding:4px 11px;background:var(--s1);border:1px solid var(--b2);border-radius:7px;color:var(--tx2);font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">취소</button></div>
+    <div style="margin-top:4px;color:var(--tx2)">아래 칸에서 고치고, 품목은 <b>＋ 품목 · ＋ 5줄</b>로 더한 뒤 <b>💾 변경 저장</b></div>
     ${rec.length?`<div style="margin-top:5px;color:var(--tx3)">🔒 입고된 ${rec.length}줄은 고칠 수 없습니다(입고 체크를 먼저 푸십시오) — ${rec.slice(0,6).map(it=>`${_odEsc(lab(it))} ${it.qty}장`).join(' · ')}${rec.length>6?' …':''}</div>`:''}
     ${warn.map(w=>`<div style="margin-top:4px;color:var(--acc2)">⚠ ${w}</div>`).join('')}`;
 }
@@ -18862,7 +18987,7 @@ function odSaveEdit(){
     if(!n.spec) delete keep.spec;
     items.push(keep);
   });
-  fresh.forEach(n=>items.push(Object.assign({}, n, {received:false, recvAt:null, recvDate:null, eventId:null})));
+  fresh.forEach(n=>items.push(Object.assign({}, n, {uid:odNewUid(), received:false, recvAt:null, recvDate:null, eventId:null})));
   const vsel=document.getElementById('od-vendor').value, tsel=document.getElementById('od-type').value;
   /* 고르는 칸을 손대지 않으셨으면 발주처·종류·두께·제목은 **기록에 있던 글자 그대로** 둡니다
      (「대원유리 귀하」 같은 옛 표기 · 목록에 없는 종류 · 불러온 발주서의 제목을 고쳐 쓰지 않게). */
