@@ -15052,6 +15052,28 @@ function odPut(ws, addr, val){
   return c;
 }
 
+/* 품목이 양식 줄(13)보다 많을 때 줄을 늘립니다 (2026-10-23 점검에서 찾음).
+   ⚠ ExcelJS 의 duplicateRow 는 **칸 합치기(merge)와 인쇄 영역을 따라 내리지 않습니다.**
+     그래서 14줄 이상이면 양식의 총수량 줄(B25:I25)·아래 두 줄(B26:N26 · B27:N27)의 합치기가 **14~16번째 품목 자리에 남아**
+     그 품목이 엑셀·카톡 이미지·PDF 에서 통째로 가려졌고, 인쇄 영역(A1:O27)도 그대로라 엑셀로 찍으면 뒤 품목·총수량이 잘렸습니다.
+   고치는 법: 아래쪽 합치기를 풀고 → 줄을 늘리고 → 같은 모양으로 그만큼 내려 다시 합치고 → 새 품목 줄에도 첫 줄(12행)과 같은 합치기를 겁니다. */
+function odGrowItemRows(ws, extra){
+  const lastTpl = OD_TPL_ROW0 + OD_TPL_ROWS - 1;            // 24
+  const rx = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/;
+  const all = Object.keys(ws._merges || {}).map(k => String((ws._merges[k] && ws._merges[k].range) || k));
+  const below = all.map(r => r.match(rx)).filter(m => m && +m[2] > lastTpl);
+  const rowPat = all.map(r => r.match(rx)).filter(m => m && +m[2] === OD_TPL_ROW0 && +m[4] === OD_TPL_ROW0);
+  below.forEach(m => { try{ ws.unMergeCells(m[0]); }catch(e){} });
+  ws.duplicateRow(OD_TPL_ROW0, extra, true);
+  below.forEach(m => { try{ ws.mergeCells(`${m[1]}${+m[2]+extra}:${m[3]}${+m[4]+extra}`); }catch(e){} });
+  for(let r = lastTpl + 1; r <= lastTpl + extra; r++){
+    rowPat.forEach(m => { try{ ws.mergeCells(`${m[1]}${r}:${m[3]}${r}`); }catch(e){} });
+  }
+  // 인쇄 영역도 늘린 만큼 아래로 (A1:O27 → A1:O34)
+  const pa = ws.pageSetup && ws.pageSetup.printArea;
+  const pm = pa && String(pa).match(/^(\$?[A-Z]+\$?)(\d+):(\$?[A-Z]+\$?)(\d+)$/);
+  if(pm && +pm[4] > lastTpl) ws.pageSetup.printArea = `${pm[1]}${pm[2]}:${pm[3]}${+pm[4]+extra}`;
+}
 function odFillSheet(ws, o){
   const part = odTitleParts(o);
   ws.getCell('D4').value = o.vendor || '';
@@ -15087,7 +15109,7 @@ function odFillSheet(ws, o){
 
   // 품목이 양식 줄 수를 넘으면 첫 줄을 서식째 복제해 늘립니다
   const n = o.items.length;
-  if(n > OD_TPL_ROWS) ws.duplicateRow(OD_TPL_ROW0, n - OD_TPL_ROWS, true);
+  if(n > OD_TPL_ROWS) odGrowItemRows(ws, n - OD_TPL_ROWS);
   const rows = Math.max(n, OD_TPL_ROWS);
   for(let i = 0; i < rows; i++){
     const r = OD_TPL_ROW0 + i, it = o.items[i];
@@ -18720,7 +18742,9 @@ function odEditAbortIfAny(){
   odEditUi(); renderOrderList();
   showToast('수정을 그만두고 새 발주로 채웁니다');
 }
-var odEditOrig=null;   // {vendorOk, typeOk, vendorVal, typeVal}
+var odEditOrig=null;   // {vendorOk, typeOk, vendorVal, typeVal, stamp}
+// 불러온 때의 발주 모양 — 고친 때(updatedAt)와 줄마다 장수·입고 여부
+function odEditStamp(o){ return (o.updatedAt||'')+'#'+(o.items||[]).map(it=>(Number(it.qty)||0)+(it.received?'r':'')).join(','); }
 /* 📒 월 마감이 확정된 발주인가 — 그 마감이 이 발주를 대조에 썼거나(oid), 발주일·입고일이 그 마감 기간 안이면. 걸리면 이름을, 아니면 null. */
 function odClosedLock(o){
   if(!o || typeof closings==='undefined') return null;
@@ -18756,7 +18780,7 @@ function odEditLoad(orderId){
     if(ti>=0){ document.getElementById('od-type').value=String(ti); odTypeChanged(); typeOk=true; }
   }
   odEditing=o.id;
-  odEditOrig={ vendorOk:!!v, typeOk, vendorVal:vsel.value, typeVal:document.getElementById('od-type').value };
+  odEditOrig={ vendorOk:!!v, typeOk, vendorVal:vsel.value, typeVal:document.getElementById('od-type').value, stamp:odEditStamp(o) };
   // 날짜·납기·비고·업체·참조는 그때 적힌 그대로 (종류를 고르며 들어간 기억값·기본 납기를 덮습니다)
   const set=(id,val)=>{ const e=document.getElementById(id); if(e) e.value=val||''; };
   set('od-date', o.date); set('od-bigo', o.bigo); set('od-client', o.client); set('od-ref', o.ref);
@@ -18811,6 +18835,13 @@ function odSaveEdit(){
   if(!o){ odEditing=null; odEditUi(); showToast('고치던 발주를 찾지 못했습니다(다른 기기에서 지웠을 수 있습니다)'); return; }
   const lock=odClosedLock(o);
   if(lock){ showToast(`🔒 ${lock} — 저장하지 않았습니다`); return; }
+  /* 불러온 뒤 그 발주가 바뀌었으면(입고 체크·나눠 입고·다른 기기 동기화) 저장하지 않습니다 — 2026-10-23 점검에서 찾음.
+     그대로 두면 그 사이 입고된 줄이 「새 줄」로 한 번 더 붙어 수량이 부풀었습니다. */
+  if(odEditOrig && odEditOrig.stamp!==odEditStamp(o)){
+    if(confirm('이 발주가 불러온 뒤에 바뀌었습니다(입고 체크 · 다른 기기 동기화 등).\n지금 고친 내용은 버리고 새로 불러올까요?')) odEditLoad(o.id);
+    else showToast('저장하지 않았습니다 — 다시 불러와 고쳐 주십시오');
+    return;
+  }
   const c=odCollect();
   const valid=odLines.filter(odLineValid);
   const rec=(o.items||[]).filter(it=>it.received);
@@ -18818,7 +18849,10 @@ function odSaveEdit(){
   try{ const {p}=curPreset(); const hits=c.items.filter(it=>odStdSizeHit(it.w, it.h, p));
     if(hits.length && !confirm(`⚠ 정규격 사이즈 ${hits.length}줄이 있습니다 — ${hits.slice(0,4).map(it=>it.w+'×'+it.h).join(', ')}\n그대로 저장할까요?`)) return; }catch(e){}
   const byIdx={}, fresh=[];
-  valid.forEach((l,k)=>{ if(l._src!=null && o.items[l._src] && !o.items[l._src].received && !byIdx[l._src]) byIdx[l._src]=c.items[k]; else fresh.push(c.items[k]); });
+  valid.forEach((l,k)=>{
+    if(l._src!=null && o.items[l._src] && o.items[l._src].received) return;   // 그 사이 입고된 줄 — 새 줄로 붙이지 않습니다
+    if(l._src!=null && o.items[l._src] && !byIdx[l._src]) byIdx[l._src]=c.items[k]; else fresh.push(c.items[k]);
+  });
   const items=[]; let removed=0;
   o.items.forEach((it,i)=>{
     if(it.received){ items.push(it); return; }
