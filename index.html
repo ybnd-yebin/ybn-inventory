@@ -464,32 +464,107 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
      할일 목록에 손으로 적지 않아도 앱이 자료에서 뽑아 스스로 채웁니다.
      예전 홈(할일·공지·달력)은 📋 업무판 탭으로 옮겼습니다. -->
 <div class="sec-pg on" id="pg-home" style="padding:14px 14px 80px">
+  <!-- 🏠 오늘 리디자인 (2026-10-23) — 날짜 줄 · 숫자 카드 7(PC) / 모바일 전용 칸 → 달력·고른 날 → 업무 탭 → 하단 보조(요약·접기) → 공지·휴무·주간일지(접기).
+       계산 함수는 그대로 쓰고 자리만 옮겼습니다. 옛 타일(todayTilesHtml)·알림 카드 함수는 남겨 둡니다. CLAUDE.md 12-66 -->
+  <style>
+    #pg-home .tdy-date{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 2px 10px}
+    #pg-home .tdy-date b{font-size:20px;font-weight:900;color:var(--tx1)}
+    #pg-home .tdy-date span{font-size:13.5px;font-weight:800}
+    #pg-home .tdy-stats{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-bottom:14px}
+    #pg-home .tdy-s{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;padding:11px 12px;border:1px solid var(--b1);border-top:3px solid var(--b1);border-radius:10px;background:var(--s1);cursor:pointer;text-align:left;font-family:'Noto Sans KR',sans-serif;color:var(--tx1)}
+    #pg-home .tdy-s:hover{border-color:var(--b2)}
+    #pg-home .tdy-s-l{font-size:11.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    #pg-home .tdy-s-n{font-size:24px;font-weight:900;line-height:1.2;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+    #pg-home .tdy-s-n small{font-size:12px;font-weight:700;margin-left:2px;font-family:'Noto Sans KR',sans-serif}
+    #pg-home .tdy-s-f{font-size:10.5px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    #pg-home .tdy-s.red{border-top-color:var(--acc4)} #pg-home .tdy-s.red .tdy-s-n{color:var(--acc4)}
+    #pg-home .tdy-s.orange{border-top-color:var(--acc2)} #pg-home .tdy-s.orange .tdy-s-n{color:var(--acc2)}
+    #pg-home .tdy-s.blue{border-top-color:var(--acc)} #pg-home .tdy-s.blue .tdy-s-n{color:var(--acc)}
+    #pg-home .tdy-s.zero .tdy-s-n{color:var(--tx3)}
+    #pg-home .tdy-alert{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 13px;margin-bottom:10px;border:1px solid var(--acc4);border-left:4px solid var(--acc4);border-radius:10px;background:rgba(207,34,46,.05);font-size:13px;color:var(--tx1)}
+    #pg-home .tdy-aux{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 14px;font-size:13px;align-items:start}
+    #pg-home .tdy-ax{border:1px solid var(--b1);border-radius:12px;background:var(--s1);padding:12px 13px;min-width:0}
+    #pg-home .tdy-ax-h{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+    #pg-home .tdy-ax-h b{font-size:13.5px;flex:1;min-width:0}
+    #pg-home .tdy-ax-n{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:15px}
+    #pg-home .tdy-ax-row{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-top:1px solid var(--b1);font-size:12px;line-height:1.45}
+    #pg-home .tdy-ax-row>span:first-child{flex:1;min-width:0}
+    #pg-home .tdy-ax-row small{display:block;color:var(--tx3);font-size:10.5px}
+    #pg-home .tdy-ax-row>b{flex:none;font-family:'JetBrains Mono',monospace}
+    #pg-home .tdy-ax-none{font-size:12px;color:var(--tx3);padding:6px 0}
+    #pg-home .tdy-ax-f{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:8px}
+    #pg-home .tdy-lnk{min-height:32px;padding:4px 10px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+    #pg-home .tdy-lnk.solid{background:var(--acc);border-color:var(--acc);color:#fff}
+    #pg-home .tdy-ft{cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+    #pg-home .tdy-fc{font-size:11px;font-weight:700;color:var(--tx3);text-transform:none;letter-spacing:0}
+    #pg-home .tdy-fc.warn{color:var(--acc4)}
+    #pg-home .tdy-chev{font-style:normal;font-size:11px;color:var(--tx3)}
+    #pg-home .card.folded > :not(.card-ttl){display:none}
+    #pg-home .tdy-wkbar{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:8px 13px;border:1px solid var(--b1);border-radius:10px;background:var(--s1);cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;color:var(--tx1);text-align:left}
+    #pg-home .tdy-wkbar .tdy-chev{margin-left:auto}
+    #pg-home #tdy-weekly.folded #weekly-host{display:none}
+    #pg-home #tdy-weekly{grid-column:1 / -1}
+    #pg-home #tdy-weekly #weekly-host{margin-top:10px}
+    #pg-home .tdy-ax-row>b{white-space:nowrap}
+    /* 달력·고른 날 — 오늘 화면에서만 조금 촘촘히 · 「＋ 일정 추가」는 오른쪽 작게(화면 단촐하게 7번 1) */
+    #pg-home #pg-plan .bd-top{margin-bottom:18px}
+    #pg-home #pg-plan .bd-cell{min-height:60px}
+    #pg-home #pg-plan .bd-day{display:flex;flex-direction:column}
+    #pg-home #pg-plan .bd-wide{width:auto;align-self:flex-end;min-height:38px;padding:0 16px;font-size:14px}
+    #pg-home .tdy-m{display:none}
+    @media (max-width:1100px){ #pg-home .tdy-stats{grid-template-columns:repeat(4,minmax(0,1fr))} #pg-home .tdy-aux{grid-template-columns:repeat(2,minmax(0,1fr))} }
+    @media (max-width:560px){
+      #pg-home .tdy-stats{display:none}
+      #pg-home .tdy-m{display:block}
+      #pg-home .tdy-aux{grid-template-columns:1fr}
+      #pg-home:not(.cal-open) #pg-plan .bd-top{display:none}
+      #pg-home .tdy-date b{font-size:18px}
+    }
+    #pg-home .tdy-mbig{display:flex;align-items:center;gap:12px;width:100%;padding:14px 15px;margin-bottom:8px;border:1px solid var(--b1);border-left:4px solid var(--acc);border-radius:12px;background:var(--s1);cursor:pointer;text-align:left;font-family:'Noto Sans KR',sans-serif;color:var(--tx1)}
+    #pg-home .tdy-mbig.red{border-left-color:var(--acc4)}
+    #pg-home .tdy-mbig .n{font-size:30px;font-weight:900;font-family:'JetBrains Mono',monospace;line-height:1.1}
+    #pg-home .tdy-mbig.red .n{color:var(--acc4)}
+    #pg-home .tdy-m3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:12px}
+    #pg-home .tdy-m3 .tdy-s{padding:8px 9px}
+    #pg-home .tdy-m3 .tdy-s-n{font-size:19px}
+    #pg-home .tdy-msec{border:1px solid var(--b1);border-radius:12px;background:var(--s1);padding:11px 12px;margin-bottom:12px}
+    #pg-home .tdy-msec-h{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:13.5px;font-weight:800}
+    #pg-home .tdy-msec-h .tdy-lnk{margin-left:auto}
+    #pg-home .tdy-quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    #pg-home .tdy-quick button{min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1px solid var(--b1);border-radius:10px;background:var(--s2);font-size:12px;font-weight:700;color:var(--tx1);cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+    #pg-home .tdy-quick button span{font-size:19px}
+  </style>
   <div id="today-head"></div>
 <!-- 🗓️ 일정·업무 (2026-10-12) — 위는 달력·선택한 날, 아래는 탭 4개와 포스트잇. bdRender 가 #bd-host 에 그립니다
      2026-10-13 부터 🏠 오늘 탭 안에 들어 있습니다 (사장님 「오늘 탭 메인에 합쳐줘」 — 날짜 줄 → 일정·업무 → 알림 차례).
      id 는 pg-plan 그대로 두어 CSS(#pg-plan …)가 그대로 먹습니다. sec-pg 가 아니라 따로 숨겨지지 않습니다. -->
 <div id="pg-plan"><div id="bd-host"></div>
+  <!-- 하단 보조 — 납기 지연 · 모자란 재고 · 지금 발주할 것 · 이번 주 할 일 (2026-10-23 renderToday 가 그립니다) -->
+  <div id="today-body"></div>
   <!-- 업무판에서 옮겨 온 것 (사장님 2026-10-13 「업무판이랑 합쳐」) — 공지 · 휴무·출장 · 주간 업무일지.
-       예전 할일·일정은 카드로 옮겼습니다(`bdMigrateOld`). 아래 칸들은 예전 함수가 그대로 그립니다. -->
+       예전 할일·일정은 카드로 옮겼습니다(`bdMigrateOld`). 아래 칸들은 예전 함수가 그대로 그립니다.
+       2026-10-23 — 제목을 누르면 접고 폅니다(tdyFold). 접혀도 건수·긴급은 제목 옆에 보입니다. -->
   <div class="bd-extra">
-    <div class="card">
-      <div class="card-ttl"><span>📌 공지사항</span>
+    <div class="card" id="tdy-notice">
+      <div class="card-ttl"><span class="tdy-ft" onclick="tdyFold('notice')">📌 공지사항 <span class="tdy-fc" id="tdy-fc-notice"></span><i class="tdy-chev"></i></span>
         <button onclick="openNoticeModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 작성</button>
       </div>
       <div id="notice-list"></div>
     </div>
-    <div class="card">
-      <div class="card-ttl"><span>🏭 휴무 · 출장</span>
+    <div class="card" id="tdy-break">
+      <div class="card-ttl"><span class="tdy-ft" onclick="tdyFold('break')">🏭 휴무 · 출장 <span class="tdy-fc" id="tdy-fc-break"></span><i class="tdy-chev"></i></span>
         <button onclick="openBreakModal()" style="padding:4px 12px;background:var(--acc);border:none;border-radius:16px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;text-transform:none;letter-spacing:0">+ 추가</button>
       </div>
       <div id="break-list"></div>
       <div style="font-size:10.5px;color:var(--tx3);margin-top:8px;line-height:1.5">위 달력에도 이름이 뜹니다. 리드타임·출고일 계산에는 넣지 않습니다.</div>
     </div>
-    <!-- 주간 업무일지 · 회의 메모 — 노션 「주간업무일지」를 참고 (2026-09-15) -->
-    <div id="weekly-host"></div>
+    <!-- 주간 업무일지 · 회의 메모 — 노션 「주간업무일지」를 참고 (2026-09-15). 안이 카드 둘이라 띠 단추로 접습니다 -->
+    <div id="tdy-weekly">
+      <button class="tdy-wkbar" onclick="tdyFold('weekly')">🗓 주간 업무일지 · 회의 메모 <span class="tdy-fc" id="tdy-fc-weekly"></span><i class="tdy-chev"></i></button>
+      <div id="weekly-host"></div>
+    </div>
   </div>
 </div>
-  <div id="today-body"></div>
 </div>
 
 <!-- 📋 업무판 — 예전 홈. 2026-10-13 부터 🗓️ 일정·업무로 합쳐 버튼을 숨겼습니다(되돌릴 수 있게 화면은 남김).
@@ -16548,11 +16623,10 @@ function odStatsRender(){
   const td=todayStr(), ym=td.slice(0,7);
   const op=(typeof tdyOpenOrders==='function')?tdyOpenOrders():{n:0,q:0};
   let lateN=0, lateQ=0, monN=0, monQ=0, autoN=0, autoQ=0;
+  // 납기 지남 — 🏠 오늘의 「납기 지연」과 같은 함수(odLateOrders, 2026-10-23) — 두 화면 숫자가 늘 같게
+  { const L=odLateOrders(); lateN=L.length; lateQ=L.reduce((s,x)=>s+x.openQ,0); }
   (orderLog||[]).forEach(o=>{
     const items=o.items||[];
-    const openQ=items.reduce((s,it)=>s+((it.w&&it.h&&!it.received)?(Number(it.qty)||0):0),0);
-    const dd=odDueToDate(o.due, o.date);
-    if(openQ && dd && dd<td){ lateN++; lateQ+=openQ; }
     if(String(o.date||'').slice(0,7)===ym){
       monN++; monQ+=items.reduce((s,it)=>s+(Number(it.qty)||0),0);
       items.forEach(it=>{ if(it.received && it.auto){ autoN++; autoQ+=Number(it.qty)||0; } });
@@ -26531,7 +26605,185 @@ function tdyOrderNowFill(){
       + (kind==='std'&&non.length?` — 비규격 ${non.length}종은 기록한 뒤 다시 누르십시오`:''));
 }
 
+/* ══════════════════════════════════════════════════════════
+   🏠 오늘 리디자인 (사장님 2026-10-23 「직원이 무엇을 먼저 해야 하는지 바로 이해할 수 있는 업무 대시보드」)
+   ─ 사장님 확정: 「오늘 할 일」 = 일정·업무 카드 가운데 할일·진행중이면서 날짜가 오늘이거나 지난 것(지난 것이 있으면 빨강)
+                 「납기 지연」 = **모든 발주처 발주 기록**(발주탭 숫자 칸과 같은 odLateOrders). 에토프 장부 납기 지남은 「모자란 재고」 칸 안에.
+                 새 칸은 모바일 빠른 메뉴만(있는 화면으로 가는 단추). 숫자 카드 7 = 오늘 할 일 · 못 만드는 것 · 지금 발주 · 입고 대기 · 납기 지연 · 처음 보는 품목 · 납품서.
+   ─ 계산은 하나도 새로 만들지 않았습니다 — todayBlocked · etpDraftOrder · tdyOpenOrders · newItemScan · todayUploadGap · todayWeekAhead ·
+     todayLatePO · wkOpenPlans · tdyPendingOrders 가 내는 값을 새 자리에 그립니다.
+   ─ 차례: 날짜·상태 줄 → (PC) 숫자 카드 / (모바일) 오늘 할 일·경고 3·오늘 일정·빠른 메뉴·진행중 발주 → 달력·고른 날(모바일은 접힘) → 업무 탭 →
+     하단 보조 4칸(요약 3줄 + 전체 보기) → 공지·휴무·주간일지(접기). 옛 그리기는 renderTodayV1 로 남겨 둡니다. */
+function odLateOrders(){
+  const td=todayStr(), out=[];
+  (typeof orderLog!=='undefined'?orderLog:[]).forEach(o=>{
+    const items=(o&&o.items)||[];
+    const openQ=items.reduce((s,it)=>s+((it.w&&it.h&&!it.received)?(Number(it.qty)||0):0),0);
+    const dd=odDueToDate(o.due, o.date);
+    if(openQ && dd && dd<td) out.push({ o, openQ, due:dd, gap:(typeof etpBizGap==='function')?etpBizGap(dd, td):0 });
+  });
+  return out.sort((a,b)=>a.due.localeCompare(b.due));
+}
+function tdyTodoDue(){
+  const td=todayStr();
+  const list=(function(){ try{ return bdCardsAll(); }catch(e){ return []; } })()
+    .filter(c=>(c.kind==='todo'||c.kind==='progress') && c.status!=='done')
+    .map(c=>({ c, d:bdDateOf(c) })).filter(x=>x.d && x.d<=td)
+    .sort((a,b)=>a.d.localeCompare(b.d));
+  return { list, n:list.length, over:list.filter(x=>x.d<td).length };
+}
+// 업무 탭으로 — 오늘 할 일이 할일 카드에 있으면 할일 탭, 아니면 진행중
+function tdyJumpTodo(){
+  const t=tdyTodoDue();
+  try{ bdTab = t.list.some(x=>x.c.kind==='todo') ? 'todo' : 'progress'; bdRender(); }catch(e){}
+  const b=document.querySelector('#bd-host .bd-board'); if(b){ b.scrollIntoView({behavior:'smooth',block:'start'}); }
+}
+function tdyGoOrderTab(){
+  try{ bdTab='order'; bdRender(); }catch(e){}
+  const b=document.querySelector('#bd-host .bd-board'); if(b) b.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function tdyCalToggle(force){
+  const p=document.getElementById('pg-home'); if(!p) return;
+  const on = (force===undefined) ? !p.classList.contains('cal-open') : !!force;
+  p.classList.toggle('cal-open', on);
+  if(on){ const t=document.querySelector('#bd-host .bd-top'); if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); }
+}
+/* 접기 — 공지(처음엔 펼침) · 휴무·출장 · 주간일지(처음엔 접힘). 이 기기에만 기억합니다. */
+// ⚠ 앱을 막 열 때 renderToday 가 이 줄보다 먼저 돕니다(var 는 아직 비어 있음) — 그래서 꺼낼 때마다 tdyFoldGet() 으로 채웁니다
+var tdyFoldSt=null;
+function tdyFoldGet(){ if(!tdyFoldSt){ try{ tdyFoldSt=JSON.parse(localStorage.getItem('ybn-tdy-fold-v1')||'null'); }catch(e){} if(!tdyFoldSt) tdyFoldSt={notice:false, break:true, weekly:true}; } return tdyFoldSt; }
+function tdyFold(k, open){
+  const st=tdyFoldGet(); st[k] = (open===undefined) ? !st[k] : !open;
+  try{ localStorage.setItem('ybn-tdy-fold-v1', JSON.stringify(tdyFoldSt)); }catch(e){}
+  tdyFoldApply();
+}
+function tdyFoldApply(){
+  const tdyFoldSt=tdyFoldGet();
+  const set=(id,k)=>{ const e=document.getElementById(id); if(!e) return; e.classList.toggle('folded', !!tdyFoldSt[k]);
+    const ch=e.querySelector('.tdy-chev'); if(ch) ch.textContent=tdyFoldSt[k]?'펼치기 ▾':'접기 ▴'; };
+  set('tdy-notice','notice'); set('tdy-break','break'); set('tdy-weekly','weekly');
+  const td=todayStr(), cnt=(id,txt,warn)=>{ const e=document.getElementById(id); if(e){ e.textContent=txt; e.classList.toggle('warn',!!warn); } };
+  try{ const a=(notices||[]).filter(n=>!n.archived), u=a.filter(n=>n.pri==='urgent').length;
+       cnt('tdy-fc-notice', a.length?(a.length+'건'+(u?' · 🔴 긴급 '+u:'')):'없음', u); }catch(e){}
+  try{ const b=activeBreaks().filter(x=>x.to>=td), now=b.filter(x=>x.from<=td).length;
+       cnt('tdy-fc-break', b.length?('앞으로 '+b.length+'건'+(now?' · 오늘 '+now:'')):'없음', false); }catch(e){}
+  try{ const w=wkOpenPlans().length; cnt('tdy-fc-weekly', w?('이번 주 할 일 '+w):'', false); }catch(e){}
+}
+var tdyAxOpen=null;
+function tdyAxToggle(k){ if(!tdyAxOpen) tdyAxOpen={}; tdyAxOpen[k]=!tdyAxOpen[k]; renderToday(); }
+
 function renderToday(){
+  const head=document.getElementById('today-head');
+  const body=document.getElementById('today-body');
+  if(!head||!body) return;
+  const td=todayStr();
+  const kor=['일','월','화','수','목','금','토'][new Date(td+'T00:00:00').getDay()];
+  const safe=(f,dflt)=>{ try{ return f(); }catch(e){ console.warn('[오늘]',e); return dflt; } };
+  const blocked = safe(()=>todayBlocked(), null);
+  const week    = safe(()=>todayWeekAhead(), null) || [];
+  const etpLate = safe(()=>todayLatePO(), []);
+  const upl     = safe(()=>todayUploadGap(), null);
+  const etpShort= safe(()=>(typeof etpDraftOrder==='function') ? etpDraftOrder() : [], []);
+  const late    = safe(()=>odLateOrders(), []);
+  const open    = safe(()=>tdyOpenOrders(), {n:0,q:0,vs:{}});
+  const todo    = safe(()=>tdyTodoDue(), {list:[],n:0,over:0});
+  const wkOpen  = safe(()=>(typeof wkOpenPlans==='function') ? wkOpenPlans() : [], []);
+  const newItems= safe(()=>{ const since=_addDays(td,-NEW_ITEM_RECENT_DAYS); return newItemScan().filter(u=>(u.last||'')>=since).length; }, null);
+  const pend    = safe(()=>tdyPendingOrders(), []);
+  const E=s=>etpEsc(String(s==null?'':s));
+  const nBlocked=blocked?blocked.length:0, uplLate=!!(upl&&upl.gap>=2);
+  const urgent = nBlocked + late.length + (uplLate?1:0) + todo.over;
+  const soon = week.length;
+  const stCol = urgent?'var(--acc4)':soon?'var(--acc2)':'var(--acc3)';
+
+  // ── 날짜·상태 한 줄 + 납품서 밀림 경고(다른 숫자가 다 이것에 기댑니다)
+  let hh = `<div class="tdy-date"><b>${+td.slice(5,7)}월 ${+td.slice(8,10)}일 (${kor})</b>
+      <span style="color:${stCol}">${urgent?'🔴 손볼 것 '+urgent+'가지':soon?'🟠 이번 주에 걸릴 것 '+soon+'가지':'✅ 막힌 것이 없습니다'}</span></div>`;
+  if(uplLate) hh += `<div class="tdy-alert">📥 <b>납품서가 ${upl.gap}영업일째 안 올라왔습니다</b><span style="color:var(--tx2)">마지막 ${E(upl.last)} — 아래 숫자는 올라온 납품서까지만 셈한 것입니다</span>
+      <button class="tdy-lnk solid" style="margin-left:auto" onclick="showMain('delivery')">납품서 올리기</button></div>`;
+
+  // ── PC·태블릿 숫자 카드 7
+  const S=(o)=>{
+    const has = o.n!=null && o.n!==0;
+    return `<button class="tdy-s ${has?(o.tone||''):'zero'}" onclick="${o.go}" title="${E(o.title||o.label)}">
+      <span class="tdy-s-l">${o.label}</span>
+      <span class="tdy-s-n">${o.text!=null?o.text:(o.n==null?'?':has?o.n.toLocaleString('ko-KR'):'-')}${has&&o.unit&&o.text==null?`<small>${o.unit}</small>`:''}</span>
+      <span class="tdy-s-f">${has?(o.sub||''):(o.zero||'')}</span></button>`;
+  };
+  const openTop=Object.entries(open.vs||{}).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([v,q])=>v.replace(/유리$/,'')+' '+q).join(' · ');
+  const C={
+    todo:{label:'오늘 할 일', n:todo.n, unit:'건', tone:todo.over?'red':'blue', sub:todo.over?'날짜 지남 '+todo.over:'오늘 날짜', zero:'밀린 일 없음', go:'tdyJumpTodo()'},
+    blocked:{label:'못 만드는 것', n:blocked==null?null:nBlocked, unit:'종', tone:'red', sub:'에토프 재고 모자람', zero:blocked==null?'셈 실패':'재고로 댈 수 있음', go:"tdyGoTo('home','tdy-ax-stock')"},
+    order:{label:'지금 발주할 것', n:etpShort.length, unit:'종', tone:'blue', sub:etpShort.reduce((s,x)=>s+x.qty,0)+'장 · 현성 에토프', zero:'안전재고 채움', go:"tdyGoTo('home','tdy-ax-order')"},
+    wait:{label:'입고 대기', n:open.q, unit:'장', tone:'', sub:openTop, zero:'다 들어옴', go:"tdyGoTo('order','od-order-list')"},
+    late:{label:'납기 지연', n:late.length, unit:'건', tone:'red', sub:late.reduce((s,x)=>s+x.openQ,0)+'장 미입고', zero:'없음', go:"tdyGoTo('home','tdy-ax-late')"},
+    fresh:{label:'처음 보는 품목', n:newItems, unit:'개', tone:'orange', sub:'납품서 탭에서 정하기', zero:'모두 정함', go:"tdyGoTo('delivery','deliv-newitem-box')"},
+    deliv:{label:'납품서', n:upl?1:null, text:upl?(upl.gap>=1?upl.gap+'일':'오늘'):'-', tone:uplLate?'red':'', sub:upl?('마지막 '+upl.last.slice(5).replace('-','/')+(upl.gap>=1?' · 영업일 밀림':' 올림')):'', zero:'올린 것 없음', title:'마지막으로 납품서를 올린 날', go:"showMain('delivery')"},
+  };
+  hh += `<div class="tdy-stats">${['todo','blocked','order','wait','late','fresh','deliv'].map(k=>S(C[k])).join('')}</div>`;
+
+  // ── 모바일 전용 (560px 이하에서만 보임) — 오늘 할 일 · 경고 3 · 오늘 일정 · 빠른 메뉴 · 진행중 발주
+  const dayItems=safe(()=>bdCardsAll().filter(c=>bdDateOf(c)===td).sort(bdSort), []);
+  const dayBrk=safe(()=>breaksOn(td), []);
+  const mDay = dayBrk.map(b=>`<div class="tdy-ax-row"><span>${E(b.name)} <small>휴무·출장</small></span></div>`).join('') +
+    dayItems.slice(0,3).map(c=>`<div class="tdy-ax-row" onclick="bdJump('${c.id}')" style="cursor:pointer"><span>${E(c.title)}${c.status==='done'?' <small>(완료)</small>':''}<small>${c.kind==='order'?'입고 예정':(BD_KIND[c.kind]||{}).label||''}</small></span></div>`).join('');
+  const mPend = pend.slice(0,3).map(p=>{
+    const q=(p.open||[]).reduce((s,it)=>s+(Number(it.qty)||0),0);
+    const nm=safe(()=>odFileBase(p.o).replace(/^\d{6}_[^_]*_?/,''), p.o.type||'');
+    return `<div class="tdy-ax-row" onclick="tdyGoOrderTab()" style="cursor:pointer"><span>${E(odStmtVendor(p.o.vendor).replace(/유리$/,''))} · ${E(nm)}<small>발주 ${E((p.o.date||'').slice(5).replace('-','/'))}${p.o.due?' · 납기 '+E(p.o.due):''}${p.late?' · <b style="color:var(--acc4)">지남</b>':''}</small></span><b>${q}장</b></div>`;
+  }).join('');
+  const qb=(ico,label,fn)=>`<button onclick="${fn}"><span>${ico}</span>${label}</button>`;
+  hh += `<div class="tdy-m">
+    <button class="tdy-mbig${todo.over?' red':''}" onclick="tdyJumpTodo()"><span style="flex:1"><span style="display:block;font-size:12px;color:var(--tx2);font-weight:700">오늘 할 일</span>
+      <span class="n">${todo.n||'-'}</span>${todo.n?' <b style="font-size:13px">건</b>':''}${todo.over?` <span style="font-size:11.5px;color:var(--acc4);font-weight:700">· 날짜 지남 ${todo.over}</span>`:''}</span><span style="color:var(--tx3)">›</span></button>
+    <div class="tdy-m3">${S(C.wait)}${S(C.late)}${S(C.blocked)}</div>
+    <div class="tdy-msec"><div class="tdy-msec-h">🗓 오늘 일정 <span class="tdy-fc">${dayItems.length+dayBrk.length||''}</span><button class="tdy-lnk" onclick="tdyCalToggle()">달력 ▾</button></div>
+      ${mDay || '<div class="tdy-ax-none">오늘은 일정이 없습니다</div>'}${dayItems.length>3?`<div class="tdy-ax-none">외 ${dayItems.length-3}건 — 달력에서</div>`:''}</div>
+    <div class="tdy-msec"><div class="tdy-msec-h">빠른 메뉴</div><div class="tdy-quick">
+      ${qb('📝','발주 작성',"tdyGoTo('order','od-vendor')")}${qb('📋','발주 목록',"tdyGoTo('order','od-order-list')")}${qb('📦','입고 확인','tdyGoOrderTab()')}
+      ${qb('📥','납품서',"showMain('delivery')")}${qb('📊','재고',"showMain('stock')")}${qb('🏢','거래처',"showMain('vendors')")}</div></div>
+    <div class="tdy-msec"><div class="tdy-msec-h">📦 진행중 발주 <span class="tdy-fc">${pend.length||''}</span>${pend.length?'<button class="tdy-lnk" onclick="tdyGoOrderTab()">전체 보기 ›</button>':''}</div>
+      ${mPend || '<div class="tdy-ax-none">입고 기다리는 발주가 없습니다</div>'}</div>
+  </div>`;
+  head.innerHTML = hh;
+
+  // ── 달력·고른 날·업무 탭 (앱을 막 열 때는 달력 값이 선언 전이라 실패 → 스크립트가 다 읽힌 뒤 한 번 더)
+  try{ bdRender(); bdRenderExtras(); }catch(e){ if(!window._tdyRetried){ window._tdyRetried=1; setTimeout(function(){ try{ renderToday(); }catch(e2){ console.warn('[오늘] 일정·업무',e2); } },0); } }
+
+  // ── 하단 보조 4칸 — 위 3줄만, 「전체 보기」로 다 보기. 접혀도 건수·빨간 표시는 제목에.
+  const AX=(id,k,title,n,tone,rows,foot,none)=>{
+    const all=!!(tdyAxOpen&&tdyAxOpen[k]), shown=all?rows:rows.slice(0,3);
+    return `<div class="tdy-ax" id="${id}"><div class="tdy-ax-h"><b>${title}</b><span class="tdy-ax-n" style="color:${n?tone:'var(--tx3)'}">${n||'-'}</span></div>
+      ${shown.join('') || `<div class="tdy-ax-none">${none}</div>`}
+      <div class="tdy-ax-f">${rows.length>3?`<button class="tdy-lnk" onclick="tdyAxToggle('${k}')">${all?'접기 ▴':'전체 보기 '+rows.length+' ▾'}</button>`:''}${foot||''}</div></div>`;
+  };
+  const R=(left,sub,right,col)=>`<div class="tdy-ax-row"><span>${left}${sub?`<small>${sub}</small>`:''}</span>${right!=null?`<b style="color:${col||'var(--tx1)'}">${right}</b>`:''}</div>`;
+  const lateRows=late.map(x=>R(`<b>${E(odStmtVendor(x.o.vendor).replace(/유리$/,''))}</b> ${E((x.o.date||'').slice(5).replace('-','/'))} 발주`,
+      `납기 ${E(x.o.due)} · 미입고 ${x.openQ}장`, x.gap?x.gap+'일':'지남', 'var(--acc4)'));
+  const stockRows=[]
+    .concat((blocked||[]).map(b=>R(`<b style="font-family:'JetBrains Mono',monospace">${b.w}×${b.h}</b> ${b.color==='ETP'?'에토프':'웜코튼'} · 오늘 못 만듦`,
+        `필요 ${b.qty}장 · ${E(b.where)} ${b.have}장${b.raw!=null?' · 원유리 '+b.raw+'장':''}`, '−'+b.short, 'var(--acc4)')))
+    .concat(week.map(w=>R(`<b style="font-family:'JetBrains Mono',monospace">${E(w.size.replace('x','×'))}</b> 에토프 · 이번 주`,
+        `${E(w.firstDay)} 납품요청 · 필요 ${w.qty} · 지금 ${w.have}${w.onOrder?' · 발주 '+w.onOrder+' 미입고':' · 발주 안 넣음'}`, '−'+w.short, 'var(--acc2)')))
+    .concat(etpLate.map(p=>R(`에토프 장부 <b>${E(p.vendor)}</b> ${E(p.date)} 발주`, `납기 ${E(p.due)} 지남 · 미입고 ${p.items}품목`, p.qty+'장', 'var(--acc4)')));
+  const orderRows=etpShort.map(x=>R(`<b style="font-family:'JetBrains Mono',monospace">${E(x.size.replace('x','×'))}</b>${x.nonstd?' <small style="display:inline;color:var(--acc2)">비규격</small>':''}`,
+      `재고 ${x.cur} · 안전 ${x.safety}${x.onOrder?' · 발주중 '+x.onOrder:''}`, x.qty+'장', 'var(--acc)'));
+  const wkRowsH=wkOpen.map(r=>`<div class="tdy-ax-row"><span style="flex:none;cursor:pointer" onclick="wkDone('${r.id}')" title="다 했으면 누르십시오">⬜</span><span>${E(r.text)}</span></div>`);
+  body.innerHTML = `<div class="tdy-aux">`
+    + AX('tdy-ax-late','late','⏰ 납기 지연', late.length, 'var(--acc4)', lateRows, `<button class="tdy-lnk" onclick="tdyGoTo('order','od-order-list')">발주 리스트 ›</button>`, '납기 지난 발주가 없습니다')
+    + AX('tdy-ax-stock','stock','🔴 모자란 재고', nBlocked+week.length+etpLate.length, nBlocked||etpLate.length?'var(--acc4)':'var(--acc2)', stockRows,
+         `<button class="tdy-lnk" onclick="showMain('etp')">에토프재고 ›</button>`, blocked==null?'오늘 만들 것을 세지 못했습니다(콘솔 확인)':'오늘·이번 주 물량은 재고로 댈 수 있습니다')
+    + `<div id="tdy-order-now">` + AX('tdy-ax-order','order','🧾 지금 발주할 것', etpShort.length, 'var(--acc)', orderRows,
+         (etpShort.length?`<button class="tdy-lnk solid" onclick="tdyOrderNowFill()">📝 발주서 만들기</button>`:'')+`<button class="tdy-lnk" onclick="showMain('etp');setTimeout(function(){etpJump('etp-draft')},120)">에토프재고 ›</button>`,
+         '안전재고까지 다 채웠습니다') + `</div>`
+    + AX('tdy-ax-week','week','📋 이번 주 할 일', wkOpen.length, 'var(--acc5)', wkRowsH,
+         `<button class="tdy-lnk" onclick="tdyFold('weekly',true);var e=document.getElementById('tdy-weekly');if(e)e.scrollIntoView({behavior:'smooth'})">주간 업무일지 ›</button>`, '이번 주에 적어 둔 할 일이 없습니다')
+    + `</div>`;
+  try{ tdyFoldApply(); }catch(e){}
+}
+
+/* 옛 오늘 그리기 (2026-10-23 전) — 되돌릴 때 위 renderToday 를 지우고 이 이름을 renderToday 로 바꾸면 됩니다 */
+function renderTodayV1(){
   const head=document.getElementById('today-head');
   const body=document.getElementById('today-body');
   if(!head||!body) return;
