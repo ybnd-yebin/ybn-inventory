@@ -9867,6 +9867,7 @@ function applyMergedFromSheet(data){
   if(data.etpLedger!==undefined && Array.isArray(data.etpLedger) && typeof etpLedger!=='undefined'){
     etpLedger=mergeById(etpLedger, data.etpLedger, 'id');
     etpLedger=etpLedger.filter(r=>r && r.id && !etpDeleted[r.id]);   // 지운 줄은 부활 금지
+    try{ if(typeof etpDupTrim==='function') etpDupTrim(); }catch(e){ console.warn('[에토프] 겹친 차감 덜기 실패', e); }   // C10
   }
   /* 발주 기록의 묘비도 장부와 같은 이치로 **먼저** 받습니다.
      예전에는 발주에 묘비가 아예 없어, 지워도 mergeById 가 다른 기기 것을
@@ -9965,6 +9966,15 @@ function _isLocalEmpty(){ return _localDataSize() === 0; }
 
 // 동기화 잠금 (중복 호출 방지)
 let _syncBusy = false;
+/* C10 (2026-10-23) — 잠겨 있는 동안 들어온 올리기 요청을 버리지 않고 기억했다가, 끝나면 한 번 더 올립니다.
+   예전에는 그냥 return 이라, 그 사이 바뀐 것(납품서 차감·입고 등)이 다음 변경이 생길 때까지 시트로 안 갔습니다.
+   그동안 다른 기기는 그 변경을 모른 채 같은 일을 또 해서 두 번 빠졌습니다. */
+let _syncAgain = false;
+var _syncFailN = 0;   // 올리기 실패 뒤 다시 해 본 횟수 (성공하면 0)
+function _syncRelease(){
+  _syncBusy = false;
+  if(_syncAgain){ _syncAgain = false; setTimeout(()=>{ try{ autoSync(); }catch(e){} }, 1500); }
+}
 
 // 페이지가 막 로드되어 아직 시트→앱을 한 번도 못한 상태인지
 // (lastGsSync가 없으면 위험 - 시트가 비어있다 단정하고 덮어쓰면 안됨)
@@ -9972,7 +9982,7 @@ function _neverSyncedYet(){ return !meta || !meta.lastGsSync; }
 
 async function autoSync(){
   if(!gsUrl)return;
-  if(_syncBusy)return; // 중복 방지
+  if(_syncBusy){ _syncAgain = true; return; } // 중복 방지 — 끝나면 한 번 더 올립니다(C10)
 
   // ── 핵심 가드 1: 로컬이 완전히 비어있으면 자동 업로드 금지 ──
   // (이게 빈 페이지가 시트를 덮어쓴 원인이었음)
@@ -10006,8 +10016,15 @@ async function autoSync(){
     meta.lastGsSync=new Date().toISOString();saveAll();
     updateGsStatus('ok');updateGsSyncTime();
     showToast('✅ 저장 완료 (구글 시트 연동)');
-  }catch(e){updateGsStatus('error');showToast('⚠️ 기기엔 저장됨 / 시트 연동 실패');}
-  finally{ _syncBusy = false; }
+    _syncFailN = 0;
+  }catch(e){
+    updateGsStatus('error');showToast('⚠️ 기기엔 저장됨 / 시트 연동 실패');
+    /* C10 — 실패한 올리기는 「아직 안 올림」으로 되돌려 놓고 1분 뒤 다시(세 번까지).
+       예전에는 올리기 전에 「올렸음」으로 적어 두어, 실패하면 다음 변경이 생길 때까지 그 변경이 시트로 안 갔습니다. */
+    try{ _lastPushedChange = null; }catch(e2){}
+    if(_syncFailN < 3){ _syncFailN++; setTimeout(()=>{ try{ if(_hasUnpushedChange()) autoSync(); }catch(e3){} }, 60000); }
+  }
+  finally{ _syncRelease(); }
 }
 
 async function syncToSheet(){
@@ -10062,7 +10079,7 @@ async function syncToSheet(){
     }
     meta.lastGsSync=new Date().toISOString();saveAll();updateGsStatus('ok');updateGsSyncTime();showToast('✅ 시트 저장 완료');
   }catch(e){updateGsStatus('error');showToast('❌ 저장 실패: '+e.message);}
-  finally{ _syncBusy = false; }
+  finally{ _syncRelease(); }
 }
 
 // 시트→앱 받은 뒤, 현재 보고 있는 탭과 주요 화면을 모두 다시 그림
@@ -10125,7 +10142,7 @@ async function syncFromSheet(){
       showToast(`✅ 불러오기 완료 (재고 ${Object.keys(stock||{}).length} · 작업 ${(workLog||[]).length} · 납품 ${(delivLog||[]).length})`);
     }
   }catch(e){updateGsStatus('error');showToast('❌ 실패: '+e.message);}
-  finally{ _syncBusy = false; }
+  finally{ _syncRelease(); }
 }
 
 // ── EXPORT ──
@@ -13318,6 +13335,11 @@ function odEvReconcile(){
   (orderLog||[]).forEach(o=>(o.items||[]).forEach(it=>{
     if(!it || !it.uid) return;
     const evs=byUid[it.uid]; if(!evs || !evs.length) return;
+    if(it.received && (String(it.eventId||'').indexOf('etpr_')===0 || it.recvBy==='etp-tab' || it.recvBy==='order-etp')){
+      // C11 — 에토프로 들어간 줄에 원유리 이벤트가 붙어 있음(새 판을 안 연 기기가 원유리로 입고한 것). 지우지도 잇지도 않고 드러냅니다.
+      console.warn('[발주 입고 맞추기] 에토프로 입고한 줄에 원유리 이벤트가 있습니다 — 확인 필요:', o.vendor, o.date, it.w+'x'+it.h, evs.map(x=>x.e.id));
+      return;
+    }
     if(it.received){
       // ⓑ 둘 이상이면 하나만
       if(evs.length>1){
@@ -16069,6 +16091,49 @@ async function odImportPdf(input){
   document.getElementById('od-import-modal').classList.add('on');
 }
 
+/* ── C12 · 발주서 넣기 중복 알림 (2026-10-23) ─────────────────────────────
+   앱에서 기록한 발주와 같은 발주서를 「발주서 넣기」로 또 넣어 매입·입고가 두 번 잡힌 일이 있었습니다(5쌍).
+   **발주처 + 발주일 + 품목(사이즈·장수 묶음)** 이 이미 있는 발주와 같으면 빨간 표시를 달고, 넣을 때 한 번 더 여쭙니다.
+   · 막지 않습니다 — 같은 날 같은 것을 정말 두 번 낸 발주도 「그래도 넣기」로 넣을 수 있습니다.
+   · 날짜가 다른 같은 규격 반복 발주는 걸리지 않습니다(날짜까지 같아야 함).
+   · 품목이 반 넘게 겹치면 「비슷함」(주황)으로만 알립니다. 지운 발주는 안 봅니다. */
+function odImpItemSig(it){
+  const w=+it.w||0, h=+it.h||0;
+  const k=(w&&h) ? (Math.min(w,h)+'x'+Math.max(w,h)) : String(it.spec||it.pname||'').replace(/\s+/g,'').toUpperCase();
+  return k+':'+(Number(it.qty)||0);
+}
+function odImpSigList(items){ return (items||[]).map(odImpItemSig).sort(); }
+function odImportDupOf(s, extraOrders){
+  const v=(typeof odStmtVendor==='function'?odStmtVendor(s.vendor):s.vendor)||'';
+  const mine=odImpSigList(s.items); if(!mine.length) return null;
+  const del=(typeof orderDeleted!=='undefined' && orderDeleted)||{};
+  let best=null;
+  (orderLog||[]).concat(extraOrders||[]).forEach(o=>{
+    if(!o || del[o.id] || String(o.date||'')!==String(s.date||'')) return;
+    const ov=(typeof odStmtVendor==='function'?odStmtVendor(o.vendor):o.vendor)||'';
+    if(ov!==v) return;
+    const theirs=odImpSigList(o.items);
+    const pool=theirs.slice(); let hit=0;
+    mine.forEach(x=>{ const i=pool.indexOf(x); if(i>=0){ hit++; pool.splice(i,1); } });
+    const same = hit===mine.length && theirs.length===mine.length;
+    const ratio = hit/Math.max(mine.length, theirs.length);
+    if(same) best={kind:'same', o, hit, n:mine.length};
+    else if(ratio>0.5 && (!best || best.kind!=='same')) best={kind:'similar', o, hit, n:Math.max(mine.length, theirs.length)};
+  });
+  return best;
+}
+function odImportDupLabel(d){
+  if(!d) return '';
+  const o=d.o, src=o.src==='excel-import'||o.src==='pdf-import'?'발주서 넣기':'앱에서 기록';
+  const its=o.items||[], tot=its.reduce((s,i)=>s+(Number(i.qty)||0),0);
+  const pv=its.slice(0,3).map(i=>(i.w&&i.h)?`${i.w}×${i.h}×${i.qty}`:`${i.spec||i.pname||''}×${i.qty}`).join(' · ')+(its.length>3?` 외 ${its.length-3}줄`:'');
+  const rcv=its.filter(i=>i.received).length;
+  const who=`${typeof odStmtVendor==="function"?odStmtVendor(o.vendor):o.vendor} · 발주 ${o.date||''} · ${o.title||o.type||''} · ${its.length}줄 ${tot}장 · ${src}${rcv?` · 입고 ${rcv}줄`:''}`;
+  return d.kind==='same'
+    ? `<div style="font-size:10.5px;font-weight:700;color:var(--red,#d33);margin-top:3px">⚠ 이미 있는 발주와 같습니다 — ${who}</div><div style="font-size:10px;color:var(--tx3)">기존: ${pv}</div>`
+    : `<div style="font-size:10.5px;color:var(--acc2,#e67e22);margin-top:3px">비슷한 발주가 있습니다(${d.hit}/${d.n}줄 같음) — ${who}</div><div style="font-size:10px;color:var(--tx3)">기존: ${pv}</div>`;
+}
+
 function renderOdImportList(){
   // 창의 글씨는 어느 단추로 들어왔는지에 따라 달라집니다
   const ttl=document.getElementById('od-import-ttl');
@@ -16086,12 +16151,14 @@ function renderOdImportList(){
     const preview=s.items.slice(0,3).map(it=>
       `${it.pname}${(it.w&&it.h)?` ${it.w}*${it.h}`:''}×${it.qty}`).join(' · ');
     const more=s.items.length>3?` 외 ${s.items.length-3}건`:'';
+    s._dup=odImportDupOf(s);   // C12
     return `<label style="display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border:1px solid var(--b2);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--s2)">
       <input type="checkbox" class="od-imp-ck" data-i="${i}" style="margin-top:3px;width:17px;height:17px;flex-shrink:0;accent-color:var(--acc5)">
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:700;color:var(--tx1)">${s.vendor} <span style="font-weight:400;color:var(--tx3);font-size:11px">· ${s.type||'종류없음'}</span></div>
         <div style="font-size:10.5px;color:var(--tx3);margin:2px 0">발주일 ${s.date||'-'} · 품목 ${s.items.length}건 · 총 ${tot}장</div>
         <div style="font-size:10.5px;color:var(--tx2);line-height:1.5;word-break:break-all">${preview}${more}</div>
+        ${odImportDupLabel(s._dup)}
       </div>
     </label>`;
   }).join('');
@@ -16101,6 +16168,15 @@ function odImportApply(){
   const cks=[...document.querySelectorAll('.od-imp-ck:checked')];
   if(!cks.length){ showToast('기록할 발주서를 선택하세요'); return; }
   const picks=cks.map(ck=>odImportParsed[parseInt(ck.dataset.i)]);
+  /* C12 — 이미 있는 발주와 같은 것(이번에 함께 고른 것끼리도)을 넣기 전에 한 번 여쭙니다 */
+  { const seen=[], dups=[];
+    picks.forEach(s=>{
+      const d=odImportDupOf(s, seen.map(x=>({id:'_pick', vendor:x.vendor, date:x.date, items:x.items, title:x.type})));
+      if(d && d.kind==='same') dups.push(`· ${s.vendor} ${s.date||''} ${s.items.length}줄 — ${d.o.id==='_pick'?'이번에 고른 다른 발주서':'기록된 발주'}와 같음`);
+      seen.push(s);
+    });
+    if(dups.length && !confirm(`이미 있는 발주와 같은 발주서 ${dups.length}장이 있습니다.\n${dups.slice(0,6).join('\n')}${dups.length>6?'\n…':''}\n\n그대로 넣으면 매입·입고가 두 번 잡힐 수 있습니다.\n같은 날 같은 발주를 정말 두 번 내셨으면 「확인」, 아니면 「취소」 후 체크를 빼 주십시오.`)) return;
+  }
   let added=0, etpLinked=0, pastN=0;
   const today=todayStr(), nowIso=new Date().toISOString();
   picks.forEach(s=>{
@@ -18726,13 +18802,110 @@ function odAutoRevertMonth(ym){
   showToast(`자동 입고 ${hits.length}품목 ${q}장을 풀었습니다`);
 }
 
-/* 한 줄 입고 — 그 날짜로 원유리 입고 이벤트를 넣고 표시합니다. 발주 리스트(오늘)와 오늘 화면 「발주중」 탭(고른 날짜)이 같이 씁니다. */
+/* ── C11 · 현성 에토프는 에토프 재고로만 (사장님 2026-10-23 「현성 에토프(3.2T 백사틴)는 항상 인쇄가 완료된 완제품」) ──────────
+   · 현성유리 + 3.2T 백사틴 발주(`odIsEtpOrder`)는 발주탭 입고(☐ · 나눠 입고 · 오늘 화면 입고)가 **원유리 이벤트를 만들지 않고**
+     🟠 에토프 장부에 「입고」 줄을 넣습니다 — 그 발주의 에토프 발주(`etppo_<발주id>`)에 붙여서(poId).
+   · 줄 id 는 `etpr_<발주id>_<품목 uid>` 로 정해 둡니다 — 두 기기가 같은 줄을 각각 입고해도 합칠 때 하나로 겹칩니다(C10 과 같은 방식).
+   · **에토프 탭에서 이미 입고한 양**(그 에토프 발주·사이즈의 입고 합 − 이 발주에서 이미 입고 표시한 줄)이 있으면 줄을 새로 안 만들고 표시만 합니다(`recvBy:'etp-tab'`).
+     거꾸로 에토프 탭은 원래 「발주 − 들어온 것」만 넣으므로, 발주탭에서 먼저 넣은 것은 거기서 다시 안 들어갑니다.
+   · 입고 취소: 발주탭이 만든 줄(`etpr_`)은 지운 표시로 걷고, 에토프 탭에서 넣은 입고는 그대로 둡니다(거기서 되돌림).
+   · ⚡자동 입고는 현성 에토프를 **에토프 탭에서 실제로 입고한 만큼만** 표시합니다(새 줄 안 만듦 — 실물을 안 본 에토프 재고가 늘지 않게).
+   · 다른 발주처·다른 유리(대원 백사틴 원판 · 5T · 웜코튼 등)는 예전 그대로 원유리입니다.
+   ⚠ 「3.2백사틴」처럼 T 가 빠진 옛 표기도 현성 에토프로 봅니다(`OD_ETP_THICK`). 에토프 발주를 잇는 규칙(`ETP_PO_LINK_THICK`)은 그대로 둡니다. */
+var OD_ETP_VENDOR = '현성유리';
+var OD_ETP_THICK  = /3\.2\s*[Tt]?\s*백\s*[사샤]틴/;
+/* 날짜는 **검증에만** 씁니다 (사장님 2026-10-23 「거래 유형을 우선, 9/7 은 과거 기록 검증 기준」).
+   현성 외주 완제품 입고가 시작된 날 — 9/7 첫 팔레트(에토프 장부). 납품서 차감 전환일(etpCutover 9/10)과 다른 날짜이고,
+   AS 색상 판정 기준과도 다릅니다. 하나로 합치지 마십시오. 이보다 앞선 「현성 3.2T 백사틴」 발주는 있을 수 없으므로 확인 대상입니다. */
+var OD_ETP_OUTSOURCE_FROM = '2026-09-07';
+var OD_ETP_MARK_RE   = /에토프|\bETP\b/i;
+var OD_OTHER_COLOR_RE = /웜\s*코튼|W\/?\s*Cotton|\bWC\b|사하라|팬톤|미드나잇|포레스트/i;   // 에토프가 아닌 인쇄 색 — 현성에 웜코튼을 낼 날을 대비
+function odEtpText(o){
+  return [o.thick,o.type,o.title,o.bigo].concat((o.items||[]).map(it=>[it.color,it.bigo,it.pname].join(' '))).join(' ');
+}
+/* 발주 하나가 입고 때 어디로 가는지 — 'etp' 에토프 장부 · 'raw' 원유리(예전 그대로) · 'check' 정해지지 않음(여쭙니다).
+   o.recvAs 가 있으면(사장님이 한 번 고르신 것) 그것이 먼저입니다. */
+function odEtpClass(o){
+  if(!o) return {k:'raw', why:''};
+  if(o.recvAs==='etp' || o.recvAs==='raw') return {k:o.recvAs, why:'직접 고르심'};
+  const hs = String(o.vendor||'').indexOf(OD_ETP_VENDOR)>=0;
+  const th = OD_ETP_THICK.test([o.thick,o.type,o.title].join(' '));
+  const txt = odEtpText(o), d = String(o.date||'');
+  if(hs && th){
+    if(OD_OTHER_COLOR_RE.test(txt)) return {k:'check', why:'현성 3.2T 백사틴인데 에토프가 아닌 색이 적혀 있습니다'};
+    if(d && d < OD_ETP_OUTSOURCE_FROM) return {k:'check', why:`현성 외주 시작(${OD_ETP_OUTSOURCE_FROM.slice(5)}) 앞의 발주입니다`};
+    return {k:'etp', why:'현성 3.2T 백사틴 = 외주 완제품'};
+  }
+  if(!hs && th && OD_ETP_MARK_RE.test(txt) && d >= OD_ETP_OUTSOURCE_FROM)
+    return {k:'check', why:'현성이 아닌 발주처에 에토프가 적혀 있습니다'};
+  return {k:'raw', why:''};
+}
+function odIsEtpOrder(o){ return odEtpClass(o).k==='etp'; }
+// 'check' 발주는 처음 입고할 때 한 번 여쭙고 o.recvAs 에 남깁니다. 고르지 않으면 null — 입고하지 않습니다.
+function odEtpResolve(o){
+  const c=odEtpClass(o);
+  if(c.k!=='check') return c.k;
+  const head=`${o.vendor||''} · ${o.title||o.type||''} · 발주 ${o.date||''}\n⚠ ${c.why}.\n\n`;
+  let pick=null;
+  if(confirm(head+'에토프 완제품으로 입고할까요?\n(확인 = 🟠 에토프 재고 · 취소 = 다음 물음)')) pick='etp';
+  else if(confirm(head+'원유리로 입고할까요?\n(확인 = 원유리 재고 · 취소 = 입고하지 않음)')) pick='raw';
+  if(!pick) return null;
+  o.recvAs=pick; o.recvAsAt=new Date().toISOString(); o.updatedAt=o.recvAsAt;
+  return pick;
+}
+function odEtpSize(it){
+  try{ const n=etpNormSize(it.w+'x'+it.h, etpLrFromName(it.pname||'')); if(n && n.ok) return n.size; }catch(e){}
+  return it.w+'x'+it.h;
+}
+function odEtpPoOf(o){
+  try{
+    const list=(typeof etpPOs!=='undefined' && Array.isArray(etpPOs))?etpPOs:[];
+    return list.find(p=>p && !p.canceled && (p.id==='etppo_'+o.id || p.fromOrder===o.id)) || null;
+  }catch(e){ return null; }
+}
+// 에토프 탭에서 이 발주·사이즈로 이미 들어온 것 가운데, 이 발주의 다른 입고 표시 줄이 아직 안 가져간 양
+function odEtpAvail(o, it){
+  const po=odEtpPoOf(o); if(!po) return {po:null, avail:0};
+  const size=odEtpSize(it);
+  const mine=(o.items||[]).filter(x=>x!==it && x.received && odEtpSize(x)===size).reduce((s,x)=>s+(Number(x.qty)||0),0);
+  return {po, avail:Math.max(0, etpReceivedQty(po.id, size)-mine)};
+}
+function _odRecvEtp(o, it, day, opt){
+  opt=opt||{};
+  const size=odEtpSize(it), q=Number(it.qty)||0;
+  const {po, avail}=odEtpAvail(o, it);
+  it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=day; it.auto=false;
+  if(po && avail>=q){ it.eventId=null; it.recvBy='etp-tab'; }          // 에토프 탭에서 이미 넣음 — 표시만
+  else {
+    const base='etpr_'+o.id+'_'+(it.uid||odNewUid());
+    let rid=base, k=2; while(etpDeleted[rid]) rid=base+'_r'+(k++);    // 취소 뒤 다시 넣으면 새 번호
+    if(!etpLedger.some(r=>r && r.id===rid)){
+      etpAddRow({ id:rid, d:day, od:o.date||'', t:'in', size, qty:q-avail,
+                  src:'발주탭 입고 '+etpMd(day), po:(po&&po.no)||'', poId:(po&&po.id)||'',
+                  memo:'발주 '+(o.date||'')+' · 발주탭에서 입고'+(avail?` (에토프 탭 ${avail}장 + 여기 ${q-avail}장)`:'')+(po?'':' · 에토프 발주 없음') });
+    }
+    it.eventId=rid; it.recvBy='order-etp';
+    if(!opt.noCommit) etpCommit();
+  }
+  o.updatedAt=new Date().toISOString();
+}
+function _odUnrecvEtp(it){
+  if(String(it.eventId||'').indexOf('etpr_')===0){ etpDeleted[it.eventId]=new Date().toISOString(); etpCommit(); return 'row'; }
+  return it.recvBy==='etp-tab' ? 'tab' : '';
+}
+
+/* 한 줄 입고 — 그 날짜로 원유리 입고 이벤트를 넣고 표시합니다. 발주 리스트(오늘)와 오늘 화면 「발주중」 탭(고른 날짜)이 같이 씁니다.
+   현성 에토프 발주는 원유리가 아니라 에토프 장부로(C11 — _odRecvEtp). */
 function _odRecvItem(o, it, day){
+  const as=odEtpResolve(o);
+  if(as==null) return false;                                    // 확인 대상인데 고르지 않으심 — 입고하지 않습니다
+  if(as==='etp'){ _odRecvEtp(o, it, day); return true; }
   const ev=addStockEvent(`${it.w}x${it.h}`,{at:`${day}T00:00:00.000Z`,type:'in',qty:it.qty,note:`발주입고 ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`,source:'order'});
   odTagEvent(ev, o, it);   // C9 — 발주·품목 번호
   it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=day; it.eventId=ev.id; it.auto=false;
   o.updatedAt=new Date().toISOString();
   if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h);
+  return true;
 }
 function odToggleRecv(orderId, idx){
   const o=orderLog.find(x=>x.id===orderId); if(!o)return;
@@ -18740,16 +18913,21 @@ function odToggleRecv(orderId, idx){
   if(!it.received){
     // 입고 처리 → 체크한 날짜(오늘)로 원유리 입고 이벤트
     const today=todayStr();
-    _odRecvItem(o, it, today);
+    if(!_odRecvItem(o, it, today)){ showToast('입고하지 않았습니다'); return; }
     saveAll();
-    showToast(`📦 ${it.w}×${it.h} ${it.qty}장 입고 (${today.slice(5).replace('-','/')})`);
+    showToast(`📦 ${it.w}×${it.h} ${it.qty}장 입고 (${today.slice(5).replace('-','/')})${it.recvBy==='etp-tab'||it.recvBy==='order-etp'?' · 🟠 에토프':''}`);
   } else {
     // 입고 취소 → 이벤트 제거
+    const etpO=String(it.eventId||'').indexOf('etpr_')===0 || it.recvBy==='etp-tab' || it.recvBy==='order-etp';   // 어디로 들어갔는지로 봅니다(지금 분류가 아니라)
     { const lock=(typeof odClosedLock==='function')?odClosedLock(o):null;
-      if(lock && !confirm(`🔒 ${lock}인 발주입니다.\n입고를 풀면 원유리 재고에서 ${it.qty}장이 빠집니다(확정된 마감 금액은 그대로). 풀까요?`)) return; }
-    if(it.eventId){ odEvDelMark([it.eventId]); removeStockEventsByIds([it.eventId]); }   // C9 — 지운 표시를 남겨 다른 기기에서 되살아나지 않게
+      if(lock && !confirm(`🔒 ${lock}인 발주입니다.\n입고를 풀면 ${etpO?'에토프':'원유리'} 재고에서 ${it.qty}장이 빠집니다(확정된 마감 금액은 그대로). 풀까요?`)) return; }
+    let etpUn='';
+    if(etpO && (String(it.eventId||'').indexOf('etpr_')===0 || it.recvBy==='etp-tab')) etpUn=_odUnrecvEtp(it);   // C11 — 에토프 장부 쪽
+    else if(it.eventId){ odEvDelMark([it.eventId]); removeStockEventsByIds([it.eventId]); }   // C9 — 지운 표시를 남겨 다른 기기에서 되살아나지 않게
+    if(etpUn==='tab') setTimeout(()=>showToast('에토프 탭에서 넣은 입고는 그대로입니다 — 재고를 빼려면 🟠 에토프재고 탭에서 되돌리십시오'), 1600);
     const wasAuto=!!it.auto;
     it.received=false; it.recvAt=null; it.recvDate=null; it.eventId=null; it.auto=false;
+    if(etpO) delete it.recvBy;
     it.recvHeld=true;   // 손으로 되돌린 것 — 자동이 다시 잡지 않습니다(납품서 shipHeld와 같은 뜻)
     if(wasAuto) console.log('[발주 자동입고] 되돌림 — 자동 대상에서 제외:', it.w+'x'+it.h);
     o.updatedAt=new Date().toISOString();
@@ -18778,6 +18956,7 @@ function odSplitRecv(orderId, idx){
   if(s==null) return;
   const n=parseInt(String(s).trim());
   if(!(n>=1 && n<q)){ showToast(`1~${q-1} 사이로 넣어 주십시오`); return; }
+  if(odEtpResolve(o)==null){ showToast('입고하지 않았습니다'); return; }   // C11 — 확인 대상은 나누기 전에 먼저 여쭙니다
   const rest=Object.assign({}, it, {uid:odNewUid(), qty:q-n, received:false, recvAt:null, recvDate:null, eventId:null, auto:false});
   it.qty=n;
   const today=todayStr();
@@ -18797,7 +18976,10 @@ function odSetRecvDate(orderId, idx, newDate){
   it.recvDate=newDate;
   o.updatedAt=new Date().toISOString();
   // 기존 입고 이벤트 날짜도 갱신
-  if(it.eventId){
+  if(String(it.eventId||'').indexOf('etpr_')===0){   // C11 — 발주탭이 만든 에토프 입고 줄
+    const r=etpLedger.find(x=>x && x.id===it.eventId);
+    if(r){ r.d=newDate; r.ts=r.at=new Date().toISOString(); etpCommit(); }
+  } else if(it.eventId){
     const key=`${it.w}x${it.h}`;
     if(typeof updateStockEvent==='function'){
       updateStockEvent(key, it.eventId, {at:`${newDate}T00:00:00.000Z`});
@@ -18859,20 +19041,30 @@ function odRecvBaseDate(o){
 // 지금 자동으로 잡을 수 있는 것 (미리보기 — 재고는 건드리지 않습니다)
 function odAutoRecvScan(){
   const today=todayStr();
-  const hits=[], held=[], noBase=[];
+  const hits=[], held=[], noBase=[], check=[], etpWait=[];
   (typeof orderLog!=='undefined'?orderLog:[]).forEach(o=>{
     if(!o || !Array.isArray(o.items)) return;
     const base=odRecvBaseDate(o);
+    const cls=odEtpClass(o).k;                    // C11 — 'check' 는 자동으로 안 잡습니다
+    const used={};                                // 현성 에토프: 이번 훑기에서 사이즈마다 이미 쓴 에토프 탭 입고
     o.items.forEach((it,idx)=>{
       if(!it || it.received) return;
       if(!(it.w && it.h)) return;                 // 규격 없는 줄(잡자재)은 원유리 재고 대상 아님
       if(it.recvHeld){ held.push({o,idx,it}); return; }
+      if(cls==='check'){ check.push({o,idx,it}); return; }
       if(!base.date){ noBase.push({o,idx,it}); return; }
       if(base.date>today) return;                 // 아직 기준일 전
+      if(cls==='etp'){                            // 에토프 탭에서 실제로 들어온 만큼만 — 새 줄을 만들지 않습니다
+        const a=odEtpAvail(o, it), sz=odEtpSize(it), q=Number(it.qty)||0;
+        if(!a.po || a.avail-(used[sz]||0) < q){ etpWait.push({o,idx,it}); return; }
+        used[sz]=(used[sz]||0)+q;
+        hits.push({o, idx, it, base:base.date, from:base.from, etp:true});
+        return;
+      }
       hits.push({o, idx, it, base:base.date, from:base.from});
     });
   });
-  return { hits, held, noBase, qty:hits.reduce((s,h)=>s+(parseInt(h.it.qty)||0),0) };
+  return { hits, held, noBase, check, etpWait, qty:hits.reduce((s,h)=>s+(parseInt(h.it.qty)||0),0) };
 }
 function odAutoRecvRun(opt){
   opt=opt||{};
@@ -18880,6 +19072,12 @@ function odAutoRecvRun(opt){
   if(!scan.hits.length){ if(!opt.silent) showToast('자동으로 잡을 발주가 없어요'); return {n:0,qty:0}; }
   scan.hits.forEach(h=>{
     const it=h.it, o=h.o;
+    if(h.etp){                                    // C11 — 에토프 탭 입고를 표시만 (재고는 이미 에토프 장부에)
+      it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=h.base;
+      it.eventId=null; it.recvBy='etp-tab'; it.auto=true;
+      o.updatedAt=new Date().toISOString();
+      return;
+    }
     const ev=addStockEvent(`${it.w}x${it.h}`,{
       at:`${h.base}T00:00:00.000Z`, type:'in', qty:it.qty,
       note:`발주입고(자동) ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`, source:'order'
@@ -18923,12 +19121,14 @@ function odAutoUnhold(orderId, idx){
 function odAutoBannerHtml(){
   const scan=odAutoRecvScan();
   const n=scan.hits.length, q=scan.qty, heldN=scan.held.length;
+  const extra=(scan.check.length?`<span style="color:var(--acc2)" title="현성 3.2T 백사틴인지 갈리지 않는 발주 — 손으로 입고할 때 여쭙니다">확인 필요 ${scan.check.length}줄 제외</span>`:'')
+    +(scan.etpWait.length?`<span style="color:var(--tx3)" title="현성 에토프는 🟠 에토프재고 탭에서 입고한 만큼만 표시합니다">에토프 탭 입고 기다림 ${scan.etpWait.length}줄</span>`:'');
   const daysInput=`<input type="number" inputmode="numeric" value="${odAuto.fallbackDays}" onchange="odAutoSetDays(this.value)" title="납기가 날짜가 아닌 건은 발주일에서 이만큼 영업일 뒤를 기준으로 봅니다" style="width:42px;padding:1px 4px;text-align:center;font-size:11px;border:1px solid var(--b2);border-radius:5px;background:var(--s2);color:var(--tx1)">`;
   const btn=(label,solid)=>`<button onclick="odAutoToggle()" style="margin-left:auto;padding:4px 10px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;${solid?'background:var(--acc3);border:none;color:#fff':'background:var(--s2);border:1px solid var(--b2);color:var(--tx2)'}">${label}</button>`;
   if(odAuto.on){
     return `<div class="od-auto" style="background:rgba(46,160,67,.08);border:1px solid var(--acc3)">
       <b style="color:var(--acc3)">⚡ 자동 입고 켜짐</b><span>납기일 지나면 입고로 잡음 · 납기 글자인 건 발주일 +${daysInput}영업일</span>
-      ${heldN?`<span style="color:var(--acc2)">되돌린 ${heldN}건 제외</span>`:''}${btn('끄기',false)}</div>`;
+      ${heldN?`<span style="color:var(--acc2)">되돌린 ${heldN}건 제외</span>`:''}${extra}${btn('끄기',false)}</div>`;
   }
   return `<div class="od-auto" style="background:var(--s2);border:1px dashed var(--b2)">
     <b>⚡ 자동 입고 꺼짐</b><span>☐ 를 손으로 눌러 입고 · 납기 글자인 건 발주일 +${daysInput}영업일</span>
@@ -25415,7 +25615,7 @@ function etpApplyDeduct(){
 
   take.forEach(x => {
     Object.keys(x.sizes).forEach(s => {
-      etpAddRow({ d:x.date, t:'out', size:s, qty:x.sizes[s],
+      etpAddRow({ id:etpOutRowId(x.delivNo, s), d:x.date, t:'out', size:s, qty:x.sizes[s],
                   src:'납품서 ' + x.delivNo + (x.dest ? ' (' + x.dest + ')' : ''),
                   reason:'납품', memo:(x.isAS ? 'AS · ' : '') + '납품요청 ' + (x.reqDate || '—') });
       // 어느 납품서로 뺀 것인지 남겨야 되돌리기와 중복 방지가 됩니다
@@ -25435,6 +25635,44 @@ function etpApplyDeduct(){
    AS 는 「지금 하실 일」에 남아 원오더번호로 확인하신 뒤 누르시면 됩니다.
    끄려면 ETP_AUTO_DEDUCT = false. */
 const ETP_AUTO_DEDUCT = true;
+/* ── C10 · 두 기기가 같은 납품서를 각각 빼도 한 줄로 (2026-10-23) ─────────────
+   · 출고 줄 id 를 `etpo_<납품번호>_<사이즈>` 로 정해 둡니다. 두 기기가 동기화 전에 같은 납품서를 빼도
+     id 가 같아 합칠 때 한 줄로 겹칩니다(예전에는 id 가 제각각이라 두 줄 → 두 번 빠짐).
+   · 되돌린(묘비) 뒤 다시 빼면 `_r2`, `_r3` … — 묘비가 같은 기기끼리는 같은 번호가 됩니다.
+   · `etpDupTrim` — 새 판을 아직 안 연 기기가 옛 id 로 같은 납품서를 또 뺀 경우, **ETP_DUP_GUARD_FROM 뒤에 생긴 줄만**
+     정해진 id 줄 하나를 남기고 지운 표시로 덜어냅니다. 그 전 줄(10/13 맞춤 전·뒤의 옛 중복)은 **건드리지 않습니다** — 정정은 따로(확인대기 C10).
+   ⚠ ETP_DUP_GUARD_FROM = 운영에 올린 시각. 바꾸지 마십시오(앞당기면 옛 줄이 덜기 대상에 들어갑니다). */
+var ETP_DUP_GUARD_FROM = '2026-10-23T23:52:00.000Z';   // 운영 배포 시각(UTC) — 이 전 줄은 덜기 대상 아님
+function etpOutRowId(delivNo, size){
+  const base='etpo_'+String(delivNo||'').replace(/[^0-9A-Za-z]/g,'')+'_'+String(size||'').replace(/\s+/g,'');
+  let id=base, k=2;
+  while(etpDeleted[id]) id=base+'_r'+(k++);
+  return id;
+}
+function etpDupTrim(){
+  const groups={};
+  etpRows().forEach(r=>{
+    if(r.t!=='out' || !r.doc || r.align) return;
+    const k=r.doc+'|'+r.size; (groups[k]=groups[k]||[]).push(r);
+  });
+  const now=new Date().toISOString(); let n=0, q=0;
+  Object.keys(groups).forEach(k=>{
+    const g=groups[k]; if(g.length<2) return;
+    const keep=g.find(r=>/^etpo_/.test(r.id)); if(!keep) return;           // 정해진 줄이 없으면 옛 일 — 손대지 않음
+    g.forEach(r=>{
+      if(r===keep || /^etpo_/.test(r.id)) return;
+      if(String(r.ts||r.at||'') < ETP_DUP_GUARD_FROM) return;              // 옛 줄 보호
+      if(r.qty!==keep.qty) return;                                          // 장수가 다르면 판단 보류
+      etpDeleted[r.id]=now; n++; q+=Number(r.qty)||0;
+    });
+  });
+  if(n){
+    etpLedger=etpLedger.filter(r=>r && r.id && !etpDeleted[r.id]);
+    try{ etpSaveLedger(); }catch(e){}
+    console.warn(`[에토프] 같은 납품서를 두 기기에서 뺀 줄 ${n}개 · ${q}장을 덜어냈습니다`);
+  }
+  return {n, q};
+}
 function etpAutoDeduct(){
   if(!ETP_AUTO_DEDUCT) return 0;
   if(typeof delivLog==='undefined' || !Array.isArray(delivLog)) return 0;
@@ -25445,7 +25683,7 @@ function etpAutoDeduct(){
   let n=0;
   take.forEach(x=>{
     Object.keys(x.sizes).forEach(s=>{
-      etpAddRow({ d:x.date, t:'out', size:s, qty:x.sizes[s],
+      etpAddRow({ id:etpOutRowId(x.delivNo, s), d:x.date, t:'out', size:s, qty:x.sizes[s],
                   src:'납품서 ' + x.delivNo + (x.dest ? ' (' + x.dest + ')' : ''),
                   reason:'납품', memo:'자동 · 납품요청 ' + (x.reqDate || '—') });
       etpLedger[etpLedger.length-1].doc = x.delivNo;
@@ -26489,6 +26727,7 @@ function tdyRecvDo(orderId, idx){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(day)){ showToast('날짜를 골라 주십시오'); return; }
   if(day>td){ showToast('오늘 이후 날짜로는 입고를 잡지 않습니다'); return; }
   const wait=(o.items||[]).map((it,i)=>({it,i})).filter(x=>x.it.w && x.it.h && !x.it.received && (idx<0 || x.i===idx));
+  if(wait.length && odEtpResolve(o)==null){ showToast('입고하지 않았습니다'); return; }   // C11 — 확인 대상은 한 번만 여쭙니다
   wait.forEach(x=>_odRecvItem(o, x.it, day));
   saveAll(); saveOrderLog();
   try{ renderOrderList(); }catch(e){}
@@ -27183,7 +27422,7 @@ function scheduleAutoPush(){
     if(_hasUnpushedChange() && !_syncBusy){
       _lastPushedChange = meta.lastLocalChange;
       try{ await autoSync(); }catch(e){}
-    }
+    } else if(_hasUnpushedChange() && _syncBusy){ _syncAgain = true; }   // C10 — 바쁠 때 온 변경도 끝나면 올립니다
   }, 8000); // 8초간 추가 변경 없으면 올림
 }
 
