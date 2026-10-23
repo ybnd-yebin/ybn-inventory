@@ -1301,9 +1301,12 @@ function labelNames(){
      좌우가 섞임 → `L1/R1` (좌우 없는 것이 끼면 `L1/R1/미표기1` — 숨기지 않습니다)
      한쪽만      → 예전처럼 `2장` (좌우는 L/R 규칙 메모가 라벨마다 적습니다) */
 const LR_SIDE_RE = /(?<=[\s*])([LR])(?=\)|\s*$)/;
+/* 유로700·유로500(AL45 포함)은 L·R 을 **묶지 않고 따로** 셉니다 (사장님 2026-10-23 「R1 L1 묶지 말고 다 각각」).
+   좌우를 함께 묶는 것은 수납도어만 — 묶음 수량 메모와 철 확인 둘 다 이 함수로 가립니다. */
+const LR_KEEP_RE = /Euro\d{3}|AL45/;
 function applyBundleNotes(pend){
   const labels = labelNames();
-  const keyOf  = name => name.replace(LR_SIDE_RE, "").replace(/\s+/g, " ").trim();
+  const keyOf  = name => (LR_KEEP_RE.test(name) ? name : name.replace(LR_SIDE_RE, "")).replace(/\s+/g, " ").trim();
   const sideOf = name => { const m = name.match(LR_SIDE_RE); return m ? m[1] : ""; };
   const grp = new Map();
   for(const l of labels){
@@ -1739,7 +1742,9 @@ function buildCheckList(){
     const it = checkItemOf(l.name);
     const as = asQ.has(l.page + "|" + (l.line.x<0.5?0:1) + "-" + (l.line.y<0.5?0:1));
     /* 열쇠 — AS 가 아니면 예전 글자 그대로(체크 기억이 안 풀리게), AS 는 앞에 "AS|" */
-    const k = (as ? "AS|" : "") + (it.color ? it.color + " " : "") + it.full;
+    /* 유로 계열은 L·R 따로(LR_KEEP_RE) — 열쇠 끝에 「|L」·「|R」. 좌우 없는 줄·수납도어는 예전 열쇠 그대로 */
+    const sideKey = (it.side && LR_KEEP_RE.test(l.name)) ? "|" + it.side : "";
+    const k = (as ? "AS|" : "") + (it.color ? it.color + " " : "") + it.full + sideKey;
     const g = grp.get(k) || {key:k, as, color:it.color, tok:it.tok, type:it.type, line:it.line, text:it.text, n:0, L:0, R:0, N:0, pages:new Set(), hl:false};
     g.n++; g[it.side || "N"]++; g.pages.add(l.page);
     if(!g.hl && checkLineHl(l.page, l.line)) g.hl = true;
