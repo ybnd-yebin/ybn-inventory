@@ -24285,6 +24285,46 @@ function etpSideOf(orderDate){
   return {side:'self', label:'자체 인쇄분 — 우리가 인쇄한 유리라 에토프 재고에서 빼지 않습니다', color:'var(--wc)'};
 }
 
+/* ── C15 · AS 원오더 유리 색 — 재고 차감(etpSideOf)과 **따로** 봅니다 (사장님 확정 2026-10-23, CLAUDE.md 12-68) ──
+   · 원오더 **그 품목의** 발주일 + 정규격/비규격. AS 접수일·지금 재고 색은 안 씁니다. 경계일 당일은 새 색.
+       비규격  < 9/8  → 예전 자체 인쇄 색 · ≥ 9/8  → 현성 색
+       정규격  < 9/10 → 예전 자체 인쇄 색 · ≥ 9/10 → 현성 색
+   · 날짜가 없거나 · 찾은 줄이 AS 납품서(그 날짜는 원오더 날이 아닐 수 있음)거나 · 정규격/비규격을 못 가리면 → 「원오더 색상 확인 필요」.
+   · 날짜는 여기 한 곳. etpCutover(재고 차감)·OD_ETP_OUTSOURCE_FROM(입고 검증)과 묶지 마십시오 — 역할이 다릅니다. */
+var AS_COLOR_SWITCH = { nonstd:'2026-09-08', std:'2026-09-10' };
+var AS_COLOR_TRANSITION = ['2026-09-07', '2026-09-10'];   // 이 사이(9/7~9/9) 원오더는 「전환기」 표시
+function etpAsColorOf(h){
+  if(!h) return {k:'check', why:'원오더를 못 찾았습니다'};
+  if(!h.color) return /ETP|에토프/i.test(String(h.name||''))
+    ? {k:'check', why:'납품서에서 색을 읽지 못했습니다'}
+    : {k:'na', why:'에토프 품목이 아닙니다 — 색 판정 대상 아님'};   // 같은 원오더의 유로500·유리장식장 등
+  if(h.color!=='ETP') return {k:'na', why:'에토프가 아닙니다 — 색 판정 대상 아님'};
+  const od=String(h.orderDate||'');
+  if(!od) return {k:'check', why:'원오더 발주일이 없습니다'};
+  if(h.isAS) return {k:'check', why:'찾은 줄이 AS 납품서입니다 — 이 발주일은 원오더 날이 아닐 수 있습니다'};
+  let ns=null;
+  if(h.nonstd) ns=true;
+  else if((h.glass && h.glass.length && h.model) || /\b\d{4,5}\b/.test(String(h.model||""))) ns=false;   // 정규격 — 유리가 풀렸거나 모델 번호(4591 등)가 있음
+  if(ns==null) return {k:'check', why:'정규격인지 비규격인지 가리지 못했습니다'};
+  const sw=ns ? AS_COLOR_SWITCH.nonstd : AS_COLOR_SWITCH.std;
+  const trans = od>=AS_COLOR_TRANSITION[0] && od<AS_COLOR_TRANSITION[1];
+  const k = od>=sw ? 'hs' : 'self';
+  return { k, ns, sw, trans, od,
+    why:(ns?'비규격':'정규격')+' · 원오더 발주 '+etpMd(od)+' · 기준 '+etpMd(sw)+(od>=sw?' 부터':' 앞') };
+}
+function etpAsColorHtml(c){
+  if(c.k==='na') return '';
+  const L={ hs:['🟠','현성 에토프 색','var(--etp)'], self:['🔵','예전 자체 인쇄 색','var(--wc)'], check:['⚠','원오더 색상 확인 필요','var(--acc2)'] }[c.k];
+  return '<div style="margin-top:6px;font-size:11.5px;font-weight:800;color:'+L[2]+'">🎨 AS 제작 유리 색 — '+L[0]+' '+L[1]+'</div>'
+    +'<div style="font-size:10px;color:var(--tx3);margin-top:1px">'+etpEsc(c.why)
+    +(c.trans?' · <b style="color:var(--acc2)">전환기 원오더</b> — 같은 현장이라도 정규격·비규격 색이 다를 수 있습니다':'')+'</div>';
+}
+
+// 여기 나온 제작 색은 다른 화면에 안 넘어갑니다 — 직원이 제작·발주 전에 직접 맞추도록 알림(C15, 연결은 다음 작업)
+function etpAsNoLinkHtml(){
+  return '<div style="margin-top:6px;font-size:10.5px;color:var(--acc2)">⚠ 이 색은 비규격 작업지시서·유리 발주에 <b>자동으로 넘어가지 않습니다</b>. AS 를 만들거나 유리를 내기 전에 여기 색으로 직접 맞추십시오.</div>';
+}
+
 function etpDoLookup(){
   const inp=document.getElementById('etp-ord-input');
   etpLookupKey = inp ? inp.value : '';
@@ -24306,6 +24346,8 @@ function etpLookupCardHtml(){
     '<div class="info-note" style="margin-top:6px">' +
       'AS 건의 <b>원오더번호</b>를 넣으면 그 오더가 <b>언제 발주됐고 어떤 유리를 썼는지</b> 나옵니다. ' +
       '발주일이 전환일(<b>' + etpMd(etpCutover) + '</b>)보다 앞이면 우리가 인쇄한 유리라 에토프 재고에서 빼지 않습니다.<br>' +
+      '<b>🎨 AS 제작 유리 색</b>은 그 품목의 원오더 발주일로 봅니다 — 비규격 <b>' + etpMd(AS_COLOR_SWITCH.nonstd) + '</b> · 정규격 <b>' + etpMd(AS_COLOR_SWITCH.std) + '</b> 부터 현성 색(그날 포함). AS 접수일로 보지 않습니다. ' +
+      '<b>📦 재고 차감</b>은 따로입니다 — 에토프 장부에서 빼는지만 말하고 색과는 상관없습니다.<br>' +
       'AS 납품서에 찍힌 번호(13…)로는 못 찾습니다 — 그건 AS 건의 제 번호입니다. 한샘에서 받으신 <b>원오더번호</b>를 넣으십시오.' +
     '</div>' +
     '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
@@ -24331,11 +24373,16 @@ function etpLookupCardHtml(){
             ? '그 날짜가 전환일(' + etpMd(etpCutover) + ')보다 앞이므로, <b style="color:var(--wc)">못 찾았다는 것 자체가 자체 인쇄분이라는 뜻일 가능성이 큽니다.</b> 다만 납품서를 안 올린 건일 수도 있어 단정하지 않습니다.'
             : '숫자를 지어내지 않겠습니다. 손으로 확인해 주십시오.') +
         '</div>' +
-      '</div></div>';
+        '<div style="margin-top:8px;font-size:11.5px;font-weight:800;color:var(--acc2)">🎨 AS 제작 유리 색 — ⚠ 원오더 색상 확인 필요</div>' +
+        '<div style="font-size:10px;color:var(--tx3)">원오더 발주일과 정규격·비규격을 확인한 뒤 정하십시오(비규격 ' + etpMd(AS_COLOR_SWITCH.nonstd) + ' · 정규격 ' + etpMd(AS_COLOR_SWITCH.std) + ' 부터 현성 색).</div>' +
+      '</div>' + etpAsNoLinkHtml() + '</div>';
   }
 
   const rows=res.hits.map(h=>{
-    const side=etpSideOf(h.orderDate);
+    /* 재고 줄 — 비규격은 에토프 장부에서 빼지 않습니다(건별 발주). 예전에는 비규격도 9/10 기준 「자체 인쇄분」으로 적혀,
+       9/8·9/9 비규격 원오더가 예전 색으로 읽혔습니다(C15). 정규격은 예전 그대로입니다. */
+    const side = h.nonstd ? {side:'ns', label:'비규격은 에토프 장부에서 빼지 않습니다(건별 발주) — 제작 색과는 상관없음', color:'var(--tx3)'} : etpSideOf(h.orderDate);
+    const asc = etpAsColorOf(h);
     const cm=(typeof gnColMeta==='function') ? gnColMeta(h.color) : {dot:'var(--tx3)', kor:h.color||'', ico:''};
     const glassTx = h.glass.length
       ? h.glass.map(g=>'<span style="font-family:\'JetBrains Mono\',monospace;font-weight:800;color:var(--tx1)">' + g.size.replace('x','×') + '</span> <span style="color:var(--tx2)">' + g.qty + '장</span>' + (g.per>1 ? ' <span style="color:var(--acc2);font-size:9px;font-weight:700">도어당 ' + g.per + '장</span>' : '')).join(' · ')
@@ -24354,17 +24401,29 @@ function etpLookupCardHtml(){
         '발주일 <b style="color:var(--tx2)">' + (h.orderDate || '—') + '</b> · 납품요청일 ' + (h.reqDate || '—') +
         ' · 납품번호 ' + etpEsc(h.delivNo) + ' · 참조 ' + etpEsc(h.refNo) + (h.dest ? ' · ' + etpEsc(h.dest) : '') +
       '</div>' +
-      '<div style="margin-top:6px;font-size:11px;font-weight:700;color:' + side.color + '">' +
+      etpAsColorHtml(asc) +
+      '<div style="margin-top:6px;padding-top:5px;border-top:1px dashed var(--b2);font-size:10.5px;font-weight:600;color:' + side.color + '">📦 재고 차감 · ' +
         (side.side === 'self' ? '🔵 ' : side.side === 'out' ? '🟠 ' : '⚪ ') + side.label +
       '</div>' +
     '</div>';
   }).join('');
 
-  // 여러 줄이 같은 쪽으로 떨어지면 한 줄로 요약해 줍니다
-  const sides=[...new Set(res.hits.map(h=>etpSideOf(h.orderDate).side))];
-  const verdict = sides.length === 1
-    ? '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:' + (sides[0] === 'self' ? 'rgba(29,111,181,.08)' : 'rgba(180,83,9,.08)') + ';font-size:12px;font-weight:700;color:' + (sides[0] === 'self' ? 'var(--wc)' : 'var(--etp)') + '">판정 — ' + etpSideOf(res.hits[0].orderDate).label + '</div>'
-    : '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(234,108,0,.08);font-size:12px;font-weight:700;color:var(--acc2)">⚠ 이 오더번호가 전환일 앞뒤로 걸쳐 있습니다 — 줄마다 따로 보십시오</div>';
+  /* 요약 — 재고(정규격만)와 AS 색을 따로 적습니다. 한 오더번호에 날짜·규격이 섞이면 대표 하나로 묶지 않고 줄마다 보시게 합니다. */
+  const stdHits=res.hits.filter(h=>!h.nonstd);
+  const sides=[...new Set(stdHits.map(h=>etpSideOf(h.orderDate).side))];
+  const stockV = !stdHits.length ? ''
+    : sides.length === 1
+    ? '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:' + (sides[0] === 'self' ? 'rgba(29,111,181,.08)' : 'rgba(180,83,9,.08)') + ';font-size:12px;font-weight:700;color:' + (sides[0] === 'self' ? 'var(--wc)' : 'var(--etp)') + '">📦 재고 차감(정규격만) — ' + etpSideOf(stdHits[0].orderDate).label + '</div>'
+    : '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(234,108,0,.08);font-size:12px;font-weight:700;color:var(--acc2)">📦 재고 차감 — ⚠ 이 오더번호가 전환일 앞뒤로 걸쳐 있습니다 — 줄마다 따로 보십시오</div>';
+  const cs=res.hits.map(etpAsColorOf).filter(c=>c.k!=='na');
+  const ck=[...new Set(cs.map(c=>c.k))];
+  const colorV = !cs.length ? ''
+    : ck.includes('check')
+    ? '<div style="margin-top:6px;padding:10px 12px;border-radius:8px;background:rgba(234,108,0,.08);font-size:12px;font-weight:800;color:var(--acc2)">🎨 AS 제작 유리 색 — ⚠ 원오더 색상 확인 필요 (' + cs.filter(c=>c.k==='check').length + '줄) · 줄마다 까닭을 보십시오</div>'
+    : ck.length > 1
+    ? '<div style="margin-top:6px;padding:10px 12px;border-radius:8px;background:rgba(234,108,0,.08);font-size:12px;font-weight:800;color:var(--acc2)">🎨 AS 제작 유리 색 — ⚠ 줄마다 다릅니다 · 현성 색 ' + cs.filter(c=>c.k==='hs').length + '줄 · 예전 자체 색 ' + cs.filter(c=>c.k==='self').length + '줄. 줄마다 따로 내십시오</div>'
+    : '<div style="margin-top:6px;padding:10px 12px;border-radius:8px;background:' + (ck[0]==='hs'?'rgba(180,83,9,.08)':'rgba(29,111,181,.08)') + ';font-size:12px;font-weight:800;color:' + (ck[0]==='hs'?'var(--etp)':'var(--wc)') + '">🎨 AS 제작 유리 색 — ' + (ck[0]==='hs'?'🟠 현성 에토프 색':'🔵 예전 자체 인쇄 색') + (cs.some(c=>c.trans)?' · 전환기 원오더 포함':'') + '</div>';
+  const verdict = colorV + stockV + (cs.length ? etpAsNoLinkHtml() : '');   // 제작 색을 먼저, 재고 차감은 그 아래 따로
 
   return head +
     '<div style="margin-top:12px;border:1px solid var(--b1);border-radius:8px;overflow:hidden">' + rows + '</div>' +
