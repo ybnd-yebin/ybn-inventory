@@ -2770,11 +2770,22 @@ function ybnDelivDates(log){
 /* 앱의 납품서 한 건 → 이 화면이 쓰는 행(ROWS) 으로.
    ★ 이 파일이 PDF 를 직접 읽을 때 만드는 행과 같은 모양이어야 합니다.
      한쪽만 다르면 계산이 어긋납니다. parseDelivText 아래쪽과 같은 차례로 짭니다. */
+/* 🔧 AS 확인 카드 열쇠 — 앱(index.html asCardKey)과 **글자까지 같아야** 합니다 (2026-10-25).
+   납품번호 | 제품코드 | 규격 글자(띄어쓰기 뺌) | 좌우 | 같은 줄 몇 번째. AS 줄에만 붙이고, 계산·도면에는 안 씁니다.
+   앱 발주탭이 이 열쇠로 카드를 찾아, 원오더 색·제작 방향이 확정되기 전에는 그 유리를 발주하지 못하게 막습니다. */
+function asCardKey(delivNo, items, idx){
+  const it = items[idx] || {};
+  const sig = x => String(x.code||'') + '|' + String(x.size||'').replace(/\s+/g,'') + '|' + String(x.lr||'');
+  const me = sig(it); let n = 0;
+  for(let i=0;i<idx;i++) if(sig(items[i]||{})===me) n++;
+  return String(delivNo||'') + '|' + me + '|' + n;
+}
 function ybnDocToRows(d){
   const rows = [], skipped = [], oldMissing = [], asMissing = [];
   const reqD = d.delivReqDate || '';
   const isAS = /^54/.test(String(d.refNo || '')) || (typeof isASDeliv === 'function' && isASDeliv(d.delivNo));
-  (d.items || []).forEach(it => {
+  (d.items || []).forEach((it, idx) => {
+    const asKey = isAS ? asCardKey(d.delivNo, d.items || [], idx) : '';
     /* AS 공용 코드는 품목표 이름을 버리고 납품서 품명으로 읽습니다 (asPieceOf).
        예전에는 아래 갈래에서 `Saha` 가 구형으로 안 잡혀 **말없이 버려졌습니다**. */
     const asp = asPieceOf(it);
@@ -2789,7 +2800,7 @@ function ybnDocToRows(d){
         short: asp.name, prodCode: it.code,
         delivNo: d.delivNo, refNo: d.refNo || '',
         req: reqD, ship: reqD, po: d.orderDate || '',
-        fromApp: true
+        fromApp: true, asKey
       });
       return;
     }
@@ -2849,7 +2860,7 @@ function ybnDocToRows(d){
       short: it.short, prodCode: it.code,
       delivNo: d.delivNo, refNo: d.refNo || '',
       req: reqD, ship: reqD, po: d.orderDate || '',
-      fromApp: true                                      // 앱에서 온 행이라는 표시
+      fromApp: true, asKey                                      // 앱에서 온 행이라는 표시
     });
   });
   return { rows, skipped, oldMissing, asMissing };
@@ -3851,6 +3862,7 @@ async function handleFiles(files){
       const isAS=isASDeliv(parsed.delivNo)||/^54/.test(parsed.refNo||'');   // 납품번호 또는 참조 54 시작 = AS
       const noteRows=[];   // 이 납품서에서 만든 행 — ROWS에도 넣고 보관함에도 넣는다
       for(const it of parsed.items){
+        const asKey = isAS ? asCardKey(parsed.delivNo, parsed.items, parsed.items.indexOf(it)) : '';   // 🔧 AS 확인 카드(2026-10-25)
         // AS 공용 코드(KITAS…)는 납품서 품명으로 읽습니다 — asPieceOf 참고 (2026-09-30)
         const asp=asPieceOf(it);
         if(asp){
@@ -3864,7 +3876,7 @@ async function handleFiles(files){
             handle:(RULES[asp.code]||{}).handle||'both',
             short:asp.name, prodCode:it.code,
             delivNo:parsed.delivNo, refNo:parsed.refNo||'',
-            req:reqD, ship, po:parsed.orderDate? _ymd8(parsed.orderDate):''
+            req:reqD, ship, po:parsed.orderDate? _ymd8(parsed.orderDate):'', asKey
           });
           continue;
         }
@@ -3903,7 +3915,7 @@ async function handleFiles(files){
           handle: rule.handle||'both',
           short: it.short, prodCode: it.code,
           delivNo: parsed.delivNo, refNo: parsed.refNo||'',
-          req: reqD, ship, po: parsed.orderDate? _ymd8(parsed.orderDate):''
+          req: reqD, ship, po: parsed.orderDate? _ymd8(parsed.orderDate):'', asKey
         });
       }
       if(isDupDoc){
@@ -5522,6 +5534,7 @@ function buildGlassOrderHTML(glassAll, odByShip, lead){
   let orderHTML=''; const byShipG={};
   (glassAll||[]).forEach(g=>{ (byShipG[g.ship]=byShipG[g.ship]||[]).push(g); });
   window.__glassOrder={};
+  window.__glassAs=(glassAll||[]).filter(g=>g.asEtp);   // 🔧 AS 에토프 유리 — 보내기 때 따로 묶습니다(목록·인쇄는 그대로)
   Object.keys(byShipG).sort().forEach(ship=>{
     const agg={};
     byShipG[ship].forEach(g=>{
@@ -5642,7 +5655,9 @@ function glassCollect(){
       const per=glassPerSet(c);   // 한 SET에 그 사이즈가 몇 장 들어가는지
       (c.glass||[]).forEach(gl=>glassAll.push({ship, code:r.code, type:r.type, label:gl.label,
         gw:gl.gw, gh:gl.gh, color:r.color, qty:(gl.n||1)*(r.qty||1), isAS:r.isAS, isSet:gl.isSet,
-        perSet:per[gl.gw+'×'+gl.gh]||1}));
+        perSet:per[gl.gw+'×'+gl.gh]||1,
+        // 🔧 AS 에토프 — 발주탭이 카드로 막을 수 있게 열쇠를 실어 둡니다(카드가 없으면 빈 열쇠 = 확인 대상)
+        asEtp:!!(r.isAS && colorKo(r.color)==='에토프'), asKey:r.asKey||''}));
     });
   });
   return {glassAll, odByShip, lead};
@@ -6258,10 +6273,22 @@ function odHandoffSend(){
       if(typeof isHPMColor==='function' && isHPMColor(ko)) return;   // 베일은 유리가 아님
       (byColor[ko]=byColor[ko]||[]).push(g);
     });
+    /* 🔧 AS 에토프 유리는 에토프 묶음에서 빼서 따로 보냅니다 (2026-10-25).
+       이름이 「에토프(AS 확인 필요)」라 앱이 현성으로 저절로 고르지 않고, 앱의 AS 확인 카드가 풀리기 전에는 기록·발주서 만들기가 막힙니다. */
+    const asHere=(window.__glassAs||[]).filter(a=>a.ship===ship);
+    if(asHere.length && byColor['에토프']){
+      const take={}; asHere.forEach(a=>{ const k=a.gw+'×'+a.gh; take[k]=(take[k]||0)+a.qty; });
+      byColor['에토프']=byColor['에토프'].map(g=>{ const k=g.gw+'×'+g.gh, t=Math.min(take[k]||0, g.qty); take[k]=(take[k]||0)-t; return Object.assign({}, g, {qty:g.qty-t}); }).filter(g=>g.qty>0);
+      if(!byColor['에토프'].length) delete byColor['에토프'];
+    }
     cadColorOrder(Object.keys(byColor)).forEach(ko=>{
       const items=byColor[ko].map(g=>({w:g.gw, h:g.gh, qty:g.qty}));
       groups.push({color:ko, ship, items, qty:items.reduce((s,i)=>s+i.qty,0)});
     });
+    if(asHere.length){
+      const items=asHere.map(a=>({w:a.gw, h:a.gh, qty:a.qty, asKey:a.asKey||''}));
+      groups.push({color:'에토프(AS 확인 필요)', ship, items, qty:items.reduce((s,i)=>s+i.qty,0), asHold:true, kind:'as'});
+    }
   });
   if(!groups.length){ say('보낼 유리가 없습니다.', true); return; }
   // 수납도어 탭에서 보낸 몫(kind:'subdoor')은 남겨 둡니다 — 덮으면 그쪽 유리가 말없이 사라집니다 (2026-10-08)
