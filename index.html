@@ -30388,6 +30388,8 @@ function asLockReason(key, vendor){
   if(!mk.vendor) return '발주처가 정해지지 않았습니다';
   if(!mk.specOk) return '발주 사양을 확인하지 않았습니다';
   if(c.orig.color==='self' && /현성/.test(mk.vendor) && !mk.reproOk) return '예전 자체 색을 현성에 냅니다 — 색 재현 가능 확인이 필요합니다';
+  // vendor: null = 화면 표시용(발주처를 안 봄) · '' = 발주 칸이 비어 있음 → 막음
+  if(vendor==='') return `발주처를 고르지 않았습니다 — 카드에 정한 발주처는 「${mk.vendor}」 입니다`;
   if(vendor && (typeof odStmtVendor==='function' ? odStmtVendor(vendor) : vendor) !== (typeof odStmtVendor==='function' ? odStmtVendor(mk.vendor) : mk.vendor))
     return `카드에 정한 발주처는 「${mk.vendor}」 입니다 — 지금 고른 발주처 「${vendor}」 와 다릅니다`;
   return null;
@@ -30482,7 +30484,7 @@ function asGateMsg(locked){ return locked.slice(0,6).map(x=>`· ${x.it.w||''}×$
   });
   // 발주서 만들기(카톡·엑셀·PDF·보기) — 막힌 줄이 들어 있으면 만들지 않습니다
   const outGate=(o)=>{
-    const gs=asGateSafe(o && o.items, o && o.vendor);
+    const gs=asGateSafe(o && o.items, String((o && o.vendor) || ""));
     if(gs.err){ alert(gs.err); return false; }
     if(gs.locked && gs.locked.length){ alert('AS 확인이 끝나지 않은 줄이 있어 발주서를 만들지 않았습니다.\n\n'+asGateMsg(gs.locked)); return false; }
     return true;
