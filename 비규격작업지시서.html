@@ -5657,7 +5657,8 @@ function glassCollect(){
         gw:gl.gw, gh:gl.gh, color:r.color, qty:(gl.n||1)*(r.qty||1), isAS:r.isAS, isSet:gl.isSet,
         perSet:per[gl.gw+'×'+gl.gh]||1,
         // 🔧 AS 에토프 — 발주탭이 카드로 막을 수 있게 열쇠를 실어 둡니다(카드가 없으면 빈 열쇠 = 확인 대상)
-        asEtp:!!(r.isAS && colorKo(r.color)==='에토프'), asKey:r.asKey||''}));
+        // 에토프 판별은 앱 카드(asIsEtpItem)와 같게 — 색이 에토프이거나 품명에 ETP·에토프 (2026-10-26)
+        asEtp:!!(r.isAS && (colorKo(r.color)==='에토프' || /\bETP\b|에토프/i.test(String(r.name||'')+' '+String(r.short||'')))), asKey:r.asKey||''}));
     });
   });
   return {glassAll, odByShip, lead};

@@ -9826,7 +9826,8 @@ function applyMergedFromSheet(data){
   if(data.basState!==undefined){
     try{ if(typeof BAS!=='undefined' && BAS.mergeFromSheet(data.basState) && curMain==='bas') BAS.open(); }catch(e){ console.warn('[바스재고] 받기 실패', e); }
   }
-  if(data.asCheck!==undefined && typeof asCheckMerge==='function'){ try{ asCheckMerge(data.asCheck); }catch(e){ console.warn('[AS 확인] 받기 실패', e); } }
+  // 시트 통째로 받을 때(meta 가 있을 때)는 asCheck 가 **없어도** 부릅니다 — 옛 판 기기가 올리며 빠뜨렸으면 이 기기 것을 다시 올립니다
+  if((data.asCheck!==undefined || data.meta) && typeof asCheckMerge==='function'){ try{ asCheckMerge(data.asCheck, !!data.meta); }catch(e){ console.warn('[AS 확인] 받기 실패', e); } }
   if(data.itemRules!==undefined && data.itemRules && typeof itemRules!=='undefined'){
     let n=0;
     for(const k in data.itemRules){
@@ -30255,7 +30256,12 @@ function asIsEtpItem(it){
   return /\bETP\b|에토프/i.test(String(it.short||'')+' '+String(it.name||''));
 }
 function asIsNs(it){ const n=String(it.short||it.name||''); return /비규격/.test(n) || n.trim().startsWith('(비)'); }
-function asIsAsDoc(d){ return !!d && /^54/.test(String(d.refNo||'')); }
+// AS 납품서 — 작업지시서와 같은 기준: 참조문서 54* **또는** 납품번호 54* (비규격작업지시서 isASDeliv 와 맞춤, 2026-10-26)
+function asIsAsDoc(d){ return !!d && (/^54/.test(String(d.refNo||'')) || /^54/.test(String(d.delivNo||''))); }
+/* AS 표시가 붙은 줄인지 — asHold·asKey 가 빠져도 이름으로 한 번 더 봅니다.
+   작업지시서가 보낸 「에토프(AS 확인 필요)」 이름은 옛 판 기기가 기록해도 색·품명 칸에 남으므로, 그것으로도 막습니다(2026-10-26). */
+var AS_MARK_RE = /AS\s*확인\s*필요/;
+function asIsMarked(x){ return !!x && !!(x.asHold || x.asKey || AS_MARK_RE.test(String(x.color||'')) || AS_MARK_RE.test(String(x.pname||'')) || AS_MARK_RE.test(String(x.bigo||''))); }
 function asNow(){ return new Date().toISOString(); }
 function asWho(){ try{ return (typeof getActor==='function' && getActor()) || ''; }catch(e){ return ''; } }
 function asE(s){ return (typeof etpEsc==='function') ? etpEsc(s) : String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -30310,9 +30316,21 @@ function asAddCandidates(){
 function asDecided(f, v){ if(!v) return false;
   if(f==='orig') return v.state==='확인'; if(f==='make') return !!v.confirmed; if(f==='close') return !!v.state; return false; }
 function asSig(f, v){ if(!v) return ''; const o=Object.assign({}, v); delete o.rev; delete o.base; delete o.at; delete o.by; return JSON.stringify(o); }
-function asCheckMerge(x){
-  if(!x || typeof x!=='object') return 0;
+/* 시트가 이 기기보다 뒤처졌는지 — 옛 판 기기가 asCheck 를 모른 채 통째로 올리면 시트에서 카드가 빠집니다.
+   받은 뒤 이 기기에만 있는 카드·지운 표시·더 새 칸이 있으면 한 번 다시 올립니다(12-55 한샘 단가표 hsSheetBehind 와 같은 방식). */
+function asSheetBehind(x){
+  const mine=Object.keys(asCheck||{}); if(!mine.length) return false;
+  if(!x || typeof x!=='object') return true;
+  return mine.some(k=>{ const a=asCheck[k], b=x[k]; if(b===undefined) return true;
+    if(k[0]==='~') return String(a)>String(b);
+    return ['inq','orig','inst','make','order','close','memo'].some(f=>((a&&a[f]&&a[f].rev)||0) > ((b&&b[f]&&b[f].rev)||0)); });
+}
+function asCheckMerge(x, full){
   if(!asCheck || typeof asCheck!=='object') asCheck={};
+  if(!x || typeof x!=='object'){
+    if(full && asSheetBehind(x)){ console.warn('[AS 확인] 시트에 카드가 없습니다 — 이 기기 카드를 다시 올립니다'); setTimeout(()=>{ try{ if(typeof meta!=='undefined' && meta) meta.lastLocalChange=asNow(); if(typeof autoSync==='function') autoSync(); }catch(e){} }, 3000); }
+    return 0;
+  }
   let ch=0;
   Object.keys(x).forEach(k=>{
     const r=x[k];
@@ -30341,6 +30359,7 @@ function asCheckMerge(x){
   // 지운 표시가 더 나중이면 카드를 걷습니다
   Object.keys(asCheck).forEach(k=>{ if(k[0]!=='~') return; const real=k.slice(1); if(asCheck[real] && String(asCheck[real].at||'')<=String(asCheck[k])){ delete asCheck[real]; ch++; } });
   if(ch) asSave(false);
+  if(full && asSheetBehind(x)){ setTimeout(()=>{ try{ if(typeof meta!=='undefined' && meta) meta.lastLocalChange=asNow(); if(typeof autoSync==='function') autoSync(); }catch(e){} }, 3000); }
   return ch;
 }
 
@@ -30376,9 +30395,19 @@ function asLockReason(key, vendor){
 // 발주 줄 묶음 → 막힌 줄. AS 표시(asHold·asKey)가 없는 줄은 예전 그대로 지나갑니다.
 function asGate(items, vendor){
   const locked=[];
-  (items||[]).forEach((it,i)=>{ if(!it || !(it.asHold || it.asKey)) return; const why=asLockReason(it.asKey||'', vendor); if(why) locked.push({i, it, why}); });
+  (items||[]).forEach((it,i)=>{ if(!asIsMarked(it)) return; const why=asLockReason(it.asKey||'', vendor); if(why) locked.push({i, it, why}); });
   return locked;
 }
+/* 검사 중에 오류가 나면 — AS 줄이 있을 수 있으면 **막습니다**(그냥 지나가 원래 함수가 돌면 안 됨). 정말 AS 줄이 없을 때만 지나갑니다. */
+function asGateSafe(items, vendor){
+  try{ return { locked:asGate(items, vendor), err:null }; }
+  catch(e){
+    console.warn('[AS 확인] 검사 오류', e);
+    let marked=true; try{ marked=(items||[]).some(asIsMarked); }catch(e2){}
+    return { locked:null, err:marked ? 'AS 확인 검사 중 오류가 났습니다 — 안전을 위해 멈췄습니다. 새로고침 뒤 다시 하십시오.' : null };
+  }
+}
+function asFormVendor(){ try{ return (document.getElementById('od-vendor')||{}).value||''; }catch(e){ return ''; } }
 function asGateMsg(locked){ return locked.slice(0,6).map(x=>`· ${x.it.w||''}×${x.it.h||''} ${x.it.qty||''}장 — ${x.why}`).join('\n') + (locked.length>6?'\n…':''); }
 
 /* ── 감싸기 — 기존 함수 몸통은 그대로, AS 줄이 있을 때만 끼어듭니다 ── */
@@ -30388,10 +30417,20 @@ function asGateMsg(locked){ return locked.slice(0,6).map(x=>`· ${x.it.w||''}×$
   wrap('odCollect', orig=>function(){
     const o=orig.apply(this, arguments);
     try{ const ls=(odLines||[]).filter(odLineValid);
-      o.items.forEach((it,i)=>{ const l=ls[i]; if(l && (l.asHold||l.asKey)){ it.asHold=true; if(l.asKey) it.asKey=l.asKey; } }); }catch(e){}
+      if(ls.length!==o.items.length){
+        // 짝이 안 맞으면 — AS 줄이 하나라도 있으면 모든 품목을 AS 로 보고 막습니다(표시가 빠져 지나가는 것보다 낫습니다)
+        if(ls.some(asIsMarked)) o.items.forEach(it=>{ it.asHold=true; });
+      } else {
+        o.items.forEach((it,i)=>{ const l=ls[i]; if(asIsMarked(l)){ it.asHold=true; if(l.asKey) it.asKey=l.asKey; } });
+      }
+    }catch(e){ try{ if((odLines||[]).some(asIsMarked)) o.items.forEach(it=>{ it.asHold=true; }); }catch(e2){} }
     return o;
   });
-  const keepAs=(lines, items)=>{ (items||[]).forEach((it,i)=>{ const l=lines[i]; if(l && it && (it.asHold||it.asKey)){ l.asHold=true; if(it.asKey) l.asKey=it.asKey; } }); };
+  const keepAs=(lines, items)=>{
+    items=items||[];
+    if(lines.length!==items.length){ if(items.some(asIsMarked)) lines.forEach(l=>{ l.asHold=true; }); return; }   // 짝이 안 맞으면 모두 막음
+    items.forEach((it,i)=>{ const l=lines[i]; if(l && asIsMarked(it)){ l.asHold=true; if(it.asKey) l.asKey=it.asKey; } });
+  };
   // 다시 발주 — 카드 연결을 그대로 옮깁니다(색·제작 방향은 카드에 있으니 초기화되지 않음)
   wrap('odReorder', orig=>function(orderId){
     const r=orig.apply(this, arguments);
@@ -30402,20 +30441,27 @@ function asGateMsg(locked){ return locked.slice(0,6).map(x=>`· ${x.it.w||''}×$
   wrap('odEditLoad', orig=>function(orderId){
     const r=orig.apply(this, arguments);
     try{ const o=(orderLog||[]).find(x=>x && x.id===orderId);
-      if(o) (odLines||[]).forEach(l=>{ const it=o.items && o.items[l._src]; if(it && (it.asHold||it.asKey)){ l.asHold=true; if(it.asKey) l.asKey=it.asKey; } });
+      if(o) (odLines||[]).forEach(l=>{ const it=o.items && o.items[l._src]; if(it ? asIsMarked(it) : (o.items||[]).some(asIsMarked)){ l.asHold=true; if(it && it.asKey) l.asKey=it.asKey; } });
       if(typeof renderOdLines==='function') renderOdLines(); }catch(e){}
     return r;
   });
   // 기록 — 막힌 AS 줄은 빼고 기록할지 여쭙습니다. 뺀 줄은 작성 칸에 그대로 남고, 카드에도 「빠짐」으로 남습니다.
   wrap('odSaveOrder', orig=>function(){
     if(typeof odEditing!=='undefined' && odEditing) return orig.apply(this, arguments);   // 고치기는 odSaveEdit 가 막습니다
-    let o; try{ o=odCollect(); }catch(e){ return orig.apply(this, arguments); }
-    const locked=asGate(o.items, o.vendor);
-    if(!locked.length){ const r=orig.apply(this, arguments); asAfterSave(); return r; }
-    if(locked.length===o.items.length){ alert('AS 확인이 끝나지 않은 줄뿐이라 기록하지 않았습니다.\n\n'+asGateMsg(locked)); return; }
+    // 작성 칸의 줄을 그대로 봅니다(품목으로 옮긴 뒤가 아니라) — 짝짓기가 어긋나도 표시가 빠지지 않게
+    let valid=[]; try{ valid=(odLines||[]).filter(odLineValid); }catch(e){ valid=(odLines||[]).slice(); }
+    const gs=asGateSafe(valid, asFormVendor());
+    if(gs.err){ alert(gs.err); return; }
+    const locked=gs.locked||[];
+    if(!locked.length){
+      valid.forEach(l=>{ if(asIsMarked(l) && AS_MARK_RE.test(String(l.color||''))) l.color='에토프'; });   // 풀린 AS 줄 — 기록에는 그냥 에토프로
+      const r=orig.apply(this, arguments); asAfterSave(); return r;
+    }
+    if(locked.length===valid.length){ alert('AS 확인이 끝나지 않은 줄뿐이라 기록하지 않았습니다.\n\n'+asGateMsg(locked)); return; }
     if(!confirm(`AS 확인이 끝나지 않은 ${locked.length}줄이 있습니다.\n\n${asGateMsg(locked)}\n\n이 줄을 빼고 나머지만 기록할까요?\n(뺀 줄은 작성 칸에 그대로 남고, AS 확인 카드에도 남습니다)`)) return;
-    const valid=(odLines||[]).filter(odLineValid), lockLines=locked.map(x=>valid[x.i]).filter(Boolean);
+    const lockLines=locked.map(x=>x.it).filter(Boolean);
     const keep=(odLines||[]).filter(l=>lockLines.indexOf(l)<0);
+    keep.forEach(l=>{ if(asIsMarked(l) && AS_MARK_RE.test(String(l.color||''))) l.color='에토프'; });
     odLines=keep;
     const r=orig.apply(this, arguments);
     asAfterSave();
@@ -30428,12 +30474,19 @@ function asGateMsg(locked){ return locked.slice(0,6).map(x=>`· ${x.it.w||''}×$
   });
   // 고침 저장 — 막힌 줄이 있으면 저장하지 않습니다(빼면 그 줄이 발주에서 지워지므로 빼기를 권하지 않음)
   wrap('odSaveEdit', orig=>function(){
-    try{ const o=odCollect(); const locked=asGate(o.items, o.vendor);
-      if(locked.length){ alert('AS 확인이 끝나지 않은 줄이 있어 저장하지 않았습니다.\n\n'+asGateMsg(locked)+'\n\nAS 확인 카드를 먼저 마치거나, 그 줄을 지우고 저장하십시오.'); return; } }catch(e){}
+    let valid=[]; try{ valid=(odLines||[]).filter(odLineValid); }catch(e){ valid=(odLines||[]).slice(); }
+    const gs=asGateSafe(valid, asFormVendor());
+    if(gs.err){ alert(gs.err); return; }
+    if(gs.locked && gs.locked.length){ alert('AS 확인이 끝나지 않은 줄이 있어 저장하지 않았습니다.\n\n'+asGateMsg(gs.locked)+'\n\nAS 확인 카드를 먼저 마치거나, 그 줄을 지우고 저장하십시오.'); return; }
     return orig.apply(this, arguments);
   });
   // 발주서 만들기(카톡·엑셀·PDF·보기) — 막힌 줄이 들어 있으면 만들지 않습니다
-  const outGate=(o)=>{ const locked=asGate(o && o.items, o && o.vendor); if(locked.length){ alert('AS 확인이 끝나지 않은 줄이 있어 발주서를 만들지 않았습니다.\n\n'+asGateMsg(locked)); return false; } return true; };
+  const outGate=(o)=>{
+    const gs=asGateSafe(o && o.items, o && o.vendor);
+    if(gs.err){ alert(gs.err); return false; }
+    if(gs.locked && gs.locked.length){ alert('AS 확인이 끝나지 않은 줄이 있어 발주서를 만들지 않았습니다.\n\n'+asGateMsg(gs.locked)); return false; }
+    return true;
+  };
   wrap('odCopyImageFrom', orig=>function(o){ if(!outGate(o)) return; return orig.apply(this, arguments); });
   wrap('odWriteExcel', orig=>function(o){ if(!outGate(o)) return; return orig.apply(this, arguments); });
   wrap('odRunPdf', orig=>function(o){ if(!outGate(o)) return; return orig.apply(this, arguments); });
@@ -30441,13 +30494,16 @@ function asGateMsg(locked){ return locked.slice(0,6).map(x=>`· ${x.it.w||''}×$
   // 넘겨받기 — AS 묶음은 발주처를 저절로 고르지 않습니다(카드가 다 풀리고 발주처가 하나면 그 발주처만)
   wrap('odHandoffTake', orig=>function(i){
     let g=null; try{ const o=odHandoffRead(); g=o && o.groups[i]; }catch(e){}
-    if(!g || !g.asHold) return orig.apply(this, arguments);
+    if(!g || !(g.asHold || AS_MARK_RE.test(String(g.color||'')))) return orig.apply(this, arguments);
     // 원래 함수는 빈 줄을 걸러 낸 뒤(cur) 뒤에 붙입니다 — 같은 걸러 내기로 세어야 새 줄과 카드 열쇠가 어긋나지 않습니다
     const before=(odLines||[]).filter(l=>String(l.w||'').trim()||String(l.h||'').trim()).length, vsel=document.getElementById('od-vendor'), vBefore=vsel?vsel.value:'';
     const r=orig.apply(this, arguments);
     try{
       const add=(odLines||[]).slice(before);
-      add.forEach((l,j)=>{ const it=(g.items||[])[j]||{}; l.asHold=true; if(it.asKey) l.asKey=it.asKey; l.color='에토프'; });
+      const gi=g.items||[];
+      // 짝이 맞을 때만 열쇠를 잇고, 안 맞으면 열쇠 없이 모두 막습니다. 색 이름(「에토프(AS 확인 필요)」)은 그대로 둡니다 — 표시가 빠져도 이름으로 막히게
+      add.forEach((l,j)=>{ l.asHold=true; if(add.length===gi.length && gi[j] && gi[j].asKey) l.asKey=gi[j].asKey; });
+      if(add.length!==gi.length) console.warn('[AS 확인] 넘겨받은 줄 수가 달라 열쇠를 잇지 않았습니다 — 모두 막습니다', add.length, gi.length);
       const keys=[...new Set(add.map(l=>l.asKey||''))];
       const open=keys.filter(k=>asLockReason(k, null));
       const vs=[...new Set(keys.map(k=>asCheck[k] && asCheck[k].make && asCheck[k].make.vendor).filter(Boolean))];
@@ -30457,7 +30513,10 @@ function asGateMsg(locked){ return locked.slice(0,6).map(x=>`· ${x.it.w||''}×$
       }
       if(typeof renderOdLines==='function') renderOdLines();
       setTimeout(()=>{ try{ showToast(open.length ? `🔧 AS 에토프 ${add.length}줄 — 확인이 끝나지 않아 발주처를 고르지 않았습니다. 기록·발주서 만들기도 막힙니다` : `🔧 AS 에토프 ${add.length}줄 — 카드에 정한 발주처로 넣었습니다`); }catch(e){} }, 400);
-    }catch(e){ console.warn('[AS 확인] 넘겨받기', e); }
+    }catch(e){
+      console.warn('[AS 확인] 넘겨받기', e);
+      try{ (odLines||[]).slice(before).forEach(l=>{ l.asHold=true; }); if(typeof renderOdLines==='function') renderOdLines(); }catch(e2){}   // 오류여도 막힌 채로
+    }
     return r;
   });
   // 줄 그리기 뒤 — AS 줄이 있으면 경고 띠
@@ -30502,7 +30561,7 @@ function asOdWarn(){
   let el=document.getElementById('od-as-warn');
   if(!el){ el=document.createElement('div'); el.id='od-as-warn'; host.parentNode.insertBefore(el, host.nextSibling); }
   const vsel=document.getElementById('od-vendor'), v=vsel?vsel.value:'';
-  const ls=(odLines||[]).filter(l=>l && (l.asHold||l.asKey));
+  const ls=(odLines||[]).filter(asIsMarked);
   if(!ls.length){ el.innerHTML=''; return; }
   const rows=ls.map(l=>{ const why=asLockReason(l.asKey||'', v); return `<div style="font-size:11px">${why?'🔒':'🔓'} ${asE(l.w)}×${asE(l.h)} ${asE(l.qty)}장 — ${why?asE(why):'확인 끝 · 발주 가능'}</div>`; }).join('');
   el.innerHTML=`<div class="card" style="border:1px solid var(--acc2);background:rgba(234,108,0,.06);margin-bottom:10px">
