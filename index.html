@@ -3274,8 +3274,8 @@ let todos=J(localStorage.getItem(LS.todos))||INITIAL_TODOS;
   }
 });
 // 기본 시트 연동 주소 (새 기기/새 브라우저도 설정 없이 자동 연결)
-const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycby2fhWdU5Uc39vMDObAqd7w5uuTcz8y2C5suH3FYxVaP--0UCtOGoGEUTry-hGdj89Y/exec';
-let gsUrl=localStorage.getItem(LS.gsUrl)||DEFAULT_GS_URL;
+const DEFAULT_GS_URL='';   // 🧪 테스트용 앱(as-card-test) — 구글 시트에 연결하지 않습니다
+let gsUrl='';   // 🧪 테스트용 앱 — 저장된 주소도 쓰지 않습니다
 let actor=localStorage.getItem(LS.actor)||'';
 let delivLog=J(localStorage.getItem(LS.delivLog))||[]; // 중복 정리는 선언 직후 아래에서 한 번 (dedupeDelivLog 정의부 참고)
 let delivDeleted=J(localStorage.getItem('ybn-deliv-del-v1'))||{}; // {id: 삭제시각} 삭제된 납품서 묘비(병합 시 부활 방지)
@@ -30764,6 +30764,68 @@ function asTodayInject(){
 }
 window.addEventListener('storage', e=>{ if(e.key===LS_AS_CHECK){ try{ asCheck=JSON.parse(e.newValue)||{}; asRender(); asOdWarn(); }catch(x){} } });
 window.__YBN_PARTS = window.__YBN_PARTS || {}; window.__YBN_PARTS['as-check'] = { v:1, file:'index.html' };
+</script>
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   🧪 테스트용 앱 덧붙임 — 브랜치 as-card-test 에만 있습니다. main 에 합치지 마십시오.
+   · 구글 시트: 주소를 비우고(DEFAULT_GS_URL·gsUrl), 시트에 묻는 함수(gsFetch)와 주소 저장(saveGsUrl)을 막습니다.
+   · 거래처 전송: 앱은 원래 거래처로 보내지 않습니다(카톡은 복사·엑셀/PDF 는 내려받기만).
+   · 이 주소는 운영 앱(ybnd-yebin.github.io)과 다른 주소라 브라우저 저장함도 따로입니다.
+   ══════════════════════════════════════════════════════════════════════ */
+(function(){
+  try{ gsUrl=''; }catch(e){}
+  window.gsFetch = gsFetch = async function(){ throw new Error('🧪 테스트용 앱 — 구글 시트에 연결하지 않습니다'); };
+  window.saveGsUrl = saveGsUrl = function(){ showToast('🧪 테스트용 앱에서는 구글 시트 주소를 넣을 수 없습니다'); };
+  const bar=document.createElement('div');
+  bar.id='ybn-test-bar';
+  bar.innerHTML=`<b>🧪 테스트용 앱</b> <span>운영과 분리 · 구글 시트·실제 재고·거래처 연결 없음</span>
+    <button onclick="ybnTestSeed()">테스트 납품서 넣기</button><button onclick="ybnTestClear()">모두 비우기</button>`;
+  bar.style.cssText='position:sticky;top:0;z-index:1000;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:6px max(12px,env(safe-area-inset-left,0px));background:#b91c1c;color:#fff;font-size:12px;font-family:"Noto Sans KR",sans-serif';
+  const css=document.createElement('style');
+  css.textContent='#ybn-test-bar button{padding:3px 9px;border:1px solid #fff;border-radius:6px;background:transparent;color:#fff;font-size:11px;cursor:pointer;font-family:inherit}#ybn-test-bar span{opacity:.9}';
+  document.head.appendChild(css);
+  document.body.insertBefore(bar, document.body.firstChild);
+  try{ document.title='🧪 테스트 · '+document.title; }catch(e){}
+})();
+
+function ybnTestSeed(){
+  const td=todayStr(), now=new Date().toISOString();
+  const up=(d)=>Object.assign({source:'test', shipDate:'', deducted:false, by:'테스트', parseMode:'test'}, d);
+  const E=(code, short, name, size, lr, qty, orderNo, color)=>({code, short, name:name||short, color:color||'ETP', size, lr, isBig:/비규격/.test(short), gubun:'EURO700', daegubun:'EURO700', qty, orderNo});
+  const docs=[
+    // ① 원오더 — 9/8 비규격·정규격이 한 현장에 (되짚기·카드 「찾기」에서 원오더번호 312990001)
+    up({id:'test_d1', delivNo:'733990001', refNo:'5100990001', dest:'그레이박스', orderDate:'2026-09-08', delivReqDate:'2026-09-10', uploadedAt:'2026-09-09T01:00:00.000Z', items:[
+      E('ME1WUX007','Euro700 Grace ETP OB M 비규격','Euro700 Grace ETP OB M 비규격 (425*0*806*0 M) 425X0X806X0','425×806','',1,'312990001'),
+      E('ME1BD0095','Euro700 Grace ETP OB BD2R 9091 M','','9091','',1,'312990001') ]}),
+    // ② 원오더 — 8/20 비규격 (원오더번호 312990002 → 예전 자체 색)
+    up({id:'test_d2', delivNo:'733990002', refNo:'5100990002', dest:'그레이박스', orderDate:'2026-08-20', delivReqDate:'2026-08-24', uploadedAt:'2026-08-21T01:00:00.000Z', items:[
+      E('ME1WUX007','Euro700 Grace ETP OB M 비규격','Euro700 Grace ETP OB M 비규격 (445*0*736*0 M) 445X0X736X0','445×736','',1,'312990002') ]}),
+    // ③ 새 AS 납품서 — 오늘 올라옴 → 에토프 두 품목에 카드가 저절로 생깁니다(웜코튼은 안 생김)
+    up({id:'test_d3', delivNo:'733990003', refNo:'5400990003', dest:'그레이박스', orderDate:td, delivReqDate:_addBizDays(td,1), uploadedAt:now, items:[
+      E('ME1WUX007','Euro700 Grace ETP OB M 비규격','Euro700 Grace ETP OB M 비규격 (425*0*806*0 M) 425X0X806X0','425×806','',1,'130990003'),
+      E('ME1BD0095','Euro700 Grace ETP OB BD2R 9091 M','','9091','',1,'130990003'),
+      E('ME1BD0077','Euro700 Grace W/Cotton OB BD2R 9091 M','','9091','',1,'130990003','WC') ]}),
+    // ④ 지난 AS — 배포 전에 올라온 것처럼(카드가 저절로 안 생김 → 「＋ 지난 AS 에서 카드 만들기」로)
+    up({id:'test_d4', delivNo:'733990004', refNo:'5400990004', dest:'오이도', orderDate:'2026-10-20', delivReqDate:_addBizDays(td,-1), uploadedAt:'2026-10-20T02:00:00.000Z', items:[
+      E('ME1WUX007','Euro700 Grace ETP OB M 비규격','Euro700 Grace ETP OB M 비규격 (445*0*736*0 M) 445X0X736X0','445×736','',1,'130990004') ]}),
+    // ⑤ 일반 납품서 — 오늘 정오더(에토프·웜코튼)
+    up({id:'test_d5', delivNo:'733990005', refNo:'5100990005', dest:'그레이박스', orderDate:td, delivReqDate:_addBizDays(td,2), uploadedAt:now, items:[
+      E('ME1WUX007','Euro700 Grace ETP OB M 비규격','Euro700 Grace ETP OB M 비규격 (500*0*736*0 M) 500X0X736X0','500×736','',2,'312990005'),
+      E('ME1BD0095','Euro700 Grace ETP OB BD2R 9091 M','','9091','',2,'312990005'),
+      E('ME1WUX007','Euro700 Grace W/Cotton OB M 비규격','Euro700 Grace W/Cotton OB M 비규격 (450*0*736*0 M) 450X0X736X0','450×736','',1,'312990005','WC') ]}),
+  ];
+  const have=new Set((delivLog||[]).map(d=>d.id));
+  let n=0; docs.forEach(d=>{ if(!have.has(d.id)){ delivLog.push(d); n++; } });
+  try{ saveAll(); }catch(e){}
+  try{ if(typeof asAutoScan==='function') asAutoScan(); }catch(e){}
+  try{ renderDelivery(); }catch(e){} try{ renderToday(); }catch(e){}
+  showToast(n ? `🧪 테스트 납품서 ${n}장을 넣었습니다 — 📦 납품서 탭을 보십시오` : '이미 들어 있습니다');
+}
+function ybnTestClear(){
+  if(!window.__ybnTestClearAsk){ window.__ybnTestClearAsk=true; showToast('한 번 더 누르면 이 테스트 앱의 자료를 모두 비웁니다'); setTimeout(()=>{ window.__ybnTestClearAsk=false; }, 4000); return; }
+  try{ localStorage.clear(); }catch(e){}
+  location.reload();
+}
 </script>
 </body>
 </html>
