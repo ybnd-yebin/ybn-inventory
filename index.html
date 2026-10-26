@@ -2088,8 +2088,29 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   #pg-bas .bas-ord .bas-ship{grid-column:1 / -1}
 }
 #pg-bas .bas-main{flex:1 1 auto;min-width:0;max-width:none;margin:0;padding:12px 12px 12px 0}
-#pg-bas .card{padding:12px 14px;margin-bottom:10px;border-radius:12px}
-#pg-bas .card h2{margin-bottom:8px}
+/* 4단계 (2026-10-26) — 촘촘한 ERP 대신 여백·위계: 카드 넉넉히, 제목 한 단계 크게, 주 단추는 또렷하게 오른쪽, 부가 단추는 작고 차분하게 */
+#pg-bas .bas-main{padding:16px 18px 24px 4px}
+#pg-bas .card{padding:18px 20px;margin-bottom:14px;border-radius:14px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+#pg-bas .card h2{margin-bottom:10px;font-size:16px;font-weight:800;letter-spacing:-.2px}
+#pg-bas .bas-ph h2{font-size:17px}
+#pg-bas .bas-ph{margin-bottom:12px}
+#pg-bas .bas-tiles{gap:12px;margin-bottom:14px}
+#pg-bas .bas-tile{padding:16px 18px;border-radius:14px}
+#pg-bas button.primary{padding:8px 18px;font-size:13.5px;border-radius:9px;font-weight:700}
+#pg-bas button.ghost,#pg-bas button.quiet{background:none;border:1px solid var(--line);color:var(--sub);font-size:12.5px;padding:6px 12px;border-radius:8px;font-weight:600}
+#pg-bas button.ghost:hover,#pg-bas button.quiet:hover{color:var(--txt);border-color:#c9ced8;filter:none}
+#pg-bas button.quiet.dng{color:var(--bad)}
+#pg-bas .bas-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+#pg-bas .bas-actions .grow{margin-right:auto}
+#pg-bas .bas-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#pg-bas .bas-tools input{padding:6px 9px;font-size:13px}
+#pg-bas .bas-tools label{font-size:12px;color:var(--sub)}
+#pg-bas .bas-grp{font-size:15px;font-weight:800;color:var(--txt);margin:26px 2px 10px;display:flex;align-items:baseline;gap:8px}
+#pg-bas .bas-grp .mini{font-weight:500}
+#pg-bas .bas-grp:first-child{margin-top:4px}
+#pg-bas .dropzone{padding:18px;border-radius:12px;background:var(--panel2)}
+#pg-bas .bas-step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--chip);color:var(--sub);font-size:12px;font-weight:800}
+#pg-bas textarea{background:var(--panel2)}
 #pg-bas #bas-migrate:not(:empty){margin-bottom:10px}
 @media(max-width:560px){
   #pg-bas .bas-wrap{display:block}
@@ -2211,101 +2232,107 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- 재고 기록 — 재고 계산에 들어가는 자료를 넣는 곳 (2026-10-26 개편 1단계: 예전 창고 출고 · 실사·입고예정 · 예시 입력 세 탭을 모음) -->
 <section class="page" id="bas-page-record">
-  <div class="bas-grp">① 창고 출고 (SRM)</div>
+  <!-- 재고 기록 (2026-10-26 개편 4단계) — 자주: ① 창고 출고 엑셀 · ② 월말 실사 / 가끔: 손으로 넣기 · 출고예시 · 관리는 접어 둠. 칸 아이디는 예전 그대로 -->
+  <div class="bas-grp"><span class="bas-step">1</span>창고 출고 (SRM) <span class="mini">창고에서 실제로 나간 물량 — 재고에서 빠집니다</span></div>
   <div class="card">
-    <h2>SRM 판매오더 리스트 넣기 <span class="muted">창고에서 실제로 나간 물량</span></h2>
-    <div class="hint">한샘 밴더시스템에서 받은 「판매오더 리스트」 엑셀을 넣으세요.
-      <b>여러 개를 한꺼번에</b> 넣으셔도 됩니다. 같은 출고일이 다시 들어오면 <b>더하지 않고 새것으로 갈아끼웁니다</b> —
-      같은 파일을 몇 번 넣으셔도 수량이 부풀지 않습니다.</div>
-    <div class="row" style="margin:12px 0 10px">
-      <div><label class="fld">조회한 날짜 <span class="mini">(SRM에서 뽑은 날)</span></label>
-        <input type="date" id="bas-srmAsof"></div>
-      <div class="mini" style="align-self:flex-end;padding-bottom:6px">
-        이 날짜까지의 출고일은 <b>확정</b>, 그 뒤는 <b>예정</b>으로 봅니다.</div>
+    <div class="bas-ph">
+      <div><h2>판매오더 리스트 넣기</h2>
+        <div class="sub">한샘 밴더시스템의 「판매오더 리스트」 엑셀. 여러 개를 한꺼번에 넣어도 되고, 같은 출고일은 새것으로 갈아끼워 부풀지 않습니다.</div></div>
+      <div class="bas-tools"><label for="bas-srmAsof">조회한 날짜</label><input type="date" id="bas-srmAsof"></div>
     </div>
     <div class="dropzone" id="bas-dzSrm">
       <div class="big">SRM 엑셀 놓기 / 클릭 (여러 개 가능)</div>
       <div class="mini" id="bas-srmInfo">아직 없음</div>
     </div>
     <input type="file" id="bas-fileSrm" accept=".xlsx,.xls,.xlsm,.csv" multiple hidden>
-  </div>
-
-  <div class="card">
-    <h2>수기로 넣기 <span class="muted">몇 건 안 될 때는 이게 더 빠릅니다</span></h2>
-    <div class="hint">제품칸에 <b>모델명 일부</b>(예: 매그놀리아)나 <b>코드</b>(BB1000240)를 치면 찾아줍니다.
-      같은 날 같은 제품을 또 넣으면 수량이 <b>합쳐집니다</b>.</div>
-    <div class="row" style="margin-top:12px">
-      <div><label class="fld">출고일</label><input type="date" id="bas-sOutDate"></div>
-      <div><label class="fld">제품 (모델명 또는 코드)</label>
-        <input id="bas-sCode" list="bas-sCodeList" placeholder="예: 매그놀리아 · BB1000240" style="width:290px" autocomplete="off">
-        <datalist id="bas-sCodeList"></datalist></div>
-      <div><label class="fld">수량</label><input type="number" id="bas-sQty" min="1" style="width:85px"></div>
-      <button class="primary" id="bas-btnSrmAdd">추가</button>
+    <div class="bas-actions">
+      <span class="mini grow">조회한 날짜까지의 출고일은 <b>확정</b>, 그 뒤는 <b>예정</b>으로 봅니다.</span>
+      <button class="bas-fbtn" id="bas-fb-srmManCard" onclick="BAS.toggleSub('srmManCard')">✏️ 손으로 넣기</button>
     </div>
-    <div id="bas-sCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
-    <div id="bas-srmManual" style="margin-top:8px"></div>
+    <div class="bas-fold-body" id="bas-srmManCard" hidden>
+      <div class="hint" style="margin-bottom:8px">몇 건 안 될 때 — 제품칸에 <b>모델명 일부</b>(예: 매그놀리아)나 <b>코드</b>(BB1000240). 같은 날 같은 제품을 또 넣으면 수량이 <b>합쳐집니다</b>.</div>
+      <div class="row">
+        <div><label class="fld">출고일</label><input type="date" id="bas-sOutDate"></div>
+        <div><label class="fld">제품 (모델명 또는 코드)</label>
+          <input id="bas-sCode" list="bas-sCodeList" placeholder="예: 매그놀리아 · BB1000240" style="width:290px;max-width:100%" autocomplete="off">
+          <datalist id="bas-sCodeList"></datalist></div>
+        <div><label class="fld">수량</label><input type="number" id="bas-sQty" min="1" style="width:85px"></div>
+        <button class="primary" id="bas-btnSrmAdd">추가</button>
+      </div>
+      <div id="bas-sCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
+      <div id="bas-srmManual" style="margin-top:8px;overflow-x:auto"></div>
+    </div>
   </div>
 
   <div class="card">
-    <h2>보관 현황 <span class="muted" id="bas-srmCount"></span></h2>
+    <div class="bas-ph">
+      <div><h2>올린 출고 자료 <span class="bas-cnt" id="bas-srmCount"></span></h2></div>
+      <div class="bas-tools">
+        <button class="quiet" id="bas-btnSrmExport">CSV 내보내기</button>
+        <button class="quiet dng" id="bas-btnSrmClear">전체 지우기</button>
+      </div>
+    </div>
     <div id="bas-srmKpi" class="grid-stats" style="margin-bottom:12px"></div>
     <div id="bas-srmWarn"></div>
     <div class="tbl-wrap" id="bas-srmDayTbl"></div>
-    <div class="row" style="margin-top:10px">
-      <button class="ghost" id="bas-btnSrmExport">CSV 내보내기</button>
-      <button class="ghost" id="bas-btnSrmClear">전체 지우기</button>
-    </div>
   </div>
 
   <div class="card">
-    <h2>모델 × 일자 <span class="muted" id="bas-srmGridTitle"></span></h2>
-    <div class="row" style="margin-bottom:10px">
-      <button class="ghost" id="bas-srmPrev">‹ 이전달</button>
-      <button class="ghost" id="bas-srmNext">다음달 ›</button>
-      <span class="mini" style="align-self:center">회색 칸은 아직 나가지 않은 예정분입니다.</span>
+    <div class="bas-ph">
+      <div><h2>모델 × 일자 <span class="bas-cnt" id="bas-srmGridTitle"></span></h2>
+        <div class="sub">회색 칸은 아직 나가지 않은 예정분입니다.</div></div>
+      <div class="bas-tools">
+        <button class="quiet" id="bas-srmPrev">‹ 이전달</button>
+        <button class="quiet" id="bas-srmNext">다음달 ›</button>
+      </div>
     </div>
     <div class="tbl-wrap" id="bas-srmGrid"></div>
   </div>
-  <div class="bas-grp">② 월말 실사</div>
+
+  <div class="bas-grp"><span class="bas-step">2</span>월말 실사 <span class="mini">재고 업체가 세어 준 값 — 재고 계산의 출발점</span></div>
   <div class="card">
-    <h2>실사값 입력 <span class="muted">재고 업체가 알려준 월초 재고를 넣으면 기준점이 됩니다</span></h2>
-    <div class="row">
-      <div><label class="fld">실사 날짜 <span class="mini">(보통 매달 1일)</span></label>
-        <input type="date" id="bas-countDate"></div>
-      <div class="mini" style="align-self:flex-end;padding-bottom:6px">
-        이 날짜의 실제 재고를 넣으면, 그 뒤 입고·출고로 추정을 이어갑니다.</div>
+    <div class="bas-ph">
+      <div><h2>실사값 입력</h2>
+        <div class="sub">이 날짜의 실제 재고를 넣으면, 그 뒤 입고·출고로 추정을 이어갑니다. 칸을 고치면 바로 저장됩니다.</div></div>
+      <div class="bas-tools"><label for="bas-countDate">실사 날짜</label><input type="date" id="bas-countDate"></div>
     </div>
-    <div class="tbl-wrap" id="bas-countTbl" style="margin-top:12px"></div>
+    <div class="tbl-wrap" id="bas-countTbl"></div>
   </div>
 
-  <div class="bas-grp">③ 출고예시 <span class="mini">(거의 안 씀)</span></div>
+  <div class="bas-grp" style="font-size:13.5px;color:var(--sub)">가끔 쓰는 것</div>
+  <div class="bas-subrow">
+    <button class="bas-fbtn" id="bas-fb-snapWrap" onclick="BAS.toggleSub('snapWrap')">출고예시 스냅샷</button>
+    <button class="bas-fbtn" id="bas-fb-backupWrap" onclick="BAS.toggleSub('backupWrap')">자료 내보내기 · 되살리기</button>
+  </div>
+
+  <div id="bas-snapWrap" hidden>
   <div class="card">
-    <h2>출고예시분석에서 받기 <span class="muted">엑셀을 두 번 넣지 않기 위한 통로</span></h2>
-    <div class="hint">출고예시분석에 이미 쌓아둔 바스 스냅샷을 그대로 가져옵니다.
-      바스 판정과 중복 제거는 그쪽에서 이미 끝난 상태라, 여기서는 아래 엑셀 업로드를 하지 않으셔도 됩니다.</div>
-    <div class="row" style="margin-top:12px;align-items:center">
-      <button class="primary" id="bas-btnBridgePull">예시분석에서 불러오기</button>
-      <button class="ghost" id="bas-btnBridgeFile">브리지 파일 열기…</button>
-      <input type="file" id="bas-fileBridge" accept=".json,application/json" hidden>
+    <div class="bas-ph">
+      <div><h2>출고예시분석에서 받기</h2>
+        <div class="sub">출고예시분석에 쌓아 둔 바스 스냅샷을 그대로 가져옵니다(바스 판정·중복 제거는 그쪽에서 끝남). 받으면 아래 엑셀은 안 넣으셔도 됩니다.</div></div>
     </div>
-    <div class="hint" id="bas-bridgeInfo" style="margin-top:10px;min-height:16px"></div>
-    <div class="row" style="margin-top:6px;align-items:center">
-      <span class="mini" id="bas-bridgeCount"></span>
-      <button class="ghost" id="bas-btnBridgeClear" style="padding:4px 9px;font-size:12px">받아온 것만 지우기</button>
+    <div class="hint" id="bas-bridgeInfo" style="min-height:16px"></div>
+    <div class="bas-actions">
+      <span class="mini grow" id="bas-bridgeCount"></span>
+      <button class="quiet" id="bas-btnBridgeClear">받아온 것만 지우기</button>
+      <button class="quiet" id="bas-btnBridgeFile">브리지 파일 열기…</button>
+      <input type="file" id="bas-fileBridge" accept=".json,application/json" hidden>
+      <button class="primary" id="bas-btnBridgePull">예시분석에서 불러오기</button>
     </div>
   </div>
   <div class="card">
-    <h2>예시표 업로드 <span class="muted">위에서 못 받았을 때만 쓰세요. 오늘 칸이 그날의 확정 물량입니다.</span></h2>
-    <div class="row" style="margin-bottom:12px">
-      <div><label class="fld">뽑은 날짜(오늘)</label><input type="date" id="bas-snapDate"></div>
+    <div class="bas-ph">
+      <div><h2>예시표 올리기</h2>
+        <div class="sub">위에서 못 받았을 때만. 오늘 칸이 그날의 확정 물량입니다. 와이비앤디 예시에 없는 코드만 바스 소요로 읽습니다.</div></div>
+      <div class="bas-tools"><label for="bas-snapDate">뽑은 날짜</label><input type="date" id="bas-snapDate"></div>
     </div>
     <div class="row">
-      <div style="flex:1">
+      <div style="flex:1;min-width:200px">
         <label class="fld">① 드림하이텍 예시표 <span class="mini">(필수)</span></label>
         <div class="dropzone" id="bas-dzDream"><div class="big">드림 예시표 놓기 / 클릭</div>
           <div class="mini" id="bas-dreamInfo">아직 없음</div></div>
       </div>
-      <div style="flex:1">
+      <div style="flex:1;min-width:200px">
         <label class="fld">② 와이비앤디 예시표 <span class="mini">(중복 제거용 · 같은 시각에 뽑은 것)</span></label>
         <div class="dropzone" id="bas-dzYbnd"><div class="big">와이비 예시표 놓기 / 클릭</div>
           <div class="mini" id="bas-ybndInfo">아직 없음</div></div>
@@ -2313,42 +2340,45 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <input type="file" id="bas-fileDream" accept=".xlsx,.xls" hidden>
     <input type="file" id="bas-fileYbnd" accept=".xlsx,.xls" hidden>
-    <div class="hint">와이비앤디 예시를 기준으로 삼아, 거기 없는 코드만 바스 소요로 읽습니다. 시스템 오류로 생긴 중복(현재 41개)이 사라져도 결과는 그대로입니다.</div>
-    <div class="row" style="margin-top:12px">
+    <div class="bas-actions">
+      <span class="hint grow" id="bas-snapPreview" style="margin:0"></span>
       <button class="primary" id="bas-btnSaveSnap">스냅샷 저장</button>
-      <span class="hint" id="bas-snapPreview"></span>
     </div>
   </div>
   <div class="card">
-    <h2>저장된 스냅샷 <span class="muted" id="bas-snapCount"></span></h2>
+    <h2>저장된 스냅샷 <span class="bas-cnt" id="bas-snapCount"></span></h2>
     <div class="tbl-wrap" id="bas-snapTbl"></div>
   </div>
+  </div>
 
-  <div class="bas-grp">관리</div>
+  <div id="bas-backupWrap" hidden>
   <div class="card">
-    <h2>자료 내보내기 · 되살리기 <span class="muted">지금까지 올린 것을 파일 하나로</span></h2>
+    <div class="bas-ph">
+      <div><h2>자료 내보내기 · 되살리기</h2>
+        <div class="sub">바스 자료는 이 기기와 구글 시트에 함께 저장됩니다. 가끔 파일로 빼 두시면 안심입니다.</div></div>
+    </div>
     <div class="hint">
-      바스 자료는 이 기기에 저장되고 <b>구글 시트에도 함께 올라가</b> 다른 기기에서도 보입니다
-      <span class="mini">(창고 출고는 최근 120일만 시트에 올리고, 예시 스냅샷은 이 기기에만 둡니다)</span>.<br>
-      그래도 가끔 <b>내보내기</b>로 파일을 빼 두시면 안심입니다. 내보낸 파일에는 <b>지금 추정하고 있는 재고</b>도 함께 적힙니다.<br>
+      <span class="mini">(창고 출고는 최근 120일만 시트에 올리고, 예시 스냅샷은 이 기기에만 둡니다.)</span>
+      내보낸 파일에는 <b>지금 추정하고 있는 재고</b>도 함께 적힙니다.<br>
       <b>되살리기</b>는 지금 화면의 자료를 <b>파일 내용으로 통째 바꿉니다</b>. 바꾸기 전 상태는 자동으로 한 번 더 내려받아 두므로 되돌릴 수 있습니다.<br>
       <b>옛 화면 자료 넣기</b> — 예전에 따로 여시던 「바스재고운영」 화면에서 「📤 내보내기」로 받은 파일을 넣습니다. 옛 화면과 그 자료는 그대로 남습니다.
     </div>
-    <div class="row" style="margin-top:12px">
+    <div class="bas-actions">
+      <span class="mini grow" id="bas-backupInfo"></span>
+      <button class="quiet" id="bas-btnOldLocal" style="display:none">이 주소의 옛 자료 넣기</button>
+      <button class="quiet" id="bas-btnOldFile">📂 옛 화면 백업 파일 넣기</button>
+      <button class="quiet" id="bas-btnBackupIn">📥 되살리기</button>
       <button class="primary" id="bas-btnBackupOut">📤 내보내기</button>
-      <button class="ghost" id="bas-btnBackupIn">📥 되살리기</button>
-      <button class="ghost" id="bas-btnOldFile">📂 옛 화면 백업 파일 넣기</button>
-      <button class="ghost" id="bas-btnOldLocal" style="display:none">이 주소의 옛 자료 넣기</button>
       <input type="file" id="bas-oldFile" accept=".json,application/json" style="display:none">
       <input type="file" id="bas-backupFile" accept=".json,application/json" style="display:none">
     </div>
-    <div class="mini" id="bas-backupInfo" style="margin-top:10px"></div>
+  </div>
   </div>
 </section>
 
 <!-- 납품 기록 -->
 <section class="page" id="bas-page-deliv">
-  <!-- 발주·납품 (2026-10-26 개편 3단계) — 기본 흐름: 발주 등록 → 미납 확인 → [납품함]. 나머지 넣는 길은 아래 「보조」 단추 뒤에 접어 둡니다.
+  <!-- 발주·납품 (2026-10-26 개편 3·4단계) — 기본 흐름: 발주 등록 → 미납 확인 → [납품함]. 나머지 넣는 길은 아래 「보조」 단추 뒤에 접어 둡니다.
        카드·칸 아이디는 예전 그대로라 넣는 일(poAdd·poShip·addDeliv·pasteAdd·slipAdd)은 하나도 안 바뀝니다 -->
   <div id="bas-slipBar"></div>
 
@@ -2357,28 +2387,26 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <div><h2>발주 현황 <span class="bas-cnt" id="bas-poCount"></span></h2>
         <div class="sub">물건을 보냈으면 그 줄에서 보낸 날·수량을 고치고 [납품함]. 오더번호가 그 발주에 저절로 붙습니다.</div></div>
       <div class="bas-head-tools"><div class="bas-flt" id="bas-poFlt"></div>
-        <button class="primary" id="bas-fb-poAddCard" style="padding:6px 14px;font-size:12.5px" onclick="BAS.toggleSub('poAddCard')">＋ 발주 등록</button></div>
+        <button class="primary" id="bas-fb-poAddCard" onclick="BAS.toggleSub('poAddCard')">＋ 발주 등록</button></div>
     </div>
-    <div class="bas-fold-body" id="bas-poAddCard" hidden>
-      <div style="font-weight:700;margin-bottom:4px">발주 등록 <span class="mini" style="font-weight:500">한샘이 넣은 주문 — 아직 납품 안 한 것도 여기 넣습니다</span></div>
-    <div class="hint">발주가 왔다는 건 <b>창고 물량이 떨어졌다</b>는 뜻입니다. 납품하기 전에 먼저 넣어두면
-      미납이 얼마인지, 발주가 얼마나 자주 오는지 보입니다.<br>
-      <b>P/O구매오더상세</b> 화면의 표를 그대로 복사해 붙여넣고, 위쪽 <b>오더번호·발주일자</b>만 채우면 됩니다.</div>
-    <div class="row" style="margin-top:10px">
-      <div><label class="fld">오더번호 <span style="color:var(--bad)">＊꼭 입력</span></label>
-        <input id="bas-poOrd" placeholder="예: 5100653156" style="width:150px" autocomplete="off"></div>
-      <div><label class="fld">발주일자 <span style="color:var(--bad)">＊</span></label><input type="date" id="bas-poDate"></div>
-    </div>
-    <textarea id="bas-poBox" rows="4" placeholder="P/O 표를 여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  51,062  2,553,100  20260825"
-      style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
-    <div class="row" style="margin-top:10px;align-items:center">
-      <button class="primary" id="bas-btnPoAdd">발주 넣기</button>
-      <span class="hint" id="bas-poInfo"></span>
-    </div>
-    <div id="bas-poPreview" style="margin-top:8px"></div>
+    <div class="bas-fold-body" id="bas-poAddCard" hidden style="padding:16px 18px;margin-bottom:14px">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:2px">발주 등록</div>
+      <div class="hint" style="margin-bottom:10px">SRM <b>P/O 구매오더상세</b> 표를 그대로 복사해 붙여넣고 <b>오더번호·발주일자</b>만 채우십시오. 아직 납품 안 한 발주도 넣어 두면 미납이 보입니다.</div>
+      <div class="row">
+        <div><label class="fld">오더번호 <span style="color:var(--bad)">＊꼭 입력</span></label>
+          <input id="bas-poOrd" placeholder="예: 5100653156" style="width:150px" autocomplete="off"></div>
+        <div><label class="fld">발주일자 <span style="color:var(--bad)">＊</span></label><input type="date" id="bas-poDate"></div>
+      </div>
+      <textarea id="bas-poBox" rows="4" placeholder="P/O 표를 여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  51,062  2,553,100  20260825"
+        style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel)"></textarea>
+      <div id="bas-poPreview" style="margin-top:8px"></div>
+      <div class="bas-actions" style="margin-top:10px">
+        <span class="hint grow" id="bas-poInfo" style="margin:0"></span>
+        <button class="primary" id="bas-btnPoAdd">발주 넣기</button>
+      </div>
     </div>
     <div class="tbl-wrap" id="bas-poTbl"></div>
-    <div class="mini" style="margin-top:6px">미납 잔량은 발주일이 이른 것부터 채웁니다(선입선출). 오더번호가 붙은 납품은 그 발주에 바로 붙습니다.</div>
+    <div class="mini" style="margin-top:8px">미납 잔량은 발주일이 이른 것부터 채웁니다(선입선출). 오더번호가 붙은 납품은 그 발주에 바로 붙습니다.</div>
   </div>
 
   <div class="bas-subrow">보조
@@ -2393,53 +2421,52 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="bas-slipBody"></div>
   </div>
   <div class="card" id="bas-delivAddCard" hidden>
-    <h2>납품 직접 넣기 <span class="muted">발주에 없는 것만 — 보통은 위 발주 줄의 [납품함]을 쓰세요</span></h2>
-    <div class="hint" style="margin-bottom:8px">
-      발주를 안 거치고 나간 물량(샘플·긴급분 등)만 여기에 손으로 넣습니다.
-      <b>발주로 들어온 건은 위 「발주 현황」 줄에서 넣는 게 빠르고, 오더번호도 자동으로 붙습니다.</b>
-    </div>
+    <div class="bas-ph"><div><h2>발주 없는 납품</h2>
+      <div class="sub">발주를 안 거치고 나간 물량(샘플·긴급분 등)만 손으로 넣습니다. 발주로 들어온 건은 위 「발주 현황」 줄의 [납품함]이 빠르고 오더번호도 붙습니다.</div></div></div>
     <div class="row">
       <div><label class="fld">발주일 <span class="muted">(한샘 발주 뜬 날)</span></label><input type="date" id="bas-dOrd"></div>
       <div><label class="fld">출고일 <span class="muted">(창고 들어간 날)</span></label><input type="date" id="bas-dShip"></div>
-      <div><label class="fld">제품 (모델명 또는 코드)</label><input id="bas-dCode" list="bas-dCodeList" placeholder="예: 베일화이트 320 · BB1000108" style="width:270px" autocomplete="off"><datalist id="bas-dCodeList"></datalist></div>
+      <div><label class="fld">제품 (모델명 또는 코드)</label><input id="bas-dCode" list="bas-dCodeList" placeholder="예: 베일화이트 320 · BB1000108" style="width:270px;max-width:100%" autocomplete="off"><datalist id="bas-dCodeList"></datalist></div>
       <div><label class="fld">수량</label><input type="number" id="bas-dQty" style="width:85px"></div>
       <div><label class="fld">참조문서번호 <span class="muted">(선택)</span></label><input id="bas-dRef" placeholder="5100643754" style="width:120px"></div>
+    </div>
+    <div class="bas-actions">
+      <span class="muted grow" id="bas-dCodeHint" style="min-height:16px;font-size:12.5px"></span>
       <button class="primary" id="bas-btnAddDeliv">추가</button>
     </div>
-    <div id="bas-dCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
   </div>
   <div class="card" id="bas-pasteCard" hidden>
-    <h2>납품 여러 건 붙여넣기 <span class="muted">이미 보낸 것을 몰아서 기록할 때</span></h2>
-    <div class="hint" style="color:var(--warn);margin-bottom:6px">
-      ⚠ 위 <b>① 발주 받기</b>와 붙여넣는 표는 같지만 <b>들어가는 곳이 다릅니다</b> —
-      여기에 넣으면 <b>이미 납품한 것</b>으로 기록됩니다(오더번호는 안 붙습니다).
-      아직 안 보낸 발주라면 <b>① 발주 받기</b>에 넣으세요.
+    <div class="bas-ph"><div><h2>여러 건 붙여넣기</h2>
+      <div class="sub">이미 보낸 것을 몰아서 기록할 때 — SRM 구매오더 상세 표를 그대로 복사해 붙여넣으십시오. 한 줄에 한 건, 자재코드·수량·단가·납품일을 알아서 뽑습니다.</div></div></div>
+    <div class="bas-banner" style="margin-bottom:10px">
+      ⚠ 위 <b>발주 등록</b>과 붙여넣는 표는 같지만 <b>들어가는 곳이 다릅니다</b> —
+      여기에 넣으면 <b>이미 납품한 것</b>으로 기록됩니다(오더번호는 안 붙습니다). 아직 안 보낸 발주라면 <b>발주 등록</b>에 넣으세요.
     </div>
-    <div class="hint">SRM 구매오더 상세의 표를 <b>그대로 복사</b>해 아래에 붙여넣으세요.
-      한 줄에 한 건입니다. <b>자재코드·수량·단가·납품일</b>을 알아서 뽑습니다(자재명에 공백·쉼표가 있어도 됩니다).<br>
-      순서: No · 순번 · <b>자재코드</b> · 자재명 · 납품처 · 저장소 · <b>수량</b> · 단위 · <b>단가</b> · … · <b>납품일(YYYYMMDD)</b></div>
     <textarea id="bas-pasteBox" rows="6" placeholder="여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  47280  0  20260604"
-      style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
-    <div class="row" style="margin-top:10px;align-items:center">
-      <button class="primary" id="bas-btnPasteAdd">붙여넣은 것 추가</button>
-      <span class="hint" id="bas-pasteInfo"></span>
-    </div>
+      style="width:100%;box-sizing:border-box;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:10px;padding:10px"></textarea>
+    <div class="mini" style="margin-top:4px">순서: No · 순번 · <b>자재코드</b> · 자재명 · 납품처 · 저장소 · <b>수량</b> · 단위 · <b>단가</b> · … · <b>납품일(YYYYMMDD)</b></div>
     <div id="bas-pastePreview" style="margin-top:8px"></div>
+    <div class="bas-actions">
+      <span class="hint grow" id="bas-pasteInfo" style="margin:0"></span>
+      <button class="primary" id="bas-btnPasteAdd">붙여넣은 것 추가</button>
+    </div>
   </div>
   <div id="bas-delivLogCard" hidden>
   <div class="card">
-    <h2>발주 단위 <span class="muted">참조문서번호로 묶은 발주 — 줄을 눌러 펼치면 개별 건을 고치거나 지울 수 있습니다</span></h2>
+    <div class="bas-ph"><div><h2>발주 단위</h2>
+      <div class="sub">참조문서번호로 묶은 발주 — 줄을 눌러 펼치면 개별 건을 고치거나 지울 수 있습니다</div></div></div>
     <div class="tbl-wrap" id="bas-orderTbl"></div>
   </div>
   <div class="card">
-    <h2>납품 내역 <span class="muted" id="bas-delivCount"></span></h2>
-    <div class="hint">참조문서 칸을 눌러 번호를 채우면, 같은 번호끼리 자동으로 「발주 묶음」으로 정리됩니다.
-      붙여넣기로 들어온 건은 이 칸이 비어 있습니다.</div>
-    <div class="tbl-wrap" id="bas-delivTbl"></div>
-    <div class="row" style="margin-top:12px">
-      <button class="ghost" id="bas-btnExportDeliv">CSV 내보내기</button>
-      <button class="ghost" id="bas-btnClearDeliv" style="color:var(--bad)">전체 지우기</button>
+    <div class="bas-ph">
+      <div><h2>납품 내역 <span class="bas-cnt" id="bas-delivCount"></span></h2>
+        <div class="sub">참조문서 칸을 눌러 번호를 채우면, 같은 번호끼리 자동으로 「발주 묶음」으로 정리됩니다. 붙여넣기로 들어온 건은 이 칸이 비어 있습니다.</div></div>
+      <div class="bas-tools">
+        <button class="quiet" id="bas-btnExportDeliv">CSV 내보내기</button>
+        <button class="quiet dng" id="bas-btnClearDeliv">전체 지우기</button>
+      </div>
     </div>
+    <div class="tbl-wrap" id="bas-delivTbl"></div>
   </div>
   </div>
 </section>
@@ -2464,34 +2491,39 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- 월 마감 -->
 <section class="page" id="bas-page-close">
+  <!-- 월 마감 (2026-10-26 개편 4단계) — 주 일: 마감 월 고르기 → 마감표 확인·복사 → 한샘 마감내역 대조. 단가 관리는 부가. 칸 아이디는 예전 그대로 -->
   <div class="card">
-    <h2>월 마감 <span class="muted">납품일 기준 · 코드별 월합계 · 마감표와 같은 양식</span></h2>
-    <div class="row">
-      <div><label class="fld">마감 월</label><input type="month" id="bas-closeMonth"></div>
-      <button class="ghost" id="bas-btnCopyClose">표 복사</button>
-      <button class="ghost" id="bas-btnEditPrice">단가 관리</button>
+    <div class="bas-ph">
+      <div><h2 id="bas-closeTitle">마감표</h2>
+        <div class="sub">코드별 월합계 · 한샘 마감표와 같은 양식. 반품이 있으면 반품량 칸에 넣으면 마감수량·금액이 바뀝니다.</div></div>
+      <div class="bas-tools">
+        <label for="bas-closeMonth">마감 월</label><input type="month" id="bas-closeMonth">
+        <button class="quiet" id="bas-btnEditPrice">단가 관리</button>
+        <button class="primary" id="bas-btnCopyClose">표 복사</button>
+      </div>
     </div>
-  </div>
-  <div class="card">
-    <h2 id="bas-closeTitle">마감표</h2>
     <div class="tbl-wrap" id="bas-closeTbl"></div>
-    <div class="hint">한샘 마감 자료와 한 줄씩 대조하세요. 반품이 있으면 반품량 칸에 입력하면 마감수량·금액이 반영됩니다.</div>
   </div>
 
   <div class="card">
-    <h2>한샘 마감내역 대조 <span class="muted">받으신 마감내역을 붙여넣으면 우리 기록과 맞춰봅니다</span></h2>
-    <div class="hint">SRM 「마감내역」 화면에서 표를 긁어 복사한 뒤 아래 칸에 붙여넣으세요. 머리글·합계줄은 알아서 걸러냅니다.<br>
-      마감내역의 <b>입고기간</b>이 곧 그 달 마감입니다. 위의 <b>마감 월</b>이 같은 달인지 확인해 주세요
-      <span class="mini">(7월 초에 받으신 자료라도 입고기간이 6/1~6/30이면 6월 마감입니다)</span>.</div>
-    <textarea id="bas-closePaste" rows="5" placeholder="여기에 붙여넣기…&#10;드림하이텍  1000  BB1000108  EURO5 베일화이트 하부장 새틴WH 도어 320 L  34,590  KRW  40  0  40  EA  1,383,600  KRW"
-      style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
-    <div class="row" style="margin-top:9px">
-      <button class="primary" id="bas-btnCloseCmp">대조하기</button>
-      <button class="ghost" id="bas-btnClosePrice">한샘 단가로 맞추기</button>
-      <button class="ghost" id="bas-btnCloseCmpClear">대조 자료 지우기</button>
-      <span class="mini" id="bas-closeCmpInfo" style="align-self:center"></span>
+    <div class="bas-ph">
+      <div><h2>한샘 마감내역 대조</h2>
+        <div class="sub">SRM 「마감내역」 표를 긁어 붙여넣으면 우리 기록과 한 줄씩 맞춰 봅니다. 머리글·합계줄은 알아서 거릅니다.</div></div>
+      <details class="bas-fold" ontoggle="document.getElementById('bas-closeHow').hidden=!this.open"><summary>ⓘ 마감 월 맞추기</summary></details>
     </div>
-    <div class="tbl-wrap" id="bas-closeCmpTbl" style="margin-top:10px"></div>
+    <div class="bas-fold-body" id="bas-closeHow" hidden>
+      <div class="hint">마감내역의 <b>입고기간</b>이 곧 그 달 마감입니다. 위의 <b>마감 월</b>이 같은 달인지 확인해 주세요
+        <span class="mini">(7월 초에 받으신 자료라도 입고기간이 6/1~6/30이면 6월 마감입니다)</span>.</div>
+    </div>
+    <textarea id="bas-closePaste" rows="4" placeholder="여기에 붙여넣기…&#10;드림하이텍  1000  BB1000108  EURO5 베일화이트 하부장 새틴WH 도어 320 L  34,590  KRW  40  0  40  EA  1,383,600  KRW"
+      style="width:100%;box-sizing:border-box;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:10px;padding:10px"></textarea>
+    <div class="bas-actions">
+      <span class="mini grow" id="bas-closeCmpInfo"></span>
+      <button class="quiet dng" id="bas-btnCloseCmpClear">대조 자료 지우기</button>
+      <button class="quiet" id="bas-btnClosePrice">한샘 단가로 맞추기</button>
+      <button class="primary" id="bas-btnCloseCmp">대조하기</button>
+    </div>
+    <div class="tbl-wrap" id="bas-closeCmpTbl" style="margin-top:12px"></div>
   </div>
   <div class="card" id="bas-priceCard" style="display:none">
     <h2>단가 관리 <span class="muted">발주서에 적힌 금액으로 갱신하세요</span></h2>
@@ -30104,7 +30136,7 @@ function renderPos(){
                  style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
              <input type="number" id="bas-poq-${r.ord}-${r.code}" value="${r.remain}" title="실제로 보낸 수량"
                  style="width:58px;padding:4px;text-align:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
-             <button class="primary" style="padding:4px 10px;font-size:11px" onclick="BAS.poShip('${r.ord}','${r.code}')">납품함</button>`}</td>
+             <button class="primary" style="padding:6px 14px;font-size:12.5px" onclick="BAS.poShip('${r.ord}','${r.code}')">납품함</button>`}</td>
         <td><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="BAS.poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
       </tr>`;
     }).join('')+`</tbody></table>`;
