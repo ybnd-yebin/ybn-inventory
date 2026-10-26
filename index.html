@@ -1934,6 +1934,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   --warn:#d18116; --bad:#e0453f; --chip:#eceef2;
 }
 #pg-bas *{box-sizing:border-box}
+@media (min-width:1200px){ #pg-bas{max-width:1440px} }   /* 발주 현황 표(11칸)가 1100px 에 안 들어가서 — 원유리 탭(12-72)과 같은 폭 (2026-10-26) */
 #pg-bas{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
   background:var(--bg);color:var(--txt);font-size:15px;line-height:1.5}
 #pg-bas .bas-head{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);
@@ -2031,9 +2032,112 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .bas-tab-sub{margin-top:10px;font-size:11.5px;opacity:.7}
 #pg-bas .bas-side-note{margin:12px 6px 0 4px;font-size:10.5px;color:var(--sub);line-height:1.5;word-break:keep-all}
 #pg-bas .bas-side-note>div+div{margin-top:4px}
+#pg-bas .bas-grp{font-size:12.5px;font-weight:800;color:var(--sub);margin:16px 2px 6px}   /* 재고 기록 탭 안 묶음 이름 */
+#pg-bas .bas-grp:first-child{margin-top:2px}
+/* 현황·발주 — 사장님 시안(2026-10-26 YBND_BAS_UI_새시안)을 덜 꾸며서. 색은 뜻이 있을 때만: 빨강 = 납기 지남·모자람, 주황 = 주의·자료 빠짐 */
+#pg-bas .bas-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+#pg-bas .bas-tile{display:flex;flex-direction:column;gap:5px;text-align:left;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  cursor:pointer;font:inherit;color:var(--txt);min-width:0}
+#pg-bas .bas-tile:hover{border-color:var(--accent)}
+#pg-bas .bas-tile .k{font-size:12px;color:var(--sub);font-weight:700}
+#pg-bas .bas-tile .v{font-size:24px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
+#pg-bas .bas-tile .v small{font-size:12px;font-weight:500;color:var(--sub);margin-left:5px}
+#pg-bas .bas-tile .s{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11.5px;color:var(--sub)}
+#pg-bas .bas-tile.bad .v{color:var(--bad)} #pg-bas .bas-tile.warn .v{color:var(--warn)}
+#pg-bas .bas-tile .v.none{color:var(--sub)}
+#pg-bas .bas-banner{font-size:12.5px;color:var(--warn);background:#fffaf1;border:1px solid #f3e3c4;border-radius:10px;padding:9px 14px;margin:0 0 12px;line-height:1.55}
+#pg-bas .bas-banner b{font-weight:700}
+#pg-bas .bas-ph{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+#pg-bas .bas-ph h2{margin:0!important;display:flex;align-items:center;gap:8px}
+#pg-bas .bas-ph .sub{font-size:12px;color:var(--sub);margin-top:4px}
+#pg-bas .bas-cnt{font-size:11.5px;font-weight:700;color:var(--sub);background:var(--chip);border-radius:6px;padding:2px 8px}
+#pg-bas .bas-link{border:0;background:none!important;color:var(--accent);font-size:12.5px;padding:2px 0;white-space:nowrap}
+#pg-bas .bas-link:hover{text-decoration:underline}
+/* 미납 목록 — 한 발주 = 한 줄: 무엇 · 몇 장 · 넣기 */
+#pg-bas .bas-ords{border-top:1px solid var(--line)}
+#pg-bas .bas-ord{display:grid;grid-template-columns:minmax(220px,1.6fr) minmax(150px,.8fr) auto;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line)}
+#pg-bas .bas-ord:last-child{border-bottom:0}
+#pg-bas .bas-ord .eb{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:11.5px;color:var(--sub)}
+#pg-bas .bas-ord .nm{font-weight:700;font-size:13.5px}
+#pg-bas .bas-ord .mt{font-size:11.5px;color:var(--sub);margin-top:2px}
+#pg-bas .bas-ord .mt span+span:before{content:' · '}
+#pg-bas .bas-q{display:flex;gap:14px;align-items:flex-end}
+#pg-bas .bas-q div{display:flex;flex-direction:column;min-width:34px;text-align:right}
+#pg-bas .bas-q small{font-size:11px;color:var(--sub)}
+#pg-bas .bas-q b{font-size:17px;font-variant-numeric:tabular-nums}
+#pg-bas .bas-q .rem b{color:var(--bad)}
+#pg-bas .bas-ship{white-space:nowrap;text-align:right}
+#pg-bas .bas-ship input{padding:5px 7px;font-size:12px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);color:var(--txt)}
+#pg-bas .bas-ship input[type=number]{width:60px;text-align:right;font-weight:700}
+#pg-bas .bas-ship button{padding:5px 12px;font-size:12px}
+#pg-bas .bas-sumline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font-size:11.5px;color:var(--sub)}
+#pg-bas td.stt{text-align:center}
+#pg-bas .bas-closed-note{white-space:normal;max-width:230px;min-width:170px;margin-left:auto;text-align:right;line-height:1.45}   /* 잔량 종료 줄 (6단계) */
+#pg-bas td.c-ship button.quiet{padding:5px 10px;font-size:12px;margin-left:4px}
+#pg-bas .bas-shipx{text-align:right;margin-top:3px;font-size:11.5px;color:var(--sub)}
+#pg-bas button.bas-lnk{background:none!important;border:0;padding:0 2px;font-size:11.5px;font-weight:500;color:var(--sub);text-decoration:underline dotted}
+#pg-bas button.bas-lnk:hover{color:var(--txt)}
+/* 접는 단추 — 점선, 펼치면 실선 (7번 2항) */
+#pg-bas .bas-fold>summary,#pg-bas .bas-fbtn{list-style:none;cursor:pointer;font-size:12px;color:var(--sub);padding:4px 11px;border:1px dashed var(--line);border-radius:7px;white-space:nowrap;background:none;font-weight:600}
+#pg-bas .bas-fold>summary::-webkit-details-marker{display:none}
+#pg-bas .bas-fold[open]>summary,#pg-bas .bas-fbtn.on{border-style:solid;color:var(--txt)}
+#pg-bas .bas-fold-body{margin:6px 0 8px;padding:9px 13px;background:var(--panel2);border-radius:8px}
+#pg-bas .bas-fold-body .hint{margin:0}
+/* 발주 현황 거르기 꼬리표 (3단계) */
+#pg-bas .bas-flt{display:flex;gap:4px;flex-wrap:wrap}
+#pg-bas .bas-flt button{padding:3px 11px;font-size:12px;border-radius:20px;background:none;border:1px solid var(--line);color:var(--sub);font-weight:600}
+#pg-bas .bas-flt button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#pg-bas .bas-subrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 2px 10px;font-size:12px;color:var(--sub)}
+#pg-bas .bas-head-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:900px){
+  #pg-bas .bas-ord{grid-template-columns:1fr auto}
+  #pg-bas .bas-ord .bas-ship{grid-column:1 / -1}
+  /* 5단계 — 발주 현황 표(11칸)를 좁은 화면에서는 줄마다 카드로. 칸·입력·단추는 그대로, 놓는 자리만 바뀜 */
+  #pg-bas #bas-poTbl{border:0;max-height:none;overflow:visible}
+  #pg-bas #bas-poTbl table,#pg-bas #bas-poTbl tbody{display:block}
+  #pg-bas #bas-poTbl thead{display:none}
+  #pg-bas #bas-poTbl tr.po-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:14px 14px;margin-bottom:10px;
+    border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  #pg-bas #bas-poTbl tr.po-row td{border:0;padding:0;white-space:normal}
+  #pg-bas #bas-poTbl td.c-st{order:1}
+  #pg-bas #bas-poTbl td.c-ord{order:6;font-size:12.5px}
+  #pg-bas #bas-poTbl td.c-ord:before{content:'오더번호';display:block;font-size:11px;color:var(--sub)}
+  #pg-bas #bas-poTbl td.c-od{order:3}
+  #pg-bas #bas-poTbl td.c-del{order:4;margin-left:auto}
+  #pg-bas #bas-poTbl td.c-nm{order:5;flex-basis:100%;min-width:0!important;font-weight:700;font-size:14px}
+  #pg-bas #bas-poTbl td.c-n{order:6;text-align:left;font-variant-numeric:tabular-nums}
+  #pg-bas #bas-poTbl td.c-n:before{content:attr(data-l);display:block;font-size:11px;font-weight:500;color:var(--sub)}
+  #pg-bas #bas-poTbl td.c-ship{order:7;flex-basis:100%;display:flex;gap:6px;align-items:center;padding-top:6px;border-top:1px dashed var(--line)}
+  #pg-bas #bas-poTbl td.c-ship:not(:has(input)):not(:has(button)){display:none}
+  #pg-bas #bas-poTbl td.c-ship{flex-wrap:wrap}
+  #pg-bas #bas-poTbl td.c-ship button.primary{margin-left:auto}
+  #pg-bas #bas-poTbl td.c-ship .bas-shipx{flex-basis:100%}
+  #pg-bas #bas-poTbl td.c-ship .bas-closed-note{flex:1;max-width:none}
+}
 #pg-bas .bas-main{flex:1 1 auto;min-width:0;max-width:none;margin:0;padding:12px 12px 12px 0}
-#pg-bas .card{padding:12px 14px;margin-bottom:10px;border-radius:12px}
-#pg-bas .card h2{margin-bottom:8px}
+/* 4단계 (2026-10-26) — 촘촘한 ERP 대신 여백·위계: 카드 넉넉히, 제목 한 단계 크게, 주 단추는 또렷하게 오른쪽, 부가 단추는 작고 차분하게 */
+#pg-bas .bas-main{padding:16px 18px 24px 4px}
+#pg-bas .card{padding:18px 20px;margin-bottom:14px;border-radius:14px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+#pg-bas .card h2{margin-bottom:10px;font-size:16px;font-weight:800;letter-spacing:-.2px}
+#pg-bas .bas-ph h2{font-size:17px}
+#pg-bas .bas-ph{margin-bottom:12px}
+#pg-bas .bas-tiles{gap:12px;margin-bottom:14px}
+#pg-bas .bas-tile{padding:16px 18px;border-radius:14px}
+#pg-bas button.primary{padding:8px 18px;font-size:13.5px;border-radius:9px;font-weight:700}
+#pg-bas button.ghost,#pg-bas button.quiet{background:none;border:1px solid var(--line);color:var(--sub);font-size:12.5px;padding:6px 12px;border-radius:8px;font-weight:600}
+#pg-bas button.ghost:hover,#pg-bas button.quiet:hover{color:var(--txt);border-color:#c9ced8;filter:none}
+#pg-bas button.quiet.dng{color:var(--bad)}
+#pg-bas .bas-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+#pg-bas .bas-actions .grow{margin-right:auto}
+#pg-bas .bas-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#pg-bas .bas-tools input{padding:6px 9px;font-size:13px}
+#pg-bas .bas-tools label{font-size:12px;color:var(--sub)}
+#pg-bas .bas-grp{font-size:15px;font-weight:800;color:var(--txt);margin:26px 2px 10px;display:flex;align-items:baseline;gap:8px}
+#pg-bas .bas-grp .mini{font-weight:500}
+#pg-bas .bas-grp:first-child{margin-top:4px}
+#pg-bas .dropzone{padding:18px;border-radius:12px;background:var(--panel2)}
+#pg-bas .bas-step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--chip);color:var(--sub);font-size:12px;font-weight:800}
+#pg-bas textarea{background:var(--panel2)}
 #pg-bas #bas-migrate:not(:empty){margin-bottom:10px}
 @media(max-width:560px){
   #pg-bas .bas-wrap{display:block}
@@ -2042,15 +2146,56 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   #pg-bas .bas-head h1 .sub{display:inline;margin-left:4px}
   #pg-bas .bas-head .tabs{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:4px;width:100%;
     border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
-  #pg-bas .tab{border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none;padding:5px 9px;font-size:12px}
+  #pg-bas .tab{border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none;padding:9px 13px;font-size:13.5px}
   #pg-bas .tab.active{border-color:var(--line)}
   #pg-bas .bas-tab-sub{margin-top:0}
   #pg-bas .bas-side-note{display:flex;gap:8px;flex-wrap:wrap;margin:0;width:100%}
   #pg-bas .bas-side-note>div+div{margin-top:0}
-  #pg-bas .bas-main{padding:8px}
-  #pg-bas .card{padding:10px}
+  /* 5단계 (2026-10-26) — 휴대폰: 여백은 남기되 한 줄로 쌓고, 누르는 것은 손가락 크기(약 40px) */
+  #pg-bas .bas-main{padding:12px 12px 20px}
+  #pg-bas .card{padding:16px 14px;border-radius:14px;margin-bottom:12px}
+  #pg-bas .bas-ph{flex-wrap:wrap;gap:8px}
+  #pg-bas .bas-ph .bas-tools,#pg-bas .bas-ph .bas-head-tools{width:100%}
+  #pg-bas .bas-tiles{grid-template-columns:1fr 1fr;gap:8px}
+  #pg-bas .bas-tile{padding:13px 14px}
+  #pg-bas .bas-tile:nth-child(3){grid-column:1 / -1}
+  #pg-bas .bas-tile .v{font-size:22px}
+  #pg-bas .bas-ord{grid-template-columns:1fr;gap:10px;padding:14px 2px}
+  #pg-bas .bas-q{justify-content:flex-start;gap:20px;background:var(--panel2);border-radius:10px;padding:10px 12px}
+  #pg-bas .bas-q div{text-align:left}
+  #pg-bas .bas-ship{display:grid;grid-template-columns:minmax(0,1fr) 72px auto;gap:6px;text-align:left}
+  #pg-bas .bas-ship input,#pg-bas .bas-ship input[type=number]{width:100%;min-height:40px}
+  #pg-bas .bas-ship button{min-height:40px}
+  #pg-bas #bas-poTbl td.c-ship input{min-height:40px}
+  #pg-bas #bas-poTbl td.c-ship input[type=date]{flex:1;min-width:0}
+  #pg-bas #bas-poTbl td.c-ship button{min-height:40px;padding:6px 16px!important}
+  #pg-bas button.primary{min-height:40px}
+  #pg-bas .bas-actions{justify-content:stretch}
+  #pg-bas .bas-actions .grow{flex-basis:100%}
+  #pg-bas .bas-actions button.primary{margin-left:auto}
+  #pg-bas .bas-head-tools{justify-content:space-between}
+  #pg-bas .bas-grp{flex-wrap:wrap;margin-top:20px}
+  #pg-bas .bas-grp .mini{flex-basis:100%;padding-left:30px}
   #pg-bas input:not([type=checkbox]){max-width:100%}
   #pg-bas .card h2 .muted{display:block;margin-left:0}
+}
+@media(max-width:900px){
+  /* 재고 표 → 품목마다 카드: 이름·상태 / 실사 ＋ 입고 － 출고 ＝ 예상 (태블릿부터 — 768 에서 표가 상자 안에서 밀려서) */
+  #pg-bas #bas-stockTbl{border:0;max-height:none;overflow:visible}
+  #pg-bas #bas-stockTbl table,#pg-bas #bas-stockTbl tbody{display:block}
+  #pg-bas #bas-stockTbl thead{display:none}
+  #pg-bas #bas-stockTbl tr.st-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"nm nm st" "a b c" "tot tot tot";
+    gap:8px 10px;padding:14px 2px;border-bottom:1px solid var(--line)}
+  #pg-bas #bas-stockTbl tr.st-row td{border:0;padding:0;white-space:normal;text-align:left}
+  #pg-bas #bas-stockTbl td.c-nm{grid-area:nm;font-weight:700;font-size:14px}
+  #pg-bas #bas-stockTbl td.c-st{grid-area:st;text-align:right}
+  #pg-bas #bas-stockTbl td:nth-child(2){grid-area:a}
+  #pg-bas #bas-stockTbl td:nth-child(3){grid-area:b}
+  #pg-bas #bas-stockTbl td:nth-child(4){grid-area:c}
+  #pg-bas #bas-stockTbl td.c-n:before{content:attr(data-l);display:block;font-size:11px;color:var(--sub)}
+  #pg-bas #bas-stockTbl td.c-n>b{font-size:16px!important}
+  #pg-bas #bas-stockTbl td.c-tot{grid-area:tot;background:var(--panel2);border-radius:10px;padding:10px 12px}
+  #pg-bas #bas-stockTbl td.c-tot>b{font-size:22px!important}
 }
 </style>
 <!-- 분류는 왼쪽 세로 꼬리표 (사장님 2026-10-21 「왼쪽행으로 … 좀더 간략」). 휴대폰은 위 한 줄 -->
@@ -2058,12 +2203,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <div class="bas-head">
   <h1>🛁 바스 <span class="sub">드림하이텍</span></h1>
   <div class="tabs">
+    <!-- 탭 넷 = 업무 차례 (2026-10-26 개편 1단계). 예전 「창고 출고 · 실사·입고예정 · 예시 입력」 은 「재고 기록」 한 탭으로, 입고 예정은 현황으로 -->
     <div class="tab active" data-p="now">현황</div>
-    <div class="tab" data-p="srm">창고 출고</div>
     <div class="tab" data-p="deliv">발주·납품</div>
-    <div class="tab" data-p="stock">실사·입고예정</div>
+    <div class="tab" data-p="record">재고 기록</div>
     <div class="tab" data-p="close">월 마감</div>
-    <div class="tab bas-tab-sub" data-p="snap">예시 입력</div>
     <div class="tab" data-p="hit" style="display:none">예시 적중률</div>
   </div>
   <div class="bas-side-note">
@@ -2076,45 +2220,58 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- 현황 -->
 <section class="page active" id="bas-page-now">
   <div id="bas-migrate"></div>
-  <div class="card">
-    <h2>📊 창고 출고 올린 범위 <span class="muted">재고 추측이 어디까지 반영됐는지</span></h2>
-    <div id="bas-srmCov"></div>
-  </div>
-  <div class="card" style="border-color:var(--warn)">
-    <h2>📥 미납 발주 <span class="muted">발주는 왔는데 아직 안 보낸 것 — 창고가 비었다는 신호</span></h2>
-    <div class="tbl-wrap" id="bas-poOpen"></div>
-  </div>
-  <div class="card">
-    <h2>📦 지금 창고 재고 <span class="muted">월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고</span></h2>
-    <div id="bas-stockSum" style="margin:10px 0 4px"></div>
-    <div class="tbl-wrap" id="bas-stockTbl" style="margin-top:8px"></div>
-    <div class="hint" style="margin-top:10px">
-      <b>월말 실사</b>는 재고 업체가 세어 알려준 값입니다. 여기가 출발점입니다.
-      실사가 아직 없으면 마지막 입고분으로 잡은 <b>하한</b>(<b>≥</b>)을 씁니다.<br>
-      <b>그 뒤 입고</b>는 실사 이후 우리가 창고로 보낸 합계이고, 아래 작은 글씨가 <b>가장 최근 입고</b>입니다.<br>
-      <b>창고 출고</b>는 SRM으로 올린 것만 셉니다 — 위 「올린 범위」에 빠진 날이 있으면 그만큼 덜 빠져
-      <b>예상 재고가 실제보다 많아 보입니다</b>.<br>
-      <b>한 달에 몇 장씩 나가는지</b>는 <b>실사끼리 견줘</b> 냅니다
-      <span class="mini">(앞 실사 ＋ 그 사이 입고 － 뒤 실사)</span>. 여기에는 SRM이 들어가지 않습니다 —
-      바스는 창고재고운영이라 판매오더가 나가는 물량의 일부만 보여주기 때문입니다
-      <span class="mini">(8월 실측 59%)</span>. 실사가 하나뿐인 품목만 SRM으로 재고, 그때는 그렇게 적어 둡니다.<br>
-      색은 <b>며칠 버티나</b>로 봅니다 — 빨강 <span id="bas-thCrit">14</span>일 안에 바닥(또는 마이너스) ·
-      주황 <span id="bas-thLow">30</span>일 안에 바닥 · 초록 그 밖.
-      <span class="mini">소진 속도를 모르는 품목(실사가 하나뿐)만 장수로 봅니다 — 5장·10장.</span>
+  <!-- 요약 3칸 (2026-10-26 개편 2단계) — 숫자는 아래 표·카드가 쓰는 판정 그대로: 미납 = poWithRemain · 부족 = stockOf 등급 · 출고 자료 = srmCoverage -->
+  <div class="bas-tiles" id="bas-nowTiles"></div>
+  <div id="bas-srmCov"></div>
+  <div class="card" id="bas-nowOpenCard">
+    <div class="bas-ph">
+      <div><h2>미납 발주 <span class="bas-cnt" id="bas-poOpenCount"></span></h2>
+        <div class="sub">납품이 필요한 발주입니다. 보낸 날·수량을 고치고 [납품함]을 누르십시오.</div></div>
+      <button class="bas-link" onclick="BAS.goTab('deliv')">전체 발주 보기 →</button>
     </div>
+    <div id="bas-poOpen"></div>
+  </div>
+  <div class="card" id="bas-nowStockCard">
+    <div class="bas-ph">
+      <div><h2>지금 창고 재고 <span class="bas-cnt" id="bas-stockCnt"></span></h2>
+        <div class="sub">월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고</div></div>
+      <div class="bas-head-tools"><div id="bas-stockSum"></div></div>
+    </div>
+    <div class="bas-sumline" style="margin:0 0 6px">
+      <span>예상 재고는 마지막으로 올린 창고 출고 자료까지만 뺀 값입니다.</span>
+      <details class="bas-fold" ontoggle="document.getElementById('bas-stockHow').hidden=!this.open"><summary>ⓘ 계산 방법</summary></details>
+    </div>
+    <div class="bas-fold-body" id="bas-stockHow" hidden>
+      <div class="hint">
+        <b>월말 실사</b>는 재고 업체가 세어 알려준 값입니다. 여기가 출발점입니다.
+        실사가 아직 없으면 마지막 입고분으로 잡은 <b>하한</b>(<b>≥</b>)을 씁니다.<br>
+        <b>그 뒤 입고</b>는 실사 이후 우리가 창고로 보낸 합계이고, 아래 작은 글씨가 <b>가장 최근 입고</b>입니다.<br>
+        <b>창고 출고</b>는 SRM으로 올린 것만 셉니다 — 위 「출고 자료」 칸에 빠진 날이 있으면 그만큼 덜 빠져
+        <b>예상 재고가 실제보다 많아 보입니다</b>.<br>
+        <b>한 달에 몇 장씩 나가는지</b>는 <b>실사끼리 견줘</b> 냅니다
+        <span class="mini">(앞 실사 ＋ 그 사이 입고 － 뒤 실사)</span>. 여기에는 SRM이 들어가지 않습니다 —
+        바스는 창고재고운영이라 판매오더가 나가는 물량의 일부만 보여주기 때문입니다
+        <span class="mini">(8월 실측 59%)</span>. 실사가 하나뿐인 품목만 SRM으로 재고, 그때는 그렇게 적어 둡니다.<br>
+        색은 <b>며칠 버티나</b>로 봅니다 — 빨강 <span id="bas-thCrit">14</span>일 안에 바닥(또는 마이너스) ·
+        주황 <span id="bas-thLow">30</span>일 안에 바닥 · 초록 그 밖.
+        <span class="mini">소진 속도를 모르는 품목(실사가 하나뿐)만 장수로 봅니다 — 5장·10장.</span>
+        </div>
+    </div>
+    <div class="tbl-wrap" id="bas-stockTbl" style="margin-top:8px"></div>
   </div>
 
-  <div class="card">
-    <h2>📅 일자별 출고 <span class="muted" id="bas-nowGridTitle"></span></h2>
-    <div class="hint">위 재고 추측이 무엇을 빼서 나온 값인지 그대로 보여줍니다.
-      <b>빈 칸이 이어지면 그날 자료를 아직 안 올린 것</b>일 수 있습니다.</div>
-    <div class="row" style="margin:10px 0">
-      <button class="ghost" onclick="BAS.srmShiftMonth(-1)">‹ 이전달</button>
-      <button class="ghost" onclick="BAS.srmShiftMonth(1)">다음달 ›</button>
-      <span class="mini" style="align-self:center">회색 칸은 아직 나가지 않은 예정분입니다.</span>
+  <!-- 「📅 일자별 출고」 표는 재고 기록 탭의 「모델 × 일자」 와 같은 표라 그쪽 하나로 모았습니다(2026-10-26). renderNow 의 renderSrmGrid('nowGrid') 는 칸이 없으면 그냥 지나갑니다 -->
+  <details class="card" id="bas-aheadCard" style="padding:0">
+    <summary style="padding:12px 14px;cursor:pointer;font-size:15px;font-weight:700;list-style:none">
+      📅 입고 예정 <span class="muted" id="bas-aheadCount" style="font-weight:500"></span>
+    </summary>
+    <div style="padding:0 14px 12px">
+    <div class="hint">앞날 출고일로 <b>납품 기록</b>에 넣으시면 여기에 모여 보이고, 위 재고 표의 예상 재고 아래에도 함께 뜹니다.
+      들어온 날이 지나면 저절로 <b>지금 재고</b>로 옮겨 갑니다.<br>
+      발주일과 출고일은 다른 날입니다 — 여기 적는 날짜는 <b>물건이 창고에 들어가는 날(출고일)</b>입니다.</div>
+    <div class="tbl-wrap" id="bas-aheadTbl" style="margin-top:10px"></div>
     </div>
-    <div class="tbl-wrap" id="bas-nowGrid"></div>
-  </div>
+  </details>
 
   <details class="card" style="padding:0">
     <summary style="padding:16px 18px;cursor:pointer;font-size:15px;font-weight:700;list-style:none">
@@ -2133,134 +2290,109 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </details>
 </section>
 
-<!-- 실사·입고예정 (재고 추측의 기준점을 넣는 곳) -->
-<section class="page" id="bas-page-stock">
+<!-- 재고 기록 — 재고 계산에 들어가는 자료를 넣는 곳 (2026-10-26 개편 1단계: 예전 창고 출고 · 실사·입고예정 · 예시 입력 세 탭을 모음) -->
+<section class="page" id="bas-page-record">
+  <!-- 재고 기록 (2026-10-26 개편 4단계) — 자주: ① 창고 출고 엑셀 · ② 월말 실사 / 가끔: 손으로 넣기 · 출고예시 · 관리는 접어 둠. 칸 아이디는 예전 그대로 -->
+  <div class="bas-grp"><span class="bas-step">1</span>창고 출고 (SRM) <span class="mini">창고에서 실제로 나간 물량 — 재고에서 빠집니다</span></div>
   <div class="card">
-    <h2>입고 예정 <span class="muted">앞으로 들어올 물량</span></h2>
-    <div class="hint">앞날 출고일로 <b>납품 기록</b>에 넣으시면 여기에 모여 보이고, 위 표의 「입고 예정」 칸에도 함께 뜹니다.
-      들어온 날이 지나면 저절로 <b>지금 재고</b>로 옮겨 갑니다.<br>
-      발주일과 출고일은 다른 날입니다 — 여기 적는 날짜는 <b>물건이 창고에 들어가는 날(출고일)</b>입니다.</div>
-    <div class="tbl-wrap" id="bas-aheadTbl" style="margin-top:10px"></div>
-  </div>
-  <div class="card">
-    <h2>실사값 입력 <span class="muted">재고 업체가 알려준 월초 재고를 넣으면 기준점이 됩니다</span></h2>
-    <div class="row">
-      <div><label class="fld">실사 날짜 <span class="mini">(보통 매달 1일)</span></label>
-        <input type="date" id="bas-countDate"></div>
-      <div class="mini" style="align-self:flex-end;padding-bottom:6px">
-        이 날짜의 실제 재고를 넣으면, 그 뒤 입고·출고로 추정을 이어갑니다.</div>
-    </div>
-    <div class="tbl-wrap" id="bas-countTbl" style="margin-top:12px"></div>
-  </div>
-
-  <div class="card">
-    <h2>자료 내보내기 · 되살리기 <span class="muted">지금까지 올린 것을 파일 하나로</span></h2>
-    <div class="hint">
-      바스 자료는 이 기기에 저장되고 <b>구글 시트에도 함께 올라가</b> 다른 기기에서도 보입니다
-      <span class="mini">(창고 출고는 최근 120일만 시트에 올리고, 예시 스냅샷은 이 기기에만 둡니다)</span>.<br>
-      그래도 가끔 <b>내보내기</b>로 파일을 빼 두시면 안심입니다. 내보낸 파일에는 <b>지금 추정하고 있는 재고</b>도 함께 적힙니다.<br>
-      <b>되살리기</b>는 지금 화면의 자료를 <b>파일 내용으로 통째 바꿉니다</b>. 바꾸기 전 상태는 자동으로 한 번 더 내려받아 두므로 되돌릴 수 있습니다.<br>
-      <b>옛 화면 자료 넣기</b> — 예전에 따로 여시던 「바스재고운영」 화면에서 「📤 내보내기」로 받은 파일을 넣습니다. 옛 화면과 그 자료는 그대로 남습니다.
-    </div>
-    <div class="row" style="margin-top:12px">
-      <button class="primary" id="bas-btnBackupOut">📤 내보내기</button>
-      <button class="ghost" id="bas-btnBackupIn">📥 되살리기</button>
-      <button class="ghost" id="bas-btnOldFile">📂 옛 화면 백업 파일 넣기</button>
-      <button class="ghost" id="bas-btnOldLocal" style="display:none">이 주소의 옛 자료 넣기</button>
-      <input type="file" id="bas-oldFile" accept=".json,application/json" style="display:none">
-      <input type="file" id="bas-backupFile" accept=".json,application/json" style="display:none">
-    </div>
-    <div class="mini" id="bas-backupInfo" style="margin-top:10px"></div>
-  </div>
-</section>
-
-<!-- 창고 출고(SRM) -->
-<section class="page" id="bas-page-srm">
-  <div class="card">
-    <h2>SRM 판매오더 리스트 넣기 <span class="muted">창고에서 실제로 나간 물량</span></h2>
-    <div class="hint">한샘 밴더시스템에서 받은 「판매오더 리스트」 엑셀을 넣으세요.
-      <b>여러 개를 한꺼번에</b> 넣으셔도 됩니다. 같은 출고일이 다시 들어오면 <b>더하지 않고 새것으로 갈아끼웁니다</b> —
-      같은 파일을 몇 번 넣으셔도 수량이 부풀지 않습니다.</div>
-    <div class="row" style="margin:12px 0 10px">
-      <div><label class="fld">조회한 날짜 <span class="mini">(SRM에서 뽑은 날)</span></label>
-        <input type="date" id="bas-srmAsof"></div>
-      <div class="mini" style="align-self:flex-end;padding-bottom:6px">
-        이 날짜까지의 출고일은 <b>확정</b>, 그 뒤는 <b>예정</b>으로 봅니다.</div>
+    <div class="bas-ph">
+      <div><h2>판매오더 리스트 넣기</h2>
+        <div class="sub">한샘 밴더시스템의 「판매오더 리스트」 엑셀. 여러 개를 한꺼번에 넣어도 되고, 같은 출고일은 새것으로 갈아끼워 부풀지 않습니다.</div></div>
+      <div class="bas-tools"><label for="bas-srmAsof">조회한 날짜</label><input type="date" id="bas-srmAsof"></div>
     </div>
     <div class="dropzone" id="bas-dzSrm">
       <div class="big">SRM 엑셀 놓기 / 클릭 (여러 개 가능)</div>
       <div class="mini" id="bas-srmInfo">아직 없음</div>
     </div>
     <input type="file" id="bas-fileSrm" accept=".xlsx,.xls,.xlsm,.csv" multiple hidden>
-  </div>
-
-  <div class="card">
-    <h2>수기로 넣기 <span class="muted">몇 건 안 될 때는 이게 더 빠릅니다</span></h2>
-    <div class="hint">제품칸에 <b>모델명 일부</b>(예: 매그놀리아)나 <b>코드</b>(BB1000240)를 치면 찾아줍니다.
-      같은 날 같은 제품을 또 넣으면 수량이 <b>합쳐집니다</b>.</div>
-    <div class="row" style="margin-top:12px">
-      <div><label class="fld">출고일</label><input type="date" id="bas-sOutDate"></div>
-      <div><label class="fld">제품 (모델명 또는 코드)</label>
-        <input id="bas-sCode" list="bas-sCodeList" placeholder="예: 매그놀리아 · BB1000240" style="width:290px" autocomplete="off">
-        <datalist id="bas-sCodeList"></datalist></div>
-      <div><label class="fld">수량</label><input type="number" id="bas-sQty" min="1" style="width:85px"></div>
-      <button class="primary" id="bas-btnSrmAdd">추가</button>
+    <div class="bas-actions">
+      <span class="mini grow">조회한 날짜까지의 출고일은 <b>확정</b>, 그 뒤는 <b>예정</b>으로 봅니다.</span>
+      <button class="bas-fbtn" id="bas-fb-srmManCard" onclick="BAS.toggleSub('srmManCard')">✏️ 손으로 넣기</button>
     </div>
-    <div id="bas-sCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
-    <div id="bas-srmManual" style="margin-top:8px"></div>
+    <div class="bas-fold-body" id="bas-srmManCard" hidden>
+      <div class="hint" style="margin-bottom:8px">몇 건 안 될 때 — 제품칸에 <b>모델명 일부</b>(예: 매그놀리아)나 <b>코드</b>(BB1000240). 같은 날 같은 제품을 또 넣으면 수량이 <b>합쳐집니다</b>.</div>
+      <div class="row">
+        <div><label class="fld">출고일</label><input type="date" id="bas-sOutDate"></div>
+        <div><label class="fld">제품 (모델명 또는 코드)</label>
+          <input id="bas-sCode" list="bas-sCodeList" placeholder="예: 매그놀리아 · BB1000240" style="width:290px;max-width:100%" autocomplete="off">
+          <datalist id="bas-sCodeList"></datalist></div>
+        <div><label class="fld">수량</label><input type="number" id="bas-sQty" min="1" style="width:85px"></div>
+        <button class="primary" id="bas-btnSrmAdd">추가</button>
+      </div>
+      <div id="bas-sCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
+      <div id="bas-srmManual" style="margin-top:8px;overflow-x:auto"></div>
+    </div>
   </div>
 
   <div class="card">
-    <h2>보관 현황 <span class="muted" id="bas-srmCount"></span></h2>
+    <div class="bas-ph">
+      <div><h2>올린 출고 자료 <span class="bas-cnt" id="bas-srmCount"></span></h2></div>
+      <div class="bas-tools">
+        <button class="quiet" id="bas-btnSrmExport">CSV 내보내기</button>
+        <button class="quiet dng" id="bas-btnSrmClear">전체 지우기</button>
+      </div>
+    </div>
     <div id="bas-srmKpi" class="grid-stats" style="margin-bottom:12px"></div>
     <div id="bas-srmWarn"></div>
     <div class="tbl-wrap" id="bas-srmDayTbl"></div>
-    <div class="row" style="margin-top:10px">
-      <button class="ghost" id="bas-btnSrmExport">CSV 내보내기</button>
-      <button class="ghost" id="bas-btnSrmClear">전체 지우기</button>
-    </div>
   </div>
 
   <div class="card">
-    <h2>모델 × 일자 <span class="muted" id="bas-srmGridTitle"></span></h2>
-    <div class="row" style="margin-bottom:10px">
-      <button class="ghost" id="bas-srmPrev">‹ 이전달</button>
-      <button class="ghost" id="bas-srmNext">다음달 ›</button>
-      <span class="mini" style="align-self:center">회색 칸은 아직 나가지 않은 예정분입니다.</span>
+    <div class="bas-ph">
+      <div><h2>모델 × 일자 <span class="bas-cnt" id="bas-srmGridTitle"></span></h2>
+        <div class="sub">회색 칸은 아직 나가지 않은 예정분입니다.</div></div>
+      <div class="bas-tools">
+        <button class="quiet" id="bas-srmPrev">‹ 이전달</button>
+        <button class="quiet" id="bas-srmNext">다음달 ›</button>
+      </div>
     </div>
     <div class="tbl-wrap" id="bas-srmGrid"></div>
   </div>
-</section>
 
-<!-- 예시 입력 -->
-<section class="page" id="bas-page-snap">
+  <div class="bas-grp"><span class="bas-step">2</span>월말 실사 <span class="mini">재고 업체가 세어 준 값 — 재고 계산의 출발점</span></div>
   <div class="card">
-    <h2>출고예시분석에서 받기 <span class="muted">엑셀을 두 번 넣지 않기 위한 통로</span></h2>
-    <div class="hint">출고예시분석에 이미 쌓아둔 바스 스냅샷을 그대로 가져옵니다.
-      바스 판정과 중복 제거는 그쪽에서 이미 끝난 상태라, 여기서는 아래 엑셀 업로드를 하지 않으셔도 됩니다.</div>
-    <div class="row" style="margin-top:12px;align-items:center">
-      <button class="primary" id="bas-btnBridgePull">예시분석에서 불러오기</button>
-      <button class="ghost" id="bas-btnBridgeFile">브리지 파일 열기…</button>
-      <input type="file" id="bas-fileBridge" accept=".json,application/json" hidden>
+    <div class="bas-ph">
+      <div><h2>실사값 입력</h2>
+        <div class="sub">이 날짜의 실제 재고를 넣으면, 그 뒤 입고·출고로 추정을 이어갑니다. 칸을 고치면 바로 저장됩니다.</div></div>
+      <div class="bas-tools"><label for="bas-countDate">실사 날짜</label><input type="date" id="bas-countDate"></div>
     </div>
-    <div class="hint" id="bas-bridgeInfo" style="margin-top:10px;min-height:16px"></div>
-    <div class="row" style="margin-top:6px;align-items:center">
-      <span class="mini" id="bas-bridgeCount"></span>
-      <button class="ghost" id="bas-btnBridgeClear" style="padding:4px 9px;font-size:12px">받아온 것만 지우기</button>
+    <div class="tbl-wrap" id="bas-countTbl"></div>
+  </div>
+
+  <div class="bas-grp" style="font-size:13.5px;color:var(--sub)">가끔 쓰는 것</div>
+  <div class="bas-subrow">
+    <button class="bas-fbtn" id="bas-fb-snapWrap" onclick="BAS.toggleSub('snapWrap')">출고예시 스냅샷</button>
+    <button class="bas-fbtn" id="bas-fb-backupWrap" onclick="BAS.toggleSub('backupWrap')">자료 내보내기 · 되살리기</button>
+  </div>
+
+  <div id="bas-snapWrap" hidden>
+  <div class="card">
+    <div class="bas-ph">
+      <div><h2>출고예시분석에서 받기</h2>
+        <div class="sub">출고예시분석에 쌓아 둔 바스 스냅샷을 그대로 가져옵니다(바스 판정·중복 제거는 그쪽에서 끝남). 받으면 아래 엑셀은 안 넣으셔도 됩니다.</div></div>
+    </div>
+    <div class="hint" id="bas-bridgeInfo" style="min-height:16px"></div>
+    <div class="bas-actions">
+      <span class="mini grow" id="bas-bridgeCount"></span>
+      <button class="quiet" id="bas-btnBridgeClear">받아온 것만 지우기</button>
+      <button class="quiet" id="bas-btnBridgeFile">브리지 파일 열기…</button>
+      <input type="file" id="bas-fileBridge" accept=".json,application/json" hidden>
+      <button class="primary" id="bas-btnBridgePull">예시분석에서 불러오기</button>
     </div>
   </div>
   <div class="card">
-    <h2>예시표 업로드 <span class="muted">위에서 못 받았을 때만 쓰세요. 오늘 칸이 그날의 확정 물량입니다.</span></h2>
-    <div class="row" style="margin-bottom:12px">
-      <div><label class="fld">뽑은 날짜(오늘)</label><input type="date" id="bas-snapDate"></div>
+    <div class="bas-ph">
+      <div><h2>예시표 올리기</h2>
+        <div class="sub">위에서 못 받았을 때만. 오늘 칸이 그날의 확정 물량입니다. 와이비앤디 예시에 없는 코드만 바스 소요로 읽습니다.</div></div>
+      <div class="bas-tools"><label for="bas-snapDate">뽑은 날짜</label><input type="date" id="bas-snapDate"></div>
     </div>
     <div class="row">
-      <div style="flex:1">
+      <div style="flex:1;min-width:200px">
         <label class="fld">① 드림하이텍 예시표 <span class="mini">(필수)</span></label>
         <div class="dropzone" id="bas-dzDream"><div class="big">드림 예시표 놓기 / 클릭</div>
           <div class="mini" id="bas-dreamInfo">아직 없음</div></div>
       </div>
-      <div style="flex:1">
+      <div style="flex:1;min-width:200px">
         <label class="fld">② 와이비앤디 예시표 <span class="mini">(중복 제거용 · 같은 시각에 뽑은 것)</span></label>
         <div class="dropzone" id="bas-dzYbnd"><div class="big">와이비 예시표 놓기 / 클릭</div>
           <div class="mini" id="bas-ybndInfo">아직 없음</div></div>
@@ -2268,102 +2400,134 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <input type="file" id="bas-fileDream" accept=".xlsx,.xls" hidden>
     <input type="file" id="bas-fileYbnd" accept=".xlsx,.xls" hidden>
-    <div class="hint">와이비앤디 예시를 기준으로 삼아, 거기 없는 코드만 바스 소요로 읽습니다. 시스템 오류로 생긴 중복(현재 41개)이 사라져도 결과는 그대로입니다.</div>
-    <div class="row" style="margin-top:12px">
+    <div class="bas-actions">
+      <span class="hint grow" id="bas-snapPreview" style="margin:0"></span>
       <button class="primary" id="bas-btnSaveSnap">스냅샷 저장</button>
-      <span class="hint" id="bas-snapPreview"></span>
     </div>
   </div>
   <div class="card">
-    <h2>저장된 스냅샷 <span class="muted" id="bas-snapCount"></span></h2>
+    <h2>저장된 스냅샷 <span class="bas-cnt" id="bas-snapCount"></span></h2>
     <div class="tbl-wrap" id="bas-snapTbl"></div>
+  </div>
+  </div>
+
+  <div id="bas-backupWrap" hidden>
+  <div class="card">
+    <div class="bas-ph">
+      <div><h2>자료 내보내기 · 되살리기</h2>
+        <div class="sub">바스 자료는 이 기기와 구글 시트에 함께 저장됩니다. 가끔 파일로 빼 두시면 안심입니다.</div></div>
+    </div>
+    <div class="hint">
+      <span class="mini">(창고 출고는 최근 120일만 시트에 올리고, 예시 스냅샷은 이 기기에만 둡니다.)</span>
+      내보낸 파일에는 <b>지금 추정하고 있는 재고</b>도 함께 적힙니다.<br>
+      <b>되살리기</b>는 지금 화면의 자료를 <b>파일 내용으로 통째 바꿉니다</b>. 바꾸기 전 상태는 자동으로 한 번 더 내려받아 두므로 되돌릴 수 있습니다.<br>
+      <b>옛 화면 자료 넣기</b> — 예전에 따로 여시던 「바스재고운영」 화면에서 「📤 내보내기」로 받은 파일을 넣습니다. 옛 화면과 그 자료는 그대로 남습니다.
+    </div>
+    <div class="bas-actions">
+      <span class="mini grow" id="bas-backupInfo"></span>
+      <button class="quiet" id="bas-btnOldLocal" style="display:none">이 주소의 옛 자료 넣기</button>
+      <button class="quiet" id="bas-btnOldFile">📂 옛 화면 백업 파일 넣기</button>
+      <button class="quiet" id="bas-btnBackupIn">📥 되살리기</button>
+      <button class="primary" id="bas-btnBackupOut">📤 내보내기</button>
+      <input type="file" id="bas-oldFile" accept=".json,application/json" style="display:none">
+      <input type="file" id="bas-backupFile" accept=".json,application/json" style="display:none">
+    </div>
+  </div>
   </div>
 </section>
 
 <!-- 납품 기록 -->
 <section class="page" id="bas-page-deliv">
+  <!-- 발주·납품 (2026-10-26 개편 3·4단계) — 기본 흐름: 발주 등록 → 미납 확인 → [납품함]. 나머지 넣는 길은 아래 「보조」 단추 뒤에 접어 둡니다.
+       카드·칸 아이디는 예전 그대로라 넣는 일(poAdd·poShip·addDeliv·pasteAdd·slipAdd)은 하나도 안 바뀝니다 -->
+  <div id="bas-slipBar"></div>
+
+  <div class="card" id="bas-posCard">
+    <div class="bas-ph">
+      <div><h2>발주 현황 <span class="bas-cnt" id="bas-poCount"></span></h2>
+        <div class="sub">물건을 보냈으면 그 줄에서 보낸 날·수량을 고치고 [납품함]. 오더번호가 그 발주에 저절로 붙습니다.</div></div>
+      <div class="bas-head-tools"><div class="bas-flt" id="bas-poFlt"></div>
+        <button class="primary" id="bas-fb-poAddCard" onclick="BAS.toggleSub('poAddCard')">＋ 발주 등록</button></div>
+    </div>
+    <div class="bas-fold-body" id="bas-poAddCard" hidden style="padding:16px 18px;margin-bottom:14px">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:2px">발주 등록</div>
+      <div class="hint" style="margin-bottom:10px">SRM <b>P/O 구매오더상세</b> 표를 그대로 복사해 붙여넣고 <b>오더번호·발주일자</b>만 채우십시오. 아직 납품 안 한 발주도 넣어 두면 미납이 보입니다.</div>
+      <div class="row">
+        <div><label class="fld">오더번호 <span style="color:var(--bad)">＊꼭 입력</span></label>
+          <input id="bas-poOrd" placeholder="예: 5100653156" style="width:150px" autocomplete="off"></div>
+        <div><label class="fld">발주일자 <span style="color:var(--bad)">＊</span></label><input type="date" id="bas-poDate"></div>
+      </div>
+      <textarea id="bas-poBox" rows="4" placeholder="P/O 표를 여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  51,062  2,553,100  20260825"
+        style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel)"></textarea>
+      <div id="bas-poPreview" style="margin-top:8px"></div>
+      <div class="bas-actions" style="margin-top:10px">
+        <span class="hint grow" id="bas-poInfo" style="margin:0"></span>
+        <button class="primary" id="bas-btnPoAdd">발주 넣기</button>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="bas-poTbl"></div>
+    <div class="mini" style="margin-top:8px">미납 잔량은 발주일이 이른 것부터 채웁니다(선입선출). 오더번호가 붙은 납품은 그 발주에 바로 붙습니다.</div>
+  </div>
+
+  <div class="bas-subrow">보조
+    <button class="bas-fbtn" id="bas-fb-slipCard" onclick="BAS.toggleSub('slipCard')">📦 납품서 대조 <span id="bas-slipBtnCnt"></span></button>
+    <button class="bas-fbtn" id="bas-fb-delivAddCard" onclick="BAS.toggleSub('delivAddCard')">발주 없는 납품</button>
+    <button class="bas-fbtn" id="bas-fb-pasteCard" onclick="BAS.toggleSub('pasteCard')">여러 건 붙여넣기</button>
+    <button class="bas-fbtn" id="bas-fb-delivLogCard" onclick="BAS.toggleSub('delivLogCard')">납품 기록 보기</button>
+  </div>
   <!-- 📦 납품서에서 온 바스 (2026-10-21 — CLAUDE.md 12-62). 앱 납품서 탭에 올린 한샘 납품서의 BB 품목을 찾아 보여 주고, 눌러서 넣습니다 -->
-  <div class="card" id="bas-slipCard">
+  <div class="card" id="bas-slipCard" hidden>
     <h2>📦 납품서에서 온 바스 <span class="muted" id="bas-slipCount"></span></h2>
     <div id="bas-slipBody"></div>
   </div>
-  <div class="card" style="border-color:var(--warn)">
-    <h2>① 발주 받기 <span class="muted">한샘이 우리한테 넣은 주문 — 아직 납품 안 한 것도 여기 넣습니다</span></h2>
-    <div class="hint">발주가 왔다는 건 <b>창고 물량이 떨어졌다</b>는 뜻입니다. 납품하기 전에 먼저 넣어두면
-      미납이 얼마인지, 발주가 얼마나 자주 오는지 보입니다.<br>
-      <b>P/O구매오더상세</b> 화면의 표를 그대로 복사해 붙여넣고, 위쪽 <b>오더번호·발주일자</b>만 채우면 됩니다.</div>
-    <div class="row" style="margin-top:10px">
-      <div><label class="fld">오더번호 <span style="color:var(--bad)">＊꼭 입력</span></label>
-        <input id="bas-poOrd" placeholder="예: 5100653156" style="width:150px" autocomplete="off"></div>
-      <div><label class="fld">발주일자 <span style="color:var(--bad)">＊</span></label><input type="date" id="bas-poDate"></div>
-    </div>
-    <textarea id="bas-poBox" rows="4" placeholder="P/O 표를 여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  51,062  2,553,100  20260825"
-      style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
-    <div class="row" style="margin-top:10px;align-items:center">
-      <button class="primary" id="bas-btnPoAdd">발주 넣기</button>
-      <span class="hint" id="bas-poInfo"></span>
-    </div>
-    <div id="bas-poPreview" style="margin-top:8px"></div>
-  </div>
-
-  <div class="card">
-    <h2>발주 현황 <span class="muted" id="bas-poCount"></span></h2>
-    <div class="hint"><b>물건을 보내셨으면 여기 줄에서 바로 넣으세요.</b>
-      수량은 미납분이 미리 채워져 있으니, 실제로 보낸 만큼으로 고치고 <b>[납품함]</b>만 누르시면 됩니다.
-      아래 「납품 추가」로 내려가 다시 칠 필요 없습니다.<br>
-      <span class="mini">미납 잔량은 발주일이 이른 것부터 채웁니다(선입선출). 여기서 넣은 납품은 오더번호로 그 발주에 정확히 붙습니다.</span></div>
-    <div class="tbl-wrap" id="bas-poTbl"></div>
-  </div>
-
-  <div class="card" id="bas-delivAddCard">
-    <h2>납품 직접 넣기 <span class="muted">발주에 없는 것만 — 보통은 위 발주 줄의 [납품함]을 쓰세요</span></h2>
-    <div class="hint" style="margin-bottom:8px">
-      발주를 안 거치고 나간 물량(샘플·긴급분 등)만 여기에 손으로 넣습니다.
-      <b>발주로 들어온 건은 위 「발주 현황」 줄에서 넣는 게 빠르고, 오더번호도 자동으로 붙습니다.</b>
-    </div>
+  <div class="card" id="bas-delivAddCard" hidden>
+    <div class="bas-ph"><div><h2>발주 없는 납품</h2>
+      <div class="sub">발주를 안 거치고 나간 물량(샘플·긴급분 등)만 손으로 넣습니다. 발주로 들어온 건은 위 「발주 현황」 줄의 [납품함]이 빠르고 오더번호도 붙습니다.</div></div></div>
     <div class="row">
       <div><label class="fld">발주일 <span class="muted">(한샘 발주 뜬 날)</span></label><input type="date" id="bas-dOrd"></div>
       <div><label class="fld">출고일 <span class="muted">(창고 들어간 날)</span></label><input type="date" id="bas-dShip"></div>
-      <div><label class="fld">제품 (모델명 또는 코드)</label><input id="bas-dCode" list="bas-dCodeList" placeholder="예: 베일화이트 320 · BB1000108" style="width:270px" autocomplete="off"><datalist id="bas-dCodeList"></datalist></div>
+      <div><label class="fld">제품 (모델명 또는 코드)</label><input id="bas-dCode" list="bas-dCodeList" placeholder="예: 베일화이트 320 · BB1000108" style="width:270px;max-width:100%" autocomplete="off"><datalist id="bas-dCodeList"></datalist></div>
       <div><label class="fld">수량</label><input type="number" id="bas-dQty" style="width:85px"></div>
       <div><label class="fld">참조문서번호 <span class="muted">(선택)</span></label><input id="bas-dRef" placeholder="5100643754" style="width:120px"></div>
+    </div>
+    <div class="bas-actions">
+      <span class="muted grow" id="bas-dCodeHint" style="min-height:16px;font-size:12.5px"></span>
       <button class="primary" id="bas-btnAddDeliv">추가</button>
     </div>
-    <div id="bas-dCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
   </div>
-
-  <div class="card">
-    <h2>납품 여러 건 붙여넣기 <span class="muted">이미 보낸 것을 몰아서 기록할 때</span></h2>
-    <div class="hint" style="color:var(--warn);margin-bottom:6px">
-      ⚠ 위 <b>① 발주 받기</b>와 붙여넣는 표는 같지만 <b>들어가는 곳이 다릅니다</b> —
-      여기에 넣으면 <b>이미 납품한 것</b>으로 기록됩니다(오더번호는 안 붙습니다).
-      아직 안 보낸 발주라면 <b>① 발주 받기</b>에 넣으세요.
+  <div class="card" id="bas-pasteCard" hidden>
+    <div class="bas-ph"><div><h2>여러 건 붙여넣기</h2>
+      <div class="sub">이미 보낸 것을 몰아서 기록할 때 — SRM 구매오더 상세 표를 그대로 복사해 붙여넣으십시오. 한 줄에 한 건, 자재코드·수량·단가·납품일을 알아서 뽑습니다.</div></div></div>
+    <div class="bas-banner" style="margin-bottom:10px">
+      ⚠ 위 <b>발주 등록</b>과 붙여넣는 표는 같지만 <b>들어가는 곳이 다릅니다</b> —
+      여기에 넣으면 <b>이미 납품한 것</b>으로 기록됩니다(오더번호는 안 붙습니다). 아직 안 보낸 발주라면 <b>발주 등록</b>에 넣으세요.
     </div>
-    <div class="hint">SRM 구매오더 상세의 표를 <b>그대로 복사</b>해 아래에 붙여넣으세요.
-      한 줄에 한 건입니다. <b>자재코드·수량·단가·납품일</b>을 알아서 뽑습니다(자재명에 공백·쉼표가 있어도 됩니다).<br>
-      순서: No · 순번 · <b>자재코드</b> · 자재명 · 납품처 · 저장소 · <b>수량</b> · 단위 · <b>단가</b> · … · <b>납품일(YYYYMMDD)</b></div>
     <textarea id="bas-pasteBox" rows="6" placeholder="여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  47280  0  20260604"
-      style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
-    <div class="row" style="margin-top:10px;align-items:center">
-      <button class="primary" id="bas-btnPasteAdd">붙여넣은 것 추가</button>
-      <span class="hint" id="bas-pasteInfo"></span>
-    </div>
+      style="width:100%;box-sizing:border-box;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:10px;padding:10px"></textarea>
+    <div class="mini" style="margin-top:4px">순서: No · 순번 · <b>자재코드</b> · 자재명 · 납품처 · 저장소 · <b>수량</b> · 단위 · <b>단가</b> · … · <b>납품일(YYYYMMDD)</b></div>
     <div id="bas-pastePreview" style="margin-top:8px"></div>
+    <div class="bas-actions">
+      <span class="hint grow" id="bas-pasteInfo" style="margin:0"></span>
+      <button class="primary" id="bas-btnPasteAdd">붙여넣은 것 추가</button>
+    </div>
   </div>
-
+  <div id="bas-delivLogCard" hidden>
   <div class="card">
-    <h2>발주 단위 <span class="muted">참조문서번호로 묶은 발주 — 줄을 눌러 펼치면 개별 건을 고치거나 지울 수 있습니다</span></h2>
+    <div class="bas-ph"><div><h2>발주 단위</h2>
+      <div class="sub">참조문서번호로 묶은 발주 — 줄을 눌러 펼치면 개별 건을 고치거나 지울 수 있습니다</div></div></div>
     <div class="tbl-wrap" id="bas-orderTbl"></div>
   </div>
   <div class="card">
-    <h2>납품 내역 <span class="muted" id="bas-delivCount"></span></h2>
-    <div class="hint">참조문서 칸을 눌러 번호를 채우면, 같은 번호끼리 자동으로 「발주 묶음」으로 정리됩니다.
-      붙여넣기로 들어온 건은 이 칸이 비어 있습니다.</div>
-    <div class="tbl-wrap" id="bas-delivTbl"></div>
-    <div class="row" style="margin-top:12px">
-      <button class="ghost" id="bas-btnExportDeliv">CSV 내보내기</button>
-      <button class="ghost" id="bas-btnClearDeliv" style="color:var(--bad)">전체 지우기</button>
+    <div class="bas-ph">
+      <div><h2>납품 내역 <span class="bas-cnt" id="bas-delivCount"></span></h2>
+        <div class="sub">참조문서 칸을 눌러 번호를 채우면, 같은 번호끼리 자동으로 「발주 묶음」으로 정리됩니다. 붙여넣기로 들어온 건은 이 칸이 비어 있습니다.</div></div>
+      <div class="bas-tools">
+        <button class="quiet" id="bas-btnExportDeliv">CSV 내보내기</button>
+        <button class="quiet dng" id="bas-btnClearDeliv">전체 지우기</button>
+      </div>
     </div>
+    <div class="tbl-wrap" id="bas-delivTbl"></div>
+  </div>
   </div>
 </section>
 
@@ -2387,34 +2551,39 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- 월 마감 -->
 <section class="page" id="bas-page-close">
+  <!-- 월 마감 (2026-10-26 개편 4단계) — 주 일: 마감 월 고르기 → 마감표 확인·복사 → 한샘 마감내역 대조. 단가 관리는 부가. 칸 아이디는 예전 그대로 -->
   <div class="card">
-    <h2>월 마감 <span class="muted">납품일 기준 · 코드별 월합계 · 마감표와 같은 양식</span></h2>
-    <div class="row">
-      <div><label class="fld">마감 월</label><input type="month" id="bas-closeMonth"></div>
-      <button class="ghost" id="bas-btnCopyClose">표 복사</button>
-      <button class="ghost" id="bas-btnEditPrice">단가 관리</button>
+    <div class="bas-ph">
+      <div><h2 id="bas-closeTitle">마감표</h2>
+        <div class="sub">코드별 월합계 · 한샘 마감표와 같은 양식. 반품이 있으면 반품량 칸에 넣으면 마감수량·금액이 바뀝니다.</div></div>
+      <div class="bas-tools">
+        <label for="bas-closeMonth">마감 월</label><input type="month" id="bas-closeMonth">
+        <button class="quiet" id="bas-btnEditPrice">단가 관리</button>
+        <button class="primary" id="bas-btnCopyClose">표 복사</button>
+      </div>
     </div>
-  </div>
-  <div class="card">
-    <h2 id="bas-closeTitle">마감표</h2>
     <div class="tbl-wrap" id="bas-closeTbl"></div>
-    <div class="hint">한샘 마감 자료와 한 줄씩 대조하세요. 반품이 있으면 반품량 칸에 입력하면 마감수량·금액이 반영됩니다.</div>
   </div>
 
   <div class="card">
-    <h2>한샘 마감내역 대조 <span class="muted">받으신 마감내역을 붙여넣으면 우리 기록과 맞춰봅니다</span></h2>
-    <div class="hint">SRM 「마감내역」 화면에서 표를 긁어 복사한 뒤 아래 칸에 붙여넣으세요. 머리글·합계줄은 알아서 걸러냅니다.<br>
-      마감내역의 <b>입고기간</b>이 곧 그 달 마감입니다. 위의 <b>마감 월</b>이 같은 달인지 확인해 주세요
-      <span class="mini">(7월 초에 받으신 자료라도 입고기간이 6/1~6/30이면 6월 마감입니다)</span>.</div>
-    <textarea id="bas-closePaste" rows="5" placeholder="여기에 붙여넣기…&#10;드림하이텍  1000  BB1000108  EURO5 베일화이트 하부장 새틴WH 도어 320 L  34,590  KRW  40  0  40  EA  1,383,600  KRW"
-      style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:8px;padding:9px"></textarea>
-    <div class="row" style="margin-top:9px">
-      <button class="primary" id="bas-btnCloseCmp">대조하기</button>
-      <button class="ghost" id="bas-btnClosePrice">한샘 단가로 맞추기</button>
-      <button class="ghost" id="bas-btnCloseCmpClear">대조 자료 지우기</button>
-      <span class="mini" id="bas-closeCmpInfo" style="align-self:center"></span>
+    <div class="bas-ph">
+      <div><h2>한샘 마감내역 대조</h2>
+        <div class="sub">SRM 「마감내역」 표를 긁어 붙여넣으면 우리 기록과 한 줄씩 맞춰 봅니다. 머리글·합계줄은 알아서 거릅니다.</div></div>
+      <details class="bas-fold" ontoggle="document.getElementById('bas-closeHow').hidden=!this.open"><summary>ⓘ 마감 월 맞추기</summary></details>
     </div>
-    <div class="tbl-wrap" id="bas-closeCmpTbl" style="margin-top:10px"></div>
+    <div class="bas-fold-body" id="bas-closeHow" hidden>
+      <div class="hint">마감내역의 <b>입고기간</b>이 곧 그 달 마감입니다. 위의 <b>마감 월</b>이 같은 달인지 확인해 주세요
+        <span class="mini">(7월 초에 받으신 자료라도 입고기간이 6/1~6/30이면 6월 마감입니다)</span>.</div>
+    </div>
+    <textarea id="bas-closePaste" rows="4" placeholder="여기에 붙여넣기…&#10;드림하이텍  1000  BB1000108  EURO5 베일화이트 하부장 새틴WH 도어 320 L  34,590  KRW  40  0  40  EA  1,383,600  KRW"
+      style="width:100%;box-sizing:border-box;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:10px;padding:10px"></textarea>
+    <div class="bas-actions">
+      <span class="mini grow" id="bas-closeCmpInfo"></span>
+      <button class="quiet dng" id="bas-btnCloseCmpClear">대조 자료 지우기</button>
+      <button class="quiet" id="bas-btnClosePrice">한샘 단가로 맞추기</button>
+      <button class="primary" id="bas-btnCloseCmp">대조하기</button>
+    </div>
+    <div class="tbl-wrap" id="bas-closeCmpTbl" style="margin-top:12px"></div>
   </div>
   <div class="card" id="bas-priceCard" style="display:none">
     <h2>단가 관리 <span class="muted">발주서에 적힌 금액으로 갱신하세요</span></h2>
@@ -28224,7 +28393,7 @@ const SEED_NAMES={"BB1000108":"EURO5 베일화이트 하부장 새틴WH 도어 3
    묶음(SECS)마다 고친 때(_at)를 적어 두고, 시트에서 받을 때 **묶음마다 나중에 고친 쪽**이 이깁니다.
    예시 스냅샷(snaps)은 이 기기에만 둡니다 — 동기화에 안 실립니다. */
 const LS='ybn-bas-v1', LS_OLD='bas-vmi-v2';
-const SECS=['srm','counts','delivs','pos','close','returns','prices','names','slipSkip'];
+const SECS=['srm','counts','delivs','pos','close','returns','prices','names','slipSkip','poClose'];
 const SEED_PRICES={}, SEED_DELIVS=[], SEED_COUNTS={};   // 숫자는 이어받는 자료에 들어 있습니다(공개 저장소 — 코드에 안 적음)
 function _norm(s){
   s=s||{};
@@ -28233,6 +28402,9 @@ function _norm(s){
     returns:s.returns||{}, names:Object.assign({},SEED_NAMES,s.names||{}),
     pos:s.pos||[],        // 발주(P/O) 기록 · 납품 전에도 넣어두는 것
     slipSkip:s.slipSkip||{},   // 납품서에서 온 바스 줄 가운데 「안 넣기」로 치운 것 {납품번호|코드: 때}
+    // 잔량 종료 (2026-10-26 6단계) {오더번호|코드: {on, day, reason, qty, filled, rest, at, by, undoneAt}}
+    // 납품 기록·발주 수량은 안 건드리는 「업무상 끝냄」 표시. 취소는 지우지 않고 on:false — 지우면 다른 기기의 옛 종료가 되살아납니다
+    poClose:s.poClose||{},
     srm:s.srm||{},        // 출고일 -> {asof, rows[]} · 창고에서 실제로 나간 물량
     close:s.close||{},    // 마감월 -> {at, rows{코드:{...}}} · 한샘이 보내온 마감내역 원본
     counts:Object.assign({},SEED_COUNTS,s.counts||{}),   // 실사날짜 -> {코드:수량}
@@ -28316,6 +28488,18 @@ function mergeFromSheet(r){
   let n=0;
   SECS.forEach(k=>{
     const ra=String(r.at[k]||''), la=String(ST._at[k]||'');
+    if(k==='poClose'){
+      /* 잔량 종료는 묶음 통째가 아니라 발주 줄마다 나중에 고친 쪽이 이깁니다 — 두 기기가 서로 다른 발주를 종료해도 둘 다 남게.
+         시트에 이 묶음이 없으면(옛 판 기기가 덮어 올린 경우) 이 기기 것을 그대로 두고, 다시 올립니다 */
+      const rc=r.poClose||{}, lc=ST.poClose||(ST.poClose={});
+      let ch=0, behind=!r.poClose&&Object.keys(lc).length>0;
+      Object.keys(rc).forEach(key=>{ const a=rc[key]; if(!a) return; const b=lc[key];
+        if(!b || String(a.at||'')>String(b.at||'')){ lc[key]=a; ch++; } });
+      Object.keys(lc).forEach(key=>{ const a=rc[key]; if(!a || String(lc[key].at||'')>String(a.at||'')) behind=true; });
+      if(ch){ if(ra>la) ST._at[k]=ra; n++; }
+      if(behind) _poCloseBehind=true;
+      return;
+    }
     if(!ra || ra<=la || r[k]===undefined) return;
     if(k==='srm'){
       const from=String(r.srmFrom||'');
@@ -28333,8 +28517,15 @@ function mergeFromSheet(r){
     ST._at[k]=ra; n++;
   });
   if(n){ _primeCache(); _write(); }
+  if(_poCloseBehind){   // 이 기기의 종료 표시가 시트보다 앞섬 → 한 번 올림
+    _poCloseBehind=false;
+    ST._at.poClose=new Date().toISOString(); _primeCache(); _write();
+    try{ if(typeof meta!=='undefined') meta.lastLocalChange=ST._at.poClose; }catch(e){}
+    clearTimeout(_syncT); _syncT=setTimeout(()=>{ try{ if(typeof autoSync==='function') autoSync(); }catch(e){} }, 2500);
+  }
   return n;
 }
+let _poCloseBehind=false;
 
 /* ── 옛 화면 자료 넣기 — 옛 화면 「📤 내보내기」 .json, 또는 같은 주소의 옛 저장함 ── */
 function _adopt(s, from){
@@ -28377,7 +28568,7 @@ function renderMigrate(){
   const from=ST._from?`이어받은 곳: ${ST._from}`:'';
   el.innerHTML = empty
     ? `<div class="alert warn" style="margin-top:0"><b>아직 바스 자료가 없습니다.</b> 옛 화면(바스재고운영.html)에 쌓인 자료를 한 번 넣어 주시면 이어서 씁니다.<br>
-        <span class="mini">옛 화면 → 「실사·입고예정」 탭 → <b>📤 내보내기</b> → 받은 .json 을 아래 단추로 넣으십시오. 다른 기기에서 넣으셨으면 시트에서 저절로 받아집니다.</span></div>`
+        <span class="mini">옛 화면 → 「실사·입고예정」 탭 → <b>📤 내보내기</b> → 받은 .json 을 이 앱 「재고 기록」 탭 맨 아래 「관리」의 단추로 넣으십시오. 다른 기기에서 넣으셨으면 시트에서 저절로 받아집니다.</span></div>`
     : (_syncNote?`<div class="alert warn" style="margin-top:0">${_syncNote}</div>`:'');
   const sn=$b('sideNote'); if(sn) sn.textContent = empty ? '' : from;   // 이어받은 곳은 왼쪽 줄 아래 작게 (2026-10-21)
   const b=$b('btnOldLocal'); if(b) b.style.display=hasOld?'':'none';
@@ -29120,9 +29311,13 @@ function outRange(after){
   return {from:days[0], to:days[days.length-1], n:days.length};
 }
 
-function renderStock(){
-  const rows=allCodes().map(c=>({c,s:stockOf(c)}))
+/* 재고 표에 오르는 품목 — 현황 요약 칸도 같은 줄을 셉니다(두 곳이 다른 숫자를 말하지 않게) */
+function stockRows(){
+  return allCodes().map(c=>({c,s:stockOf(c)}))
     .filter(x=>x.s.base||x.s.inn||x.s.out||x.s.planOut||x.s.soon);
+}
+function renderStock(){
+  const rows=stockRows();
   rows.sort((a,b)=>{
     if(a.s.rank!==b.s.rank) return a.s.rank-b.s.rank;      // 급한 것 먼저
     // 같은 등급 안에서는 '먼저 바닥나는 것' 먼저. 속도를 모르는 품목은 뒤로 보낸다.
@@ -29142,28 +29337,27 @@ function renderStock(){
       (n[0]?`<span class="chip b">모자람 ${n[0]}종</span> `:'')
     + (n[1]?`<span class="chip b">급함 ${n[1]}종</span> `:'')
     + (n[2]?`<span class="chip w">주의 ${n[2]}종</span> `:'')
-    + (n[3]?`<span class="chip g">여유 ${n[3]}종</span>`:'')
-    + `<span class="mini" style="margin-left:8px">모두 ${rows.length}종 · 오늘 ${TODAY} 기준</span>`;
+    + (n[3]?`<span class="chip g">여유 ${n[3]}종</span>`:'');   // 「모두 N종」은 제목 옆 칸(stockCnt)으로
 
   var _tc=$b("thCrit"); if(_tc) _tc.textContent=DAYS_CRIT;
   var _tl=$b("thLow"); if(_tl) _tl.textContent=DAYS_LOW;
   /* 표를 '식' 그대로 읽히게 만든다 — 월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고.
      궁금한 건 그 네 숫자뿐이라, 나머지(예정 출고·바닥 날짜)는 작은 글씨로 밀어 둔다. */
+  const cnt=$b('stockCnt'); if(cnt) cnt.textContent=`${rows.length}종`;
+  // 식(＋ － ＝)은 카드 머리에 한 번 적고, 표는 숫자 칸만 (사장님 시안 2026-10-26). 상태 칩 = 위 요약 칩과 같은 등급
+  const ST_LAB=['모자람','급함','주의','여유'], ST_CHIP=['b','b','w','g'];
   w.innerHTML=`<table><thead><tr>
     <th>제품</th>
     <th class="num" style="width:110px">월말 실사</th>
-    <th class="num" style="width:36px"></th>
     <th class="num" style="width:120px">그 뒤 입고</th>
-    <th class="num" style="width:36px"></th>
     <th class="num" style="width:120px">창고 출고</th>
-    <th class="num" style="width:36px"></th>
     <th class="num" style="width:110px">예상 재고</th>
+    <th class="stt" style="width:64px">상태</th>
     </tr></thead><tbody>`+
     rows.map(({c,s})=>{
       const col=s.rank<=1?'var(--bad)':s.rank===2?'var(--warn)':'var(--good)';
       const lastIn=lastInSince(c, s.baseDate);
       const rng=outRange(s.baseDate);
-      const op=(t)=>`<td class="num" style="color:var(--sub);font-size:15px;font-weight:700">${t}</td>`;
       // 기준: 실사가 있으면 그 날짜, 없으면 마지막 입고로 잡은 하한
       const baseCell = s.anchor==='실사'
         ? `<b style="font-size:17px">${s.base}</b><div class="mini">${s.baseDate}</div>`
@@ -29197,16 +29391,15 @@ function renderStock(){
           +` <span class="mini">(${s.burn.from}→${s.burn.to} 사이 ${-s.burn.used}장 늘었습니다)</span></span>`);
       }
       if(s.eta && s.daysLeft!=null && s.daysLeft<=180) side.push(`<b>${s.eta}쯤 바닥</b>`);
-      return `<tr>
-        <td>${nameOf(c)}<div class="mini">${c}</div></td>
-        <td class="num">${baseCell}</td>
-        ${op('＋')}
-        <td class="num">${inCell}</td>
-        ${op('－')}
-        <td class="num">${outCell}</td>
-        ${op('＝')}
-        <td class="num"><b style="font-size:21px;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥':''}${s.stock}</b>
+      // 칸 이름·꼬리표 — 휴대폰에서 표 대신 카드로 (2026-10-26 5단계, CSS 만으로)
+      return `<tr class="st-row">
+        <td class="c-nm">${nameOf(c)}<div class="mini">${c}</div></td>
+        <td class="num c-n" data-l="월말 실사">${baseCell}</td>
+        <td class="num c-n" data-l="그 뒤 입고">${inCell}</td>
+        <td class="num c-n" data-l="창고 출고">${outCell}</td>
+        <td class="num c-n c-tot" data-l="예상 재고"><b style="font-size:20px;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥':''}${s.stock}</b>
           ${side.length?`<div class="mini">${side.join('<br>')}</div>`:''}</td>
+        <td class="stt c-st"><span class="chip ${ST_CHIP[s.rank]}">${ST_LAB[s.rank]}</span></td>
       </tr>`;
     }).join('')+`</tbody></table>`;
 }
@@ -29215,6 +29408,10 @@ function renderStock(){
 function renderAhead(){
   const host=$b('aheadTbl'); if(!host) return;
   const list=(ST.delivs||[]).filter(x=>x.ship>TODAY).sort((a,b)=>a.ship<b.ship?-1:1);
+  // 현황에서는 접어 두고, 있을 때만 보입니다 (2026-10-26 2단계)
+  const card=$b('aheadCard'), cnt=$b('aheadCount');
+  if(card) card.style.display=list.length?'':'none';
+  if(cnt) cnt.textContent=list.length?`${list.length}건 · ${list.reduce((a,x)=>a+(x.qty||0),0)}장`:'';
   if(!list.length){
     host.innerHTML=`<div class="empty">앞으로 들어올 입고가 아직 없습니다.
       납품 기록에 <b>앞날 출고일</b>로 넣으시면 여기에 뜹니다.</div>`;
@@ -29445,11 +29642,12 @@ function renderSrmCoverage(){
   const host=$b('srmCov'); if(!host) return;
   const c=srmCoverage();
   if(!c){
-    host.innerHTML='<div class="hint">아직 창고 출고 자료가 없습니다 — <b>창고 출고(SRM)</b> 탭에서 판매오더 리스트를 올려주세요.<br>이걸 올려야 재고 추측이 움직입니다.</div>';
+    host.innerHTML='<div class="bas-banner">아직 창고 출고 자료가 없습니다 — <b>재고 기록</b> 탭의 「① 창고 출고」에서 판매오더 리스트를 올려주세요. 이걸 올려야 재고 추측이 움직입니다.</div>';
     return;
   }
   const md=s=>s.slice(5).replace('-','/');
-  let html=`<div style="font-size:15px;font-weight:700;margin-bottom:6px">${c.first} ~ <span style="color:var(--accent)">${c.last}</span> <span class="mini" style="font-weight:400">· ${c.n}일치 올림</span></div>`;
+  // 올린 범위·날수는 위 요약 「출고 자료」 칸이 말합니다(2026-10-26 2단계). 여기는 빠진 것이 있을 때만 그 자세한 내용을 적습니다.
+  let html='';
   const warns=[];
   if(c.sinceLast>0)
     warns.push(`<b>${c.last}</b> 이후 <b>${c.sinceLast}일</b> 자료가 없습니다. 그 뒤로 나간 물량은 아래 재고에 <b>안 빠져 있습니다</b> — 실제 재고는 더 적습니다.`);
@@ -29458,11 +29656,40 @@ function renderSrmCoverage(){
   if(c.stale.length)
     warns.push(`출고일이 지났는데 그 전에 뽑은 값만 있는 날 <b>${c.stale.length}일</b> — 다시 뽑아 넣으면 정확해집니다.`);
   html += warns.length
-    ? `<div class="hint" style="color:var(--warn)">${warns.map(w=>'⚠ '+w).join('<br>')}</div>`
-    : `<div class="hint" style="color:var(--good)">✅ 빠진 날 없이 오늘까지 채워져 있습니다.</div>`;
+    ? `<div class="bas-banner"><b>출고 자료를 확인해 주십시오.</b> ${warns.join('<br>')}</div>`
+    : '';
   host.innerHTML=html;
 }
 
+/* 현황 요약 3칸 (2026-10-26 2단계) — 새 판단 기준 없음. 아래 카드들이 쓰는 값을 그대로 셉니다.
+   미납 = poWithRemain 의 remain>0 (납기 지남 = 미납 표의 「지남」과 같은 조건) · 부족 = 재고 표 칩의 등급(stockOf rank) · 출고 자료 = srmCoverage */
+function goTab(p){ const t=_root().querySelector(`.tab[data-p="${p}"]`); if(t) t.click(); }
+function goCard(id){ const e=$b(id); if(e) e.scrollIntoView({behavior:'smooth',block:'start'}); }
+function renderNowTiles(open){
+  const host=$b('nowTiles'); if(!host) return;
+  const tile=(cls,k,v,s,on)=>`<button class="bas-tile ${cls}" onclick="${on}"><div class="k">${k}</div><div class="v${v==='-'?' none':''}">${v}</div><div class="s">${s}</div></button>`;
+  const tag=(c,t)=>`<span class="chip ${c}">${t}</span>`;
+  // ① 미납 발주
+  const q=open.reduce((a,r)=>a+r.remain,0), late=open.filter(r=>r.due&&r.due<TODAY).length;
+  const t1=tile(late?'bad':'', '미납 발주',
+    open.length?`${open.length}건<small>${q}장</small>`:'-',
+    late?tag('b',`납기 지남 ${late}건`):open.length?'납기 안 지남':'미납 없음', `BAS.goCard('nowOpenCard')`);
+  // ② 창고 재고 — 재고 표 칩과 같은 등급: 0 모자람 · 1 급함(빨강) · 2 주의(주황) · 3 여유
+  const n=[0,0,0,0]; stockRows().forEach(x=>n[x.s.rank]++);
+  const red=n[0]+n[1];
+  const t2=tile(red?'bad':n[2]?'warn':'', '창고 재고',
+    red?`${red}종<small>모자람·급함</small>`:n[2]?`${n[2]}종<small>주의</small>`:'-',
+    [n[0]?tag('b',`모자람 ${n[0]}`):'', n[1]?tag('b',`급함 ${n[1]}`):'', red&&n[2]?tag('w',`주의 ${n[2]}`):'', `<span>여유 ${n[3]}종</span>`].filter(Boolean).join(''),
+    `BAS.goCard('nowStockCard')`);
+  // ③ 출고 자료 — 「올린 범위」 판정 그대로
+  const c=srmCoverage(), md=s=>s.slice(5).replace('-','.');
+  const iss=c?[c.sinceLast>0?`${c.sinceLast}일 안 올림`:'', c.missing.length?`빠진 날 ${c.missing.length}일`:'', c.stale.length?`다시 뽑을 날 ${c.stale.length}일`:''].filter(Boolean):[];
+  const t3=tile('', '출고 자료 (SRM)',
+    c?`${md(c.last)}<small>마지막 등록</small>`:'-',
+    !c?tag('w','아직 없음'):iss.length?iss.map(x=>tag('w',x)).join(''):'빠진 날 없음',
+    `BAS.goTab('record')`);
+  host.innerHTML=t1+t2+t3;
+}
 function renderNow(){
   renderSrmCoverage();
   renderSrmGrid('nowGrid','nowGridTitle');
@@ -29487,28 +29714,35 @@ function renderNow(){
     :'<div class="empty">품목이 없습니다.</div>';
 
   // 미납 발주 — 발주가 왔다는 건 창고가 비었다는 뜻이라, 맨 위에서 먼저 보이게 한다.
+  const open=(typeof poWithRemain==='function'?poWithRemain():[]).filter(isOpenPo);   // 잔량 종료한 것은 빼고
   const openHost=$b('poOpen');
   if(openHost){
-    const open=(typeof poWithRemain==='function'?poWithRemain():[]).filter(r=>r.remain>0);
+    const oc=$b('poOpenCount');
+    if(oc){ oc.textContent=open.length?`${open.length}건 · ${open.reduce((a,r)=>a+r.remain,0)}장`:''; oc.style.display=open.length?'':'none'; }
     if(!open.length){
       openHost.innerHTML=(ST.pos&&ST.pos.length)
         ? '<div class="hint">미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.</div>'
-        : '<div class="hint">아직 넣은 발주가 없습니다 — <b>납품 기록</b> 탭의 「📥 발주 받기」에 P/O 표를 붙여넣어 주세요.</div>';
+        : '<div class="hint">아직 넣은 발주가 없습니다 — <b>발주·납품</b> 탭의 「① 발주 받기」에 P/O 표를 붙여넣어 주세요.</div>';
     }else{
-      const q=open.reduce((a,r)=>a+r.remain,0);
-      openHost.innerHTML=`<div style="margin-bottom:7px"><span class="chip w">미납 ${open.length}건 · ${q}장</span></div>`
-        +`<table><thead><tr><th>오더번호</th><th>발주일</th><th>제품</th>
-            <th class="num" title="발주가 들어온 날, 창고에 얼마나 남아 있었는지">발주 시점 재고</th>
-            <th class="num">미납</th><th>납품일</th></tr></thead><tbody>`
-        +open.map(r=>{
+      /* 간략 표 + 그 자리에서 납품 (2026-10-26 2단계). 넣기는 발주·납품 탭과 같은 poShip — 칸 아이디만 앞에 'nw' 를 붙여 두 탭의 칸이 섞이지 않게 합니다 */
+      // 한 발주 = 한 줄 (사장님 시안 2026-10-26): 상태·납기 / 제품 / 코드·오더·발주일 | 발주·납품·미납 | 보낸 날·수량·[납품함]
+      const md=s=>s?s.slice(5).replace('-','.'):'-';
+      openHost.innerHTML=`<div class="bas-ords">`+open.map(r=>{
           const late=r.due&&r.due<TODAY;
-          return `<tr><td class="mini">${r.ord}</td><td>${r.odate}</td><td>${nameOf(r.code)}<div class="mini">${r.code}</div></td>
-            <td class="num">${atOrderCell(r.code, r.odate)}</td>
-            <td class="num" style="font-weight:700;color:var(--bad)">${r.remain}</td>
-            <td${late?' style="color:var(--bad)"':''}>${r.due||'—'}${late?' <span class="mini">지남</span>':''}</td></tr>`;
-        }).join('')+`</tbody></table>`;
+          const st=late?'<span class="chip b">납기 지남</span>':r.filled>0?'<span class="chip w">일부 납품</span>':'<span class="chip w">미납</span>';
+          return `<div class="bas-ord">
+            <div><div class="eb">${st}<span>${r.due?md(r.due)+' 납기':'납기 -'}</span></div>
+              <div class="nm">${nameOf(r.code)}</div>
+              <div class="mt"><span>${r.code}</span><span>오더 ${r.ord}</span><span>${md(r.odate)} 발주</span></div></div>
+            <div class="bas-q"><div><small>발주</small><b>${r.qty}</b></div><div><small>납품</small><b>${r.filled||0}</b></div><div class="rem"><small>미납</small><b>${r.remain}</b></div></div>
+            <div class="bas-ship"><input type="date" id="bas-nwpod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날">
+              <input type="number" id="bas-nwpoq-${r.ord}-${r.code}" value="${r.remain}" title="실제로 보낸 수량">
+              <button class="primary" onclick="BAS.poShip('${r.ord}','${r.code}','nw')">납품함</button></div>
+          </div>`;
+        }).join('')+`</div>`;
     }
   }
+  renderNowTiles(open);
 
   $b('nowMeta').textContent=
     `스냅샷 ${ST.snaps.length}일치 · 납품 ${ST.delivs.length}건 · 발주 ${orders().length}건`;
@@ -29756,6 +29990,12 @@ function renderSlips(){
   const nw=by('new'), ck=by('chk'), done=rows.filter(r=>r.st==='in'||r.st==='have'), sk=by('skip');
   const cnt=$b('slipCount');
   if(cnt) cnt.textContent=rows.length?`새것 ${nw.length} · 확인 필요 ${ck.length} · 들어감 ${done.length}${sk.length?` · 치움 ${sk.length}`:''}`:'';
+  // 접어 둔 카드 대신 위에 한 줄 띠 — 넣을 것이 있을 때만 (2026-10-26 3단계)
+  const todoN=nw.length+ck.length, bar=$b('slipBar'), bc=$b('slipBtnCnt');
+  if(bc) bc.textContent=todoN?`(${todoN})`:'';
+  if(bar) bar.innerHTML=todoN?`<div class="bas-banner" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span><b>📦 납품서에서 온 바스</b> — 새것 ${nw.length}줄${ck.length?` · 확인 필요 ${ck.length}줄`:''}. 납품 기록과 견줘 보고 넣으십시오.</span>
+      <button class="bas-link" style="margin-left:auto" onclick="BAS.toggleSub('slipCard',true)">열어 보기 →</button></div>`:'';
   if(!rows.length){ host.innerHTML='<div class="mini">앱 📦 납품서 탭에 바스(BB…) 품목이 든 납품서가 아직 없습니다.</div>'; return; }
   const st={new:'<span class="chip g">새것</span>', chk:'<span class="chip b">확인 필요</span>', in:'<span class="chip n">넣음</span>',
             have:'<span class="chip n">이미 있음</span>', skip:'<span class="chip n">치움</span>'};
@@ -29956,6 +30196,10 @@ function poWithRemain(){
       for(const p of list){
         if(q<=0) break;
         if(d.ship && p.odate && d.ship < p.odate) continue;   // 발주 전에 나간 건 이 발주 몫이 아니다
+        // 잔량 종료한 발주는 종료일 「뒤에」 나간 오더번호 없는 납품을 받지 않습니다(사장님 2026-10-26 B안).
+        // 종료일 전에 나간 납품은 예전처럼 이 발주를 채운 채로 둡니다 — 지난 실적·미납이 바뀌지 않게
+        const cl=closeOf(p.ord, p.code);
+        if(cl && d.ship && d.ship > cl.day) continue;
         const need=Math.max(0,(p.qty||0)-p.filled);
         if(need<=0) continue;
         const use=Math.min(need,q); p.filled+=use; q-=use;
@@ -29963,8 +30207,70 @@ function poWithRemain(){
     });
   });
   return Object.values(byCode).flat()
-    .map(p=>({...p, remain:Math.max(0,(p.qty||0)-p.filled)}))
+    .map(p=>{ const remain=Math.max(0,(p.qty||0)-p.filled), cl=closeOf(p.ord,p.code);
+      // closed = 잔량 종료(남은 것이 있을 때만). 다 채워졌으면 종료 표시가 있어도 「전량 납품」
+      return {...p, remain, closed: remain>0 && cl ? cl : null}; })
     .sort((a,b)=>String(b.odate).localeCompare(String(a.odate)));
+}
+/* ── 잔량 종료 (2026-10-26 6단계 — 바스_UI설계안.md 7번) ── */
+const poKey=(ord,code)=>`${ord}|${code}`;
+function closeOf(ord, code){ const c=(ST.poClose||{})[poKey(ord,code)]; return c&&c.on ? c : null; }
+/* 상태 — 저장하지 않고 그때그때: 전량 납품 · 잔량 종료 · 납기 지남 · 일부 납품 · 미납 */
+function poStatus(r){
+  if(r.remain<=0) return {k:'done', t:'납품완료', c:'g'};
+  if(r.closed)    return {k:'closed', t:'잔량 종료', c:'n'};
+  if(r.due && r.due<TODAY) return {k:'late', t:'납기 지남', c:'b'};
+  if(r.filled>0)  return {k:'part', t:'일부 납품', c:'w'};
+  return {k:'open', t:'미납', c:'w'};
+}
+const isOpenPo=r=>r.remain>0 && !r.closed;   // 미납 경고·납품할 발주 = 이것만
+function _closeWrite(list, reason, day){
+  const now=new Date().toISOString(), by=(typeof getActor==='function'?getActor():'')||'';
+  ST.poClose=ST.poClose||{};
+  const raised=[];
+  list.forEach(r=>{
+    /* 종료일은 이미 들어와 있는 이 품목 납품(발주일 뒤)의 마지막 날보다 앞일 수 없습니다 —
+       앞이면 그 납품이 종료일 「뒤」가 되어 다른 발주로 옮겨 가 지난 실적이 바뀝니다. 그래서 그 날로 올립니다 */
+    const last=(ST.delivs||[]).filter(d=>d.code===r.code && d.ship && (!r.odate || d.ship>=r.odate))
+      .reduce((m,d)=>d.ship>m?d.ship:m, '');
+    const eff = last && last>day ? last : day;
+    if(eff!==day) raised.push(`${nameOf(r.code)} → ${eff}`);
+    ST.poClose[poKey(r.ord,r.code)]={on:true, day:eff, reason, qty:r.qty, filled:r.filled||0, rest:r.remain, at:now, by};
+  });
+  save(); refresh();
+  if(raised.length) alert(`종료일을 이미 들어온 마지막 납품일로 맞췄습니다 (그 전 납품이 다른 발주로 옮겨 가지 않게):\n${raised.join('\n')}`);
+}
+function _askClose(what){
+  const reason=prompt(`${what}\n\n종료 사유를 적어 주십시오 (예: 한샘 요청으로 잔량 취소).`, '');
+  if(reason===null) return null;
+  if(!reason.trim()){ toast('사유를 적어야 종료됩니다'); return null; }
+  const day=prompt('종료 날짜 (YYYY-MM-DD)', TODAY);
+  if(day===null) return null;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(day.trim())){ toast('날짜는 2026-10-26 꼴로 적어 주십시오'); return null; }
+  return {reason:reason.trim(), day:day.trim()};
+}
+function poClose(ord, code){
+  const r=poWithRemain().find(x=>x.ord===ord&&x.code===code);
+  if(!r || r.remain<=0){ toast('남은 수량이 없는 발주입니다'); return; }
+  const a=_askClose(`${ord} · ${nameOf(code)}\n발주 ${r.qty}장 · 납품 ${r.filled||0}장 · 남은 ${r.remain}장을 보내지 않고 끝냅니다.\n납품 기록·재고·월 마감은 그대로(${r.filled||0}장)입니다.`);
+  if(!a) return;
+  _closeWrite([r], a.reason, a.day);
+  toast(`잔량 ${r.remain}장 종료 — 「잔량 종료」 꼬리표에서 볼 수 있습니다`);
+}
+function poCloseOrder(ord){
+  const list=poWithRemain().filter(x=>x.ord===ord && isOpenPo(x));
+  if(!list.length){ toast('이 오더에 남은 발주가 없습니다'); return; }
+  const a=_askClose(`오더 ${ord} — 남은 품목 ${list.length}개(${list.reduce((s,x)=>s+x.remain,0)}장)를 모두 끝냅니다.\n`+list.map(x=>`· ${nameOf(x.code)} 남은 ${x.remain}장`).join('\n'));
+  if(!a) return;
+  _closeWrite(list, a.reason, a.day);
+  toast(`오더 ${ord} 남은 ${list.length}품목 종료`);
+}
+function poCloseUndo(ord, code){
+  const k=poKey(ord,code), c=(ST.poClose||{})[k];
+  if(!c||!c.on){ toast('종료된 발주가 아닙니다'); return; }
+  if(!confirm(`${ord} · ${nameOf(code)}\n${c.day} 종료(${c.reason})를 취소하고 다시 미납으로 돌립니다.`)) return;
+  ST.poClose[k]=Object.assign({}, c, {on:false, undoneAt:TODAY, at:new Date().toISOString()});
+  save(); refresh(); toast('종료를 취소했습니다 — [납품함]으로 더 넣을 수 있습니다');
 }
 /* 발주 → 납품으로 이어주기.
    발주 줄의 [납품 넣기]를 누르면 아래 「납품 추가」 칸에 그 발주 내용을 채워 준다.
@@ -29975,10 +30281,11 @@ function poWithRemain(){
    줄에 [출고일][수량][납품함] 만 두고, 수량은 미납분을 미리 채워 둔다.
    50개 발주에 44개만 보냈으면 44로 고쳐 누르면 미납 6이 남는다.
    참조문서번호(오더번호)는 자동으로 붙어서 그 발주에 정확히 맞물린다. */
-function poShip(ord, code){
+function poShip(ord, code, pre){   // pre: 칸 아이디 앞붙임 — 현황 미납 표는 'nw' (2026-10-26). 넣는 일은 같습니다
   const r=poWithRemain().find(x=>x.ord===ord && x.code===code);
   if(!r){ toast('발주를 찾지 못했어요'); return; }
-  const id=s=>$b(s+ord+'-'+code);
+  if(r.closed){ toast('잔량 종료한 발주입니다 — 먼저 「종료 취소」를 누르십시오'); return; }
+  const id=s=>$b((pre||'')+s+ord+'-'+code);
   const qEl=id('poq-'), dEl=id('pod-');
   const q=parseInt(qEl&&qEl.value)||0;
   const ship=(dEl&&dEl.value)||TODAY;
@@ -30004,46 +30311,70 @@ function poDel(ord,code,qty){
   ST.pos=(ST.pos||[]).filter(p=>!(p.ord===ord&&p.code===code&&p.qty===qty));
   save(); refresh(); toast('발주를 지웠습니다');
 }
+/* 접어 둔 칸 펴고 접기 (2026-10-26 3단계) — 칸은 그대로 두고 hidden 만 바꿉니다. 단추(bas-fb-아이디)는 펼치면 실선 */
+function toggleSub(id, force){
+  const el=$b(id); if(!el) return;
+  const open = force!=null ? !!force : el.hidden;
+  el.hidden=!open;
+  const b=$b('fb-'+id); if(b) b.classList.toggle('on', open);
+  if(open && id!=='poAddCard') el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+/* 발주 현황 거르기 — 보이기만 거릅니다(미납 계산 poWithRemain 그대로). 기본 = 미납 */
+let _poFlt='open';
+function setPoFilter(f){ _poFlt=f; renderPos(); }
 function renderPos(){
   const host=$b('poTbl'); if(!host) return;
-  const rows=poWithRemain();
+  const all=poWithRemain();
   const cnt=$b('poCount');
-  const openN=rows.filter(r=>r.remain>0).length;
-  const openQ=rows.filter(r=>r.remain>0).reduce((a,r)=>a+r.remain,0);
-  if(cnt) cnt.textContent = rows.length ? `${rows.length}건 · 미납 ${openN}건 ${openQ}장` : '';
-  if(!rows.length){ host.innerHTML='<div class="empty">아직 넣은 발주가 없습니다. 위에 P/O 표를 붙여넣어 주세요.</div>'; return; }
+  const opens=all.filter(isOpenPo), closedN=all.filter(r=>r.closed).length;
+  const openN=opens.length, openQ=opens.reduce((a,r)=>a+r.remain,0);
+  if(cnt) cnt.textContent = all.length ? `${all.length}건 · 미납 ${openN}건 ${openQ}장` : '';
+  const flt=$b('poFlt');
+  if(flt){
+    // 미납(미납·일부 납품) · 잔량 종료 · 납품완료 · 전체 — 보이기만 거릅니다
+    const F=[['open','미납',openN],['closed','잔량 종료',closedN],['done','납품완료',all.filter(r=>r.remain<=0).length],['all','전체',all.length]];
+    flt.innerHTML=all.length?F.filter(([k,,n])=>k!=='closed'||n||_poFlt==='closed').map(([k,t,n])=>`<button class="${_poFlt===k?'on':''}" onclick="BAS.setPoFilter('${k}')">${t} ${n}</button>`).join(''):'';
+  }
+  if(!all.length){ host.innerHTML='<div class="empty">아직 넣은 발주가 없습니다. 위 「＋ 발주 등록」에서 P/O 표를 붙여넣어 주세요.</div>'; return; }
+  const rows=all.filter(r=>_poFlt==='all'||(_poFlt==='open'?isOpenPo(r):_poFlt==='closed'?!!r.closed:r.remain<=0));
+  if(!rows.length){ host.innerHTML=`<div class="empty">${_poFlt==='open'?'미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.':_poFlt==='closed'?'잔량 종료한 발주가 없습니다.':'납품을 마친 발주가 아직 없습니다.'}</div>`; return; }
+  // 같은 오더에 남은 품목이 둘 이상이면 「오더 남은 것 모두 종료」 단추를 붙입니다
+  const multi={}; opens.forEach(r=>{ multi[r.ord]=(multi[r.ord]||0)+1; });
   host.innerHTML=`<table><thead><tr>
       <th>상태</th><th>오더번호</th><th>발주일</th><th>제품</th>
       <th class="num">발주</th><th class="num" title="발주가 들어온 날, 창고에 얼마나 남아 있었는지">발주 시점 재고</th>
       <th class="num">납품</th><th class="num">미납</th><th>납기</th>
-      <th style="min-width:210px">보낸 것 넣기</th><th></th>
+      <th class="bas-ship">보낸 것 넣기</th><th></th>
     </tr></thead><tbody>`+
     rows.map(r=>{
-      const done=r.remain<=0;
-      const late=!done && r.due && r.due<TODAY;
-      const chip = done?'<span class="chip g">납품완료</span>'
-                 : late?'<span class="chip b">납기 지남</span>'
-                 : '<span class="chip w">미납</span>';
-      return `<tr${done?' style="opacity:.55"':''}>
-        <td>${chip}</td>
-        <td class="mini">${r.ord}</td>
-        <td><input type="date" value="${r.odate||''}" title="발주가 들어온 날 — 고치면 바로 저장됩니다"
-             onchange="BAS.poSetDate('${r.ord}','${r.code}',this.value)"
-             style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)"></td>
-        <td>${nameOf(r.code)}<div class="mini">${r.code}</div></td>
-        <td class="num">${r.qty}</td>
-        <td class="num">${atOrderCell(r.code, r.odate)}</td>
-        <td class="num">${r.filled||'·'}</td>
-        <td class="num" style="font-weight:700;color:${done?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
-        <td>${r.due||'<span class="mini">—</span>'}</td>
-        <td style="white-space:nowrap">${done
-          ? '<span class="mini">—</span>'
-          : `<input type="date" id="bas-pod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날"
+      const ps=poStatus(r), done=ps.k==='done', closed=ps.k==='closed';
+      const chip=`<span class="chip ${ps.c}">${ps.t}</span>`;
+      let ship;
+      if(done) ship='<span class="mini">—</span>';
+      else if(closed) ship=`<div class="mini bas-closed-note"><b>${r.closed.day} 종료</b> · 잔량 ${r.remain}장<br>${String(r.closed.reason||'').replace(/[<>&"]/g,'')}${r.closed.by?` · ${String(r.closed.by).replace(/[<>&"]/g,'')}`:''}</div>
+             <div class="bas-shipx"><button class="bas-lnk" onclick="BAS.poCloseUndo('${r.ord}','${r.code}')">종료 취소</button></div>`;
+      else ship=`<input type="date" id="bas-pod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날"
                  style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
              <input type="number" id="bas-poq-${r.ord}-${r.code}" value="${r.remain}" title="실제로 보낸 수량"
                  style="width:58px;padding:4px;text-align:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
-             <button class="primary" style="padding:4px 10px;font-size:11px" onclick="BAS.poShip('${r.ord}','${r.code}')">납품함</button>`}</td>
-        <td><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="BAS.poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
+             <button class="primary" style="padding:6px 14px;font-size:12.5px" onclick="BAS.poShip('${r.ord}','${r.code}')">납품함</button>
+             <div class="bas-shipx"><button class="bas-lnk" title="남은 수량을 보내지 않고 이 발주를 끝냅니다 — 납품 기록·재고·월 마감은 그대로" onclick="BAS.poClose('${r.ord}','${r.code}')">잔량 종료</button>${multi[r.ord]>1?`
+             · <button class="bas-lnk" title="이 오더의 남은 품목을 한꺼번에 끝냅니다" onclick="BAS.poCloseOrder('${r.ord}')">오더 전체 종료</button>`:''}</div>`;
+      // 칸마다 이름(c-…)·꼬리표(data-l) — 좁은 화면에서 표 대신 카드로 보이게(2026-10-26 5단계, CSS 만으로)
+      return `<tr class="po-row"${done||closed?' style="opacity:.6"':''}>
+        <td class="c-st">${chip}</td>
+        <td class="mini c-ord">${r.ord}</td>
+        <td class="c-od"><input type="date" value="${r.odate||''}" title="발주가 들어온 날 — 고치면 바로 저장됩니다"
+             onchange="BAS.poSetDate('${r.ord}','${r.code}',this.value)"
+             style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)"></td>
+        <td class="c-nm" style="white-space:normal;min-width:140px">${nameOf(r.code)}<div class="mini">${r.code}</div></td>
+        <td class="num c-n" data-l="발주">${r.qty}</td>
+        <td class="num c-n" data-l="발주 시점 재고" style="white-space:normal;min-width:84px">${atOrderCell(r.code, r.odate)}</td>
+        <td class="num c-n" data-l="납품">${r.filled||'·'}</td>
+        <td class="num c-n" data-l="${closed?'종료 잔량':'미납'}" style="font-weight:700;color:${done||closed?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
+        <td class="c-n" data-l="납기">${r.due||'<span class="mini">—</span>'}</td>
+        <td class="c-ship" style="white-space:nowrap">${ship}</td>
+        <td class="c-del"><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="BAS.poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
       </tr>`;
     }).join('')+`</tbody></table>`;
 }
@@ -30607,7 +30938,7 @@ $b('dShip').value=TODAY;
 $b('closeMonth').value=ym(TODAY);
 
 function open(){ try{ refresh(); }catch(e){ console.error('[바스재고]', e); toast('⚠ 바스 화면을 그리다 멈췄습니다'); } }
-return {open, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
+return {open, goTab, goCard, toggleSub, setPoFilter, poClose, poCloseOrder, poCloseUndo, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
 })();
 </script>
 <!-- ══ 🧭 대분류·소분류 메뉴 (1차 UI 개편 2026-10-23) — CLAUDE.md 12-67 ══
