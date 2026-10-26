@@ -870,18 +870,19 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- STOCK -->
 <div class="sec-pg" id="pg-stock">
   <nav class="sub-nav">
-    <button class="sub-nav-btn on" onclick="showSub('stocklist')"><span class="ico">📦</span>인쇄실</button>
-    <button class="sub-nav-btn" onclick="showSub('etp')"><span class="ico">🟠</span>에토프</button>
+    <button class="sub-nav-btn on" onclick="showSub('stocklist')" style="order:0"><span class="ico">📦</span>인쇄실</button>
+    <button class="sub-nav-btn" onclick="showSub('etp')" style="order:1"><span class="ico">🟠</span>에토프</button>
     <!-- 완제품 탭 제거: 완제품은 조립실에서 관리(일원화). renderFinished/finApply 함수는 보존(홈 알림 등에서 참조). -->
-    <button class="sub-nav-btn" onclick="showSub('assembly')"><span class="ico">🔧</span>조립실</button>
-    <button class="sub-nav-btn" onclick="showSub('activity')"><span class="ico">🕓</span>변경이력</button>
-    <button class="sub-nav-btn" onclick="showSub('dashboard')"><span class="ico">📊</span>현황</button>
+    <!-- 2026-10-26 사장님 차례: 인쇄실 · 에토프 · 수납유리 · 조립실(바스는 따로 된 탭) — 나머지는 숨김만. 단추 자체는 지우지 않음(showSub 가 SUBS 차례로 씀), 차례는 order 로 -->
+    <button class="sub-nav-btn" onclick="showSub('assembly')" style="order:3"><span class="ico">🔧</span>조립실</button>
+    <button class="sub-nav-btn" onclick="showSub('activity')" style="display:none"><span class="ico">🕓</span>변경이력</button>
+    <button class="sub-nav-btn" onclick="showSub('dashboard')" style="display:none"><span class="ico">📊</span>현황</button>
     <button class="sub-nav-btn" onclick="showSub('trend')" style="display:none"><span class="ico">📈</span>추이</button>
-    <button class="sub-nav-btn" onclick="showSub('spec')"><span class="ico">📐</span>규격</button>
-    <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
-    <button class="sub-nav-btn" onclick="showSub('nonspec')"><span class="ico">🔲</span>비규격</button>
-    <button class="sub-nav-btn" onclick="showSub('mat')"><span class="ico">📒</span>원장재고</button>
-    <button class="sub-nav-btn" onclick="showSub('storage')"><span class="ico">🗄️</span>수납유리재고</button>
+    <button class="sub-nav-btn" onclick="showSub('spec')" style="display:none"><span class="ico">📐</span>규격</button>
+    <button class="sub-nav-btn" onclick="showSub('ink')" style="display:none"><span class="ico">🪣</span>잉크</button>
+    <button class="sub-nav-btn" onclick="showSub('nonspec')" style="display:none"><span class="ico">🔲</span>비규격</button>
+    <button class="sub-nav-btn" onclick="showSub('mat')" style="display:none"><span class="ico">📒</span>원장재고</button>
+    <button class="sub-nav-btn" onclick="showSub('storage')" style="order:2"><span class="ico">🗄️</span>수납유리재고</button>
   </nav>
   <!-- 수납유리재고 (신규) -->
   <div id="sp-storage" class="sub-pg" style="display:none;padding:14px 14px 80px">
@@ -30970,6 +30971,8 @@ body.gnav-on .main-nav{display:none}
   font-family:'Noto Sans KR',sans-serif;font-size:12.5px;font-weight:600;color:var(--tx2);cursor:pointer;white-space:nowrap}
 #gnav .gn-item:hover{background:var(--s1);color:var(--tx1)}
 #gnav .gn-item.on{background:var(--s1);border-color:#1f3a5f;color:#1f3a5f;font-weight:700}
+#gnav .gn-more{border:1px dashed var(--b2);color:var(--tx3);font-size:12px;min-height:28px;align-self:center;padding:0 12px}   /* 더보기 ▾ (2026-10-26) */
+#gnav .gn-more-item:not(.on){color:var(--tx3)}
 #gnav .gn-path{margin-right:10px}
 #gnav .gn-item .gx{font-size:10px;color:var(--tx3);margin-left:3px}
 /* 공통 제목·단추 모양 — 새로 만드는 화면부터 이것을 씁니다(기존 화면 단추는 이번에 안 바꿈 — 인쇄·캡처 영향 때문) */
@@ -31003,19 +31006,19 @@ var GNAV_MENU=[
     { t:'비규격 발주 대기', m:'order', el:'od-handoff' },
     { t:'발주분석', m:'order-analysis' },
   ]},
-  { c:'재고관리', items:[
+  { c:'재고관리', items:[   // 2026-10-26 사장님 차례 — 다섯만 늘 보이고, more:true 는 「더보기 ▾」 안에 접힘(화면·기능 그대로)
     { t:'원유리·웜코튼(인쇄실)', m:'stock', s:'stocklist' },
     { t:'에토프', m:'stock', s:'etp' },
-    { t:'바스재고', m:'bas' },
-    { t:'작업일지(인쇄 생산)', m:'worklog' },
-    { t:'에토프 불량', m:'stock', s:'etp', el:'etp-defect' },
-    { t:'조립실', m:'stock', s:'assembly' },
     { t:'수납유리재고', m:'stock', s:'storage' },
-    { t:'원장재고', m:'stock', s:'mat' },
-    { t:'비규격', m:'stock', s:'nonspec' },
-    { t:'현황', m:'stock', s:'dashboard' },
-    { t:'잉크', m:'stock', s:'ink' },
-    { t:'변경이력', m:'stock', s:'activity' },
+    { t:'바스재고', m:'bas' },
+    { t:'조립실', m:'stock', s:'assembly' },
+    { t:'작업일지(인쇄 생산)', m:'worklog', more:true },
+    { t:'현황', m:'stock', s:'dashboard', more:true },
+    { t:'잉크', m:'stock', s:'ink', more:true },
+    { t:'원장재고', m:'stock', s:'mat', more:true },
+    { t:'비규격', m:'stock', s:'nonspec', more:true },
+    { t:'변경이력', m:'stock', s:'activity', more:true },
+    // { t:'에토프 불량', m:'stock', s:'etp', el:'etp-defect' },   // 에토프 화면 안 「🚫 불량 기록」으로 (사장님 2026-10-26)
   ]},
   { c:'경영·마감', items:[
     { t:'매입매출', m:'ledger' },
@@ -31053,8 +31056,14 @@ var GNAV=(function(){
     var a=active(), cat=GNAV_MENU[a.c]||GNAV_MENU[0];
     var h='<div class="gn-top" role="tablist">'+GNAV_MENU.map(function(g,c){
       return '<button class="gn-cat'+(c===a.c?' on':'')+'" role="tab" aria-selected="'+(c===a.c)+'" onclick="GNAV.cat('+c+')">'+esc(g.c)+'</button>'; }).join('')+'</div>'
-      +'<div class="gn-sub"><span class="gn-path">'+esc(cat.c)+' ›</span>'+cat.items.map(function(it,i){
-        return '<button class="gn-item'+(i===a.i?' on':'')+'" onclick="GNAV.go('+a.c+','+i+')"'+(it.href?' title="새 창에서 열립니다"':'')+'>'+esc(it.t)+(it.href?'<span class="gx">↗</span>':'')+'</button>'; }).join('')+'</div>';
+      +'<div class="gn-sub"><span class="gn-path">'+esc(cat.c)+' ›</span>'+(function(){
+        // more:true 는 접어 둡니다 — 펼쳤거나 지금 그 화면이면 보임
+        var hasMore=false, openM=moreOpen;
+        var s=cat.items.map(function(it,i){
+          if(it.more){ hasMore=true; if(!openM && i!==a.i) return ''; }   // 접혀 있어도 지금 보는 화면은 보임
+          return '<button class="gn-item'+(it.more?' gn-more-item':'')+(i===a.i?' on':'')+'" onclick="GNAV.go('+a.c+','+i+')"'+(it.href?' title="새 창에서 열립니다"':'')+'>'+esc(it.t)+(it.href?'<span class="gx">↗</span>':'')+'</button>'; }).join('');
+        if(hasMore) s+='<button class="gn-item gn-more" onclick="GNAV.more()">'+(openM?'접기 ▴':'더보기 ▾')+'</button>';
+        return s; })()+'</div>';
     if(host.innerHTML!==h) host.innerHTML=h;
   }
   function mainBtn(m){
@@ -31082,6 +31091,8 @@ var GNAV=(function(){
       else window.scrollTo(0,0);
     },150);
   }
+  var moreOpen=false;   // 「더보기 ▾」 펼침 — 이 창에서만
+  function more(){ moreOpen=!moreOpen; render(); }
   function cat(c){
     var g=GNAV_MENU[c]; if(!g) return;
     var a=active(); if(a.c===c) return;   // 같은 대분류를 또 누르면 그대로
@@ -31094,7 +31105,7 @@ var GNAV=(function(){
     var obs=function(sel){ var n=document.querySelector(sel); if(n && window.MutationObserver) new MutationObserver(function(){ render(); }).observe(n,{subtree:true,attributes:true,attributeFilter:['class']}); };
     obs('.main-nav'); obs('#pg-stock .sub-nav');
   }catch(e){ console.warn('[대분류 메뉴] 옛 탭 줄로 둡니다', e); try{ document.body.classList.remove('gnav-on'); }catch(e2){} }
-  return {go:go, cat:cat, render:render, catOfMain:catOfMain, menu:GNAV_MENU};
+  return {go:go, cat:cat, more:more, render:render, catOfMain:catOfMain, menu:GNAV_MENU};
 })();
 </script>
 <!-- ══ 📱 휴대폰 아래쪽 탭 줄 (사장님 2026-10-21 「4칸이면 될 듯」) — CLAUDE.md 12-63 ══
