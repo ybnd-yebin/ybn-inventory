@@ -10178,6 +10178,19 @@ function updateGsStatus(state){
 }
 function updateGsSyncTime(){
   const el=document.getElementById('gs-sync-time');
+  // ⏱ 최근 받기 시간 (2026-10-26) — 휴대폰에서도 볼 수 있게 설정 화면에 표로
+  try{
+    const hist=JSON.parse(localStorage.getItem('ybn-sync-timing-v1')||'[]').slice(-8).reverse();
+    if(el && hist.length){
+      let box=document.getElementById('gs-sync-timing');
+      if(!box){ box=document.createElement('div'); box.id='gs-sync-timing'; box.style.cssText='margin-top:8px;font-size:11px;color:var(--tx2);overflow-x:auto'; (el.closest('.card')||el.parentNode).appendChild(box); }
+      const s=ms=>(ms/1000).toFixed(1);
+      box.innerHTML='<div style="font-weight:700;margin-bottom:3px">⏱ 시트 받기 시간 (최근 '+hist.length+'번, 초)</div><table style="border-collapse:collapse;font-variant-numeric:tabular-nums;white-space:nowrap">'
+        +'<tr style="color:var(--tx3)"><td style="padding:1px 8px 1px 0">때</td><td style="padding:1px 6px;text-align:right">받기</td><td style="padding:1px 6px;text-align:right">크기</td><td style="padding:1px 6px;text-align:right">합치기</td><td style="padding:1px 6px;text-align:right">저장</td><td style="padding:1px 6px;text-align:right">전체</td></tr>'
+        +hist.map(h=>'<tr><td style="padding:1px 8px 1px 0">'+h.at.slice(5,10).replace('-','/')+' '+new Date(h.at).toTimeString().slice(0,5)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.getMs)+'</td><td style="padding:1px 6px;text-align:right">'+(h.chars/1048576).toFixed(1)+'MB</td><td style="padding:1px 6px;text-align:right">'+s(h.mergeMs)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.saveMs)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.totalMs)+'</td></tr>').join('')
+        +'</table>'+(hist[0].top?'<div style="color:var(--tx3);margin-top:3px">큰 것: '+hist[0].top+'</div>':'');
+    }
+  }catch(e){}
   if(el&&meta.lastGsSync){const d=new Date(meta.lastGsSync);el.textContent=d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}
 }
 // ══════════════════════════════════════════════════
@@ -10596,8 +10609,13 @@ async function gsFetch(method,body,qs=''){
   if(!gsUrl)throw new Error('URL 없음');
   try{
     if(method==='GET'){
+      // ⏱ 받기 시간·크기를 잽니다(2026-10-26 「시트 받기가 점점 느려짐」) — 결과는 같고 재기만 더함
+      const t0=performance.now();
       const res=await fetch(gsUrl+qs,{method:'GET'});
-      const json=await res.json();
+      const txt=await res.text();
+      const t1=performance.now();
+      const json=JSON.parse(txt);
+      window._gsLastGet={ ms:t1-t0, parseMs:performance.now()-t1, chars:txt.length, qs:qs };
       if(!json.ok)throw new Error(json.error||'서버 오류');
       return json.data;
     } else {
@@ -21684,16 +21702,38 @@ function syncBar(state, msg){
   el.innerHTML = msg + (state==='error'
     ? ' <button onclick="autoSyncOnLoad()" style="margin-left:8px;padding:3px 10px;background:#fff;border:none;border-radius:12px;color:var(--acc4);font-size:11px;font-weight:800;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif">다시 받기</button>'
     : '');
-  if(state==='done') setTimeout(()=>syncBar('hide'), 3500);
+  if(state==='done') setTimeout(()=>syncBar('hide'), 7000);   // ⏱ 시간 줄을 읽을 틈 (2026-10-26, 예전 3.5초)
 }
 
+/* ⏱ 시트 받기 시간 재기 (사장님 2026-10-26 「점점 느려짐」, 개선 1단계 — 재기만 함, 자료 영향 없음)
+   받기(구글 스크립트+내려받기) · 크기 · 풀기 · 합치기 · 저장 · 다시 그리기를 「받았습니다」 줄에 작게 적고,
+   최근 20번을 이 기기 ybn-sync-timing-v1 에 남깁니다(콘솔 console.table 로도). 무엇이 큰지는 data 칸마다 글자 수로. */
+function syncTimingNote(tm, data){
+  try{
+    const g=tm.get||{}, s=x=>(x/1000).toFixed(1)+'초';
+    const mb=g.chars?(g.chars/1048576).toFixed(1)+'MB':'-';
+    const sizes={}; try{ for(const k in (data||{})){ const v=data[k]; sizes[k]=v==null?0:(typeof v==='string'?v.length:JSON.stringify(v).length); } }catch(e){}
+    const top=Object.keys(sizes).sort((a,b)=>sizes[b]-sizes[a]).slice(0,6).map(k=>k+' '+Math.round(sizes[k]/1024)+'K');
+    const rec={ at:new Date().toISOString(), getMs:Math.round(g.ms||0), parseMs:Math.round(g.parseMs||0), chars:g.chars||0,
+      mergeMs:Math.round(tm.b-tm.a), saveMs:Math.round(tm.c-tm.b), drawMs:Math.round(tm.d-tm.c), totalMs:Math.round(tm.d-tm.start), top:top.join(' · ') };
+    let hist=[]; try{ hist=JSON.parse(localStorage.getItem('ybn-sync-timing-v1')||'[]'); }catch(e){}
+    hist.push(rec); hist=hist.slice(-20);
+    try{ localStorage.setItem('ybn-sync-timing-v1', JSON.stringify(hist)); }catch(e){}
+    try{ console.log('[시트 받기 ⏱]', rec); console.table(hist.map(h=>({때:h.at.slice(5,16),받기:h.getMs,크기K:Math.round(h.chars/1024),풀기:h.parseMs,합치기:h.mergeMs,저장:h.saveMs,그리기:h.drawMs,전체:h.totalMs}))); }catch(e){}
+    return '<div style="font-size:11px;font-weight:500;opacity:.9;margin-top:2px">⏱ 받기 '+s(g.ms||0)+' ('+mb+') · 풀기 '+s(g.parseMs||0)
+      +' · 합치기 '+s(tm.b-tm.a)+' · 저장 '+s(tm.c-tm.b)+' · 그리기 '+s(tm.d-tm.c)+' · 전체 '+s(tm.d-tm.start)+'</div>';
+  }catch(e){ return ''; }
+}
 async function autoSyncOnLoad(){
   if(!gsUrl) return;
   syncBar('busy','⏳ 구글시트에서 받는 중입니다… 잠시만 기다려 주십시오');
   updateGsStatus('syncing');
   try{
+    const _tm={ start:performance.now() };
     const data=await gsFetch('GET',null,'?action=read');
+    _tm.get=window._gsLastGet||null; _tm.a=performance.now();
     applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
+    _tm.b=performance.now();
     /* 시트 것을 합쳤으니 **메모리는 온전합니다.** 저장함이 빠듯해 디스크가
        반쪽이어도 이번 판에는 올려도 됩니다 — 안 그러면 휴대폰이 읽기 전용으로 굳습니다. */
     _mergedOk = true;
@@ -21701,6 +21741,7 @@ async function autoSyncOnLoad(){
     window._skipLocalChange = true;
     saveAll();
     window._skipLocalChange = false;
+    _tm.c=performance.now();
     // 시트로 받은 납품서 중 출고일이 지난 건을 자동 차감 — 최초 1.2초 실행 뒤 들어온 것도 여기서 잡습니다.
     // (예전엔 로드 1.2초에 한 번만 돌아, 그 뒤 동기화로 들어온 지난-출고일 납품서가 미출고로 쌓였습니다)
     try{ if(typeof delivAutoDeduct==='function') delivAutoDeduct(); }catch(e){ console.warn('[자동출고]', e); }
@@ -21714,8 +21755,9 @@ async function autoSyncOnLoad(){
     else renderHome();
     // 무엇이 얼마나 왔는지 적어 둡니다 — 숫자가 보여야 다 온 것을 아십니다
     const n=a=>Array.isArray(a)?a.length:0;
+    _tm.d=performance.now();
     syncBar('done','✅ 받았습니다 — 발주 ' + n(typeof orderLog!=='undefined'?orderLog:[]) + '건 · '
-      + '납품서 ' + n(typeof delivLog!=='undefined'?delivLog:[]) + '건');
+      + '납품서 ' + n(typeof delivLog!=='undefined'?delivLog:[]) + '건' + syncTimingNote(_tm, data));
   }catch(e){
     console.log('자동동기화 실패:', e.message);
     updateGsStatus('error');
