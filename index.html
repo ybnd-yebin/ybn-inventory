@@ -2032,6 +2032,28 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .bas-side-note>div+div{margin-top:4px}
 #pg-bas .bas-grp{font-size:12.5px;font-weight:800;color:var(--sub);margin:16px 2px 6px}   /* 재고 기록 탭 안 묶음 이름 */
 #pg-bas .bas-grp:first-child{margin-top:2px}
+/* 현황 요약 3칸 (2단계) — 색은 뜻이 있을 때만: 빨강 = 납기 지남·모자람, 주황 = 주의·자료 빠짐, 없으면 회색 - */
+#pg-bas .bas-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
+#pg-bas .bas-tile{display:block;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+  cursor:pointer;font:inherit;color:var(--txt);min-width:0}
+#pg-bas .bas-tile:hover{border-color:var(--accent)}
+#pg-bas .bas-tile .k{font-size:12px;color:var(--sub);font-weight:700}
+#pg-bas .bas-tile .v{font-size:20px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#pg-bas .bas-tile .v small{font-size:12px;font-weight:600;color:var(--sub);margin-left:4px}
+#pg-bas .bas-tile .s{font-size:11.5px;color:var(--sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#pg-bas .bas-tile.bad{border-color:var(--bad)} #pg-bas .bas-tile.bad .v{color:var(--bad)}
+#pg-bas .bas-tile.warn{border-color:var(--warn)} #pg-bas .bas-tile.warn .v{color:var(--warn)}
+#pg-bas .bas-tile .v.none{color:var(--sub)}
+#pg-bas #bas-srmCov:not(:empty){margin:-2px 2px 10px}
+/* 접는 단추 — 점선, 펼치면 실선 (7번 2항) */
+#pg-bas .bas-fold>summary{list-style:none;cursor:pointer;font-size:12px;color:var(--sub);padding:3px 10px;border:1px dashed var(--line);border-radius:7px;white-space:nowrap}
+#pg-bas .bas-fold>summary::-webkit-details-marker{display:none}
+#pg-bas .bas-fold[open]>summary{border-style:solid;color:var(--txt)}
+#pg-bas .bas-fold-body{margin:6px 0 8px}
+#pg-bas .bas-ship{white-space:nowrap;text-align:right}
+#pg-bas .bas-ship input{padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)}
+#pg-bas .bas-ship input[type=number]{width:58px;text-align:center;font-size:12px;font-weight:700}
+#pg-bas .bas-ship button{padding:4px 10px;font-size:11px}
 #pg-bas .bas-main{flex:1 1 auto;min-width:0;max-width:none;margin:0;padding:12px 12px 12px 0}
 #pg-bas .card{padding:12px 14px;margin-bottom:10px;border-radius:12px}
 #pg-bas .card h2{margin-bottom:8px}
@@ -2049,6 +2071,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   #pg-bas .bas-side-note{display:flex;gap:8px;flex-wrap:wrap;margin:0;width:100%}
   #pg-bas .bas-side-note>div+div{margin-top:0}
   #pg-bas .bas-main{padding:8px}
+  #pg-bas .bas-tiles{gap:5px}
+  #pg-bas .bas-tile{padding:7px 8px}
+  #pg-bas .bas-tile .v{font-size:15px}
+  #pg-bas .bas-tile .v small{display:block;margin:0}
   #pg-bas .card{padding:10px}
   #pg-bas input:not([type=checkbox]){max-width:100%}
   #pg-bas .card h2 .muted{display:block;margin-left:0}
@@ -2076,42 +2102,50 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- 현황 -->
 <section class="page active" id="bas-page-now">
   <div id="bas-migrate"></div>
-  <div class="card">
-    <h2>📊 창고 출고 올린 범위 <span class="muted">재고 추측이 어디까지 반영됐는지</span></h2>
-    <div id="bas-srmCov"></div>
-  </div>
-  <div class="card" style="border-color:var(--warn)">
-    <h2>📥 미납 발주 <span class="muted">발주는 왔는데 아직 안 보낸 것 — 창고가 비었다는 신호</span></h2>
+  <!-- 요약 3칸 (2026-10-26 개편 2단계) — 숫자는 아래 표·카드가 쓰는 판정 그대로: 미납 = poWithRemain · 부족 = stockOf 등급 · 출고 자료 = srmCoverage -->
+  <div class="bas-tiles" id="bas-nowTiles"></div>
+  <div id="bas-srmCov"></div>
+  <div class="card" id="bas-nowOpenCard">
+    <h2>📥 미납 발주 <span class="muted" id="bas-poOpenCount"></span></h2>
     <div class="tbl-wrap" id="bas-poOpen"></div>
   </div>
-  <div class="card">
+  <div class="card" id="bas-nowStockCard">
     <h2>📦 지금 창고 재고 <span class="muted">월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고</span></h2>
-    <div id="bas-stockSum" style="margin:10px 0 4px"></div>
-    <div class="tbl-wrap" id="bas-stockTbl" style="margin-top:8px"></div>
-    <div class="hint" style="margin-top:10px">
-      <b>월말 실사</b>는 재고 업체가 세어 알려준 값입니다. 여기가 출발점입니다.
-      실사가 아직 없으면 마지막 입고분으로 잡은 <b>하한</b>(<b>≥</b>)을 씁니다.<br>
-      <b>그 뒤 입고</b>는 실사 이후 우리가 창고로 보낸 합계이고, 아래 작은 글씨가 <b>가장 최근 입고</b>입니다.<br>
-      <b>창고 출고</b>는 SRM으로 올린 것만 셉니다 — 위 「올린 범위」에 빠진 날이 있으면 그만큼 덜 빠져
-      <b>예상 재고가 실제보다 많아 보입니다</b>.<br>
-      <b>한 달에 몇 장씩 나가는지</b>는 <b>실사끼리 견줘</b> 냅니다
-      <span class="mini">(앞 실사 ＋ 그 사이 입고 － 뒤 실사)</span>. 여기에는 SRM이 들어가지 않습니다 —
-      바스는 창고재고운영이라 판매오더가 나가는 물량의 일부만 보여주기 때문입니다
-      <span class="mini">(8월 실측 59%)</span>. 실사가 하나뿐인 품목만 SRM으로 재고, 그때는 그렇게 적어 둡니다.<br>
-      색은 <b>며칠 버티나</b>로 봅니다 — 빨강 <span id="bas-thCrit">14</span>일 안에 바닥(또는 마이너스) ·
-      주황 <span id="bas-thLow">30</span>일 안에 바닥 · 초록 그 밖.
-      <span class="mini">소진 속도를 모르는 품목(실사가 하나뿐)만 장수로 봅니다 — 5장·10장.</span>
+    <div class="row" style="margin:10px 0 4px;align-items:center;gap:8px">
+      <div id="bas-stockSum"></div>
+      <details class="bas-fold" style="margin-left:auto" ontoggle="document.getElementById('bas-stockHow').hidden=!this.open"><summary>ⓘ 계산 방법</summary></details>
     </div>
+    <div class="bas-fold-body" id="bas-stockHow" hidden>
+      <div class="hint">
+        <b>월말 실사</b>는 재고 업체가 세어 알려준 값입니다. 여기가 출발점입니다.
+        실사가 아직 없으면 마지막 입고분으로 잡은 <b>하한</b>(<b>≥</b>)을 씁니다.<br>
+        <b>그 뒤 입고</b>는 실사 이후 우리가 창고로 보낸 합계이고, 아래 작은 글씨가 <b>가장 최근 입고</b>입니다.<br>
+        <b>창고 출고</b>는 SRM으로 올린 것만 셉니다 — 위 「출고 자료」 칸에 빠진 날이 있으면 그만큼 덜 빠져
+        <b>예상 재고가 실제보다 많아 보입니다</b>.<br>
+        <b>한 달에 몇 장씩 나가는지</b>는 <b>실사끼리 견줘</b> 냅니다
+        <span class="mini">(앞 실사 ＋ 그 사이 입고 － 뒤 실사)</span>. 여기에는 SRM이 들어가지 않습니다 —
+        바스는 창고재고운영이라 판매오더가 나가는 물량의 일부만 보여주기 때문입니다
+        <span class="mini">(8월 실측 59%)</span>. 실사가 하나뿐인 품목만 SRM으로 재고, 그때는 그렇게 적어 둡니다.<br>
+        색은 <b>며칠 버티나</b>로 봅니다 — 빨강 <span id="bas-thCrit">14</span>일 안에 바닥(또는 마이너스) ·
+        주황 <span id="bas-thLow">30</span>일 안에 바닥 · 초록 그 밖.
+        <span class="mini">소진 속도를 모르는 품목(실사가 하나뿐)만 장수로 봅니다 — 5장·10장.</span>
+        </div>
+    </div>
+    <div class="tbl-wrap" id="bas-stockTbl" style="margin-top:8px"></div>
   </div>
 
   <!-- 「📅 일자별 출고」 표는 재고 기록 탭의 「모델 × 일자」 와 같은 표라 그쪽 하나로 모았습니다(2026-10-26). renderNow 의 renderSrmGrid('nowGrid') 는 칸이 없으면 그냥 지나갑니다 -->
-  <div class="card">
-    <h2>입고 예정 <span class="muted">앞으로 들어올 물량</span></h2>
+  <details class="card" id="bas-aheadCard" style="padding:0">
+    <summary style="padding:12px 14px;cursor:pointer;font-size:15px;font-weight:700;list-style:none">
+      📅 입고 예정 <span class="muted" id="bas-aheadCount" style="font-weight:500"></span>
+    </summary>
+    <div style="padding:0 14px 12px">
     <div class="hint">앞날 출고일로 <b>납품 기록</b>에 넣으시면 여기에 모여 보이고, 위 재고 표의 예상 재고 아래에도 함께 뜹니다.
       들어온 날이 지나면 저절로 <b>지금 재고</b>로 옮겨 갑니다.<br>
       발주일과 출고일은 다른 날입니다 — 여기 적는 날짜는 <b>물건이 창고에 들어가는 날(출고일)</b>입니다.</div>
     <div class="tbl-wrap" id="bas-aheadTbl" style="margin-top:10px"></div>
-  </div>
+    </div>
+  </details>
 
   <details class="card" style="padding:0">
     <summary style="padding:16px 18px;cursor:pointer;font-size:15px;font-weight:700;list-style:none">
@@ -29025,9 +29059,13 @@ function outRange(after){
   return {from:days[0], to:days[days.length-1], n:days.length};
 }
 
-function renderStock(){
-  const rows=allCodes().map(c=>({c,s:stockOf(c)}))
+/* 재고 표에 오르는 품목 — 현황 요약 칸도 같은 줄을 셉니다(두 곳이 다른 숫자를 말하지 않게) */
+function stockRows(){
+  return allCodes().map(c=>({c,s:stockOf(c)}))
     .filter(x=>x.s.base||x.s.inn||x.s.out||x.s.planOut||x.s.soon);
+}
+function renderStock(){
+  const rows=stockRows();
   rows.sort((a,b)=>{
     if(a.s.rank!==b.s.rank) return a.s.rank-b.s.rank;      // 급한 것 먼저
     // 같은 등급 안에서는 '먼저 바닥나는 것' 먼저. 속도를 모르는 품목은 뒤로 보낸다.
@@ -29120,6 +29158,10 @@ function renderStock(){
 function renderAhead(){
   const host=$b('aheadTbl'); if(!host) return;
   const list=(ST.delivs||[]).filter(x=>x.ship>TODAY).sort((a,b)=>a.ship<b.ship?-1:1);
+  // 현황에서는 접어 두고, 있을 때만 보입니다 (2026-10-26 2단계)
+  const card=$b('aheadCard'), cnt=$b('aheadCount');
+  if(card) card.style.display=list.length?'':'none';
+  if(cnt) cnt.textContent=list.length?`${list.length}건 · ${list.reduce((a,x)=>a+(x.qty||0),0)}장`:'';
   if(!list.length){
     host.innerHTML=`<div class="empty">앞으로 들어올 입고가 아직 없습니다.
       납품 기록에 <b>앞날 출고일</b>로 넣으시면 여기에 뜹니다.</div>`;
@@ -29354,7 +29396,8 @@ function renderSrmCoverage(){
     return;
   }
   const md=s=>s.slice(5).replace('-','/');
-  let html=`<div style="font-size:15px;font-weight:700;margin-bottom:6px">${c.first} ~ <span style="color:var(--accent)">${c.last}</span> <span class="mini" style="font-weight:400">· ${c.n}일치 올림</span></div>`;
+  // 올린 범위·날수는 위 요약 「출고 자료」 칸이 말합니다(2026-10-26 2단계). 여기는 빠진 것이 있을 때만 그 자세한 내용을 적습니다.
+  let html='';
   const warns=[];
   if(c.sinceLast>0)
     warns.push(`<b>${c.last}</b> 이후 <b>${c.sinceLast}일</b> 자료가 없습니다. 그 뒤로 나간 물량은 아래 재고에 <b>안 빠져 있습니다</b> — 실제 재고는 더 적습니다.`);
@@ -29364,10 +29407,38 @@ function renderSrmCoverage(){
     warns.push(`출고일이 지났는데 그 전에 뽑은 값만 있는 날 <b>${c.stale.length}일</b> — 다시 뽑아 넣으면 정확해집니다.`);
   html += warns.length
     ? `<div class="hint" style="color:var(--warn)">${warns.map(w=>'⚠ '+w).join('<br>')}</div>`
-    : `<div class="hint" style="color:var(--good)">✅ 빠진 날 없이 오늘까지 채워져 있습니다.</div>`;
+    : '';
   host.innerHTML=html;
 }
 
+/* 현황 요약 3칸 (2026-10-26 2단계) — 새 판단 기준 없음. 아래 카드들이 쓰는 값을 그대로 셉니다.
+   미납 = poWithRemain 의 remain>0 (납기 지남 = 미납 표의 「지남」과 같은 조건) · 부족 = 재고 표 칩의 등급(stockOf rank) · 출고 자료 = srmCoverage */
+function goTab(p){ const t=_root().querySelector(`.tab[data-p="${p}"]`); if(t) t.click(); }
+function goCard(id){ const e=$b(id); if(e) e.scrollIntoView({behavior:'smooth',block:'start'}); }
+function renderNowTiles(open){
+  const host=$b('nowTiles'); if(!host) return;
+  const tile=(cls,k,v,s,on)=>`<button class="bas-tile ${cls}" onclick="${on}"><div class="k">${k}</div><div class="v${v==='-'?' none':''}">${v}</div><div class="s">${s}</div></button>`;
+  // ① 미납 발주
+  const q=open.reduce((a,r)=>a+r.remain,0), late=open.filter(r=>r.due&&r.due<TODAY).length;
+  const t1=tile(late?'bad':open.length?'warn':'', '📥 미납 발주',
+    open.length?`${open.length}건<small>${q}장</small>`:'-',
+    late?`납기 지남 ${late}건`:open.length?'납기 안 지남':'미납 없음', `BAS.goCard('nowOpenCard')`);
+  // ② 부족 재고 — 재고 표 칩과 같은 등급: 0 모자람 · 1 급함(빨강) · 2 주의(주황) · 3 여유
+  const n=[0,0,0,0]; stockRows().forEach(x=>n[x.s.rank]++);
+  const red=n[0]+n[1];
+  const t2=tile(red?'bad':n[2]?'warn':'', '📦 부족 재고',
+    red?`${red}종`:'-',
+    [n[0]?`모자람 ${n[0]}`:'', n[1]?`급함 ${n[1]}`:'', n[2]?`주의 ${n[2]}`:'', `여유 ${n[3]}`].filter(Boolean).join(' · '),
+    `BAS.goCard('nowStockCard')`);
+  // ③ 출고 자료 — 「올린 범위」 판정 그대로
+  const c=srmCoverage(), md=s=>s.slice(5).replace('-','/');
+  const iss=c?[c.sinceLast>0?`${c.sinceLast}일 안 올림`:'', c.missing.length?`빠진 날 ${c.missing.length}일`:'', c.stale.length?`다시 뽑을 날 ${c.stale.length}일`:''].filter(Boolean):[];
+  const t3=tile(!c||iss.length?'warn':'', '📊 출고 자료',
+    c?`${md(c.last)}<small>마지막</small>`:'-',
+    !c?'아직 없음 — 재고 기록에서 올리기':iss.length?iss.join(' · '):'빠진 날 없음',
+    `BAS.goTab('record')`);
+  host.innerHTML=t1+t2+t3;
+}
 function renderNow(){
   renderSrmCoverage();
   renderSrmGrid('nowGrid','nowGridTitle');
@@ -29392,28 +29463,32 @@ function renderNow(){
     :'<div class="empty">품목이 없습니다.</div>';
 
   // 미납 발주 — 발주가 왔다는 건 창고가 비었다는 뜻이라, 맨 위에서 먼저 보이게 한다.
+  const open=(typeof poWithRemain==='function'?poWithRemain():[]).filter(r=>r.remain>0);
   const openHost=$b('poOpen');
   if(openHost){
-    const open=(typeof poWithRemain==='function'?poWithRemain():[]).filter(r=>r.remain>0);
+    const oc=$b('poOpenCount');
+    if(oc) oc.textContent=open.length?`${open.length}건 · ${open.reduce((a,r)=>a+r.remain,0)}장`:'';
     if(!open.length){
       openHost.innerHTML=(ST.pos&&ST.pos.length)
         ? '<div class="hint">미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.</div>'
         : '<div class="hint">아직 넣은 발주가 없습니다 — <b>발주·납품</b> 탭의 「① 발주 받기」에 P/O 표를 붙여넣어 주세요.</div>';
     }else{
-      const q=open.reduce((a,r)=>a+r.remain,0);
-      openHost.innerHTML=`<div style="margin-bottom:7px"><span class="chip w">미납 ${open.length}건 · ${q}장</span></div>`
-        +`<table><thead><tr><th>오더번호</th><th>발주일</th><th>제품</th>
-            <th class="num" title="발주가 들어온 날, 창고에 얼마나 남아 있었는지">발주 시점 재고</th>
-            <th class="num">미납</th><th>납품일</th></tr></thead><tbody>`
+      /* 간략 표 + 그 자리에서 납품 (2026-10-26 2단계). 넣기는 발주·납품 탭과 같은 poShip — 칸 아이디만 앞에 'nw' 를 붙여 두 탭의 칸이 섞이지 않게 합니다 */
+      openHost.innerHTML=`<table><thead><tr><th>오더번호</th><th>발주일</th><th>제품</th>
+            <th class="num">발주</th><th class="num">미납</th><th>납기</th><th class="bas-ship">보낸 것 넣기</th></tr></thead><tbody>`
         +open.map(r=>{
           const late=r.due&&r.due<TODAY;
-          return `<tr><td class="mini">${r.ord}</td><td>${r.odate}</td><td>${nameOf(r.code)}<div class="mini">${r.code}</div></td>
-            <td class="num">${atOrderCell(r.code, r.odate)}</td>
+          return `<tr><td class="mini">${r.ord}</td><td class="mini">${r.odate||'-'}</td><td style="white-space:normal;min-width:150px">${nameOf(r.code)}<div class="mini">${r.code}</div></td>
+            <td class="num">${r.qty}</td>
             <td class="num" style="font-weight:700;color:var(--bad)">${r.remain}</td>
-            <td${late?' style="color:var(--bad)"':''}>${r.due||'—'}${late?' <span class="mini">지남</span>':''}</td></tr>`;
+            <td${late?' style="color:var(--bad)"':''}>${r.due||'-'}${late?' <span class="mini">지남</span>':''}</td>
+            <td class="bas-ship"><input type="date" id="bas-nwpod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날">
+              <input type="number" id="bas-nwpoq-${r.ord}-${r.code}" value="${r.remain}" title="실제로 보낸 수량">
+              <button class="primary" onclick="BAS.poShip('${r.ord}','${r.code}','nw')">납품함</button></td></tr>`;
         }).join('')+`</tbody></table>`;
     }
   }
+  renderNowTiles(open);
 
   $b('nowMeta').textContent=
     `스냅샷 ${ST.snaps.length}일치 · 납품 ${ST.delivs.length}건 · 발주 ${orders().length}건`;
@@ -29880,10 +29955,10 @@ function poWithRemain(){
    줄에 [출고일][수량][납품함] 만 두고, 수량은 미납분을 미리 채워 둔다.
    50개 발주에 44개만 보냈으면 44로 고쳐 누르면 미납 6이 남는다.
    참조문서번호(오더번호)는 자동으로 붙어서 그 발주에 정확히 맞물린다. */
-function poShip(ord, code){
+function poShip(ord, code, pre){   // pre: 칸 아이디 앞붙임 — 현황 미납 표는 'nw' (2026-10-26). 넣는 일은 같습니다
   const r=poWithRemain().find(x=>x.ord===ord && x.code===code);
   if(!r){ toast('발주를 찾지 못했어요'); return; }
-  const id=s=>$b(s+ord+'-'+code);
+  const id=s=>$b((pre||'')+s+ord+'-'+code);
   const qEl=id('poq-'), dEl=id('pod-');
   const q=parseInt(qEl&&qEl.value)||0;
   const ship=(dEl&&dEl.value)||TODAY;
@@ -30512,7 +30587,7 @@ $b('dShip').value=TODAY;
 $b('closeMonth').value=ym(TODAY);
 
 function open(){ try{ refresh(); }catch(e){ console.error('[바스재고]', e); toast('⚠ 바스 화면을 그리다 멈췄습니다'); } }
-return {open, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
+return {open, goTab, goCard, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
 })();
 </script>
 <!-- ══ 🧭 대분류·소분류 메뉴 (1차 UI 개편 2026-10-23) — CLAUDE.md 12-67 ══
