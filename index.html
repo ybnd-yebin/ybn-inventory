@@ -15793,6 +15793,8 @@ function odSheetToHtml(wb, ws){
        화면에 붙인 뒤 그 칸을 실제로 재어 얹습니다(odPlaceImages). */
     imgs += '<img data-cell="' + (Math.floor(tl.row) + 1) + ',' + (Math.floor(tl.col) + 1) + '"' +
             ' data-off="' + (tl.row % 1).toFixed(3) + ',' + (tl.col % 1).toFixed(3) + '"' +
+            // 표 왼쪽 끝에서 잰 가로 자리 — 그 칸이 합친 칸에 덮였을 때 씁니다(odPlaceImages, 2026-10-27)
+            ' data-x="' + (() => { const ci = Math.floor(tl.col) + 1; let x = 0; for(let c = B.c1; c < ci; c++) x += cols[c - B.c1] || 0; return Math.round(x + (tl.col % 1) * (cols[ci - B.c1] || 0)); })() + '" data-tw="' + w + '"' +
             ' src="' + src + '" style="position:absolute;visibility:hidden;width:' + Math.round(ext.width) +
             'px;height:' + Math.round(ext.height) + 'px">';
   });
@@ -15823,6 +15825,13 @@ function odPlaceImages(node){
     }
     if(!td){ img.remove(); return; }
     const b = td.getBoundingClientRect();
+    /* 합친 칸에 덮인 칸이면 「합친 칸 너비 × 몫」으로 재면 틀립니다 — 도장(M 칸)이 J5:N5 합친 칸 기준으로 재져, 칸 너비를 바꾸자
+       주소 글자 위로 올라갔습니다(2026-10-27). 그때는 표 왼쪽 끝에서 잰 자리(data-x)를 씁니다. */
+    const exact = td.dataset.rc === r + ',' + c, tb = node.querySelector('table');
+    if(!exact && img.dataset.x != null && tb){
+      const t = tb.getBoundingClientRect(), k = t.width / (Number(img.dataset.tw) || t.width);
+      img.style.left = Math.round(t.left - base.left + Number(img.dataset.x) * k) + 'px';
+    } else
     img.style.left = Math.round(b.left - base.left + oc * b.width) + 'px';
     img.style.top  = Math.round(b.top  - base.top  + or * b.height) + 'px';
     img.style.visibility = 'visible';
@@ -15915,7 +15924,29 @@ function odGrowItemRows(ws, extra){
   const pm = pa && String(pa).match(/^(\$?[A-Z]+\$?)(\d+):(\$?[A-Z]+\$?)(\d+)$/);
   if(pm && +pm[4] > lastTpl) ws.pageSetup.printArea = `${pm[1]}${pm[2]}:${pm[3]}${+pm[4]+extra}`;
 }
+/* 칸 너비 — 사장님이 엑셀에서 직접 맞추신 비율 (2026-10-27, `261027_아름_KB 5T투명 비규격.xlsx`).
+   품명 32.75(C+D+E) · 규격 34.75(F~I) · 수량 16.125 · 납기 14.875 · **비고 50.25(L+M)** · 업체명 19.375 — 양식 파일은 그대로 두고 여기서 덮습니다.
+   예전에는 비고(L~M)가 22.25 뿐이라 「5T투명/강화/비산방지필름」이 세 줄로 쌓였습니다. 결재란·도장은 그림(픽셀 크기)이라 안 늘어납니다.
+   ⚠ 비고 넓히기는 결재란 그림(odApprovalAsImage — J~N 너비로 크기를 잼)을 **만든 뒤**여야 합니다 — odFillSheet 가 그 뒤에 불립니다. */
+const OD_COL_W = { C:10.25, D:18.5, E:4, F:10.625, G:8.042, H:8.042, I:8.041, L:11.125, M:39.125 };
+function odSetColWidths(ws){
+  /* 그림(도장)은 「몇째 칸 + 그 칸의 몇 분의 몇」으로 붙어 있어, 칸을 넓히면 같이 밀립니다 — 도장이 M 칸에 걸려 주소 글자를 덮었습니다(2026-10-27 실측).
+     넓히기 전 **픽셀 자리**를 재 두었다가, 넓힌 뒤 같은 픽셀 자리로 되돌립니다. 결재란 그림(J 칸 맨 앞)은 칸 경계라 그대로입니다. */
+  const colPx = c => Math.round((Number(ws.getColumn(c).width) || 8.43) * 7.5 + 5);
+  const xOf = col => { let x = 0; for(let c = 1; c <= Math.floor(col); c++) x += colPx(c); return x + (col % 1) * colPx(Math.floor(col) + 1); };
+  // 도장·결재란은 J 칸(9)부터 오른쪽 덩어리라, **J 칸 왼쪽 끝에서 잰 거리**를 지킵니다(앞 칸 C~I 가 좁아져도 J 와 함께 움직이게)
+  const J = 9, media = (ws._media || []).filter(m => m.range && m.range.tl && m.range.ext && m.range.tl.col >= J).map(m => ({ m, dx:xOf(m.range.tl.col) - xOf(J) }));
+  Object.keys(OD_COL_W).forEach(c => { ws.getColumn(c).width = OD_COL_W[c]; });
+  media.forEach(({ m, dx }) => {
+    const x = xOf(J) + dx;
+    let c = 0, acc = 0;
+    while(c < 60 && acc + colPx(c + 1) <= x){ acc += colPx(c + 1); c++; }
+    m.range.tl.col = c + (x - acc) / colPx(c + 1);
+  });
+}
 function odFillSheet(ws, o){
+  // 박스 발주는 인쇄명이 길고 비고가 거의 없어 예전 칸 너비 그대로(품명 칸이 좁아지면 인쇄명이 두 줄로 접힘 — 2026-10-27 실측)
+  if(!odIsBoxOrder(o)) odSetColWidths(ws);
   const part = odTitleParts(o);
   ws.getCell('D4').value = o.vendor || '';
   ws.getCell('D5').value = odShortDate(o.date);
@@ -15974,7 +16005,7 @@ function odFillSheet(ws, o){
   // 박스도 유리와 같은 칸 모양(품명 C~E · 규격 F~I) — 사장님 2026-10-20 「유리 엑셀 양식에 맞춰서」. 예전 한 칸 합치기(odBoxWideName)는 안 씁니다
   if(odIsBoxOrder(o)) odBoxNameFit(ws, rows, o);
   odSplitClientCol(ws, rows, o);
-  try{ odWrapBigo(ws, rows, o); }catch(e){ console.warn('[발주서] 비고 줄바꿈', e); }
+  try{ odFitBigo(ws, rows, o); }catch(e){ console.warn('[발주서] 비고 맞추기', e); }
 
   /* 총수량 — 수식과 함께 **계산된 값도 넣습니다** (사장님 지적 2026-10-01 "총 14장인데 2장").
      양식 J25 에는 만들 때 계산된 값 2 가 저장돼 있습니다. 엑셀은 열 때 다시 계산하지만
@@ -16049,6 +16080,22 @@ function odWrapBigo(ws, rows, o){
     c.alignment = Object.assign({}, c.alignment || {}, { wrapText:true, shrinkToFit:false, horizontal:'center', vertical:'middle' });
     const row = ws.getRow(r), need = lines * pt * 1.35 + 8;
     if(!row.height || row.height < need) row.height = need;
+  }
+}
+/* 비고는 **늘 한 줄** (사장님 2026-10-27 「줄바꿈 안 되게」) — 칸(L~M)보다 길면 줄을 바꾸지 않고 **그 칸 글자만 줄입니다**.
+   엑셀은 shrinkToFit, 카톡 이미지·PDF(odSheetToHtml)는 글자 크기로(업체명 칸과 같은 방식). 옛 odWrapBigo(줄바꿈+줄 높이)는 안 부릅니다. */
+function odFitBigo(ws, rows, o){
+  const px = ['L','M'].reduce((s, c) => s + odColPx(ws.getColumn(c).width), 0) - 12;
+  for(let i = 0; i < rows; i++){
+    const it = o.items[i]; if(!it || !it.bigo) continue;
+    const c = ws.getCell('L' + (OD_TPL_ROW0 + i)), v = String(c.value || '');
+    if(!v) continue;
+    c.style = JSON.parse(JSON.stringify(c.style || {}));          // 서식 덩어리를 나눠 쓰므로 이 칸만 떼어 냄(12-38)
+    c.alignment = Object.assign({}, c.alignment || {}, { wrapText:false, shrinkToFit:true, horizontal:'center', vertical:'middle' });
+    const base = (c.font && c.font.size) || 11;
+    const em = [...v].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
+    const fitPt = px / (em * 1.32);
+    if(fitPt < base) c.font = Object.assign({}, c.font || {}, { size: Math.max(8, Math.floor(fitPt * 10) / 10) });
   }
 }
 function odSplitClientCol(ws, rows, o){
