@@ -10191,6 +10191,15 @@ function updateGsSyncTime(){
         +'</table>'+(hist[0].top?'<div style="color:var(--tx3);margin-top:3px">큰 것: '+hist[0].top+'</div>':'');
     }
   }catch(e){}
+  // 🧹 두 번 빠진 것 덜어낸 내역 (2026-10-26, 확인용)
+  try{
+    const h=(typeof delivDupLogHtml==='function')?delivDupLogHtml():'';
+    if(el && h){
+      let box=document.getElementById('gs-dup-log');
+      if(!box){ box=document.createElement('div'); box.id='gs-dup-log'; (el.closest('.card')||el.parentNode).appendChild(box); }
+      box.innerHTML=h;
+    }
+  }catch(e){}
   if(el&&meta.lastGsSync){const d=new Date(meta.lastGsSync);el.textContent=d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}
 }
 // ══════════════════════════════════════════════════
@@ -23514,10 +23523,43 @@ function delivDupScan(){
       let acc=0, i=0;
       while(i<evs.length && acc<want){ acc+=(parseInt(evs[i].qty)||0); i++; }
       if(acc!==want) continue;                           // 딱 안 맞으면 손대지 않습니다
-      rows.push({no:String(d.delivNo), key:k, want, got, drop:evs.slice(i).map(e=>e.id)});
+      // keepEv·dropEv·od·dAt 는 확인용 내역에만 씀(2026-10-26) — 덜어내는 판단은 그대로
+      const brief=e=>({id:e.id, at:e.at||'', by:e.by||'', q:parseInt(e.qty)||0});
+      rows.push({no:String(d.delivNo), key:k, want, got, drop:evs.slice(i).map(e=>e.id),
+        keepEv:evs.slice(0,i).map(brief), dropEv:evs.slice(i).map(brief), od:d.orderDate||'', dAt:d.deductedAt||''});
     }
   });
   return rows;
+}
+/* 🔎 「두 번 빠진 것 덜어냄」 내역 (사장님 2026-10-26 「매번 1065장」 — 확인 1단계, 재고 계산은 그대로)
+   덜어낼 때마다 마지막 판을 이 기기 ybn-dup-trim-log-v1 에 남기고 ⚙ 설정에 표로(delivDupLogHtml).
+   줄마다: 납품번호 · 발주일 · 칸 · 빼야 할 · 빠진 · 덜어낸 · 남긴 기록 때 · 덜어낸 기록 때.
+   덜어낸 기록이 남긴 것과 **다른 때·다른 사람**이면 정말 두 번 빠진 것, **같은 때**면 규칙이 바뀐 것일 수 있습니다. */
+function delivDupLogSave(rows, q){
+  try{
+    const runs=(()=>{ try{ return JSON.parse(localStorage.getItem('ybn-dup-trim-log-v1')||'{}'); }catch(e){ return {}; } })();
+    const t=new Date().toISOString();
+    const docs=new Set(rows.map(r=>r.no)).size;
+    runs.last={ at:t, docs, q, rows:rows.slice().sort((a,b)=>(b.got-b.want)-(a.got-a.want)).slice(0,300).map(r=>({no:r.no, od:r.od, dAt:r.dAt, key:r.key, want:r.want, got:r.got, keepEv:r.keepEv, dropEv:r.dropEv})) };
+    runs.count=(runs.count||0)+1; runs.first=runs.first||t;
+    localStorage.setItem('ybn-dup-trim-log-v1', JSON.stringify(runs));
+  }catch(e){ console.warn('[납품 중복 내역]', e); }
+}
+function delivDupLogHtml(){
+  let runs; try{ runs=JSON.parse(localStorage.getItem('ybn-dup-trim-log-v1')||'{}'); }catch(e){ return ''; }
+  const L=runs&&runs.last; if(!L) return '';
+  const tm=s=>{ if(!s) return '-'; const d=new Date(s); return isNaN(d)?String(s).slice(5,16):(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+  const evs=a=>(a||[]).map(e=>tm(e.at)+(e.by?' '+e.by:'')+' '+e.q+'장').join('<br>')||'-';
+  const td='padding:3px 6px;border-top:1px solid var(--b1);vertical-align:top';
+  // 덜어낸 기록이 남긴 기록과 같은 때(1분 안)면 「같은 때」로 표시 — 규칙 변경 의심
+  const same=r=>{ const k=(r.keepEv||[]).map(e=>+new Date(e.at)).filter(x=>!isNaN(x)); return (r.dropEv||[]).some(e=>{ const x=+new Date(e.at); return !isNaN(x)&&k.some(y=>Math.abs(x-y)<60000); }); };
+  const nSame=L.rows.filter(same).length;
+  return '<div style="margin-top:12px;font-size:11px;color:var(--tx2)"><div style="font-weight:700;margin-bottom:3px">🧹 두 번 빠진 것 덜어낸 내역 — 마지막 '+tm(L.at)+' · 납품서 '+L.docs+'건 · '+L.q+'장 (이 기기에서 '+(runs.count||1)+'번째)</div>'
+    +'<div style="color:var(--tx3);margin-bottom:4px">덜어낸 기록이 남긴 기록과 <b>다른 때</b>면 정말 두 번 빠진 것, <b style="color:var(--acc4)">같은 때</b>면 규칙이 바뀐 것일 수 있습니다. 같은 때: '+nSame+'줄 / '+L.rows.length+'줄</div>'
+    +'<div style="overflow-x:auto;max-height:420px;overflow-y:auto;border:1px solid var(--b1);border-radius:6px"><table style="border-collapse:collapse;white-space:nowrap;font-variant-numeric:tabular-nums">'
+    +'<tr style="background:var(--s2);color:var(--tx3);position:sticky;top:0"><td style="'+td+'">납품번호</td><td style="'+td+'">발주일</td><td style="'+td+'">칸</td><td style="'+td+';text-align:right">빼야</td><td style="'+td+';text-align:right">빠짐</td><td style="'+td+';text-align:right">덜어냄</td><td style="'+td+'">남긴 기록</td><td style="'+td+'">덜어낸 기록</td></tr>'
+    +L.rows.map(r=>'<tr'+(same(r)?' style="background:rgba(248,81,73,.06)"':'')+'><td style="'+td+'">'+r.no+'</td><td style="'+td+'">'+(r.od||'-').slice(5)+'</td><td style="'+td+'">'+String(r.key).replace('x','×')+'</td><td style="'+td+';text-align:right">'+r.want+'</td><td style="'+td+';text-align:right">'+r.got+'</td><td style="'+td+';text-align:right;font-weight:700">'+(r.got-r.want)+'</td><td style="'+td+'">'+evs(r.keepEv)+'</td><td style="'+td+'">'+evs(r.dropEv)+'</td></tr>').join('')
+    +'</table></div></div>';
 }
 // 넘친 것 덜어내기 — 차감·병합 뒤에 부릅니다. 덜어낸 장수를 돌려줍니다.
 function delivDupTrim(){
@@ -23525,6 +23567,7 @@ function delivDupTrim(){
   const rows=delivDupScan(); if(!rows.length) return 0;
   const ids=[], keys=new Set(); let q=0;
   rows.forEach(r=>{ ids.push(...r.drop); keys.add(r.key); q+=r.got-r.want; });
+  delivDupLogSave(rows, q);   // 🔎 덜어낸 내역 남기기 (확인용, 2026-10-26) — 재고 계산과 무관
   removeStockEventsByIds(ids);
   keys.forEach(k=>{
     if(stockEvents[k] && stockEvents[k].some(e=>e.type==='count')) recalcAutoAdjusts(k);
