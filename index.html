@@ -886,6 +886,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <!-- 수납유리재고 (신규) -->
   <div id="sp-storage" class="sub-pg" style="display:none;padding:14px 14px 80px">
     <div id="soonap-warn"></div>
+    <div id="soonap-glass"></div>
     <div class="card">
       <div class="card-ttl"><span>🗄️ 수납유리재고</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">납품서 자동 반영 · 37종</span></div>
       <div class="info-note">📊 <b>＋입고</b> 버튼으로 입고 수량을 넣으면 <b>총재고</b>가 쌓이고, 한샘 납품서를 올리면 <b>출고가 자동 차감</b>됩니다(중복 없음). 지난 날짜로 넣으실 때는 수량 뒤에 날짜를 붙이면 됩니다 — <b>30 7/28</b> 처럼요. 이번주·이번달 출고와 6개월 월평균은 자동 집계돼요. <b>발주</b> 버튼으로 발주 수량을 적어두면 나중에 입고 누를 때 자동으로 채워집니다. 표를 옆으로 밀면 모든 열이 보입니다. 비규격은 맨 아래 별도로 모아둡니다.</div>
@@ -3730,7 +3731,7 @@ function dedupeDelivLog(arr){
    · 비규격(isBig)은 정규품과 절대 안 합침 → 코드+사이즈 키로 별도 표.
    ══════════════════════════════════════════════════════════════════════ */
 const SOONAP_GROUPS = {
-  '글래스도어': ['CAIB13894','CAIB13895'],
+  '글래스도어': ['CAIB13894','CAIB13895','CAIB14167','CAIB14168'],   // 450 · 500 · 행잉 450 · 행잉 500 (2026-10-26)
   '유리장식장': ['ME1TM0001','ME1TM0002','ME1TM0003','ME1TM0004','ME1WM0001','ME1WM0002','ME1WM0003'],
   '에어힌지': ['MK1WM0001','MK1WM0002','MK1MM0001','MK1TM0005'],
   '빗각': ['MK1WM0004','MK1WM0005','MK1WM0006','MK1WM0007','MK1TM0006'],
@@ -3749,7 +3750,18 @@ if(!soonap.active) soonap.active={};
 if(!soonap.base) soonap.base={};     // 'YYYY-MM' -> {코드: 원재고}  월 격자에서 손으로 넣은 월초 재고만
 function saveSoonap(){ _put('ybn-soonap-v1', soonap); }
 function soonapActive(code){ return soonap.active[code]!==undefined ? !!soonap.active[code] : (SOONAP_DEFAULT_INACTIVE.indexOf(code)<0); }
-function soonapName(code){ try{ return (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[code]) ? HANSAEM_CATALOG[code][0] : code; }catch(e){ return code; } }
+/* 🚪 시그니처 글래스도어 (사장님 2026-10-26) — 수납유리재고 맨 위 카드로 봅니다.
+   · 18T용(채널) 은 유리가 예전 450·500 과 같아 **그 줄에 합쳐** 셉니다 — 납품서의 18T 코드를 예전 코드로 돌립니다.
+   · 행잉은 유리가 달라(×2101) 제 줄입니다. 직원 재고 페이지(수납 현황)와 같은 묶음입니다.
+   코드를 더하려면 이 두 표만 고칩니다. */
+const SOONAP_ALIAS = { 'CAIB14165':'CAIB13894', 'CAIB14166':'CAIB13895' };   // 18T 채널 450·500 → 예전 450·500
+const SOONAP_LABEL = {
+  'CAIB13894':'글래스 도어 450 · 441×2165', 'CAIB13895':'글래스 도어 500 · 491×2165',
+  'CAIB14167':'행잉 글래스도어 450 · 441×2101', 'CAIB14168':'행잉 글래스도어 500 · 491×2101'
+};
+function soonapKey(code){ return SOONAP_ALIAS[code] || code; }
+function soonapCodesOf(key){ return [key].concat(Object.keys(SOONAP_ALIAS).filter(c=>SOONAP_ALIAS[c]===key)).join(' · '); }
+function soonapName(code){ if(SOONAP_LABEL[code]) return SOONAP_LABEL[code]; try{ return (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[code]) ? HANSAEM_CATALOG[code][0] : code; }catch(e){ return code; } }
 let soonapCat='all';
 
 // 납품서(delivLog)에서 수납 대상 유리의 출고/예정 집계. id 기준 중복 없음, 삭제(툼스톤) 제외.
@@ -3770,15 +3782,17 @@ function soonapAgg(){
       if(!it || !it.code) continue;
       const q = Number(it.qty)||0; if(!q) continue;
       const cat = (typeof DAEGUBUN!=='undefined') ? DAEGUBUN[it.code] : '';
+      const k = soonapKey(it.code);   // 18T 채널 → 예전 450·500 줄
       if(it.isBig){
-        if(!(SOONAP_CODE_SET.has(it.code) || SOONAP_CATS.has(cat))) continue;
+        // 품목표에 아직 없는 신형(18T·행잉) 비규격 글래스도어도 품명으로 잡습니다
+        if(!(SOONAP_CODE_SET.has(k) || SOONAP_CATS.has(cat) || /글래스.*도어/.test(it.name||it.short||''))) continue;
         const key = it.code+'@'+(it.size||'');
         (big[key] = big[key] || {code:it.code, size:(it.size||''), evs:[]}).evs.push({ship,qty:q,dest:destG,future});
       } else {
-        if(!SOONAP_CODE_SET.has(it.code)) continue;
-        (norm[it.code] = norm[it.code] || {code:it.code, evs:[]}).evs.push({ship,qty:q,dest:destG,future});
+        if(!SOONAP_CODE_SET.has(k)) continue;
+        (norm[k] = norm[k] || {code:k, evs:[]}).evs.push({ship,qty:q,dest:destG,future});
       }
-      if(!soonapActive(it.code) && (future || ship===today)) warn[it.code] = (warn[it.code]||0)+q;
+      if(!soonapActive(k) && (future || ship===today)) warn[k] = (warn[k]||0)+q;
     }
   }
   return {norm,big,warn};
@@ -3835,23 +3849,45 @@ function renderSoonap(){
   // 대분류 필터 버튼
   const fh=document.getElementById('soonap-filter');
   if(fh){
-    const cats=['all'].concat(Object.keys(SOONAP_GROUPS));
+    const cats=['all'].concat(Object.keys(SOONAP_GROUPS).filter(g=>g!=='글래스도어'));   // 글래스도어는 맨 위 카드
     fh.innerHTML=cats.map(c=>`<button class="f-btn${soonapCat===c?' on':''}" onclick="soonapSetCat('${c}')">${c==='all'?'전체':c}</button>`).join('');
   }
   const ctx=soonapCtx();                                   // 날짜 기준 — 발주 화면과 같은 함수를 쓴다
   // 정규품 표 (한 줄 = 한 품목)
-  let rows='';
-  const cats = (soonapCat==='all') ? Object.keys(SOONAP_GROUPS) : [soonapCat];
+  let rows='', glassRows='';
+  // 🚪 시그니처 글래스도어는 거르기와 상관없이 늘 맨 위 카드로 (2026-10-26) — 아래 표에서는 뺍니다
+  const cats = ['글래스도어'].concat(((soonapCat==='all') ? Object.keys(SOONAP_GROUPS) : [soonapCat]).filter(g=>g!=='글래스도어'));
   for(const g of cats){
     if(!SOONAP_GROUPS[g]) continue;
-    rows += `<tr><td colspan="8" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${g} <span style="color:var(--tx3);font-weight:400">${SOONAP_GROUPS[g].length}종</span></td></tr>`;
+    const isGlass = g==='글래스도어';
+    let r='';
+    if(!isGlass) r += `<tr><td colspan="8" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${g} <span style="color:var(--tx3);font-weight:400">${SOONAP_GROUPS[g].length}종</span></td></tr>`;
     for(const code of SOONAP_GROUPS[g]){
       const rec=norm[code];
       const m=soonapMetrics(code, rec?rec.evs:[], ctx);
       const act=soonapActive(code);
       const cEsc=code.replace(/'/g,"\\'");
-      rows += `<tr style="border-bottom:1px solid var(--b1);${act?'':'opacity:.5'}">
-        <td style="padding:6px 8px;min-width:160px;line-height:1.3">${soonapName(code)}<div style="font-size:9px;color:var(--tx3)">${code}</div></td>
+      if(isGlass){
+        // 글래스도어는 직원 재고 페이지와 같은 셈 — 이달 기초재고 − 이달 납품(발주일·AS 제외) + 이달 입고 (월 격자와 같은 함수)
+        const s=soonapNowOf(code);
+        const gb='border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;font-family:inherit;margin-right:4px';
+        r += `<tr style="border-bottom:1px solid var(--b1)">
+        <td style="padding:6px 8px;min-width:160px;line-height:1.3">${soonapName(code)}<div style="font-size:9px;color:var(--tx3)">${soonapCodesOf(code)}</div></td>
+        <td style="text-align:right;padding-right:14px;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;color:${s.now!=null&&s.now<=0?'var(--acc4)':'var(--tx1)'}">${s.now==null?'-':s.now}</td>
+        <td style="text-align:right;padding-right:14px;font-variant-numeric:tabular-nums">${s.ord||'-'}</td>
+        <td style="text-align:right;padding-right:14px;font-variant-numeric:tabular-nums">${s.ins||'-'}</td>
+        <td style="text-align:right;padding-right:14px;color:var(--tx2);font-variant-numeric:tabular-nums">${m.avg||'-'}</td>
+        <td style="text-align:right;padding-right:14px;color:var(--acc2);font-weight:600">${m.onorder||'-'}</td>
+        <td style="text-align:right;white-space:nowrap;padding:4px 6px">
+          <button onclick="soonapInPrompt('${cEsc}')" style="background:var(--acc);color:#fff;border:none;font-weight:700;${gb}">＋입고</button>
+          <button onclick="soonapGlassReal('${cEsc}')" style="background:var(--s1);color:var(--tx1);border:1px solid var(--b2);${gb}">실사</button>
+          <button onclick="soonapOrderPrompt('${cEsc}')" style="background:var(--s2);color:var(--tx1);border:1px solid var(--b2);${gb}">발주</button>
+        </td>
+      </tr>`;
+        continue;
+      }
+      r += `<tr style="border-bottom:1px solid var(--b1);${act?'':'opacity:.5'}">
+        <td style="padding:6px 8px;min-width:160px;line-height:1.3">${soonapName(code)}<div style="font-size:9px;color:var(--tx3)">${soonapCodesOf(code)}</div></td>
         <td style="text-align:center;font-weight:700;font-size:15px;color:${m.hasIn&&m.total<=0?'var(--acc4)':'var(--tx1)'}">${m.hasIn?m.total:'—'}</td>
         <td style="text-align:center;color:var(--tx1)">${m.week||'·'}</td>
         <td style="text-align:center;color:var(--tx1)">${m.month||'·'}</td>
@@ -3864,10 +3900,9 @@ function renderSoonap(){
         <td style="text-align:center"><input type="checkbox" ${act?'checked':''} onchange="soonapToggle('${cEsc}')"></td>
       </tr>`;
     }
+    if(isGlass) glassRows+=r; else rows+=r;
   }
-  const html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px;border:1px solid var(--b1);border-radius:8px">
-    <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
-      <thead><tr style="background:var(--s1);border-bottom:2px solid var(--b2);color:var(--tx2);font-size:10px">
+  const thead = `<thead><tr style="background:var(--s1);border-bottom:2px solid var(--b2);color:var(--tx2);font-size:10px">
         <th style="text-align:left;padding:7px 8px">품목 (코드)</th>
         <th style="padding:7px 6px">총재고</th>
         <th style="padding:7px 6px">이번주<br>출고(월-금)</th>
@@ -3876,7 +3911,25 @@ function renderSoonap(){
         <th style="padding:7px 6px">발주중</th>
         <th style="padding:7px 6px">입고·발주</th>
         <th style="padding:7px 6px">활성</th>
-      </tr></thead><tbody>${rows}</tbody>
+      </tr></thead>`;
+  const glassHost=document.getElementById('soonap-glass');
+  if(glassHost) glassHost.innerHTML = `<div class="card" style="border-left:3px solid var(--acc)">
+      <div class="card-ttl"><span>🚪 시그니처 글래스도어</span><span style="font-size:11px;color:var(--tx3);font-weight:400">납품서 출고 자동 차감 · 18T용은 같은 유리라 450·500 에 합침</span></div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--b1);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap"><thead><tr style="background:var(--s1);border-bottom:2px solid var(--b2);color:var(--tx2);font-size:10px">
+          <th style="text-align:left;padding:7px 8px">품목 (코드)</th>
+          <th style="text-align:right;padding:7px 14px 7px 6px">재고</th>
+          <th style="text-align:right;padding:7px 14px 7px 6px">${+ctx.ym.slice(5)}월 납품</th>
+          <th style="text-align:right;padding:7px 14px 7px 6px">${+ctx.ym.slice(5)}월 입고</th>
+          <th style="text-align:right;padding:7px 14px 7px 6px">월평균<br>(6개월)</th>
+          <th style="text-align:right;padding:7px 14px 7px 6px">발주중</th>
+          <th style="text-align:right;padding:7px 6px"></th>
+        </tr></thead><tbody>${glassRows}</tbody></table></div>
+      <div style="font-size:11px;color:var(--tx3);margin-top:6px">재고 = 이달 기초재고 − 이달 납품(발주일 기준 · AS 제외) + 이달 입고. 납품서를 올리면 저절로 빠집니다. 재고가 「-」면 「실사」로 지금 수량을 한 번 넣어 주십시오. 연장·비규격은 아래 「비규격」에 출고만 나옵니다.</div>
+    </div>`;
+  const html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px;border:1px solid var(--b1);border-radius:8px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+      ${thead}<tbody>${rows}</tbody>
     </table></div>`;
   // 비규격 — 모델(코드)별로 묶고, 사이즈는 모델 안에 칩으로 나열 (일회성 사이즈라 재고관리 X, 요약만)
   const bigByCode={};
@@ -4146,10 +4199,11 @@ function soonapOrderIndex(){
     const ym=dt.slice(0,7), day=+dt.slice(8,10);
     for(const it of d.items){
       if(!it || !it.code || it.isBig) continue;
-      if(!SOONAP_CODE_SET.has(it.code)) continue;
+      const k=soonapKey(it.code);   // 18T 채널 → 예전 450·500 줄
+      if(!SOONAP_CODE_SET.has(k)) continue;
       const q=Number(it.qty)||0; if(!q) continue;
       const m=idx[ym]=idx[ym]||{};
-      const c=m[it.code]=m[it.code]||{};
+      const c=m[k]=m[k]||{};
       c[day]=(c[day]||0)+q;
     }
   }
@@ -4455,6 +4509,35 @@ function soonapRealPrompt(code){
   (soonap.base[soonapYm]=soonap.base[soonapYm]||{})[code]=newBase;
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonapGrid();
   if(typeof showToast==='function') showToast(`✅ 실재고 ${q}장 — 원재고를 ${newBase}로 맞췄습니다`);
+}
+
+/* 🚪 글래스도어 카드의 「지금 재고」 — 월 격자와 같은 셈을 이번 달로 (2026-10-26).
+   직원 재고 페이지도 「기초재고 − 이달 납품 + 입고」라 같은 꼴입니다. 납품은 발주일 기준 · AS 는 늘 뺍니다. */
+function soonapNowOf(code){
+  const ym=todayStr().slice(0,7);
+  const keepAS=soonapGridAS; soonapGridAS=false;
+  let ordIdx; try{ ordIdx=soonapOrderIndex(); } finally{ soonapGridAS=keepAS; }
+  const inIdx=soonapInIndex();
+  const ord=soonapSumOf(ordIdx,ym,code), ins=soonapSumOf(inIdx,ym,code);
+  const op=soonapOpening(ym,code,ordIdx,inIdx);
+  return {ym, ord, ins, base:op.v, now: op.v==null ? null : (op.v - ord + ins)};
+}
+function soonapGlassReal(code){
+  const s=soonapNowOf(code);
+  const v=window.prompt(
+    `🔢 실사 — 지금 있는 수량\n${soonapName(code)} (${code})\n\n`
+    + `지금 앱: ${s.now==null?'-':s.now}장  ＝ ${+s.ym.slice(5)}월 기초재고 ${s.base==null?'-':s.base} − 납품 ${s.ord} + 입고 ${s.ins}\n\n`
+    + `세어 보신 수량을 넣으시면 이달 기초재고를 거꾸로 계산해 맞춥니다. 납품·입고 기록은 그대로 둡니다.\n(빈칸이면 바꾸지 않습니다)`,
+    s.now!=null?String(s.now):'');
+  if(v===null) return;
+  const t=String(v).trim(); if(t==='') return;
+  const q=Number(t);
+  if(!Number.isFinite(q)){ alert('숫자를 입력하세요.'); return; }
+  const newBase=q + s.ord - s.ins;
+  soonap.base=soonap.base||{};
+  (soonap.base[s.ym]=soonap.base[s.ym]||{})[code]=newBase;
+  saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
+  if(typeof showToast==='function') showToast(`✅ ${soonapName(code)} 실사 ${q}장 — ${+s.ym.slice(5)}월 기초재고 ${newBase}`);
 }
 
 // ── 재고 이력 (StockEvents) ──
