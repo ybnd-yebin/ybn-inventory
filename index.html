@@ -7044,12 +7044,17 @@ function deleteSzmEvent(key, evId){
   // 같은 이벤트와 연관된 자동 조정 이력도 같이 삭제
   if(stockEvents[key]){
     const target = stockEvents[key].find(e=>e.id===evId);
+    // C17 (2026-10-26) — 지운 표시를 남겨 시트·다른 기기에서 되살아나지 않게 합니다.
+    // 발주 입고(C9)가 쓰는 표시(odEvDel)를 그대로 씁니다 — 이미 시트로 오가고, 받은 뒤 odEvReconcile ⓐ 가 걷어냅니다.
+    const delIds = [evId];
     if(target && target.type==='count'){
       // count 삭제 시 연관된 auto-adjust도 삭제
+      stockEvents[key].forEach(e=>{ if(e.relatedCountId===evId) delIds.push(e.id); });
       stockEvents[key] = stockEvents[key].filter(e => e.id !== evId && e.relatedCountId !== evId);
     } else {
       stockEvents[key] = stockEvents[key].filter(e => e.id !== evId);
     }
+    if(typeof odEvDelMark==='function') odEvDelMark(delIds);
   }
   _syncOldStockFromEvents(szmW, szmH);
   saveAll();
@@ -13597,7 +13602,8 @@ function odEvReconcile(){
   // ⓐ 지운 표시
   Object.keys(stockEvents).forEach(k=>{
     const a=stockEvents[k]; if(!Array.isArray(a)) return;
-    const b=a.filter(e=>!(e && odEvDel[e.id]));
+    // C17 — 지운 실측에 딸린 자동조정은 기기마다 번호가 달라(다시 계산할 때마다 새 번호) 실측 번호로 걷어냅니다
+    const b=a.filter(e=>!(e && (odEvDel[e.id] || (e.source==='auto-adjust' && e.relatedCountId && odEvDel[e.relatedCountId]))));
     if(b.length!==a.length){ out.dropped+=a.length-b.length; stockEvents[k]=b; out.keys.add(k); }
   });
   // 품목 번호 → 이벤트들
