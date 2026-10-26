@@ -870,22 +870,55 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- STOCK -->
 <div class="sec-pg" id="pg-stock">
   <nav class="sub-nav">
-    <button class="sub-nav-btn on" onclick="showSub('stocklist')"><span class="ico">📦</span>인쇄실</button>
-    <button class="sub-nav-btn" onclick="showSub('etp')"><span class="ico">🟠</span>에토프</button>
+    <button class="sub-nav-btn on" onclick="showSub('stocklist')" style="order:0"><span class="ico">📦</span>인쇄실</button>
+    <button class="sub-nav-btn" onclick="showSub('etp')" style="order:1"><span class="ico">🟠</span>에토프</button>
     <!-- 완제품 탭 제거: 완제품은 조립실에서 관리(일원화). renderFinished/finApply 함수는 보존(홈 알림 등에서 참조). -->
-    <button class="sub-nav-btn" onclick="showSub('assembly')"><span class="ico">🔧</span>조립실</button>
-    <button class="sub-nav-btn" onclick="showSub('activity')"><span class="ico">🕓</span>변경이력</button>
-    <button class="sub-nav-btn" onclick="showSub('dashboard')"><span class="ico">📊</span>현황</button>
+    <!-- 2026-10-26 사장님 차례: 인쇄실 · 에토프 · 수납유리 · 조립실(바스는 따로 된 탭) — 나머지는 숨김만. 단추 자체는 지우지 않음(showSub 가 SUBS 차례로 씀), 차례는 order 로 -->
+    <button class="sub-nav-btn" onclick="showSub('assembly')" style="order:3"><span class="ico">🔧</span>조립실</button>
+    <button class="sub-nav-btn" onclick="showSub('activity')" style="display:none"><span class="ico">🕓</span>변경이력</button>
+    <button class="sub-nav-btn" onclick="showSub('dashboard')" style="display:none"><span class="ico">📊</span>현황</button>
     <button class="sub-nav-btn" onclick="showSub('trend')" style="display:none"><span class="ico">📈</span>추이</button>
-    <button class="sub-nav-btn" onclick="showSub('spec')"><span class="ico">📐</span>규격</button>
-    <button class="sub-nav-btn" onclick="showSub('ink')"><span class="ico">🪣</span>잉크</button>
-    <button class="sub-nav-btn" onclick="showSub('nonspec')"><span class="ico">🔲</span>비규격</button>
-    <button class="sub-nav-btn" onclick="showSub('mat')"><span class="ico">📒</span>원장재고</button>
-    <button class="sub-nav-btn" onclick="showSub('storage')"><span class="ico">🗄️</span>수납유리재고</button>
+    <button class="sub-nav-btn" onclick="showSub('spec')" style="display:none"><span class="ico">📐</span>규격</button>
+    <button class="sub-nav-btn" onclick="showSub('ink')" style="display:none"><span class="ico">🪣</span>잉크</button>
+    <button class="sub-nav-btn" onclick="showSub('nonspec')" style="display:none"><span class="ico">🔲</span>비규격</button>
+    <button class="sub-nav-btn" onclick="showSub('mat')" style="display:none"><span class="ico">📒</span>원장재고</button>
+    <button class="sub-nav-btn" onclick="showSub('storage')" style="order:2"><span class="ico">🗄️</span>수납유리재고</button>
   </nav>
   <!-- 수납유리재고 (신규) -->
   <div id="sp-storage" class="sub-pg" style="display:none;padding:14px 14px 80px">
     <div id="soonap-warn"></div>
+    <style>
+    /* 수납유리재고 휴대폰 보기 (2026-10-26 「좌우 스크롤 없이 한눈에」) — PC·태블릿은 표 그대로 */
+    #sp-storage .sn-m{display:none}
+    #sp-storage .sn-mg{margin:12px 0 4px;font-size:12px;font-weight:700;color:var(--acc)}
+    #sp-storage .sn-mg span{color:var(--tx3);font-weight:400}
+    #sp-storage .sn-mi{border:1px solid var(--b1);border-radius:8px;background:var(--s1);padding:8px 10px;margin-bottom:6px}
+    #sp-storage .sn-mh{display:flex;align-items:baseline;gap:8px}
+    #sp-storage .sn-mn{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--tx1);line-height:1.3}
+    #sp-storage .sn-ms{font-size:18px;font-family:'JetBrains Mono',monospace;color:var(--tx1)}
+    #sp-storage .sn-ms.red{color:var(--acc4)}
+    #sp-storage .sn-mrow{display:flex;align-items:center;gap:8px;margin-top:4px}
+    #sp-storage .sn-mx{flex:1 1 0;min-width:0;display:flex;flex-wrap:wrap;gap:2px 10px;font-size:11px;color:var(--tx3)}
+    #sp-storage .sn-mx b{color:var(--tx1);font-variant-numeric:tabular-nums}
+    #sp-storage .sn-mbs{display:flex;gap:5px;align-items:center;margin-left:auto;flex:none}
+    #sp-storage .sn-mb{padding:4px 10px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-size:11px;font-family:inherit;cursor:pointer}
+    #sp-storage .sn-mb.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+    #sp-storage .sn-ma{font-size:11px;color:var(--tx3);margin-right:auto;display:flex;align-items:center;gap:3px}
+    @media (max-width:560px){
+      #sp-storage .sn-m{display:block}
+      #sp-storage .sn-t,#sp-storage .sn-sub{display:none!important}
+      #sp-storage .info-note{cursor:pointer;font-size:11.5px}
+      #sp-storage .info-note:not(.open){display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+      #sp-storage .sn-mi{padding:7px 10px}
+      #sp-storage .sn-mb{padding:4px 8px}
+    }
+    </style>
+    <script>
+    document.addEventListener('click', function(e){
+      if(!window.matchMedia || !matchMedia('(max-width:560px)').matches) return;
+      var n=e.target.closest && e.target.closest('#sp-storage .info-note'); if(n) n.classList.toggle('open');
+    });
+    </script>
     <div id="soonap-glass"></div>
     <div class="card">
       <div class="card-ttl"><span>🗄️ 수납유리재고</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">납품서 자동 반영 · 37종</span></div>
@@ -1040,8 +1073,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       #sp-stocklist .stk-kpis{margin-left:0}
     }
     </style>
+    <div class="wd-grid"><aside class="wd-rail" id="wd-left"></aside><div class="wd-main">
     <div class="stk-head">
-      <h2>📦 원유리 · 웜코튼 <span style="font-size:13px;color:var(--tx2);font-weight:600">(인쇄실)</span></h2>
+      <h2>📦 원유리 · 웜코튼 <span style="font-size:13px;color:var(--tx2);font-weight:600">(인쇄실)</span> <button class="wd-tg" onclick="wdToggle()" title="좌우 카드 켜고 끄기">좌우 카드</button></h2>
       <div class="stk-kpis" id="stock-kpis"></div>
     </div>
     <div id="inkcut-card" style="margin:0 0 10px"></div>
@@ -1066,6 +1100,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div id="stock-list"></div>
     <!-- 비규격 섹션 (사이즈 매핑 안 된 모델들) -->
     <div id="stock-misc-section" style="margin-top:20px"></div>
+    </div><aside class="wd-rail" id="wd-right"></aside></div>
   </div>
   <!-- 완제품 재고 (조립+포장 완료, 출고 전) -->
   <div id="sp-finished" class="sub-pg" style="display:none;padding:14px 14px 80px">
@@ -3844,6 +3879,13 @@ function soonapCtx(){
   return {todayS:_todayS, monS:_ymd(_mon), friS:_ymd(_fri), ym:_todayS.slice(0,7), sixS:_ymd(_six)};
 }
 
+/* 휴대폰(560px 이하) 한 줄 카드 — 표를 옆으로 밀지 않고 품목마다 「이름 · 재고(크게)」 + 작은 숫자 줄 + 단추 (2026-10-26)
+   PC·태블릿은 예전 표 그대로(.sn-t), 휴대폰만 이것(.sn-m). 값은 표와 같은 변수 — 새 계산 없음 */
+function snMItem(name, stock, red, nums, btns, act){
+  const n=nums.map(([l,v])=>`<span>${l} <b>${v||'-'}</b></span>`).join('');
+  return `<div class="sn-mi"${act===false?' style="opacity:.5"':''}><div class="sn-mh"><span class="sn-mn">${name}</span><b class="sn-ms${red?' red':''}">${stock}</b></div>`
+    + `<div class="sn-mrow"><div class="sn-mx">${n}</div><div class="sn-mbs">${btns}</div></div></div>`;
+}
 function renderSoonap(){
   if(!document.getElementById('sp-storage')) return;
   const body = document.getElementById('soonap-body'); if(!body) return;
@@ -3862,14 +3904,15 @@ function renderSoonap(){
   }
   const ctx=soonapCtx();                                   // 날짜 기준 — 발주 화면과 같은 함수를 쓴다
   // 정규품 표 (한 줄 = 한 품목)
-  let rows='', glassRows='';
+  let rows='', glassRows='', mG='', mR='';   // mG·mR = 휴대폰용 한 줄 카드 (2026-10-26 「좌우 스크롤 없이」)
   // 🚪 시그니처 글래스도어는 거르기와 상관없이 늘 맨 위 카드로 (2026-10-26) — 아래 표에서는 뺍니다
   const cats = ['글래스도어'].concat(((soonapCat==='all') ? Object.keys(SOONAP_GROUPS) : [soonapCat]).filter(g=>g!=='글래스도어'));
   for(const g of cats){
     if(!SOONAP_GROUPS[g]) continue;
     const isGlass = g==='글래스도어';
     let r='';
-    if(!isGlass) r += `<tr><td colspan="8" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${g} <span style="color:var(--tx3);font-weight:400">${SOONAP_GROUPS[g].length}종</span></td></tr>`;
+    if(!isGlass){ r += `<tr><td colspan="8" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${g} <span style="color:var(--tx3);font-weight:400">${SOONAP_GROUPS[g].length}종</span></td></tr>`;
+      mR += `<div class="sn-mg">${g} <span>${SOONAP_GROUPS[g].length}종</span></div>`; }
     for(const code of SOONAP_GROUPS[g]){
       const rec=norm[code];
       const m=soonapMetrics(code, rec?rec.evs:[], ctx);
@@ -3892,8 +3935,14 @@ function renderSoonap(){
           <button onclick="soonapOrderPrompt('${cEsc}')" style="background:var(--s2);color:var(--tx1);border:1px solid var(--b2);${gb}">발주</button>
         </td>
       </tr>`;
+        mG += snMItem(soonapName(code), s.now==null?'-':s.now, s.now!=null&&s.now<=0,
+          [[+ctx.ym.slice(5)+'월 납품', s.ord], [+ctx.ym.slice(5)+'월 입고', s.ins], ['발주중', m.onorder]],
+          `<button class="sn-mb pri" onclick="soonapInPrompt('${cEsc}')">＋입고</button><button class="sn-mb" onclick="soonapGlassReal('${cEsc}')">실사</button><button class="sn-mb" onclick="soonapOrderPrompt('${cEsc}')">발주</button>`, true);
         continue;
       }
+      mR += snMItem(soonapName(code), m.hasIn?m.total:'-', m.hasIn&&m.total<=0,
+        [['이번주', m.week], ['이번달', m.month], ['월평균', m.avg], ['발주중', m.onorder]],
+        `<button class="sn-mb pri" onclick="soonapInPrompt('${cEsc}')">＋입고</button><button class="sn-mb" onclick="soonapOrderPrompt('${cEsc}')">발주</button><label class="sn-ma"><input type="checkbox" ${act?'checked':''} onchange="soonapToggle('${cEsc}')"> 활성</label>`, act);
       r += `<tr style="border-bottom:1px solid var(--b1);${act?'':'opacity:.5'}">
         <td style="padding:6px 8px;min-width:160px;line-height:1.3">${soonapName(code)}<div style="font-size:9px;color:var(--tx3)">${soonapCodesOf(code)}</div></td>
         <td style="text-align:center;font-weight:700;font-size:15px;color:${m.hasIn&&m.total<=0?'var(--acc4)':'var(--tx1)'}">${m.hasIn?m.total:'—'}</td>
@@ -3922,8 +3971,9 @@ function renderSoonap(){
       </tr></thead>`;
   const glassHost=document.getElementById('soonap-glass');
   if(glassHost) glassHost.innerHTML = `<div class="card" style="border-left:3px solid var(--acc)">
-      <div class="card-ttl"><span>🚪 시그니처 글래스도어</span><span style="font-size:11px;color:var(--tx3);font-weight:400">납품서 출고 자동 차감 · 18T용은 같은 유리라 450·500 에 합침</span></div>
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--b1);border-radius:8px">
+      <div class="card-ttl"><span>🚪 시그니처 글래스도어</span><span class="sn-sub" style="font-size:11px;color:var(--tx3);font-weight:400">납품서 출고 자동 차감 · 18T용은 같은 유리라 450·500 에 합침</span></div>
+      <div class="sn-m">${mG}</div>
+      <div class="sn-t" style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--b1);border-radius:8px">
         <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap"><thead><tr style="background:var(--s1);border-bottom:2px solid var(--b2);color:var(--tx2);font-size:10px">
           <th style="text-align:left;padding:7px 8px">품목 (코드)</th>
           <th style="text-align:right;padding:7px 14px 7px 6px">재고</th>
@@ -3933,9 +3983,9 @@ function renderSoonap(){
           <th style="text-align:right;padding:7px 14px 7px 6px">발주중</th>
           <th style="text-align:right;padding:7px 6px"></th>
         </tr></thead><tbody>${glassRows}</tbody></table></div>
-      <div style="font-size:11px;color:var(--tx3);margin-top:6px">재고 = 이달 기초재고 − 이달 납품(발주일 기준 · AS 제외) + 이달 입고. 납품서를 올리면 저절로 빠집니다. 재고가 「-」면 「실사」로 지금 수량을 한 번 넣어 주십시오. 연장·비규격은 아래 「비규격」에 출고만 나옵니다.</div>
+      <div class="sn-note" style="font-size:11px;color:var(--tx3);margin-top:6px">재고 = 이달 기초재고 − 이달 납품(발주일 기준 · AS 제외) + 이달 입고. 납품서를 올리면 저절로 빠집니다. 재고가 「-」면 「실사」로 지금 수량을 한 번 넣어 주십시오. 연장·비규격은 아래 「비규격」에 출고만 나옵니다.</div>
     </div>`;
-  const html = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px;border:1px solid var(--b1);border-radius:8px">
+  const html = `<div class="sn-m" style="margin-top:8px">${mR}</div><div class="sn-t" style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px;border:1px solid var(--b1);border-radius:8px">
     <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
       ${thead}<tbody>${rows}</tbody>
     </table></div>`;
@@ -10128,6 +10178,28 @@ function updateGsStatus(state){
 }
 function updateGsSyncTime(){
   const el=document.getElementById('gs-sync-time');
+  // ⏱ 최근 받기 시간 (2026-10-26) — 휴대폰에서도 볼 수 있게 설정 화면에 표로
+  try{
+    const hist=JSON.parse(localStorage.getItem('ybn-sync-timing-v1')||'[]').slice(-8).reverse();
+    if(el && hist.length){
+      let box=document.getElementById('gs-sync-timing');
+      if(!box){ box=document.createElement('div'); box.id='gs-sync-timing'; box.style.cssText='margin-top:8px;font-size:11px;color:var(--tx2);overflow-x:auto'; (el.closest('.card')||el.parentNode).appendChild(box); }
+      const s=ms=>(ms/1000).toFixed(1);
+      box.innerHTML='<div style="font-weight:700;margin-bottom:3px">⏱ 시트 받기 시간 (최근 '+hist.length+'번, 초)</div><table style="border-collapse:collapse;font-variant-numeric:tabular-nums;white-space:nowrap">'
+        +'<tr style="color:var(--tx3)"><td style="padding:1px 8px 1px 0">때</td><td style="padding:1px 6px;text-align:right">받기</td><td style="padding:1px 6px;text-align:right">크기</td><td style="padding:1px 6px;text-align:right">합치기</td><td style="padding:1px 6px;text-align:right">저장</td><td style="padding:1px 6px;text-align:right">전체</td></tr>'
+        +hist.map(h=>'<tr><td style="padding:1px 8px 1px 0">'+h.at.slice(5,10).replace('-','/')+' '+new Date(h.at).toTimeString().slice(0,5)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.getMs)+'</td><td style="padding:1px 6px;text-align:right">'+(h.chars/1048576).toFixed(1)+'MB</td><td style="padding:1px 6px;text-align:right">'+s(h.mergeMs)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.saveMs)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.totalMs)+'</td></tr>').join('')
+        +'</table>'+(hist[0].top?'<div style="color:var(--tx3);margin-top:3px">큰 것: '+hist[0].top+'</div>':'');
+    }
+  }catch(e){}
+  // 🧹 두 번 빠진 것 덜어낸 내역 (2026-10-26, 확인용)
+  try{
+    const h=(typeof delivDupLogHtml==='function')?delivDupLogHtml():'';
+    if(el && h){
+      let box=document.getElementById('gs-dup-log');
+      if(!box){ box=document.createElement('div'); box.id='gs-dup-log'; (el.closest('.card')||el.parentNode).appendChild(box); }
+      box.innerHTML=h;
+    }
+  }catch(e){}
   if(el&&meta.lastGsSync){const d=new Date(meta.lastGsSync);el.textContent=d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}
 }
 // ══════════════════════════════════════════════════
@@ -10546,8 +10618,13 @@ async function gsFetch(method,body,qs=''){
   if(!gsUrl)throw new Error('URL 없음');
   try{
     if(method==='GET'){
+      // ⏱ 받기 시간·크기를 잽니다(2026-10-26 「시트 받기가 점점 느려짐」) — 결과는 같고 재기만 더함
+      const t0=performance.now();
       const res=await fetch(gsUrl+qs,{method:'GET'});
-      const json=await res.json();
+      const txt=await res.text();
+      const t1=performance.now();
+      const json=JSON.parse(txt);
+      window._gsLastGet={ ms:t1-t0, parseMs:performance.now()-t1, chars:txt.length, qs:qs };
       if(!json.ok)throw new Error(json.error||'서버 오류');
       return json.data;
     } else {
@@ -21681,16 +21758,38 @@ function syncBar(state, msg){
   el.innerHTML = msg + (state==='error'
     ? ' <button onclick="autoSyncOnLoad()" style="margin-left:8px;padding:3px 10px;background:#fff;border:none;border-radius:12px;color:var(--acc4);font-size:11px;font-weight:800;cursor:pointer;font-family:\'Noto Sans KR\',sans-serif">다시 받기</button>'
     : '');
-  if(state==='done') setTimeout(()=>syncBar('hide'), 3500);
+  if(state==='done') setTimeout(()=>syncBar('hide'), 7000);   // ⏱ 시간 줄을 읽을 틈 (2026-10-26, 예전 3.5초)
 }
 
+/* ⏱ 시트 받기 시간 재기 (사장님 2026-10-26 「점점 느려짐」, 개선 1단계 — 재기만 함, 자료 영향 없음)
+   받기(구글 스크립트+내려받기) · 크기 · 풀기 · 합치기 · 저장 · 다시 그리기를 「받았습니다」 줄에 작게 적고,
+   최근 20번을 이 기기 ybn-sync-timing-v1 에 남깁니다(콘솔 console.table 로도). 무엇이 큰지는 data 칸마다 글자 수로. */
+function syncTimingNote(tm, data){
+  try{
+    const g=tm.get||{}, s=x=>(x/1000).toFixed(1)+'초';
+    const mb=g.chars?(g.chars/1048576).toFixed(1)+'MB':'-';
+    const sizes={}; try{ for(const k in (data||{})){ const v=data[k]; sizes[k]=v==null?0:(typeof v==='string'?v.length:JSON.stringify(v).length); } }catch(e){}
+    const top=Object.keys(sizes).sort((a,b)=>sizes[b]-sizes[a]).slice(0,6).map(k=>k+' '+Math.round(sizes[k]/1024)+'K');
+    const rec={ at:new Date().toISOString(), getMs:Math.round(g.ms||0), parseMs:Math.round(g.parseMs||0), chars:g.chars||0,
+      mergeMs:Math.round(tm.b-tm.a), saveMs:Math.round(tm.c-tm.b), drawMs:Math.round(tm.d-tm.c), totalMs:Math.round(tm.d-tm.start), top:top.join(' · ') };
+    let hist=[]; try{ hist=JSON.parse(localStorage.getItem('ybn-sync-timing-v1')||'[]'); }catch(e){}
+    hist.push(rec); hist=hist.slice(-20);
+    try{ localStorage.setItem('ybn-sync-timing-v1', JSON.stringify(hist)); }catch(e){}
+    try{ console.log('[시트 받기 ⏱]', rec); console.table(hist.map(h=>({때:h.at.slice(5,16),받기:h.getMs,크기K:Math.round(h.chars/1024),풀기:h.parseMs,합치기:h.mergeMs,저장:h.saveMs,그리기:h.drawMs,전체:h.totalMs}))); }catch(e){}
+    return '<div style="font-size:11px;font-weight:500;opacity:.9;margin-top:2px">⏱ 받기 '+s(g.ms||0)+' ('+mb+') · 풀기 '+s(g.parseMs||0)
+      +' · 합치기 '+s(tm.b-tm.a)+' · 저장 '+s(tm.c-tm.b)+' · 그리기 '+s(tm.d-tm.c)+' · 전체 '+s(tm.d-tm.start)+'</div>';
+  }catch(e){ return ''; }
+}
 async function autoSyncOnLoad(){
   if(!gsUrl) return;
   syncBar('busy','⏳ 구글시트에서 받는 중입니다… 잠시만 기다려 주십시오');
   updateGsStatus('syncing');
   try{
+    const _tm={ start:performance.now() };
     const data=await gsFetch('GET',null,'?action=read');
+    _tm.get=window._gsLastGet||null; _tm.a=performance.now();
     applyMergedFromSheet(data); // 덮어쓰기 대신 로컬과 병합
+    _tm.b=performance.now();
     /* 시트 것을 합쳤으니 **메모리는 온전합니다.** 저장함이 빠듯해 디스크가
        반쪽이어도 이번 판에는 올려도 됩니다 — 안 그러면 휴대폰이 읽기 전용으로 굳습니다. */
     _mergedOk = true;
@@ -21698,6 +21797,7 @@ async function autoSyncOnLoad(){
     window._skipLocalChange = true;
     saveAll();
     window._skipLocalChange = false;
+    _tm.c=performance.now();
     // 시트로 받은 납품서 중 출고일이 지난 건을 자동 차감 — 최초 1.2초 실행 뒤 들어온 것도 여기서 잡습니다.
     // (예전엔 로드 1.2초에 한 번만 돌아, 그 뒤 동기화로 들어온 지난-출고일 납품서가 미출고로 쌓였습니다)
     try{ if(typeof delivAutoDeduct==='function') delivAutoDeduct(); }catch(e){ console.warn('[자동출고]', e); }
@@ -21711,8 +21811,9 @@ async function autoSyncOnLoad(){
     else renderHome();
     // 무엇이 얼마나 왔는지 적어 둡니다 — 숫자가 보여야 다 온 것을 아십니다
     const n=a=>Array.isArray(a)?a.length:0;
+    _tm.d=performance.now();
     syncBar('done','✅ 받았습니다 — 발주 ' + n(typeof orderLog!=='undefined'?orderLog:[]) + '건 · '
-      + '납품서 ' + n(typeof delivLog!=='undefined'?delivLog:[]) + '건');
+      + '납품서 ' + n(typeof delivLog!=='undefined'?delivLog:[]) + '건' + syncTimingNote(_tm, data));
   }catch(e){
     console.log('자동동기화 실패:', e.message);
     updateGsStatus('error');
@@ -23469,10 +23570,43 @@ function delivDupScan(){
       let acc=0, i=0;
       while(i<evs.length && acc<want){ acc+=(parseInt(evs[i].qty)||0); i++; }
       if(acc!==want) continue;                           // 딱 안 맞으면 손대지 않습니다
-      rows.push({no:String(d.delivNo), key:k, want, got, drop:evs.slice(i).map(e=>e.id)});
+      // keepEv·dropEv·od·dAt 는 확인용 내역에만 씀(2026-10-26) — 덜어내는 판단은 그대로
+      const brief=e=>({id:e.id, at:e.at||'', by:e.by||'', q:parseInt(e.qty)||0});
+      rows.push({no:String(d.delivNo), key:k, want, got, drop:evs.slice(i).map(e=>e.id),
+        keepEv:evs.slice(0,i).map(brief), dropEv:evs.slice(i).map(brief), od:d.orderDate||'', dAt:d.deductedAt||''});
     }
   });
   return rows;
+}
+/* 🔎 「두 번 빠진 것 덜어냄」 내역 (사장님 2026-10-26 「매번 1065장」 — 확인 1단계, 재고 계산은 그대로)
+   덜어낼 때마다 마지막 판을 이 기기 ybn-dup-trim-log-v1 에 남기고 ⚙ 설정에 표로(delivDupLogHtml).
+   줄마다: 납품번호 · 발주일 · 칸 · 빼야 할 · 빠진 · 덜어낸 · 남긴 기록 때 · 덜어낸 기록 때.
+   덜어낸 기록이 남긴 것과 **다른 때·다른 사람**이면 정말 두 번 빠진 것, **같은 때**면 규칙이 바뀐 것일 수 있습니다. */
+function delivDupLogSave(rows, q){
+  try{
+    const runs=(()=>{ try{ return JSON.parse(localStorage.getItem('ybn-dup-trim-log-v1')||'{}'); }catch(e){ return {}; } })();
+    const t=new Date().toISOString();
+    const docs=new Set(rows.map(r=>r.no)).size;
+    runs.last={ at:t, docs, q, rows:rows.slice().sort((a,b)=>(b.got-b.want)-(a.got-a.want)).slice(0,300).map(r=>({no:r.no, od:r.od, dAt:r.dAt, key:r.key, want:r.want, got:r.got, keepEv:r.keepEv, dropEv:r.dropEv})) };
+    runs.count=(runs.count||0)+1; runs.first=runs.first||t;
+    localStorage.setItem('ybn-dup-trim-log-v1', JSON.stringify(runs));
+  }catch(e){ console.warn('[납품 중복 내역]', e); }
+}
+function delivDupLogHtml(){
+  let runs; try{ runs=JSON.parse(localStorage.getItem('ybn-dup-trim-log-v1')||'{}'); }catch(e){ return ''; }
+  const L=runs&&runs.last; if(!L) return '';
+  const tm=s=>{ if(!s) return '-'; const d=new Date(s); return isNaN(d)?String(s).slice(5,16):(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+  const evs=a=>(a||[]).map(e=>tm(e.at)+(e.by?' '+e.by:'')+' '+e.q+'장').join('<br>')||'-';
+  const td='padding:3px 6px;border-top:1px solid var(--b1);vertical-align:top';
+  // 덜어낸 기록이 남긴 기록과 같은 때(1분 안)면 「같은 때」로 표시 — 규칙 변경 의심
+  const same=r=>{ const k=(r.keepEv||[]).map(e=>+new Date(e.at)).filter(x=>!isNaN(x)); return (r.dropEv||[]).some(e=>{ const x=+new Date(e.at); return !isNaN(x)&&k.some(y=>Math.abs(x-y)<60000); }); };
+  const nSame=L.rows.filter(same).length;
+  return '<div style="margin-top:12px;font-size:11px;color:var(--tx2)"><div style="font-weight:700;margin-bottom:3px">🧹 두 번 빠진 것 덜어낸 내역 — 마지막 '+tm(L.at)+' · 납품서 '+L.docs+'건 · '+L.q+'장 (이 기기에서 '+(runs.count||1)+'번째)</div>'
+    +'<div style="color:var(--tx3);margin-bottom:4px">덜어낸 기록이 남긴 기록과 <b>다른 때</b>면 정말 두 번 빠진 것, <b style="color:var(--acc4)">같은 때</b>면 규칙이 바뀐 것일 수 있습니다. 같은 때: '+nSame+'줄 / '+L.rows.length+'줄</div>'
+    +'<div style="overflow-x:auto;max-height:420px;overflow-y:auto;border:1px solid var(--b1);border-radius:6px"><table style="border-collapse:collapse;white-space:nowrap;font-variant-numeric:tabular-nums">'
+    +'<tr style="background:var(--s2);color:var(--tx3);position:sticky;top:0"><td style="'+td+'">납품번호</td><td style="'+td+'">발주일</td><td style="'+td+'">칸</td><td style="'+td+';text-align:right">빼야</td><td style="'+td+';text-align:right">빠짐</td><td style="'+td+';text-align:right">덜어냄</td><td style="'+td+'">남긴 기록</td><td style="'+td+'">덜어낸 기록</td></tr>'
+    +L.rows.map(r=>'<tr'+(same(r)?' style="background:rgba(248,81,73,.06)"':'')+'><td style="'+td+'">'+r.no+'</td><td style="'+td+'">'+(r.od||'-').slice(5)+'</td><td style="'+td+'">'+String(r.key).replace('x','×')+'</td><td style="'+td+';text-align:right">'+r.want+'</td><td style="'+td+';text-align:right">'+r.got+'</td><td style="'+td+';text-align:right;font-weight:700">'+(r.got-r.want)+'</td><td style="'+td+'">'+evs(r.keepEv)+'</td><td style="'+td+'">'+evs(r.dropEv)+'</td></tr>').join('')
+    +'</table></div></div>';
 }
 // 넘친 것 덜어내기 — 차감·병합 뒤에 부릅니다. 덜어낸 장수를 돌려줍니다.
 function delivDupTrim(){
@@ -23480,6 +23614,7 @@ function delivDupTrim(){
   const rows=delivDupScan(); if(!rows.length) return 0;
   const ids=[], keys=new Set(); let q=0;
   rows.forEach(r=>{ ids.push(...r.drop); keys.add(r.key); q+=r.got-r.want; });
+  delivDupLogSave(rows, q);   // 🔎 덜어낸 내역 남기기 (확인용, 2026-10-26) — 재고 계산과 무관
   removeStockEventsByIds(ids);
   keys.forEach(k=>{
     if(stockEvents[k] && stockEvents[k].some(e=>e.type==='count')) recalcAutoAdjusts(k);
@@ -31015,6 +31150,8 @@ body.gnav-on .main-nav{display:none}
   font-family:'Noto Sans KR',sans-serif;font-size:12.5px;font-weight:600;color:var(--tx2);cursor:pointer;white-space:nowrap}
 #gnav .gn-item:hover{background:var(--s1);color:var(--tx1)}
 #gnav .gn-item.on{background:var(--s1);border-color:#1f3a5f;color:#1f3a5f;font-weight:700}
+#gnav .gn-more{border:1px dashed var(--b2);color:var(--tx3);font-size:12px;min-height:28px;align-self:center;padding:0 12px}   /* 더보기 ▾ (2026-10-26) */
+#gnav .gn-more-item:not(.on){color:var(--tx3)}
 #gnav .gn-path{margin-right:10px}
 #gnav .gn-item .gx{font-size:10px;color:var(--tx3);margin-left:3px}
 /* 공통 제목·단추 모양 — 새로 만드는 화면부터 이것을 씁니다(기존 화면 단추는 이번에 안 바꿈 — 인쇄·캡처 영향 때문) */
@@ -31048,19 +31185,19 @@ var GNAV_MENU=[
     { t:'비규격 발주 대기', m:'order', el:'od-handoff' },
     { t:'발주분석', m:'order-analysis' },
   ]},
-  { c:'재고관리', items:[
+  { c:'재고관리', items:[   // 2026-10-26 사장님 차례 — 다섯만 늘 보이고, more:true 는 「더보기 ▾」 안에 접힘(화면·기능 그대로)
     { t:'원유리·웜코튼(인쇄실)', m:'stock', s:'stocklist' },
     { t:'에토프', m:'stock', s:'etp' },
-    { t:'바스재고', m:'bas' },
-    { t:'작업일지(인쇄 생산)', m:'worklog' },
-    { t:'에토프 불량', m:'stock', s:'etp', el:'etp-defect' },
-    { t:'조립실', m:'stock', s:'assembly' },
     { t:'수납유리재고', m:'stock', s:'storage' },
-    { t:'원장재고', m:'stock', s:'mat' },
-    { t:'비규격', m:'stock', s:'nonspec' },
-    { t:'현황', m:'stock', s:'dashboard' },
-    { t:'잉크', m:'stock', s:'ink' },
-    { t:'변경이력', m:'stock', s:'activity' },
+    { t:'바스재고', m:'bas' },
+    { t:'조립실', m:'stock', s:'assembly' },
+    { t:'작업일지(인쇄 생산)', m:'worklog', more:true },
+    { t:'현황', m:'stock', s:'dashboard', more:true },
+    { t:'잉크', m:'stock', s:'ink', more:true },
+    { t:'원장재고', m:'stock', s:'mat', more:true },
+    { t:'비규격', m:'stock', s:'nonspec', more:true },
+    { t:'변경이력', m:'stock', s:'activity', more:true },
+    // { t:'에토프 불량', m:'stock', s:'etp', el:'etp-defect' },   // 에토프 화면 안 「🚫 불량 기록」으로 (사장님 2026-10-26)
   ]},
   { c:'경영·마감', items:[
     { t:'매입매출', m:'ledger' },
@@ -31098,8 +31235,14 @@ var GNAV=(function(){
     var a=active(), cat=GNAV_MENU[a.c]||GNAV_MENU[0];
     var h='<div class="gn-top" role="tablist">'+GNAV_MENU.map(function(g,c){
       return '<button class="gn-cat'+(c===a.c?' on':'')+'" role="tab" aria-selected="'+(c===a.c)+'" onclick="GNAV.cat('+c+')">'+esc(g.c)+'</button>'; }).join('')+'</div>'
-      +'<div class="gn-sub"><span class="gn-path">'+esc(cat.c)+' ›</span>'+cat.items.map(function(it,i){
-        return '<button class="gn-item'+(i===a.i?' on':'')+'" onclick="GNAV.go('+a.c+','+i+')"'+(it.href?' title="새 창에서 열립니다"':'')+'>'+esc(it.t)+(it.href?'<span class="gx">↗</span>':'')+'</button>'; }).join('')+'</div>';
+      +'<div class="gn-sub"><span class="gn-path">'+esc(cat.c)+' ›</span>'+(function(){
+        // more:true 는 접어 둡니다 — 펼쳤거나 지금 그 화면이면 보임
+        var hasMore=false, openM=moreOpen;
+        var s=cat.items.map(function(it,i){
+          if(it.more){ hasMore=true; if(!openM && i!==a.i) return ''; }   // 접혀 있어도 지금 보는 화면은 보임
+          return '<button class="gn-item'+(it.more?' gn-more-item':'')+(i===a.i?' on':'')+'" onclick="GNAV.go('+a.c+','+i+')"'+(it.href?' title="새 창에서 열립니다"':'')+'>'+esc(it.t)+(it.href?'<span class="gx">↗</span>':'')+'</button>'; }).join('');
+        if(hasMore) s+='<button class="gn-item gn-more" onclick="GNAV.more()">'+(openM?'접기 ▴':'더보기 ▾')+'</button>';
+        return s; })()+'</div>';
     if(host.innerHTML!==h) host.innerHTML=h;
   }
   function mainBtn(m){
@@ -31127,6 +31270,8 @@ var GNAV=(function(){
       else window.scrollTo(0,0);
     },150);
   }
+  var moreOpen=false;   // 「더보기 ▾」 펼침 — 이 창에서만
+  function more(){ moreOpen=!moreOpen; render(); }
   function cat(c){
     var g=GNAV_MENU[c]; if(!g) return;
     var a=active(); if(a.c===c) return;   // 같은 대분류를 또 누르면 그대로
@@ -31139,7 +31284,7 @@ var GNAV=(function(){
     var obs=function(sel){ var n=document.querySelector(sel); if(n && window.MutationObserver) new MutationObserver(function(){ render(); }).observe(n,{subtree:true,attributes:true,attributeFilter:['class']}); };
     obs('.main-nav'); obs('#pg-stock .sub-nav');
   }catch(e){ console.warn('[대분류 메뉴] 옛 탭 줄로 둡니다', e); try{ document.body.classList.remove('gnav-on'); }catch(e2){} }
-  return {go:go, cat:cat, render:render, catOfMain:catOfMain, menu:GNAV_MENU};
+  return {go:go, cat:cat, more:more, render:render, catOfMain:catOfMain, menu:GNAV_MENU};
 })();
 </script>
 <!-- ══ 📱 휴대폰 아래쪽 탭 줄 (사장님 2026-10-21 「4칸이면 될 듯」) — CLAUDE.md 12-63 ══
@@ -31264,6 +31409,84 @@ var BNAV=(function(){
   }catch(e){ console.warn('[아래 탭 줄]', e); }
   return {go:go, star:star, open:open, close:close, render:render};
 })();
+</script>
+<!-- 🖥️ 넓은 PC 화면 — 좌우 카드 (시험 2026-10-26, 원유리·웜코튼만). 숫자는 각 탭 함수·화면 그대로 가져옴, 새 계산·저장 없음 -->
+<style>
+.wd-rail{display:none}
+.wd-tg{display:none;margin-left:8px;padding:3px 10px;border:1px dashed var(--b2);border-radius:7px;background:none;color:var(--tx2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;vertical-align:middle}
+@media (min-width:1400px){
+  #pg-stock.sec-pg:has(> #sp-stocklist:not([style*="none"])){max-width:min(1800px,calc(100vw - 48px))}
+  body:not(.wd-off) #sp-stocklist .wd-grid{display:grid;grid-template-columns:190px minmax(0,1fr) 220px;gap:14px;align-items:start}
+  body:not(.wd-off) #sp-stocklist .wd-rail{display:flex;flex-direction:column;gap:10px;position:sticky;top:150px}
+  #sp-stocklist .wd-main .stk-r{gap:0 8px}
+  .wd-tg{display:inline-block}
+  body.wd-off .wd-tg{border-style:solid}
+}
+.wd-card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--tx2)}
+.wd-card h4{margin:0 0 6px;font-size:12px;font-weight:700;color:var(--tx1)}
+.wd-row{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-top:1px dashed var(--b1)}
+.wd-row:first-of-type{border-top:none}
+.wd-row b{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:var(--tx1)}
+.wd-row.go{cursor:pointer}.wd-row.go:hover{color:var(--acc)}
+.wd-card.warn{border-color:rgba(210,153,34,.35);background:rgba(210,153,34,.05)}
+</style>
+<script>
+var WD=(function(){
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function row(label,val,go){ return '<div class="wd-row'+(go?' go':'')+'"'+(go?' onclick="'+go+'"':'')+'><span>'+esc(label)+'</span><b>'+(val==null||val===''?'-':esc(val))+'</b></div>'; }
+  function safe(f,d){ try{ var v=f(); return v==null?d:v; }catch(e){ return d; } }
+  /* 왼쪽 = 재고관리 공통(다른 탭 숫자) · 오른쪽 = 이 탭 도움(표와 겹치지 않는 것만).
+     예전 1액형 카드는 위 안내 바와, 「지금 모자란 사이즈」는 표 맨 위 빨간 줄과 겹쳐 뺐습니다(사장님 2026-10-26 「정신없으려나」). */
+  function left(){
+    var etp=safe(function(){ return etpBuildRows().filter(function(r){return r.short;}).length; },null);
+    var g450=safe(function(){ return soonapNowOf('CAIB13894').now; },null), g500=safe(function(){ return soonapNowOf('CAIB13895').now; },null);
+    var open=safe(function(){ return tdyOpenOrders(); },{n:0,q:0});
+    var late=safe(function(){ return odLateOrders().length; },null);
+    var wc=safe(function(){ return calcInkStock('WC').remaining; },null), ep=safe(function(){ return calcInkStock('ETP').remaining; },null);
+    return '<div class="wd-card"><h4>📦 재고 한눈에</h4>'
+      + row('에토프 부족', etp?etp+'종':'-', "showSub('etp')")
+      + row('글래스도어 450', g450, "showSub('storage')")
+      + row('글래스도어 500', g500, "showSub('storage')")
+      + '</div><div class="wd-card"><h4>🚚 발주·입고</h4>'
+      + row('입고 대기', open.q?open.q+'장':'-', "showMain('order')")
+      + row('납기 지연', late?late+'건':'-', "showMain('order')")
+      + '</div><div class="wd-card"><h4>🪣 잉크 남은 양</h4>'
+      + row('웜코튼', wc!=null?wc+'통':'-', "showSub('ink')")
+      + row('에토프', ep!=null?ep+'통':'-', "showSub('ink')")
+      + '</div>';
+  }
+  function right(){
+    // 곧 모자랄 것 = 표의 「주의」 줄(빨간 「부족」 줄은 표 맨 위에 이미 있으므로 뺌)
+    var warn=[].slice.call(document.querySelectorAll('#stock-list .stk-row.warn:not(.urgent)')).slice(0,6).map(function(r){
+      var sz=r.querySelector('.stk-sz'), nums=r.querySelectorAll('.stk-num'), m=(r.getAttribute('onclick')||'').match(/openSizeModal\('([^']+)'\)/);
+      return { sz: sz?sz.textContent.replace(/[\s✏️]/g,''):'', q: nums[0]?nums[0].textContent.replace(/\s+/g,''):'', key: m?m[1]:'' };
+    });
+    var td=safe(function(){ return todayStr(); },''), ym=td.slice(0,7), tday=0, tmon=0;
+    safe(function(){ workLog.forEach(function(d){ var q=(d.items||[]).reduce(function(a,i){return a+(Number(i.qty)||0);},0); if(d.date===td) tday+=q; if(String(d.date||'').slice(0,7)===ym) tmon+=q; }); return 1; },0);
+    var ev=[]; safe(function(){ Object.keys(stockEvents).forEach(function(k){ if(/_/.test(k)) return; (stockEvents[k]||[]).forEach(function(e){ if(e&&(e.type==='in'||e.type==='count')) ev.push({k:k,e:e}); }); }); return 1; },0);
+    ev.sort(function(a,b){ return String(b.e.at||'').localeCompare(String(a.e.at||'')); });
+    var rec=ev.slice(0,5).map(function(x){ var d=String(x.e.at||'').slice(5,10).replace('-','/'); return row(d+' '+(x.e.type==='in'?'입고':'실측')+' '+x.k.replace('x','×'), x.e.qty, "openSizeModal('"+x.k+"')"); }).join('');
+    return '<div class="wd-card"><h4>🖨️ 인쇄 작업</h4>'
+      + row('오늘', tday?tday+'장':'-', "showMain('worklog')")
+      + row(+ym.slice(5)+'월 누적', tmon?tmon+'장':'-', "showMain('worklog')")
+      + '</div><div class="wd-card warn"><h4>🟡 곧 모자랄 사이즈</h4>'
+      + (warn.length? warn.map(function(s){ return row(s.sz, s.q, s.key?"openSizeModal('"+s.key+"')":''); }).join('') : '<div>없습니다</div>')
+      + '</div><div class="wd-card"><h4>🕓 최근 입고·실측</h4>' + (rec||'<div>기록이 없습니다</div>') + '</div>';
+  }
+  function render(){
+    var L=document.getElementById('wd-left'), R=document.getElementById('wd-right'); if(!L||!R) return;
+    if(!(window.matchMedia&&matchMedia('(min-width:1400px)').matches) || document.body.classList.contains('wd-off')) return;
+    L.innerHTML=left(); R.innerHTML=right();
+  }
+  function toggle(){ document.body.classList.toggle('wd-off'); try{ localStorage.setItem('ybn-wd-off-v1', document.body.classList.contains('wd-off')?'1':''); }catch(e){} render(); }
+  try{ if(localStorage.getItem('ybn-wd-off-v1')==='1') document.body.classList.add('wd-off'); }catch(e){}
+  try{
+    if(typeof renderStockList==='function'){ var _o=renderStockList; renderStockList=function(){ var r=_o.apply(this,arguments); try{ render(); }catch(e){ console.warn('[좌우 카드]',e); } return r; }; }
+    window.addEventListener('resize', function(){ clearTimeout(WD._t); WD._t=setTimeout(render,200); });
+  }catch(e){ console.warn('[좌우 카드]', e); }
+  return {render:render, toggle:toggle};
+})();
+function wdToggle(){ WD.toggle(); }
 </script>
 </body>
 </html>
