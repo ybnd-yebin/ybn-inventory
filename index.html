@@ -2086,6 +2086,24 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 @media(max-width:900px){
   #pg-bas .bas-ord{grid-template-columns:1fr auto}
   #pg-bas .bas-ord .bas-ship{grid-column:1 / -1}
+  /* 5단계 — 발주 현황 표(11칸)를 좁은 화면에서는 줄마다 카드로. 칸·입력·단추는 그대로, 놓는 자리만 바뀜 */
+  #pg-bas #bas-poTbl{border:0;max-height:none;overflow:visible}
+  #pg-bas #bas-poTbl table,#pg-bas #bas-poTbl tbody{display:block}
+  #pg-bas #bas-poTbl thead{display:none}
+  #pg-bas #bas-poTbl tr.po-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:14px 14px;margin-bottom:10px;
+    border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  #pg-bas #bas-poTbl tr.po-row td{border:0;padding:0;white-space:normal}
+  #pg-bas #bas-poTbl td.c-st{order:1}
+  #pg-bas #bas-poTbl td.c-ord{order:6;font-size:12.5px}
+  #pg-bas #bas-poTbl td.c-ord:before{content:'오더번호';display:block;font-size:11px;color:var(--sub)}
+  #pg-bas #bas-poTbl td.c-od{order:3}
+  #pg-bas #bas-poTbl td.c-del{order:4;margin-left:auto}
+  #pg-bas #bas-poTbl td.c-nm{order:5;flex-basis:100%;min-width:0!important;font-weight:700;font-size:14px}
+  #pg-bas #bas-poTbl td.c-n{order:6;text-align:left;font-variant-numeric:tabular-nums}
+  #pg-bas #bas-poTbl td.c-n:before{content:attr(data-l);display:block;font-size:11px;font-weight:500;color:var(--sub)}
+  #pg-bas #bas-poTbl td.c-ship{order:7;flex-basis:100%;display:flex;gap:6px;align-items:center;padding-top:6px;border-top:1px dashed var(--line)}
+  #pg-bas #bas-poTbl td.c-ship:not(:has(input)){display:none}
+  #pg-bas #bas-poTbl td.c-ship button{margin-left:auto}
 }
 #pg-bas .bas-main{flex:1 1 auto;min-width:0;max-width:none;margin:0;padding:12px 12px 12px 0}
 /* 4단계 (2026-10-26) — 촘촘한 ERP 대신 여백·위계: 카드 넉넉히, 제목 한 단계 크게, 주 단추는 또렷하게 오른쪽, 부가 단추는 작고 차분하게 */
@@ -2119,23 +2137,56 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   #pg-bas .bas-head h1 .sub{display:inline;margin-left:4px}
   #pg-bas .bas-head .tabs{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:4px;width:100%;
     border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
-  #pg-bas .tab{border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none;padding:5px 9px;font-size:12px}
+  #pg-bas .tab{border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none;padding:9px 13px;font-size:13.5px}
   #pg-bas .tab.active{border-color:var(--line)}
   #pg-bas .bas-tab-sub{margin-top:0}
   #pg-bas .bas-side-note{display:flex;gap:8px;flex-wrap:wrap;margin:0;width:100%}
   #pg-bas .bas-side-note>div+div{margin-top:0}
-  #pg-bas .bas-main{padding:8px}
-  #pg-bas .bas-tiles{grid-template-columns:1fr 1fr;gap:6px}
-  #pg-bas .bas-tile{padding:10px 11px}
+  /* 5단계 (2026-10-26) — 휴대폰: 여백은 남기되 한 줄로 쌓고, 누르는 것은 손가락 크기(약 40px) */
+  #pg-bas .bas-main{padding:12px 12px 20px}
+  #pg-bas .card{padding:16px 14px;border-radius:14px;margin-bottom:12px}
+  #pg-bas .bas-ph{flex-wrap:wrap;gap:8px}
+  #pg-bas .bas-ph .bas-tools,#pg-bas .bas-ph .bas-head-tools{width:100%}
+  #pg-bas .bas-tiles{grid-template-columns:1fr 1fr;gap:8px}
+  #pg-bas .bas-tile{padding:13px 14px}
   #pg-bas .bas-tile:nth-child(3){grid-column:1 / -1}
-  #pg-bas .bas-tile .v{font-size:20px}
-  #pg-bas .bas-ord{grid-template-columns:1fr}
-  #pg-bas .bas-q{justify-content:flex-start}
-  #pg-bas .bas-ship{text-align:left}
-  #pg-bas .bas-ph{flex-wrap:wrap}
-  #pg-bas .card{padding:10px}
+  #pg-bas .bas-tile .v{font-size:22px}
+  #pg-bas .bas-ord{grid-template-columns:1fr;gap:10px;padding:14px 2px}
+  #pg-bas .bas-q{justify-content:flex-start;gap:20px;background:var(--panel2);border-radius:10px;padding:10px 12px}
+  #pg-bas .bas-q div{text-align:left}
+  #pg-bas .bas-ship{display:grid;grid-template-columns:minmax(0,1fr) 72px auto;gap:6px;text-align:left}
+  #pg-bas .bas-ship input,#pg-bas .bas-ship input[type=number]{width:100%;min-height:40px}
+  #pg-bas .bas-ship button{min-height:40px}
+  #pg-bas #bas-poTbl td.c-ship input{min-height:40px}
+  #pg-bas #bas-poTbl td.c-ship input[type=date]{flex:1;min-width:0}
+  #pg-bas #bas-poTbl td.c-ship button{min-height:40px;padding:6px 16px!important}
+  #pg-bas button.primary{min-height:40px}
+  #pg-bas .bas-actions{justify-content:stretch}
+  #pg-bas .bas-actions .grow{flex-basis:100%}
+  #pg-bas .bas-actions button.primary{margin-left:auto}
+  #pg-bas .bas-head-tools{justify-content:space-between}
+  #pg-bas .bas-grp{flex-wrap:wrap;margin-top:20px}
+  #pg-bas .bas-grp .mini{flex-basis:100%;padding-left:30px}
   #pg-bas input:not([type=checkbox]){max-width:100%}
   #pg-bas .card h2 .muted{display:block;margin-left:0}
+}
+@media(max-width:900px){
+  /* 재고 표 → 품목마다 카드: 이름·상태 / 실사 ＋ 입고 － 출고 ＝ 예상 (태블릿부터 — 768 에서 표가 상자 안에서 밀려서) */
+  #pg-bas #bas-stockTbl{border:0;max-height:none;overflow:visible}
+  #pg-bas #bas-stockTbl table,#pg-bas #bas-stockTbl tbody{display:block}
+  #pg-bas #bas-stockTbl thead{display:none}
+  #pg-bas #bas-stockTbl tr.st-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"nm nm st" "a b c" "tot tot tot";
+    gap:8px 10px;padding:14px 2px;border-bottom:1px solid var(--line)}
+  #pg-bas #bas-stockTbl tr.st-row td{border:0;padding:0;white-space:normal;text-align:left}
+  #pg-bas #bas-stockTbl td.c-nm{grid-area:nm;font-weight:700;font-size:14px}
+  #pg-bas #bas-stockTbl td.c-st{grid-area:st;text-align:right}
+  #pg-bas #bas-stockTbl td:nth-child(2){grid-area:a}
+  #pg-bas #bas-stockTbl td:nth-child(3){grid-area:b}
+  #pg-bas #bas-stockTbl td:nth-child(4){grid-area:c}
+  #pg-bas #bas-stockTbl td.c-n:before{content:attr(data-l);display:block;font-size:11px;color:var(--sub)}
+  #pg-bas #bas-stockTbl td.c-n>b{font-size:16px!important}
+  #pg-bas #bas-stockTbl td.c-tot{grid-area:tot;background:var(--panel2);border-radius:10px;padding:10px 12px}
+  #pg-bas #bas-stockTbl td.c-tot>b{font-size:22px!important}
 }
 </style>
 <!-- 분류는 왼쪽 세로 꼬리표 (사장님 2026-10-21 「왼쪽행으로 … 좀더 간략」). 휴대폰은 위 한 줄 -->
@@ -29227,14 +29278,15 @@ function renderStock(){
           +` <span class="mini">(${s.burn.from}→${s.burn.to} 사이 ${-s.burn.used}장 늘었습니다)</span></span>`);
       }
       if(s.eta && s.daysLeft!=null && s.daysLeft<=180) side.push(`<b>${s.eta}쯤 바닥</b>`);
-      return `<tr>
-        <td>${nameOf(c)}<div class="mini">${c}</div></td>
-        <td class="num">${baseCell}</td>
-        <td class="num">${inCell}</td>
-        <td class="num">${outCell}</td>
-        <td class="num"><b style="font-size:20px;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥':''}${s.stock}</b>
+      // 칸 이름·꼬리표 — 휴대폰에서 표 대신 카드로 (2026-10-26 5단계, CSS 만으로)
+      return `<tr class="st-row">
+        <td class="c-nm">${nameOf(c)}<div class="mini">${c}</div></td>
+        <td class="num c-n" data-l="월말 실사">${baseCell}</td>
+        <td class="num c-n" data-l="그 뒤 입고">${inCell}</td>
+        <td class="num c-n" data-l="창고 출고">${outCell}</td>
+        <td class="num c-n c-tot" data-l="예상 재고"><b style="font-size:20px;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥':''}${s.stock}</b>
           ${side.length?`<div class="mini">${side.join('<br>')}</div>`:''}</td>
-        <td class="stt"><span class="chip ${ST_CHIP[s.rank]}">${ST_LAB[s.rank]}</span></td>
+        <td class="stt c-st"><span class="chip ${ST_CHIP[s.rank]}">${ST_LAB[s.rank]}</span></td>
       </tr>`;
     }).join('')+`</tbody></table>`;
 }
@@ -30118,26 +30170,27 @@ function renderPos(){
                  : late?'<span class="chip b">납기 지남</span>'
                  : r.filled>0?'<span class="chip w">일부 납품</span>'
                  : '<span class="chip w">미납</span>';
-      return `<tr${done?' style="opacity:.55"':''}>
-        <td>${chip}</td>
-        <td class="mini">${r.ord}</td>
-        <td><input type="date" value="${r.odate||''}" title="발주가 들어온 날 — 고치면 바로 저장됩니다"
+      // 칸마다 이름(c-…)·꼬리표(data-l) — 좁은 화면에서 표 대신 카드로 보이게(2026-10-26 5단계, CSS 만으로)
+      return `<tr class="po-row"${done?' style="opacity:.55"':''}>
+        <td class="c-st">${chip}</td>
+        <td class="mini c-ord">${r.ord}</td>
+        <td class="c-od"><input type="date" value="${r.odate||''}" title="발주가 들어온 날 — 고치면 바로 저장됩니다"
              onchange="BAS.poSetDate('${r.ord}','${r.code}',this.value)"
              style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)"></td>
-        <td style="white-space:normal;min-width:150px">${nameOf(r.code)}<div class="mini">${r.code}</div></td>
-        <td class="num">${r.qty}</td>
-        <td class="num">${atOrderCell(r.code, r.odate)}</td>
-        <td class="num">${r.filled||'·'}</td>
-        <td class="num" style="font-weight:700;color:${done?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
-        <td>${r.due||'<span class="mini">—</span>'}</td>
-        <td style="white-space:nowrap">${done
+        <td class="c-nm" style="white-space:normal;min-width:150px">${nameOf(r.code)}<div class="mini">${r.code}</div></td>
+        <td class="num c-n" data-l="발주">${r.qty}</td>
+        <td class="num c-n" data-l="발주 시점 재고">${atOrderCell(r.code, r.odate)}</td>
+        <td class="num c-n" data-l="납품">${r.filled||'·'}</td>
+        <td class="num c-n" data-l="미납" style="font-weight:700;color:${done?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
+        <td class="c-n" data-l="납기">${r.due||'<span class="mini">—</span>'}</td>
+        <td class="c-ship" style="white-space:nowrap">${done
           ? '<span class="mini">—</span>'
           : `<input type="date" id="bas-pod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날"
                  style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
              <input type="number" id="bas-poq-${r.ord}-${r.code}" value="${r.remain}" title="실제로 보낸 수량"
                  style="width:58px;padding:4px;text-align:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
              <button class="primary" style="padding:6px 14px;font-size:12.5px" onclick="BAS.poShip('${r.ord}','${r.code}')">납품함</button>`}</td>
-        <td><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="BAS.poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
+        <td class="c-del"><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="BAS.poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
       </tr>`;
     }).join('')+`</tbody></table>`;
 }
