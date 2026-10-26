@@ -1014,8 +1014,26 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       #sp-stocklist .stk-r .stk-num b{font-size:14px!important}
       #sp-stocklist .stk-st{padding:2px 7px;font-size:10.5px}
       #sp-stocklist .stk-r.hd .stk-num span{display:none}
-      #sp-stocklist .stk-kpi{padding:4px 9px;font-size:11px}
-      #sp-stocklist .stk-kpi b{font-size:14px}
+      /* 휴대폰 정리 (2026-10-26 「정보가 과다」) — 지우지 않고 작게·한 줄로·접어서 */
+      #sp-stocklist .stk-head{margin-bottom:6px}
+      #sp-stocklist .stk-head h2{font-size:15px}
+      #sp-stocklist .stk-kpis{flex-wrap:nowrap;gap:5px;width:100%}
+      #sp-stocklist .stk-kpi{padding:3px 8px;font-size:10.5px;gap:4px;white-space:nowrap}
+      #sp-stocklist .stk-kpi b{font-size:13px}
+      #inkcut-card .ik-bar{padding:5px 10px;font-size:11px;gap:5px;flex-wrap:nowrap;white-space:nowrap;overflow:hidden}
+      #inkcut-card .ik-more{padding:2px 8px;font-size:10.5px}
+      #sp-stocklist .stk-search{gap:6px}
+      #sp-stocklist .stk-search .inp{flex-basis:100%;padding:8px 10px;font-size:13px}
+      #sp-stocklist .stk-search .filter-row{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:2px;scrollbar-width:none}
+      #sp-stocklist .stk-search .filter-row::-webkit-scrollbar{display:none}
+      #sp-stocklist .stk-search .f-btn{padding:4px 10px;flex:none}
+      #stock-period-note{padding:5px 10px!important;margin:0 0 8px!important;flex-wrap:nowrap!important;cursor:pointer}
+      #stock-period-note > span:first-child{white-space:nowrap}
+      #stock-period-note #stock-period-range{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+      #stock-period-note > span:last-child{display:none}
+      #stock-period-note.open{flex-wrap:wrap!important}
+      #stock-period-note.open #stock-period-range{white-space:normal}
+      #stock-period-note.open > span:last-child{display:inline}
       #sp-stocklist .stk-mob{display:block;margin-top:2px;font-size:10.5px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       #sp-stocklist .stk-det{padding:8px 10px 12px 12px}
       #sp-stocklist .stk-kpis{margin-left:0}
@@ -1039,7 +1057,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="f-btn" onclick="setStockFilter('high',this)">고빈도</button>
     </div>
     </div>
-    <div id="stock-period-note" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--tx2);background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:8px 11px;margin:2px 0 12px">
+    <div id="stock-period-note" onclick="this.classList.toggle('open')" title="눌러서 펼치기·접기(휴대폰)" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--tx2);background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:8px 11px;margin:2px 0 12px">
       <span style="font-weight:700;color:var(--tx1)">📊 월평균 집계 기준</span>
       <span id="stock-period-range" style="color:var(--tx3)">계산 중…</span>
       <span style="margin-left:auto;color:var(--tx3)">🟢 최근 6개월=납품서 실데이터 · 회색=과거 분석 폴백</span>
@@ -1107,7 +1125,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <!-- 재고 편집 -->
   <!-- 조립실 재고 (인쇄 안 하는 제품: 시그니처/투웨이/키친) -->
   <div id="sp-assembly" class="sub-pg" style="display:none;padding:14px 14px 80px">
-    <div class="info-note">🔧 <b>유리</b>(일반/인쇄)와 <b>완제품</b> 재고를 관리합니다. 흐름: 인쇄실 원유리→인쇄→조립실 인쇄유리 / 일반유리 입고 → 조립 → 납품. 납품서 PDF를 올리면 작업할 수량이 자동으로 뜹니다.</div>
+    <div class="info-note asm-intro" onclick="this.classList.toggle('open')">🔧 <b>유리</b>(일반/인쇄)와 <b>완제품</b> 재고를 관리합니다. 흐름: 인쇄실 원유리→인쇄→조립실 인쇄유리 / 일반유리 입고 → 조립 → 납품. 납품서 PDF를 올리면 작업할 수량이 자동으로 뜹니다.</div>
     <input class="inp" id="asm-search" placeholder="🔍 제품명 / 사이즈 / 코드 / 색상 (예: 시그니처, 6073, 웜코튼)..." oninput="renderAssemblyLater()">
     <!-- 대분류: 유리 / 완제품 -->
     <div class="filter-row" id="asm-maincat-row" style="margin-bottom:6px">
@@ -1210,6 +1228,36 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       </div>
     </div>
     <div id="etp-body"></div>
+    <!-- 휴대폰 정리 (2026-10-26 「정보가 과다」) — 설명·아티팩트 칸은 제목을 눌러 펼침, 단추는 작게. PC 는 그대로 -->
+    <style>
+    @media (max-width:560px){
+      #sp-etp{padding-top:10px!important}
+      #sp-etp > .card:first-child .card-ttl{cursor:pointer;font-size:13px}
+      #sp-etp > .card:first-child .card-ttl::after,#sp-etp .m-fold > .card-ttl::after{content:'▾';margin-left:6px;color:var(--tx3);font-size:11px}
+      #sp-etp > .card:first-child.m-open .card-ttl::after,#sp-etp .m-fold.m-open > .card-ttl::after{content:'▴'}
+      #sp-etp > .card:first-child .info-note{display:none}
+      #sp-etp > .card:first-child.m-open .info-note{display:block}
+      #sp-etp > .card:first-child > div:nth-child(3){margin-top:6px!important;gap:6px!important;font-size:11px}
+      #sp-etp > .card:first-child > div:last-child{gap:6px!important;margin-top:8px!important;flex-wrap:nowrap!important}
+      #sp-etp > .card:first-child > div:last-child > button{flex:1 1 0!important;min-width:0!important;padding:7px 4px!important;font-size:11.5px!important;white-space:nowrap}
+      #sp-etp .etp-head b{font-size:16px!important}
+      #sp-etp .etp-head > div:first-child{gap:10px!important}
+      #sp-etp .etp-todo span{font-size:11.5px!important}
+      #sp-etp .etp-todo button{padding:4px 11px!important;font-size:11px!important}
+      #sp-etp .m-fold > .card-ttl{cursor:pointer}
+      #sp-etp .m-fold:not(.m-open) > :not(.card-ttl){display:none}
+      #sp-etp .m-fold > .card-ttl button{display:none}
+      #sp-etp .m-fold.m-open > .card-ttl button{display:inline-block}
+    }
+    </style>
+    <script>
+    document.addEventListener('click', function(e){
+      if(!window.matchMedia || !matchMedia('(max-width:560px)').matches) return;
+      if(e.target.closest('button,input,a')) return;
+      var t=e.target.closest('#sp-etp > .card:first-child > .card-ttl, #sp-etp .m-fold > .card-ttl');
+      if(t) t.parentElement.classList.toggle('m-open');
+    });
+    </script>
   </div>
 </div>
 
@@ -4500,7 +4548,7 @@ function renderInkCut(){
       <b style="color:var(--tx1)">📌 1액형 전환</b><span class="sep">|</span>
       <span>기준일: <b style="color:var(--tx1);font-family:'JetBrains Mono',monospace">${inkCut.date}</b></span><span class="sep">|</span>
       <span style="font-weight:700;color:${inkCut.on?'#ff6b35':'var(--tx3)'}">${inkCut.on?'켜짐':'꺼짐'}</span>
-      <button class="ik-more${inkCutBarOpen?' open':''}" onclick="inkCutToggleBar()">${inkCutBarOpen?'접기 ▴':'자세히 보기 ▾'}</button>
+      <button class="ik-more${inkCutBarOpen?' open':''}" onclick="inkCutToggleBar()">${inkCutBarOpen?'접기 ▴':'자세히 ▾'}</button>
     </div>`;
   if(!inkCutBarOpen){ host.innerHTML=bar; return; }
   host.innerHTML=bar+`<div style="margin-top:6px"></div>
@@ -8890,6 +8938,42 @@ function asmVisibleItems(needMap){
   return items;
 }
 
+/* 조립실 카드 — 휴대폰 접기 (2026-10-26). 단추들은 모두 stopPropagation 이라 카드를 눌렀을 때만 접고 폅니다. 펼친 것은 이 창에서만 기억 */
+function asmCardToggle(el, id){
+  if(!window.matchMedia || !matchMedia('(max-width:560px)').matches) return;
+  const on=el.classList.toggle('open');
+  window._asmOpen=window._asmOpen||{}; window._asmOpen[id]=on;
+}
+(function(){
+  const st=document.createElement('style');
+  st.textContent=`
+  .asm-card .asm-top{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+  .asm-card .asm-sum{display:none}
+  @media (max-width:560px){
+    .asm-card{padding:9px 12px!important;margin-bottom:7px!important;cursor:pointer}
+    .asm-card .asm-nm{font-size:13.5px!important}
+    .asm-card .asm-sz{font-size:10px}
+    .asm-card .asm-sum{display:flex;flex:none;align-items:center;gap:6px;font-size:11px;color:var(--tx2);white-space:nowrap}
+    .asm-card .asm-sum b{font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--tx1)}
+    .asm-card .asm-sum .nd{background:rgba(220,38,38,.1);color:var(--acc4);font-weight:800;padding:1px 7px;border-radius:8px}
+    .asm-card .asm-sum .ok{background:rgba(22,163,74,.1);color:var(--acc3);font-weight:700;padding:1px 7px;border-radius:8px}
+    .asm-card .asm-sum .ar{color:var(--tx3);transition:transform .15s}
+    .asm-card.open .asm-sum .ar{transform:rotate(180deg)}
+    .asm-card:not(.open) .asm-det{display:none}
+    .asm-card .asm-det button{padding:6px!important;font-size:11px!important}
+    #sp-assembly{padding-top:10px!important}
+    #sp-assembly > .asm-intro{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:6px 10px;font-size:11px;cursor:pointer;margin-bottom:8px}
+    #sp-assembly > .asm-intro.open{white-space:normal}
+    #sp-assembly > #asm-search{padding:8px 10px;font-size:13px;margin-bottom:6px}
+    #sp-assembly > .filter-row{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none;margin-bottom:5px!important;padding-bottom:1px}
+    #sp-assembly > .filter-row::-webkit-scrollbar{display:none}
+    #sp-assembly > .filter-row .f-btn{flex:none;padding:4px 10px}
+    #sp-assembly .g3{gap:6px!important;margin-bottom:8px!important}
+    #sp-assembly .g3 .stat{padding:6px 8px}
+    #sp-assembly .g3 .stat-v{font-size:18px}
+  }`;
+  document.head.appendChild(st);
+})();
 function asmItemCard(it, needMap){
   const a=asmFind(it.id);
   const glass=asmGlassOf(it.id);      // 묶음(공용) 기준으로 읽습니다
@@ -8982,21 +9066,33 @@ function asmItemCard(it, needMap){
       <button onclick="event.stopPropagation();asmOpenHistory('${it.id}')" style="flex:1;padding:6px;background:transparent;border:1px dashed var(--b2);border-radius:6px;color:var(--tx2);font-size:10.5px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📜 이력 보기 / 삭제</button>
     </div>` : '';
 
+  /* 휴대폰(560px 이하)은 한 줄 요약으로 접어 둡니다 — 누르면 아래가 다 펼쳐집니다(2026-10-26 「정보가 과다」). PC 는 예전 그대로 */
+  const sumHtml = `<div class="asm-sum">
+      <span class="v">${showGlass?'유리':'완제품'} <b>${showGlass?glass:done}</b></span>
+      ${need>0 && done<need ? `<span class="nd">작업 ${short>0?short:need-done}</span>` : need>0 ? `<span class="ok">준비됨</span>` : ''}
+      <span class="ar">▾</span></div>`;
   return `
-  <div class="card" style="margin-bottom:10px;padding:12px 14px${cs?`;border-left:5px solid ${cs.bar}`:''}">
+  <div class="card asm-card${(window._asmOpen||{})[it.id]?' open':''}" onclick="asmCardToggle(this,'${it.id}')" style="margin-bottom:10px;padding:12px 14px${cs?`;border-left:5px solid ${cs.bar}`:''}">
+    <div class="asm-top">
+    <div style="min-width:0">
     ${colorBand?`<div>${colorBand}</div>`:''}
     <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:2px">
-      <span style="font-size:15px;font-weight:800;color:var(--tx1)">${it.name}${lrTag}</span>${colorTag}${unconfTag}
+      <span class="asm-nm" style="font-size:15px;font-weight:800;color:var(--tx1)">${it.name}${lrTag}</span>${colorTag}${unconfTag}
     </div>
-    <div style="font-size:10px;color:var(--tx3);margin-top:3px">
+    <div class="asm-sz" style="font-size:10px;color:var(--tx3);margin-top:3px">
       ${sizeStr?`프레임 ${it.fw?it.fw+'×'+it.fh:'-'} · 유리 ${sizeStr}`:(it.fw?`프레임 ${it.fw}×${it.fh} · 유리 ${it.gw}×${it.gh}`:'')}
       ${specStr?` <span style="color:var(--tx2)">| ${specStr}</span>`:''}
     </div>
+    </div>
+    ${sumHtml}
+    </div>
+    <div class="asm-det">
     ${stockBoxes}
     ${misBox}
     ${needBox}
     ${btns}
     ${histRow}
+    </div>
   </div>`;
 }
 
@@ -24095,7 +24191,7 @@ function etpHeadHtml(rows){
   }
   const late = !!warn && !!lastOut;
 
-  return '<div class="card" style="border-left:3px solid ' + (late ? 'var(--acc2)' : 'var(--acc)') + '">' +
+  return '<div class="card etp-head" style="border-left:3px solid ' + (late ? 'var(--acc2)' : 'var(--acc)') + '">' +
     '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:baseline">' +
       '<span style="font-size:12px;color:var(--tx2)">총 재고 <b style="font-family:\'JetBrains Mono\',monospace;font-size:20px;font-weight:900;color:var(--tx1)">' + total + '</b>장</span>' +
       '<span style="font-size:12px;color:var(--tx2)">부족 <b style="font-family:\'JetBrains Mono\',monospace;font-size:20px;font-weight:900;color:' + (shortN ? 'var(--acc4)' : 'var(--tx1)') + '">' + shortN + '</b>품목</span>' +
@@ -24139,7 +24235,7 @@ function etpTodoHtml(){
     });
   }
   if(!todo.length) return '';
-  return '<div class="card" style="padding:0;overflow:hidden">' +
+  return '<div class="card etp-todo" style="padding:0;overflow:hidden">' +
     '<div style="padding:9px 14px 5px;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--tx2)">지금 하실 일</div>' +
     todo.map(t =>
       '<div style="display:flex;gap:10px;align-items:center;padding:9px 14px;border-top:1px solid var(--b1)">' +
@@ -24480,7 +24576,7 @@ function artCmpHtml(ours){
   const c=artCompare(ours);
   const btn=(fn,label,pri)=>`<button onclick="${fn}" style="padding:7px 13px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;${pri?'background:var(--acc);border:none;color:#fff':'background:var(--s2);border:1px solid var(--b2);color:var(--tx1)'}">${label}</button>`;
   if(!c){
-    return `<div class="card" id="art-cmp" style="border-left:3px solid var(--acc5)">
+    return `<div class="card m-fold" id="art-cmp" style="border-left:3px solid var(--acc5)">
       <div class="card-ttl"><span>🔁 직원 아티팩트와 맞춰 보기</span></div>
       <div style="font-size:11.5px;color:var(--tx2);line-height:1.7;margin-bottom:8px">아티팩트 <b>「재고 현황」</b>에서 상태 「전체」·보기 「목록」으로 두고 <b>Ctrl+A → Ctrl+C</b> 한 뒤 붙여 넣으시면, 사이즈마다 우리 재고와 맞춰 봅니다.</div>
       ${btn('artOpenPaste()','📋 아티팩트 재고 붙여넣기',1)}</div>`;
@@ -24511,7 +24607,7 @@ function artCmpHtml(ours){
       <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:${r.only?'11px':'14px'};font-weight:900;color:${r.only?'var(--acc2)':r.diff?'var(--acc4)':'var(--acc3)'}">${dTxt}</span>
     </div>`;
   }).join('');
-  return `<div class="card" id="art-cmp" style="border-left:3px solid ${diff.length||only.length?'var(--acc4)':'var(--acc3)'}">
+  return `<div class="card m-fold" id="art-cmp" style="border-left:3px solid ${diff.length||only.length?'var(--acc4)':'var(--acc3)'}">
     <div class="card-ttl" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <span>🔁 직원 아티팩트와 맞춰 보기</span>
       <span style="display:flex;gap:6px">${btn('artToggle()',artOpen?'접기':'펼치기')}${btn('artOpenPaste()','📋 다시 붙여넣기')}</span>
