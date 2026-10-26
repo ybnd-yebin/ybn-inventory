@@ -961,6 +961,72 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
   <!-- 재고 목록 (사이즈 기준) -->
   <div id="sp-stocklist" class="sub-pg" style="display:none;padding:14px 14px 80px">
+    <!-- 원유리·웜코튼 목록 — 표 모양 (사장님 2026-10-26). 계산·저장은 그대로, 모양만 -->
+    <style>
+    /* PC 에서는 이 탭만 넓게 씁니다(다른 화면은 1100px 그대로) */
+    @media (min-width:1200px){ #pg-stock.sec-pg:has(> #sp-stocklist:not([style*="none"])){max-width:1440px} }
+    #sp-stocklist .stk-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 10px}
+    #sp-stocklist .stk-head h2{margin:0;font-size:18px;font-weight:800;color:var(--tx1)}
+    #sp-stocklist .stk-kpis{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+    #sp-stocklist .stk-kpi{display:flex;align-items:baseline;gap:6px;padding:5px 12px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);font-size:11.5px;color:var(--tx2);cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+    #sp-stocklist .stk-kpi b{font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--tx1)}
+    #sp-stocklist .stk-kpi.red b{color:#f85149}
+    #sp-stocklist .stk-search{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px}
+    #sp-stocklist .stk-search .inp{flex:1 1 320px;margin-bottom:0}
+    #sp-stocklist .stk-search .filter-row{margin-bottom:0}
+    #sp-stocklist .stk-tbl{border:1px solid var(--b1);border-radius:10px;background:var(--s1);overflow:hidden}
+    #sp-stocklist .stk-r{display:grid;grid-template-columns:30px 150px minmax(0,1fr) 64px 96px 120px 96px 62px;align-items:center;gap:0 10px;padding:7px 12px 7px 6px;border-top:1px solid var(--b1)}
+    #sp-stocklist .stk-r.hd{border-top:none;background:var(--s2);font-size:11.5px;font-weight:700;color:var(--tx2);padding-top:9px;padding-bottom:9px}
+    #sp-stocklist .stk-row{cursor:pointer}
+    #sp-stocklist .stk-row:hover{background:var(--s2)}
+    #sp-stocklist .stk-row.urgent{background:rgba(248,81,73,.06);box-shadow:inset 3px 0 0 #f85149}
+    #sp-stocklist .stk-row.warn{box-shadow:inset 3px 0 0 #d29922}
+    #sp-stocklist .stk-num{text-align:right;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+    #sp-stocklist .stk-c{text-align:center}
+    #sp-stocklist .stk-tg{width:24px;height:24px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:var(--tx2);font-size:11px;cursor:pointer;padding:0;transition:transform .15s}
+    #sp-stocklist .stk-row.open .stk-tg{transform:rotate(90deg);color:var(--acc);border-color:var(--acc)}
+    #sp-stocklist .stk-sz{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:var(--tx1);white-space:nowrap}
+    #sp-stocklist .stk-tag{display:inline-block;padding:2px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:10px;font-size:10.5px;color:var(--tx1);margin:1px 3px 1px 0;white-space:nowrap}
+    #sp-stocklist .stk-br{display:inline-block;padding:1px 8px;background:var(--s2);border-radius:8px;font-size:10.5px;color:var(--tx2)}
+    #sp-stocklist .stk-st{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap}
+    #sp-stocklist .stk-st::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
+    #sp-stocklist .stk-st.urgent{color:#f85149;background:rgba(248,81,73,.10)}
+    #sp-stocklist .stk-st.warn{color:#d29922;background:rgba(210,153,34,.12)}
+    #sp-stocklist .stk-st.ok{color:#2da44e;background:rgba(45,164,78,.10)}
+    #sp-stocklist .stk-more{padding:4px 10px;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:var(--tx2);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap}
+    #sp-stocklist .stk-det{display:none;padding:8px 14px 12px 46px;background:var(--s2);border-top:1px dashed var(--b2)}
+    #sp-stocklist .stk-row.open + .stk-det{display:block}
+    #sp-stocklist .stk-mob{display:none}
+    #sp-stocklist .stk-foot{font-size:11px;color:var(--tx3);padding:8px 12px;border-top:1px solid var(--b1)}
+    #inkcut-card .ik-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--tx2);background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:7px 12px}
+    #inkcut-card .ik-bar.on{border-color:#ff6b35;background:rgba(255,107,53,.06)}
+    #inkcut-card .ik-bar .sep{color:var(--b2)}
+    #inkcut-card .ik-more{margin-left:auto;padding:3px 10px;border:1px dashed var(--b2);border-radius:7px;background:none;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+    #inkcut-card .ik-more.open{border-style:solid}
+    @media (max-width:900px){
+      #sp-stocklist .stk-r{grid-template-columns:28px 128px minmax(0,1fr) 52px 84px 104px 86px;gap:0 8px}
+      #sp-stocklist .stk-r>:nth-child(8){display:none}
+    }
+    @media (max-width:560px){
+      #sp-stocklist .stk-r{grid-template-columns:24px minmax(0,1fr) 48px 54px 70px;gap:0 5px;padding:7px 6px 7px 3px}
+      #sp-stocklist .stk-r>:nth-child(3),#sp-stocklist .stk-r>:nth-child(4){display:none}
+      #sp-stocklist .stk-sz{font-size:13.5px}
+      #sp-stocklist .stk-r .stk-num b{font-size:14px!important}
+      #sp-stocklist .stk-st{padding:2px 7px;font-size:10.5px}
+      #sp-stocklist .stk-r.hd .stk-num span{display:none}
+      #sp-stocklist .stk-kpi{padding:4px 9px;font-size:11px}
+      #sp-stocklist .stk-kpi b{font-size:14px}
+      #sp-stocklist .stk-mob{display:block;margin-top:2px;font-size:10.5px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      #sp-stocklist .stk-det{padding:8px 10px 12px 12px}
+      #sp-stocklist .stk-kpis{margin-left:0}
+    }
+    </style>
+    <div class="stk-head">
+      <h2>📦 원유리 · 웜코튼 <span style="font-size:13px;color:var(--tx2);font-weight:600">(인쇄실)</span></h2>
+      <div class="stk-kpis" id="stock-kpis"></div>
+    </div>
+    <div id="inkcut-card" style="margin:0 0 10px"></div>
+    <div class="stk-search">
     <input class="inp" id="stock-search" placeholder="🔍 모델명 / 사이즈 (예: 6073, 595729, 595*729)..." oninput="renderStockList()">
     <div class="filter-row">
       <button class="f-btn on" onclick="setStockFilter('all',this)">전체</button>
@@ -972,12 +1038,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="f-btn" onclick="setStockFilter('OB',this)">OB</button>
       <button class="f-btn" onclick="setStockFilter('high',this)">고빈도</button>
     </div>
+    </div>
     <div id="stock-period-note" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--tx2);background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:8px 11px;margin:2px 0 12px">
       <span style="font-weight:700;color:var(--tx1)">📊 월평균 집계 기준</span>
       <span id="stock-period-range" style="color:var(--tx3)">계산 중…</span>
       <span style="margin-left:auto;color:var(--tx3)">🟢 최근 6개월=납품서 실데이터 · 회색=과거 분석 폴백</span>
     </div>
-    <div id="inkcut-card" style="margin:2px 0 12px"></div>
     <div id="stock-list"></div>
     <!-- 비규격 섹션 (사이즈 매핑 안 된 모델들) -->
     <div id="stock-misc-section" style="margin-top:20px"></div>
@@ -4338,6 +4404,8 @@ function inkCutSetDate(v){
 }
 let inkCutOpen=false;
 function inkCutToggleList(){ inkCutOpen=!inkCutOpen; renderInkCut(); }
+var inkCutBarOpen=false;   // 안내 바 「자세히 보기」 — 이 창에서만 (var: 앱을 막 열 때 먼저 불려도 TDZ 없게)
+function inkCutToggleBar(){ inkCutBarOpen=!inkCutBarOpen; renderInkCut(); }
 function renderInkCut(){
   const host=document.getElementById('inkcut-card'); if(!host) return;
   const d=deadStockAll();
@@ -4351,7 +4419,15 @@ function renderInkCut(){
           <td>${kor[r.color]||r.color}</td>
           <td class="num" style="font-weight:700;color:var(--acc4)">${r.qty}</td></tr>`).join('')
       + `</tbody></table></div>` : '';
-  host.innerHTML=`
+  /* 검색창 위 한 줄 안내 바 (2026-10-26). 「자세히 보기」를 누르면 아래 예전 카드가 글자 하나 안 바뀌고 그대로 나옵니다. */
+  const bar=`<div class="ik-bar${inkCut.on?' on':''}">
+      <b style="color:var(--tx1)">📌 1액형 전환</b><span class="sep">|</span>
+      <span>기준일: <b style="color:var(--tx1);font-family:'JetBrains Mono',monospace">${inkCut.date}</b></span><span class="sep">|</span>
+      <span style="font-weight:700;color:${inkCut.on?'#ff6b35':'var(--tx3)'}">${inkCut.on?'켜짐':'꺼짐'}</span>
+      <button class="ik-more${inkCutBarOpen?' open':''}" onclick="inkCutToggleBar()">${inkCutBarOpen?'접기 ▴':'자세히 보기 ▾'}</button>
+    </div>`;
+  if(!inkCutBarOpen){ host.innerHTML=bar; return; }
+  host.innerHTML=bar+`<div style="margin-top:6px"></div>
     <div style="background:${inkCut.on?'rgba(255,107,53,.10)':'var(--s1)'};border:1px solid ${inkCut.on?'#ff6b35':'var(--b1)'};border-radius:10px;padding:11px 13px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:12.5px;font-weight:800">🖨 1액형 전환</span>
@@ -6016,6 +6092,17 @@ function actGoToSize(key){
   },60);
 }
 
+// 표의 ▸ — 다시 그리지 않고 그 줄만 펼치고 접습니다. 펼친 것은 이 창에서만 기억합니다.
+function stkToggle(ev,key){
+  ev.stopPropagation();
+  const row=ev.currentTarget.closest('.stk-row'); if(!row) return;
+  const on=row.classList.toggle('open');
+  window._stkOpen=window._stkOpen||{}; window._stkOpen[key]=on;
+}
+function stkKpiGo(f){
+  const b=[...document.querySelectorAll('#sp-stocklist .f-btn')].find(x=>(x.getAttribute('onclick')||'').includes(`'${f}'`));
+  if(b) setStockFilter(f,b);
+}
 function setStockFilter(f,btn){stockFilter=f;document.querySelectorAll('#sp-stocklist .f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStockList();}
 function renderStockList(){
   try{ renderInkCut(); }catch(e){ console.warn('[1액형 전환]', e); }
@@ -6174,6 +6261,16 @@ function renderStockList(){
     return (b.total_6m||0) - (a.total_6m||0);
   });
 
+  // 위 요약 칸 — 거르기 단추(부족·고빈도)와 같은 기준으로 전체 사이즈를 셉니다. 누르면 그 단추를 누른 것과 같습니다.
+  (function(){
+    const k=document.getElementById('stock-kpis'); if(!k) return;
+    const nUrg=groups.filter(sg=>sgIsUrgent(sg)||sgHasMinus(sg)).length;
+    const nHigh=groups.filter(sg=>(sg.avg_monthly||0)>=20).length;
+    k.innerHTML=`<button class="stk-kpi red" onclick="stkKpiGo('urgent')">🔴 부족 사이즈 <b>${nUrg}</b></button>`
+      +`<button class="stk-kpi" onclick="stkKpiGo('high')">📊 고빈도 사이즈 <b>${nHigh}</b></button>`
+      +`<button class="stk-kpi" onclick="stkKpiGo('all')">전체 <b>${groups.length}</b></button>`;
+  })();
+
   if(!filtered.length){
     el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>검색 결과 없음</div>';
     if(miscEl) miscEl.innerHTML='';
@@ -6191,7 +6288,7 @@ function renderStockList(){
     pn.textContent = `🟢 최근 6개월 ${fmt(cut)} ~ ${fmt(now)} (납품서 ${typeof delivLog!=='undefined'&&delivLog?delivLog.length:0}건) · ${histTxt}`;
   })();
 
-  el.innerHTML = filtered.map(sg=>{
+  const rowsHtml = filtered.map(sg=>{
     const raw = getRawTotal(sg);
     const pwc = getPrintedWC(sg);
     const petp = getPrintedETP(sg);
@@ -6263,21 +6360,9 @@ function renderStockList(){
     const pwcColor = pwc < 0 ? '#f85149' : pwc === 0 ? 'var(--tx3)' : 'var(--acc3)';
     const petpColor = petp < 0 ? '#f85149' : petp === 0 ? 'var(--tx3)' : 'var(--acc3)';
 
-    return `
-    <div class="${cardCls}" style="cursor:pointer;position:relative" onclick="openSizeModal('${sg.key}')">
-      <div class="ml" style="flex:1">
-        <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;padding-right:4px">
-          <div class="mn" style="font-size:16px;font-weight:800;color:var(--tx1)">📐 ${sg.label}</div>
-          <button onclick="event.stopPropagation();openSizeEditModal('${sg.key}')" title="사이즈 편집" style="width:22px;height:22px;border-radius:6px;background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;opacity:.5;padding:0">✏️</button>
-          ${asmSizeHtml}
-          ${brand?`<span style="font-size:10px;padding:1px 6px;background:var(--s2);border-radius:8px;color:var(--tx2);margin-left:6px">${brand}</span>`:''}
-          ${lastBy?actorBadge(lastBy, lastByAt):''}
-        </div>
-        <div style="margin-top:6px">${tagsHtml}</div>
-        ${asmWarnHtml}
-        ${warnTxt?`<div style="font-size:11px;color:${warnLevel==='urgent'?'#f85149':'#d29922'};margin-top:4px;font-weight:700">${warnTxt}</div>`:''}
-
-        ${(()=>{
+    /* 2026-10-26 표 모양 — 예전 카드에 있던 것은 하나도 안 빼고 ▸ 펼침 칸으로 옮겼습니다.
+       아래 실측·입고 요약(infoHtml)은 예전 카드 안에 있던 계산 그대로입니다. */
+    const infoHtml = (()=>{
           // 최신 실측/입고 요약
           const rawKey = `${sg.w}x${sg.h}`;
           const wcKey = `${sg.w}x${sg.h}_WC`;
@@ -6331,32 +6416,53 @@ function renderStockList(){
             html += `<div style="font-size:11px;color:#a371f7;margin-top:4px;background:rgba(163,113,247,.1);padding:6px 10px;border-radius:6px">${mismatchMsgs.join('<br>')}</div>`;
           }
           return html;
-        })()}
+        })();
 
-        <!-- 원유리 (사이즈만, 색상 통합) -->
-        <div style="margin-top:10px;background:var(--s2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border:2px solid ${warnLevel==='urgent'?'#f85149':warnLevel==='warn'?'#d29922':'transparent'}">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:18px">📦</span>
-            <span style="font-size:12px;color:var(--tx1);font-weight:700">원유리</span>
-            <span style="font-size:9px;color:var(--tx3)">(인쇄 전)</span>
-          </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:${rawColor}">${raw}<span style="font-size:11px;color:var(--tx2);font-weight:400">장</span></div>
-        </div>
+    // 상태 칸 — 원유리 경고 단계(getRawWarnLevel) 그대로. 희귀 사이즈가 0장이면 '-'
+    const stTxt = warnLevel==='urgent' ? '부족' : warnLevel==='warn' ? '주의' : warnLevel==='ok' ? '재고있음' : '';
+    const rowCls = cardCls.replace('model-card','stk-r stk-row') + ((window._stkOpen||{})[sg.key] ? ' open' : '');
+    const amCell = am>=0.1
+      ? `<b style="color:${amSource==='live'?'var(--acc)':'var(--tx2)'}" title="${amSource==='live'?'🟢 최근 6개월':'과거 분석'}">${am.toFixed(1)}</b><span style="font-size:10px;color:var(--tx3)"> 장</span>`
+      : `<span style="color:var(--tx3)" title="6개월 합계">${sg.total_6m||0}<span style="font-size:10px"> 장</span></span><div style="font-size:9.5px;color:var(--tx3)">6개월 합계</div>`;
+    const sixTxt = (sg.recent_6m!=null||sg.total_11m!=null)
+      ? [sg.recent_6m!=null?`최근 6개월 ${sg.recent_6m}장`:'', sg.total_11m!=null?`누적 ${sg.total_11m}장`:''].filter(Boolean).join(' · ') : '';
 
-        <!-- 인쇄유리 칸 숨김: 인쇄유리는 작업일지에서 인쇄→조립실에서 관리. 데이터(pwc/petp)·납품출고 로직은 그대로 유지(내부 장부). -->
+    return `
+    <div class="${rowCls}" onclick="openSizeModal('${sg.key}')">
+      <div class="stk-c"><button class="stk-tg" onclick="stkToggle(event,'${sg.key}')" title="자세히">▸</button></div>
+      <div style="min-width:0">
+        <span style="white-space:nowrap"><span class="stk-sz">${sg.label}</span><button onclick="event.stopPropagation();openSizeEditModal('${sg.key}')" title="사이즈 편집" style="width:20px;height:20px;margin-left:3px;border-radius:6px;background:none;border:none;color:var(--tx3);font-size:10px;cursor:pointer;opacity:.5;padding:0;vertical-align:middle">✏️</button></span>
+        <div class="stk-mob">${brand?brand+' · ':''}${uniqueModels.join(', ')}</div>
       </div>
-      <div class="mr">
-        ${am>=0.1
-          ? `<div class="mr-qty" style="color:var(--acc)">${am.toFixed(1)}<span class="mr-unit">장</span></div>
-             <div class="mr-sub">월평균</div>
-             ${(sg.recent_6m!=null||sg.total_11m!=null)?`<div style="font-size:10px;color:var(--tx3);font-weight:500;margin-top:3px;line-height:1.4">${sg.recent_6m!=null?`최근 6개월 ${sg.recent_6m}장`:''}${(sg.recent_6m!=null&&sg.total_11m!=null)?'<br>':''}${sg.total_11m!=null?`누적 ${sg.total_11m}장`:''}</div>`:''}
-             <div class="mr-src ${amSource==='live'?'live':'hist'}">${amSource==='live'?'🟢 최근 6개월':'과거 분석'}</div>`
-          : `<div class="mr-qty" style="color:var(--tx3)">${sg.total_6m||0}<span class="mr-unit">장</span></div>
-             <div class="mr-sub">6개월 합계</div>
-             ${(sg.recent_6m!=null||sg.total_11m!=null)?`<div style="font-size:10px;color:var(--tx3);font-weight:500;margin-top:3px;line-height:1.4">${sg.recent_6m!=null?`최근 6개월 ${sg.recent_6m}장`:''}${(sg.recent_6m!=null&&sg.total_11m!=null)?'<br>':''}${sg.total_11m!=null?`누적 ${sg.total_11m}장`:''}</div>`:''}`}
+      <div style="min-width:0;line-height:1.5">${tagsHtml}</div>
+      <div class="stk-c">${brand?`<span class="stk-br">${brand}</span>`:'<span style="color:var(--tx3)">-</span>'}</div>
+      <div class="stk-num"><b style="font-size:16px;color:${rawColor==='var(--acc)'?'var(--tx1)':rawColor}">${raw}</b><span style="font-size:10px;color:var(--tx3)"> 장</span></div>
+      <div class="stk-num">${amCell}</div>
+      <div class="stk-c">${stTxt?`<span class="stk-st ${warnLevel}">${stTxt}</span>`:'<span style="color:var(--tx3)">-</span>'}${sgHasMinus(sg)?`<div style="font-size:9.5px;color:#f85149;font-weight:700;margin-top:2px" title="웜코튼·에토프 인쇄유리 내부 장부가 마이너스입니다(출고가 인쇄보다 많음). 예전 카드에서는 빨간 테두리로만 보였습니다.">인쇄 장부 −</div>`:''}</div>
+      <div class="stk-c"><button class="stk-more" onclick="event.stopPropagation();openSizeModal('${sg.key}')">상세 ›</button></div>
+    </div>
+    <div class="stk-det">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px">
+        <span style="font-size:13px;font-weight:800;color:var(--tx1)">📐 ${sg.label}</span>
+        ${asmSizeHtml}
+        ${brand?`<span style="font-size:10px;padding:1px 6px;background:var(--s1);border-radius:8px;color:var(--tx2);margin-left:6px">${brand}</span>`:''}
+        ${lastBy?actorBadge(lastBy, lastByAt):''}
       </div>
+      <div style="margin-top:5px">${uniqueModels.map(mn=>`<span class="stk-tag">${mn}</span>`).join('')}</div>
+      ${asmWarnHtml}
+      ${warnTxt?`<div style="font-size:11px;color:${warnLevel==='urgent'?'#f85149':'#d29922'};margin-top:4px;font-weight:700">${warnTxt}</div>`:''}
+      ${infoHtml}
+      <div style="font-size:10.5px;color:var(--tx3);margin-top:5px">📦 원유리 (인쇄 전) <b style="color:${rawColor}">${raw}장</b>
+        · ${am>=0.1?`월평균 ${am.toFixed(1)}장 (${amSource==='live'?'🟢 최근 6개월':'과거 분석'})`:`6개월 합계 ${sg.total_6m||0}장`}${sixTxt?' · '+sixTxt:''}</div>
     </div>`;
+    // 인쇄유리 칸 숨김(예전 그대로): 인쇄유리는 작업일지에서 인쇄→조립실에서 관리. 데이터(pwc/petp)·납품출고 로직은 그대로 유지(내부 장부).
   }).join('');
+  el.innerHTML = `<div class="stk-tbl">
+      <div class="stk-r hd"><div></div><div>사이즈</div><div>관련 모델</div><div class="stk-c">구분</div>
+        <div class="stk-num">현재고 <span style="font-weight:400;font-size:10px">원유리</span></div><div class="stk-num">월평균</div><div class="stk-c">상태</div><div class="stk-c">상세</div></div>
+      ${rowsHtml}
+      <div class="stk-foot">총 ${filtered.length}개 사이즈 · 줄을 누르면 사이즈 창, ▸ 를 누르면 실측·입고 내역이 펼쳐집니다.</div>
+    </div>`;
 
   // ── 비규격 섹션 ──
   if(miscEl){
@@ -30088,20 +30194,21 @@ body.gnav-on .main-nav{display:none}
   body.gnav-on #gnav{display:block;border-top:1px solid var(--b1)}
   body.gnav-on #pg-stock .sub-nav{display:none}      /* 재고관리 안 탭 줄은 아래 소분류 줄이 대신합니다 (단추는 그대로 — showSub 가 차례로 씀) */
 }
-#gnav .gn-top{display:flex;gap:2px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 10px;scrollbar-width:none}
+#gnav .gn-top{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 14px;scrollbar-width:none}
 #gnav .gn-top::-webkit-scrollbar{display:none}
-#gnav .gn-cat{flex:none;min-height:44px;padding:0 16px;background:none;border:none;border-bottom:3px solid transparent;
+#gnav .gn-cat{flex:none;min-height:46px;padding:0 20px;background:none;border:none;border-bottom:3px solid transparent;
   font-family:'Noto Sans KR',sans-serif;font-size:14px;font-weight:700;color:var(--tx2);cursor:pointer;white-space:nowrap}
 #gnav .gn-cat:hover{color:var(--tx1)}
 #gnav .gn-cat.on{color:#1f3a5f;border-bottom-color:#1f3a5f}
-#gnav .gn-sub{display:flex;align-items:center;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:6px 12px;
+#gnav .gn-sub{display:flex;align-items:center;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:8px 16px;
   background:var(--s2);border-top:1px solid var(--b1);scrollbar-width:none}
 #gnav .gn-sub::-webkit-scrollbar{display:none}
 #gnav .gn-path{flex:none;font-size:11.5px;font-weight:700;color:var(--tx3);margin-right:6px;white-space:nowrap}
-#gnav .gn-item{flex:none;min-height:32px;padding:0 12px;border:1px solid transparent;border-radius:8px;background:none;
+#gnav .gn-item{flex:none;min-height:34px;padding:0 16px;border:1.5px solid transparent;border-radius:8px;background:none;
   font-family:'Noto Sans KR',sans-serif;font-size:12.5px;font-weight:600;color:var(--tx2);cursor:pointer;white-space:nowrap}
 #gnav .gn-item:hover{background:var(--s1);color:var(--tx1)}
-#gnav .gn-item.on{background:var(--s1);border-color:#1f3a5f;color:#1f3a5f}
+#gnav .gn-item.on{background:var(--s1);border-color:#1f3a5f;color:#1f3a5f;font-weight:700}
+#gnav .gn-path{margin-right:10px}
 #gnav .gn-item .gx{font-size:10px;color:var(--tx3);margin-left:3px}
 /* 공통 제목·단추 모양 — 새로 만드는 화면부터 이것을 씁니다(기존 화면 단추는 이번에 안 바꿈 — 인쇄·캡처 영향 때문) */
 .ui-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px}
