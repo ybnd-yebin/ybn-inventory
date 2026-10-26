@@ -31226,8 +31226,9 @@ var BNAV=(function(){
 .wd-tg{display:none;margin-left:8px;padding:3px 10px;border:1px dashed var(--b2);border-radius:7px;background:none;color:var(--tx2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;vertical-align:middle}
 @media (min-width:1400px){
   #pg-stock.sec-pg:has(> #sp-stocklist:not([style*="none"])){max-width:min(1800px,calc(100vw - 48px))}
-  body:not(.wd-off) #sp-stocklist .wd-grid{display:grid;grid-template-columns:220px minmax(0,1fr) 260px;gap:16px;align-items:start}
+  body:not(.wd-off) #sp-stocklist .wd-grid{display:grid;grid-template-columns:190px minmax(0,1fr) 220px;gap:14px;align-items:start}
   body:not(.wd-off) #sp-stocklist .wd-rail{display:flex;flex-direction:column;gap:10px;position:sticky;top:150px}
+  #sp-stocklist .wd-main .stk-r{gap:0 8px}
   .wd-tg{display:inline-block}
   body.wd-off .wd-tg{border-style:solid}
 }
@@ -31237,42 +31238,50 @@ var BNAV=(function(){
 .wd-row:first-of-type{border-top:none}
 .wd-row b{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:var(--tx1)}
 .wd-row.go{cursor:pointer}.wd-row.go:hover{color:var(--acc)}
-.wd-card.red{border-color:rgba(248,81,73,.35);background:rgba(248,81,73,.05)}
+.wd-card.warn{border-color:rgba(210,153,34,.35);background:rgba(210,153,34,.05)}
 </style>
 <script>
 var WD=(function(){
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function row(label,val,go){ return '<div class="wd-row'+(go?' go':'')+'"'+(go?' onclick="'+go+'"':'')+'><span>'+esc(label)+'</span><b>'+(val==null||val===''?'-':esc(val))+'</b></div>'; }
   function safe(f,d){ try{ var v=f(); return v==null?d:v; }catch(e){ return d; } }
+  /* 왼쪽 = 재고관리 공통(다른 탭 숫자) · 오른쪽 = 이 탭 도움(표와 겹치지 않는 것만).
+     예전 1액형 카드는 위 안내 바와, 「지금 모자란 사이즈」는 표 맨 위 빨간 줄과 겹쳐 뺐습니다(사장님 2026-10-26 「정신없으려나」). */
   function left(){
-    var urg=safe(function(){ var b=document.querySelector('#stock-kpis .stk-kpi.red b'); return b?b.textContent:null; },null);
     var etp=safe(function(){ return etpBuildRows().filter(function(r){return r.short;}).length; },null);
     var g450=safe(function(){ return soonapNowOf('CAIB13894').now; },null), g500=safe(function(){ return soonapNowOf('CAIB13895').now; },null);
     var open=safe(function(){ return tdyOpenOrders(); },{n:0,q:0});
     var late=safe(function(){ return odLateOrders().length; },null);
-    return '<div class="wd-card"><h4>재고 한눈에</h4>'
-      + row('인쇄실 부족 사이즈', urg)
-      + row('에토프 부족', etp, "showSub('etp')")
+    var wc=safe(function(){ return calcInkStock('WC').remaining; },null), ep=safe(function(){ return calcInkStock('ETP').remaining; },null);
+    return '<div class="wd-card"><h4>📦 재고 한눈에</h4>'
+      + row('에토프 부족', etp?etp+'종':'-', "showSub('etp')")
       + row('글래스도어 450', g450, "showSub('storage')")
       + row('글래스도어 500', g500, "showSub('storage')")
-      + '</div><div class="wd-card"><h4>발주·입고</h4>'
+      + '</div><div class="wd-card"><h4>🚚 발주·입고</h4>'
       + row('입고 대기', open.q?open.q+'장':'-', "showMain('order')")
       + row('납기 지연', late?late+'건':'-', "showMain('order')")
+      + '</div><div class="wd-card"><h4>🪣 잉크 남은 양</h4>'
+      + row('웜코튼', wc!=null?wc+'통':'-', "showSub('ink')")
+      + row('에토프', ep!=null?ep+'통':'-', "showSub('ink')")
       + '</div>';
   }
   function right(){
-    var short=[].slice.call(document.querySelectorAll('#stock-list .stk-row.urgent')).slice(0,6).map(function(r){
-      var sz=r.querySelector('.stk-sz'), nums=r.querySelectorAll('.stk-num');
-      return { sz: sz?sz.textContent.replace(/\s+/g,'').replace('✏️',''):'', q: nums[0]?nums[0].textContent.replace(/\s+/g,''):'' };
+    // 곧 모자랄 것 = 표의 「주의」 줄(빨간 「부족」 줄은 표 맨 위에 이미 있으므로 뺌)
+    var warn=[].slice.call(document.querySelectorAll('#stock-list .stk-row.warn:not(.urgent)')).slice(0,6).map(function(r){
+      var sz=r.querySelector('.stk-sz'), nums=r.querySelectorAll('.stk-num'), m=(r.getAttribute('onclick')||'').match(/openSizeModal\('([^']+)'\)/);
+      return { sz: sz?sz.textContent.replace(/[\s✏️]/g,''):'', q: nums[0]?nums[0].textContent.replace(/\s+/g,''):'', key: m?m[1]:'' };
     });
+    var td=safe(function(){ return todayStr(); },''), ym=td.slice(0,7), tday=0, tmon=0;
+    safe(function(){ workLog.forEach(function(d){ var q=(d.items||[]).reduce(function(a,i){return a+(Number(i.qty)||0);},0); if(d.date===td) tday+=q; if(String(d.date||'').slice(0,7)===ym) tmon+=q; }); return 1; },0);
     var ev=[]; safe(function(){ Object.keys(stockEvents).forEach(function(k){ if(/_/.test(k)) return; (stockEvents[k]||[]).forEach(function(e){ if(e&&(e.type==='in'||e.type==='count')) ev.push({k:k,e:e}); }); }); return 1; },0);
     ev.sort(function(a,b){ return String(b.e.at||'').localeCompare(String(a.e.at||'')); });
-    var rec=ev.slice(0,5).map(function(x){ var d=String(x.e.at||'').slice(5,10).replace('-','/'); return row(d+' '+(x.e.type==='in'?'입고':'실측')+' '+x.k.replace('x','×'), x.e.qty); }).join('');
-    var ink=safe(function(){ return inkCut&&inkCut.on?('켜짐 · 기준일 '+inkCut.date):'꺼짐'; },'-');
-    return '<div class="wd-card red"><h4>🔴 지금 모자란 사이즈</h4>'
-      + (short.length? short.map(function(s){ return row(s.sz, s.q); }).join('') : '<div>없습니다</div>')
-      + '</div><div class="wd-card"><h4>최근 입고·실측</h4>' + (rec||'<div>기록이 없습니다</div>') + '</div>'
-      + '<div class="wd-card"><h4>1액형 전환</h4><div>'+esc(ink)+'</div></div>';
+    var rec=ev.slice(0,5).map(function(x){ var d=String(x.e.at||'').slice(5,10).replace('-','/'); return row(d+' '+(x.e.type==='in'?'입고':'실측')+' '+x.k.replace('x','×'), x.e.qty, "openSizeModal('"+x.k+"')"); }).join('');
+    return '<div class="wd-card"><h4>🖨️ 인쇄 작업</h4>'
+      + row('오늘', tday?tday+'장':'-', "showMain('worklog')")
+      + row(+ym.slice(5)+'월 누적', tmon?tmon+'장':'-', "showMain('worklog')")
+      + '</div><div class="wd-card warn"><h4>🟡 곧 모자랄 사이즈</h4>'
+      + (warn.length? warn.map(function(s){ return row(s.sz, s.q, s.key?"openSizeModal('"+s.key+"')":''); }).join('') : '<div>없습니다</div>')
+      + '</div><div class="wd-card"><h4>🕓 최근 입고·실측</h4>' + (rec||'<div>기록이 없습니다</div>') + '</div>';
   }
   function render(){
     var L=document.getElementById('wd-left'), R=document.getElementById('wd-right'); if(!L||!R) return;
