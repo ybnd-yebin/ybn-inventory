@@ -2557,9 +2557,32 @@ Euro700 Grace W/Cotton	6
 
 <!-- WORK MODAL -->
 <div class="modal-bg" id="work-modal">
+  <!-- 2026-10-26 빠른 입력 모양 — PC 는 가운데 넓은 창(왼쪽 검색·수량 / 오른쪽 담은 목록). 저장(submitCart·applyCartItem)은 그대로 -->
+  <style>
+  @media (min-width:900px){
+    #work-modal{align-items:center;justify-content:center;padding:16px}
+    #work-modal .modal-sheet{max-width:1040px;border-radius:16px;max-height:92vh;padding:18px 22px 20px;animation:none}
+    #work-modal .wm-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0 22px;align-items:start}
+    #work-modal .wm-right{position:sticky;top:0}
+    #work-modal #wm-cart-box{margin-top:0!important;border-top:none!important;padding-top:0!important}
+    #work-modal .wm-cart-empty{display:block}
+    #work-modal.wm-has-cart .wm-cart-empty{display:none}
+  }
+  #work-modal .wm-cart-empty{display:none;font-size:12px;color:var(--tx3);border:1px dashed var(--b2);border-radius:10px;padding:18px 14px;text-align:center;line-height:1.7}
+  #work-modal .wm-keys{font-size:10.5px;color:var(--tx3);margin:-2px 0 8px}
+  #work-modal .wm-keys kbd{font-family:'JetBrains Mono',monospace;font-size:10px;border:1px solid var(--b2);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--s1);color:var(--tx2)}
+  #work-modal .wm-br{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:6px;background:var(--s2);border:1px solid var(--b2);color:var(--tx1);margin-left:4px}
+  #work-modal .wm-res-top{outline:2px solid var(--acc);outline-offset:-2px;border-radius:8px}
+  #work-modal #wm-submit-all-btn{width:auto;float:right;padding:12px 26px;font-size:14px!important}
+  #work-modal .wm-sum{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--tx2);padding:8px 0 2px}
+  #work-modal .wm-sum b{font-family:'JetBrains Mono',monospace;color:var(--tx1)}
+  @media (max-width:899px){ #work-modal #wm-submit-all-btn{float:none;width:100%} }
+  </style>
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeM('work-modal')">×</button>
     <div class="modal-ttl" id="wm-title">✏️ 작업 입력</div>
+    <div class="wm-grid">
+    <div class="wm-left">
     <div style="margin-bottom:12px">
       <span class="lbl">작업 날짜</span>
       <input type="date" id="wm-date" class="inp" style="margin-bottom:0">
@@ -2585,7 +2608,8 @@ Euro700 Grace W/Cotton	6
     </div>
 
     <span class="lbl" id="wm-search-label">검색</span>
-    <input class="inp" id="wm-search" placeholder="사이즈 또는 모델명..." oninput="renderWorkSearch()" style="margin-bottom:6px">
+    <input class="inp" id="wm-search" placeholder="사이즈 또는 모델명..." oninput="renderWorkSearch()" onkeydown="wmSearchKey(event)" autocomplete="off" style="margin-bottom:6px">
+    <div class="wm-keys">빠른 입력: 검색 후 <kbd>Enter</kbd> = 맨 위 후보 고르기 → 수량 입력 후 <kbd>Enter</kbd> = 담기 → 다시 검색창으로</div>
     <div id="wm-results"></div>
     <div id="wm-selected" style="display:none">
       <div class="sel-box"><div class="sel-label" id="wm-sel-label">✓ 선택됨</div><div style="font-size:13px;font-weight:700" id="wm-sel-name"></div><div style="font-size:10px;color:var(--tx2);margin-top:2px" id="wm-sel-meta"></div></div>
@@ -2647,6 +2671,9 @@ Euro700 Grace W/Cotton	6
       <button class="act-btn green" id="wm-confirm-btn" onclick="addToCart()">➕ 목록에 담기</button>
       <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px" id="wm-confirm-desc">담은 뒤 아래에서 계속 추가 → 마지막에 한 번에 올리기</div>
     </div>
+    </div>
+    <div class="wm-right">
+    <div class="wm-cart-empty" id="wm-cart-empty">🧺 아직 담은 작업이 없습니다.<br>왼쪽에서 검색 → 수량 → 담기를 반복하시면 여기에 쌓입니다.<br>다 담은 뒤 한 번에 올립니다.</div>
 
     <!-- ── 담긴 목록 (장바구니) ── -->
     <div id="wm-cart-box" style="display:none;margin-top:16px;border-top:2px solid var(--b2);padding-top:14px">
@@ -2655,8 +2682,11 @@ Euro700 Grace W/Cotton	6
         <button onclick="clearCart()" style="font-size:11px;padding:4px 10px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--tx2);cursor:pointer;font-family:'Noto Sans KR',sans-serif">전체비우기</button>
       </div>
       <div id="wm-cart-list"></div>
-      <button class="act-btn green" id="wm-submit-all-btn" onclick="submitCart()" style="margin-top:12px;background:var(--acc);font-size:15px">✅ 전체 올리기 (재고 반영)</button>
-      <div style="font-size:10px;color:var(--tx2);text-align:center;margin-top:4px">담은 <span class="wm-cart-count2">0</span>건을 선택한 날짜에 한 번에 기록합니다</div>
+      <div class="wm-sum" id="wm-cart-sum"></div>
+      <div style="overflow:hidden"><button class="act-btn green" id="wm-submit-all-btn" onclick="submitCart()" style="margin-top:12px;background:var(--acc);font-size:15px">✅ 전체 올리기 (재고 반영)</button></div>
+      <div style="font-size:10px;color:var(--tx2);text-align:right;margin-top:4px">담은 <span class="wm-cart-count2">0</span>건을 <b id="wm-cart-date"></b>에 한 번에 기록합니다</div>
+    </div>
+    </div>
     </div>
   </div>
 </div>
@@ -7566,7 +7596,7 @@ function renderWorkSearch(){
       return `<div style="padding:12px 14px;border-bottom:1px solid var(--b1)">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
           <span style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:900;color:var(--acc)">${sg.w} × ${dispH}${sg.lr?` <span style="font-size:12px;color:${sg.lr==='L'?'var(--acc)':'var(--acc4)'}">(${sg.lr==='L'?'좌·L':'우·R'})</span>`:''}</span>
-          <span style="font-size:10px;color:var(--tx3)">mm</span>
+          <span style="font-size:10px;color:var(--tx3)">mm 유리</span>${wmBrandBadge(sg.models)}
         </div>
         <div style="margin-bottom:8px;line-height:1.6">${modelTags}</div>
         ${_colorSection}
@@ -7645,6 +7675,8 @@ function renderWorkSearch(){
       </div>`;
     }).join('');
   }
+  // 빠른 입력 — Enter 로 고를 맨 위 후보를 테두리로 표시
+  const _top=el.firstElementChild; if(_top && !_top.classList.contains('empty-sm')) _top.classList.add('wm-res-top');
 }
 
 // 인쇄실 사이즈+색상 선택
@@ -7686,6 +7718,7 @@ function selectPrintSize(w, h, color){
   document.getElementById('wm-results').innerHTML='';
   document.getElementById('wm-search').value='';
   updateDefectUI();
+  wmFocusQty();   // 빠른 입력 — 고르면 수량칸으로
 }
 
 // 관통 손잡이 3종(BTARG 6070, WTARG 60141, WTARG 60154)은 좌우 유리가 다름 → 재고키 분리
@@ -7735,6 +7768,7 @@ function selectWorkModel(short, color, w, h){
   document.getElementById('wm-results').innerHTML='';
   document.getElementById('wm-search').value='';
   updateDefectUI();
+  wmFocusQty();   // 빠른 입력 — 고르면 수량칸으로
 }
 
 function selectWorkSize(w,h){
@@ -7758,6 +7792,7 @@ function selectWorkSize(w,h){
   document.getElementById('wm-results').innerHTML='';
   document.getElementById('wm-search').value='';
   updateDefectUI();
+  wmFocusQty();   // 빠른 입력 — 고르면 수량칸으로
 }
 
 function selectWork(code){
@@ -7828,8 +7863,54 @@ function addToCart(){
   clearWlSelection();
 }
 
+/* ── 빠른 입력 (2026-10-26) — 화면·키보드만. 담기(addToCart)·올리기(submitCart) 는 그대로 ──
+   검색칸 Enter = 맨 위 후보(색 고정이 있으면 그 색, 없으면 지금 고른 색) → 수량칸으로 → Enter = 담기 → 검색칸으로 */
+function wmSearchKey(e){
+  if(e.key!=='Enter' || e.isComposing) return;
+  e.preventDefault();
+  const res=document.getElementById('wm-results'); if(!res) return;
+  const color=(wlRoom==='print' && wlPinColor) ? wlPinColor : (wlColor||'WC');
+  const cands=[...res.querySelectorAll('[onclick^="selectPrintSizeNamed"],[onclick^="selectWorkModel"]')];
+  if(!cands.length){ showToast('후보가 없습니다 — 사이즈나 모델 번호를 확인해 주십시오'); return; }
+  const first=cands[0].closest('#wm-results > div');
+  const inFirst=cands.filter(c=>c.closest('#wm-results > div')===first);
+  const pick=inFirst.find(c=>(c.getAttribute('onclick')||'').indexOf(`'${color}'`)>=0) || inFirst[0];
+  pick.click();
+}
+function wmFocusQty(){
+  setTimeout(()=>{ const q=document.getElementById('wm-qty'); if(q && q.offsetParent){ q.focus(); try{ q.select(); }catch(e){} } }, 30);
+}
+// 후보 카드의 OB·HD 표시 — 같은 번호에 OB·HD 가 다 있으면 카드마다 갈라 보이게
+function wmBrandBadge(models){
+  const b=new Set((models||[]).map(m=>(String(m).match(/^(OB|HD)\b/)||[])[1]).filter(Boolean));
+  if(!b.size) return '';
+  return `<span class="wm-br">${[...b].sort().join('·')}</span>`;
+}
+// 담은 목록 옆 칸 — 빈 안내 · 합계 · 기록 날짜
+function wmCartExtras(){
+  const md=document.getElementById('work-modal');
+  if(md) md.classList.toggle('wm-has-cart', !!wlCart.length);
+  const sum=document.getElementById('wm-cart-sum');
+  if(sum){
+    let wc=0, etp=0, def=0;
+    wlCart.forEach(c=>{ if(c.mode==='defect') def+=c.qty; else if(c.color==='ETP') etp+=c.qty; else wc+=c.qty; });
+    sum.innerHTML = wlCart.length
+      ? `<span>합계 <b>${wc+etp+def}</b>장</span><span style="color:var(--wc)">웜코튼 <b>${wc}</b></span><span style="color:var(--etp)">에토프 <b>${etp}</b></span>${def?`<span style="color:var(--acc4)">불량 <b>${def}</b></span>`:''}`
+      : '';
+  }
+  const d=document.getElementById('wm-cart-date'), dv=document.getElementById('wm-date');
+  if(d && dv){ const v=dv.value||todayStr(); const dt=new Date(v+'T00:00:00'); d.textContent=`${dt.getMonth()+1}/${dt.getDate()} (${'일월화수목금토'[dt.getDay()]})`; }
+}
+(function(){
+  const q=document.getElementById('wm-qty');
+  if(q) q.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.isComposing){ e.preventDefault(); addToCart(); } });
+  const dv=document.getElementById('wm-date');
+  if(dv) dv.addEventListener('change', ()=>{ try{ wmCartExtras(); }catch(e){} });
+})();
+
 // 장바구니 목록 렌더
 function renderCart(){
+  try{ wmCartExtras(); }catch(e){}
   const box=document.getElementById('wm-cart-box');
   const listEl=document.getElementById('wm-cart-list');
   const cntEl=document.getElementById('wm-cart-count');
