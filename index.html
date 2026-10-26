@@ -2030,6 +2030,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .bas-tab-sub{margin-top:10px;font-size:11.5px;opacity:.7}
 #pg-bas .bas-side-note{margin:12px 6px 0 4px;font-size:10.5px;color:var(--sub);line-height:1.5;word-break:keep-all}
 #pg-bas .bas-side-note>div+div{margin-top:4px}
+#pg-bas .bas-grp{font-size:12.5px;font-weight:800;color:var(--sub);margin:16px 2px 6px}   /* 재고 기록 탭 안 묶음 이름 */
+#pg-bas .bas-grp:first-child{margin-top:2px}
 #pg-bas .bas-main{flex:1 1 auto;min-width:0;max-width:none;margin:0;padding:12px 12px 12px 0}
 #pg-bas .card{padding:12px 14px;margin-bottom:10px;border-radius:12px}
 #pg-bas .card h2{margin-bottom:8px}
@@ -2057,12 +2059,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <div class="bas-head">
   <h1>🛁 바스 <span class="sub">드림하이텍</span></h1>
   <div class="tabs">
+    <!-- 탭 넷 = 업무 차례 (2026-10-26 개편 1단계). 예전 「창고 출고 · 실사·입고예정 · 예시 입력」 은 「재고 기록」 한 탭으로, 입고 예정은 현황으로 -->
     <div class="tab active" data-p="now">현황</div>
-    <div class="tab" data-p="srm">창고 출고</div>
     <div class="tab" data-p="deliv">발주·납품</div>
-    <div class="tab" data-p="stock">실사·입고예정</div>
+    <div class="tab" data-p="record">재고 기록</div>
     <div class="tab" data-p="close">월 마감</div>
-    <div class="tab bas-tab-sub" data-p="snap">예시 입력</div>
     <div class="tab" data-p="hit" style="display:none">예시 적중률</div>
   </div>
   <div class="bas-side-note">
@@ -2103,16 +2104,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
   </div>
 
+  <!-- 「📅 일자별 출고」 표는 재고 기록 탭의 「모델 × 일자」 와 같은 표라 그쪽 하나로 모았습니다(2026-10-26). renderNow 의 renderSrmGrid('nowGrid') 는 칸이 없으면 그냥 지나갑니다 -->
   <div class="card">
-    <h2>📅 일자별 출고 <span class="muted" id="bas-nowGridTitle"></span></h2>
-    <div class="hint">위 재고 추측이 무엇을 빼서 나온 값인지 그대로 보여줍니다.
-      <b>빈 칸이 이어지면 그날 자료를 아직 안 올린 것</b>일 수 있습니다.</div>
-    <div class="row" style="margin:10px 0">
-      <button class="ghost" onclick="BAS.srmShiftMonth(-1)">‹ 이전달</button>
-      <button class="ghost" onclick="BAS.srmShiftMonth(1)">다음달 ›</button>
-      <span class="mini" style="align-self:center">회색 칸은 아직 나가지 않은 예정분입니다.</span>
-    </div>
-    <div class="tbl-wrap" id="bas-nowGrid"></div>
+    <h2>입고 예정 <span class="muted">앞으로 들어올 물량</span></h2>
+    <div class="hint">앞날 출고일로 <b>납품 기록</b>에 넣으시면 여기에 모여 보이고, 위 재고 표의 예상 재고 아래에도 함께 뜹니다.
+      들어온 날이 지나면 저절로 <b>지금 재고</b>로 옮겨 갑니다.<br>
+      발주일과 출고일은 다른 날입니다 — 여기 적는 날짜는 <b>물건이 창고에 들어가는 날(출고일)</b>입니다.</div>
+    <div class="tbl-wrap" id="bas-aheadTbl" style="margin-top:10px"></div>
   </div>
 
   <details class="card" style="padding:0">
@@ -2132,49 +2130,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </details>
 </section>
 
-<!-- 실사·입고예정 (재고 추측의 기준점을 넣는 곳) -->
-<section class="page" id="bas-page-stock">
-  <div class="card">
-    <h2>입고 예정 <span class="muted">앞으로 들어올 물량</span></h2>
-    <div class="hint">앞날 출고일로 <b>납품 기록</b>에 넣으시면 여기에 모여 보이고, 위 표의 「입고 예정」 칸에도 함께 뜹니다.
-      들어온 날이 지나면 저절로 <b>지금 재고</b>로 옮겨 갑니다.<br>
-      발주일과 출고일은 다른 날입니다 — 여기 적는 날짜는 <b>물건이 창고에 들어가는 날(출고일)</b>입니다.</div>
-    <div class="tbl-wrap" id="bas-aheadTbl" style="margin-top:10px"></div>
-  </div>
-  <div class="card">
-    <h2>실사값 입력 <span class="muted">재고 업체가 알려준 월초 재고를 넣으면 기준점이 됩니다</span></h2>
-    <div class="row">
-      <div><label class="fld">실사 날짜 <span class="mini">(보통 매달 1일)</span></label>
-        <input type="date" id="bas-countDate"></div>
-      <div class="mini" style="align-self:flex-end;padding-bottom:6px">
-        이 날짜의 실제 재고를 넣으면, 그 뒤 입고·출고로 추정을 이어갑니다.</div>
-    </div>
-    <div class="tbl-wrap" id="bas-countTbl" style="margin-top:12px"></div>
-  </div>
-
-  <div class="card">
-    <h2>자료 내보내기 · 되살리기 <span class="muted">지금까지 올린 것을 파일 하나로</span></h2>
-    <div class="hint">
-      바스 자료는 이 기기에 저장되고 <b>구글 시트에도 함께 올라가</b> 다른 기기에서도 보입니다
-      <span class="mini">(창고 출고는 최근 120일만 시트에 올리고, 예시 스냅샷은 이 기기에만 둡니다)</span>.<br>
-      그래도 가끔 <b>내보내기</b>로 파일을 빼 두시면 안심입니다. 내보낸 파일에는 <b>지금 추정하고 있는 재고</b>도 함께 적힙니다.<br>
-      <b>되살리기</b>는 지금 화면의 자료를 <b>파일 내용으로 통째 바꿉니다</b>. 바꾸기 전 상태는 자동으로 한 번 더 내려받아 두므로 되돌릴 수 있습니다.<br>
-      <b>옛 화면 자료 넣기</b> — 예전에 따로 여시던 「바스재고운영」 화면에서 「📤 내보내기」로 받은 파일을 넣습니다. 옛 화면과 그 자료는 그대로 남습니다.
-    </div>
-    <div class="row" style="margin-top:12px">
-      <button class="primary" id="bas-btnBackupOut">📤 내보내기</button>
-      <button class="ghost" id="bas-btnBackupIn">📥 되살리기</button>
-      <button class="ghost" id="bas-btnOldFile">📂 옛 화면 백업 파일 넣기</button>
-      <button class="ghost" id="bas-btnOldLocal" style="display:none">이 주소의 옛 자료 넣기</button>
-      <input type="file" id="bas-oldFile" accept=".json,application/json" style="display:none">
-      <input type="file" id="bas-backupFile" accept=".json,application/json" style="display:none">
-    </div>
-    <div class="mini" id="bas-backupInfo" style="margin-top:10px"></div>
-  </div>
-</section>
-
-<!-- 창고 출고(SRM) -->
-<section class="page" id="bas-page-srm">
+<!-- 재고 기록 — 재고 계산에 들어가는 자료를 넣는 곳 (2026-10-26 개편 1단계: 예전 창고 출고 · 실사·입고예정 · 예시 입력 세 탭을 모음) -->
+<section class="page" id="bas-page-record">
+  <div class="bas-grp">① 창고 출고 (SRM)</div>
   <div class="card">
     <h2>SRM 판매오더 리스트 넣기 <span class="muted">창고에서 실제로 나간 물량</span></h2>
     <div class="hint">한샘 밴더시스템에서 받은 「판매오더 리스트」 엑셀을 넣으세요.
@@ -2229,10 +2187,19 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <div class="tbl-wrap" id="bas-srmGrid"></div>
   </div>
-</section>
+  <div class="bas-grp">② 월말 실사</div>
+  <div class="card">
+    <h2>실사값 입력 <span class="muted">재고 업체가 알려준 월초 재고를 넣으면 기준점이 됩니다</span></h2>
+    <div class="row">
+      <div><label class="fld">실사 날짜 <span class="mini">(보통 매달 1일)</span></label>
+        <input type="date" id="bas-countDate"></div>
+      <div class="mini" style="align-self:flex-end;padding-bottom:6px">
+        이 날짜의 실제 재고를 넣으면, 그 뒤 입고·출고로 추정을 이어갑니다.</div>
+    </div>
+    <div class="tbl-wrap" id="bas-countTbl" style="margin-top:12px"></div>
+  </div>
 
-<!-- 예시 입력 -->
-<section class="page" id="bas-page-snap">
+  <div class="bas-grp">③ 출고예시 <span class="mini">(거의 안 씀)</span></div>
   <div class="card">
     <h2>출고예시분석에서 받기 <span class="muted">엑셀을 두 번 넣지 않기 위한 통로</span></h2>
     <div class="hint">출고예시분석에 이미 쌓아둔 바스 스냅샷을 그대로 가져옵니다.
@@ -2276,6 +2243,27 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="card">
     <h2>저장된 스냅샷 <span class="muted" id="bas-snapCount"></span></h2>
     <div class="tbl-wrap" id="bas-snapTbl"></div>
+  </div>
+
+  <div class="bas-grp">관리</div>
+  <div class="card">
+    <h2>자료 내보내기 · 되살리기 <span class="muted">지금까지 올린 것을 파일 하나로</span></h2>
+    <div class="hint">
+      바스 자료는 이 기기에 저장되고 <b>구글 시트에도 함께 올라가</b> 다른 기기에서도 보입니다
+      <span class="mini">(창고 출고는 최근 120일만 시트에 올리고, 예시 스냅샷은 이 기기에만 둡니다)</span>.<br>
+      그래도 가끔 <b>내보내기</b>로 파일을 빼 두시면 안심입니다. 내보낸 파일에는 <b>지금 추정하고 있는 재고</b>도 함께 적힙니다.<br>
+      <b>되살리기</b>는 지금 화면의 자료를 <b>파일 내용으로 통째 바꿉니다</b>. 바꾸기 전 상태는 자동으로 한 번 더 내려받아 두므로 되돌릴 수 있습니다.<br>
+      <b>옛 화면 자료 넣기</b> — 예전에 따로 여시던 「바스재고운영」 화면에서 「📤 내보내기」로 받은 파일을 넣습니다. 옛 화면과 그 자료는 그대로 남습니다.
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="bas-btnBackupOut">📤 내보내기</button>
+      <button class="ghost" id="bas-btnBackupIn">📥 되살리기</button>
+      <button class="ghost" id="bas-btnOldFile">📂 옛 화면 백업 파일 넣기</button>
+      <button class="ghost" id="bas-btnOldLocal" style="display:none">이 주소의 옛 자료 넣기</button>
+      <input type="file" id="bas-oldFile" accept=".json,application/json" style="display:none">
+      <input type="file" id="bas-backupFile" accept=".json,application/json" style="display:none">
+    </div>
+    <div class="mini" id="bas-backupInfo" style="margin-top:10px"></div>
   </div>
 </section>
 
@@ -28294,7 +28282,7 @@ function renderMigrate(){
   const from=ST._from?`이어받은 곳: ${ST._from}`:'';
   el.innerHTML = empty
     ? `<div class="alert warn" style="margin-top:0"><b>아직 바스 자료가 없습니다.</b> 옛 화면(바스재고운영.html)에 쌓인 자료를 한 번 넣어 주시면 이어서 씁니다.<br>
-        <span class="mini">옛 화면 → 「실사·입고예정」 탭 → <b>📤 내보내기</b> → 받은 .json 을 아래 단추로 넣으십시오. 다른 기기에서 넣으셨으면 시트에서 저절로 받아집니다.</span></div>`
+        <span class="mini">옛 화면 → 「실사·입고예정」 탭 → <b>📤 내보내기</b> → 받은 .json 을 이 앱 「재고 기록」 탭 맨 아래 「관리」의 단추로 넣으십시오. 다른 기기에서 넣으셨으면 시트에서 저절로 받아집니다.</span></div>`
     : (_syncNote?`<div class="alert warn" style="margin-top:0">${_syncNote}</div>`:'');
   const sn=$b('sideNote'); if(sn) sn.textContent = empty ? '' : from;   // 이어받은 곳은 왼쪽 줄 아래 작게 (2026-10-21)
   const b=$b('btnOldLocal'); if(b) b.style.display=hasOld?'':'none';
@@ -29362,7 +29350,7 @@ function renderSrmCoverage(){
   const host=$b('srmCov'); if(!host) return;
   const c=srmCoverage();
   if(!c){
-    host.innerHTML='<div class="hint">아직 창고 출고 자료가 없습니다 — <b>창고 출고(SRM)</b> 탭에서 판매오더 리스트를 올려주세요.<br>이걸 올려야 재고 추측이 움직입니다.</div>';
+    host.innerHTML='<div class="hint">아직 창고 출고 자료가 없습니다 — <b>재고 기록</b> 탭의 「① 창고 출고」에서 판매오더 리스트를 올려주세요.<br>이걸 올려야 재고 추측이 움직입니다.</div>';
     return;
   }
   const md=s=>s.slice(5).replace('-','/');
@@ -29410,7 +29398,7 @@ function renderNow(){
     if(!open.length){
       openHost.innerHTML=(ST.pos&&ST.pos.length)
         ? '<div class="hint">미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.</div>'
-        : '<div class="hint">아직 넣은 발주가 없습니다 — <b>납품 기록</b> 탭의 「📥 발주 받기」에 P/O 표를 붙여넣어 주세요.</div>';
+        : '<div class="hint">아직 넣은 발주가 없습니다 — <b>발주·납품</b> 탭의 「① 발주 받기」에 P/O 표를 붙여넣어 주세요.</div>';
     }else{
       const q=open.reduce((a,r)=>a+r.remain,0);
       openHost.innerHTML=`<div style="margin-bottom:7px"><span class="chip w">미납 ${open.length}건 · ${q}장</span></div>`
