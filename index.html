@@ -9629,6 +9629,8 @@ function metaForSync(){
   try{ if(lgLock && lgLock.h) put('lgLock', lgLock); }catch(e){}
   /* ✏️ 발주 종류 목록 — 사장님이 고친 이름·앞 이름·차례(2026-10-22). 발주처마다 나중에 고친 쪽이 이김 */
   try{ if(odTypeCfg && Object.keys(odTypeCfg).length) put('odTypeCfg', odTypeCfg); }catch(e){}
+  /* 📑 매출 마감일 — 달·매출처마다 직접 고친 날(2026-10-26). 열쇠마다 나중에 고친 쪽이 이김 */
+  try{ if(sellClose && Object.keys(sellClose).length) put('sellClose', sellClose); }catch(e){}
   /* 📋 한샘 단가표 (2026-10-21) — 합의서·SRM 줄·지운 표시(`hsForSync`). hsPrice 는 뒤쪽 let 이라 try 로 감쌉니다 */
   try{ put('hsPrice', hsForSync()); }catch(e){}
   /* 🛁 바스재고 (2026-10-20) — 묶음마다 고친 때를 같이 보냅니다. 창고 출고는 최근 120일만, 예시 스냅샷은 안 보냅니다(`BAS.forSync`).
@@ -9818,6 +9820,7 @@ function applyMergedFromSheet(data){
   if(data.hsPrice!==undefined){ try{ if(hsMergeFromSheet(data.hsPrice)){ renderHsPrice(); try{ renderLgSummary(); }catch(e){} try{ renderLedgerByVendor(); }catch(e){} } }catch(e){ console.warn('[한샘 단가] 받기 실패', e); } }
   try{ window._hsNeedPush = hsSheetBehind(data.hsPrice); }catch(e){}
   if(data.odTypeCfg!==undefined){ try{ odTypeCfgMerge(data.odTypeCfg); }catch(e){ console.warn('[발주 종류 목록] 받기 실패', e); } }
+  if(data.sellClose!==undefined){ try{ if(sellCloseMerge(data.sellClose)) renderLgSummary(); }catch(e){ console.warn('[매출 마감일] 받기 실패', e); } }
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
   }
@@ -19671,17 +19674,24 @@ let hsYm = todayStr().slice(0,7);
 function isBasCode(code){ return /^BB\d/i.test(String(code||'').trim()); }
 function hsCorpOf(code){ return isBasCode(code) ? '드림하이텍' : '와이비앤디'; }
 function hsMonthRows(ym){
+  // 매출 발생일 = 발주일 (사장님 2026-10-14)
+  return hsDelivRows(d=>(d.orderDate||d.delivReqDate||'').slice(0,ym.length)===ym);
+}
+/* 납품서 줄 → 매출 줄. keep(d) 가 참인 납품서만. 단가는 늘 **발주일 그때 단가**(2026-10-20) — 마감을 납품요청일로 끊어도 같습니다.
+   rday = 납품요청일(없으면 발주일) — 📑 매출 마감(sellCloseRows)이 이것으로 끊습니다. */
+function hsDelivRows(keep){
   const out=[], book=hsBook();
   (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{
     if(!d || (d.id && typeof delivDeleted!=='undefined' && delivDeleted[d.id])) return;
-    const day=d.orderDate||d.delivReqDate||''; if(day.slice(0,ym.length)!==ym) return;   // 매출 발생일 = 발주일 (사장님 2026-10-14)
+    if(!keep(d)) return;
+    const day=d.orderDate||d.delivReqDate||'', rday=d.delivReqDate||d.orderDate||'';
     const whName=delivDestGroup(d.dest), as=String(d.refNo||'').startsWith('54');
     (d.items||[]).forEach(it=>{
       const q=Number(it.qty)||0; if(!q || !it.code) return;
       const nm=it.name||it.short||'';
       const size=hsSizeOf(nm);
       const p=hsPriceOf(it.code, size, whName, book, day);   // 발주일 그때 단가(2026-10-20)
-      out.push({ day, delivNo:d.delivNo||'', refNo:d.refNo||'', as, whName, corp:hsCorpOf(it.code), code:it.code, name:nm, size, qty:q,
+      out.push({ day, rday, delivNo:d.delivNo||'', refNo:d.refNo||'', as, whName, corp:hsCorpOf(it.code), code:it.code, name:nm, size, qty:q,
                  price:p?p.price:null, other:p?p.other:false, src:p?p.src:'', diff:p?!!p.diff:false, approx:p?!!p.approx:false, amt:p?p.price*q:null });
     });
   });
@@ -20265,6 +20275,131 @@ function lgDashCss(){
   }`;
   document.head.appendChild(s);
 }
+/* ── 📑 매출 마감 — 거래명세서 대조용 (사장님 2026-10-26) ────────────────────────────
+   「거래명세서를 따로 받아서 대조할 때는 따로 · 전반적인 매출은 다 합쳐서」
+   · 매출처 셋: 한샘 그레이박스 · 한샘 오이도(와이비앤디) · 바스(드림하이텍). 차례·이름은 SELL_CLOSE_GROUPS 한 곳.
+   · **납품요청일**로 끊습니다(한샘은 납품이 돼야 인정). 단가는 그대로 발주일 그때 단가(hsDelivRows).
+   · 마감일 기본 = 그달 말일. 한샘 마감일이 달마다 왔다 갔다 해서 **그달·그 매출처 마감일을 직접 고칩니다**
+     — sellClose['gb|2026-10'] = {d:'2026-10-28', at}. d 가 비면 말일로 되돌린 것. 열쇠마다 나중에 고친 쪽이 이김(시트 동기화).
+   · 기간 = 전달 마감일 다음 날 ~ 이달 마감일.
+   · 맨 위 「오늘 매출」·「N월 누적」은 예전대로 발주일·달력 달입니다 — 이 칸만 다릅니다. 손으로 적은 매출은 안 들어갑니다. */
+const SELL_CLOSE_GROUPS=[
+  { k:'gb',  name:'한샘 · 그레이박스',      test:r=>r.corp==='와이비앤디' && r.whName==='그레이박스' },
+  { k:'od',  name:'한샘 · 오이도',          test:r=>r.corp==='와이비앤디' && r.whName==='오이도' },
+  { k:'bas', name:'바스 (드림하이텍)',      test:r=>r.corp==='드림하이텍' },
+];
+const LS_SELL_CLOSE='ybn-sell-close-v1';
+function sellCloseLoad(){ try{ return JSON.parse(localStorage.getItem(LS_SELL_CLOSE))||{}; }catch(e){ return {}; } }
+var sellClose = sellClose || sellCloseLoad();   // var — 앱을 막 열 때 시트에서 먼저 받아도 되게(12-57 함정)
+function sellCloseSave(sync){ try{ localStorage.setItem(LS_SELL_CLOSE, JSON.stringify(sellClose)); }catch(e){} if(sync!==false && typeof autoSync==='function') autoSync(); }
+function sellCloseMerge(x){
+  if(!x || typeof x!=='object') return false;
+  if(!sellClose || typeof sellClose!=='object') sellClose=sellCloseLoad();
+  let ch=false;
+  Object.keys(x).forEach(k=>{ const a=x[k], b=sellClose[k]; if(a && String(a.at||'')>String((b&&b.at)||'')){ sellClose[k]=a; ch=true; } });
+  if(ch) sellCloseSave(false);
+  return ch;
+}
+function sellYmShift(ym, n){ const [y,m]=ym.split('-').map(Number); return _ymdLocal(new Date(y, m-1+n, 1)).slice(0,7); }
+function sellCloseOwn(k, ym){ const e=(sellClose||{})[k+'|'+ym]; return (e && e.d) ? e.d : ''; }
+function sellCloseDate(k, ym){ return sellCloseOwn(k, ym) || lgMonthEnd(ym); }
+function sellCloseRange(k, ym){
+  const p=new Date(sellCloseDate(k, sellYmShift(ym,-1))+'T00:00:00'); p.setDate(p.getDate()+1);
+  return { from:_ymdLocal(p), to:sellCloseDate(k, ym) };
+}
+function sellCloseRows(g, ym){
+  const {from,to}=sellCloseRange(g.k, ym);
+  return hsDelivRows(d=>{ const r=d.delivReqDate||d.orderDate||''; return r>=from && r<=to; }).filter(g.test);
+}
+function sellCloseSet(k, ym, val){
+  val=String(val||'').trim();
+  if(val){
+    const prev=sellCloseDate(k, sellYmShift(ym,-1)), next=sellCloseOwn(k, sellYmShift(ym,1));
+    if(val<=prev){ showToast(`마감일은 지난달 마감(${prev}) 뒤여야 합니다`); renderLgSummary(); return; }
+    if(next && val>=next){ showToast(`마감일은 다음 달 마감(${next}) 앞이어야 합니다`); renderLgSummary(); return; }
+    if(val===lgMonthEnd(ym)) val='';   // 말일로 고르면 기본값과 같음
+  }
+  sellClose[k+'|'+ym]={ d:val, at:new Date().toISOString(), by:(typeof getActor==='function'&&getActor())||'' };
+  sellCloseSave();
+  renderLgSummary();
+  const g=SELL_CLOSE_GROUPS.find(x=>x.k===k);
+  showToast(`📑 ${g?g.name:k} ${+ym.slice(5,7)}월 마감일 → ${val ? +val.slice(5,7)+'/'+ +val.slice(8,10) : '말일(기본)'}`);
+}
+function sellCloseSecHtml(ym){
+  const mm=+ym.slice(5,7), won=x=>Math.round(x||0).toLocaleString('ko-KR');
+  const md=d=>`${+d.slice(5,7)}/${+d.slice(8,10)}`;
+  const list=SELL_CLOSE_GROUPS.map(g=>{ const rg=sellCloseRange(g.k, ym), rows=sellCloseRows(g, ym);
+    return { g, rg, rows, qty:rows.reduce((s,r)=>s+r.qty,0), amt:rows.reduce((s,r)=>s+(r.amt||0),0), none:rows.filter(r=>r.price==null).length, own:!!sellCloseOwn(g.k, ym) }; });
+  const tot=list.reduce((s,x)=>s+x.amt,0), totQ=list.reduce((s,x)=>s+x.qty,0), totN=list.reduce((s,x)=>s+x.none,0);
+  const open=!!lgDash.sclose, om=(lgDash.scv||(lgDash.scv={}));
+  const C='var(--scc)';   // 칸 너비는 아래 <style> 의 --scc (휴대폰은 장수 칸을 뺌)
+  const num=(x,c)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?won(x):'-'}</span>`;
+  let body='';
+  if(open){
+    const rowsHtml=list.map(x=>{ const key=x.g.k, o=!!om[key];
+      let det='';
+      if(o){
+        const by={}; x.rows.forEach(r=>{ const id=r.delivNo||r.refNo||'-'; const e=by[id]||(by[id]={ id, ref:r.refNo, rday:r.rday, day:r.day, as:r.as, q:0, a:0, n:0 }); e.q+=r.qty; e.a+=r.amt||0; if(r.price==null) e.n++; });
+        const D='var(--scd)';   // 휴대폰은 발주일·참조오더 칸을 뺌(.sc-x)
+        det=`<div class="lgd-vd"><div class="lgd-dline" style="grid-template-columns:${D};font-weight:700;color:var(--tx3);font-size:10.5px"><span>납품요청</span><span class="sc-x">발주</span><span>납품번호</span><span class="sc-x">참조오더</span><span style="text-align:right">장수</span><span style="text-align:right">금액</span></div>`
+          + (Object.values(by).sort((a,b)=>String(a.rday).localeCompare(String(b.rday))||String(a.id).localeCompare(String(b.id))).map(e=>`<div class="lgd-dline" style="grid-template-columns:${D}">
+              <span>${e.rday?md(e.rday):'-'}</span><span class="sc-x" style="color:var(--tx3)">${e.day?md(e.day):'-'}</span><span style="font-family:'JetBrains Mono',monospace">${etpEsc(e.id)}${e.as?' <b style="color:var(--tx3);font-size:10px">AS</b>':''}</span>
+              <span class="sc-x" style="font-family:'JetBrains Mono',monospace;color:var(--tx3)">${etpEsc(e.ref||'-')}</span><span style="text-align:right;font-family:'JetBrains Mono',monospace">${e.q}</span>
+              <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700;color:${e.n?'var(--acc2)':'#15803d'}">${e.n&&!e.a?'단가 없음':won(e.a)+(e.n?' *':'')}</span></div>`).join('') || '<div style="font-size:11.5px;color:var(--tx3);padding:4px 0">이 기간 납품서가 없습니다.</div>')
+          + (x.none?`<div style="font-size:10.5px;color:var(--acc2);padding-top:4px">* 단가 없는 줄 ${x.none}개는 금액에서 빠져 있습니다 — 아래 📋 한샘 단가표에서 채우면 들어갑니다.</div>`:'')+`</div>`;
+      }
+      return `<div class="lgd-vrow" onclick="lgDashToggle('scv','${key}')" style="display:grid;grid-template-columns:${C};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)">
+        <span style="min-width:0"><b style="font-size:12.5px">${x.g.name}</b><span style="display:block;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--tx3)">${md(x.rg.from)} ~ ${md(x.rg.to)}</span></span>
+        <span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px">
+          <input type="date" value="${x.rg.to}" onchange="sellCloseSet('${key}','${ym}',this.value)" title="이 달 ${x.g.name} 마감일 — 바꾸면 기간이 따라 바뀝니다" style="font-size:11.5px;padding:3px 4px;border:1px solid ${x.own?'var(--acc)':'var(--b2)'};border-radius:6px;background:var(--s1);color:var(--tx1);width:112px;min-width:0">
+          ${x.own?`<button onclick="sellCloseSet('${key}','${ym}','')" title="말일(기본)로 되돌리기" class="icon-btn" style="font-size:11px;padding:0 2px">↺</button>`:''}</span>
+        <span class="sc-q" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${x.qty||'-'}</span>
+        ${num(x.amt,'#15803d')}<span style="color:var(--tx3);font-size:11px">${o?'▴':'▾'}</span></div>
+        ${x.own||x.none?`<div style="padding:0 12px 6px;font-size:10.5px;display:flex;gap:10px;flex-wrap:wrap">${x.own?'<span style="color:var(--acc)">마감일 직접 정함</span>':''}${x.none?`<span style="color:var(--acc2)">단가 없음 ${x.none}줄</span>`:''}</div>`:''}
+        ${det}`; }).join('');
+    body=`<style>.sc-wrap{--scc:minmax(0,1.4fr) 140px 56px minmax(92px,1fr) 14px;--scd:52px 52px minmax(0,1fr) minmax(0,1fr) 44px 92px}@media (max-width:560px){.sc-wrap{--scc:minmax(0,1fr) 132px minmax(58px,auto) 10px;--scd:46px minmax(0,1fr) 36px 80px}.sc-wrap .sc-q,.sc-wrap .sc-x{display:none}}</style>
+    <div class="lgd-body sc-wrap" style="padding:0"><div>
+      <div style="display:grid;grid-template-columns:${C};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
+        <span>매출처 · 기간</span><span>마감일</span><span class="sc-q" style="text-align:right">장수</span><span style="text-align:right">📤 매출(공급가)</span><span></span></div>
+      ${rowsHtml}
+      <div style="display:grid;grid-template-columns:${C};gap:8px;align-items:center;padding:8px 12px;border-top:2px solid var(--b2);background:var(--s1)">
+        <b style="font-size:12.5px">합계</b><span></span><span class="sc-q" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${totQ||'-'}</span>${num(tot,'#15803d')}<span></span></div>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--b1);background:var(--s2)">
+        <span style="font-size:10.5px;color:var(--tx3);flex:1;min-width:200px">납품요청일 기준 · 마감일 기본은 말일, 칸을 눌러 이 달만 바꿉니다 · 손으로 적은 매출은 안 들어갑니다</span>
+        <button class="lgd-nb" onclick="sellCloseExcel('${ym}')">📥 마감 엑셀</button></div>
+    </div></div>`;
+  }
+  return `<div class="lgd-sec${open?' open':''}">
+    <div class="lgd-head" onclick="lgDashToggle('sclose')" style="grid-template-columns:minmax(0,1fr) auto 18px">
+      <span class="h">📑 ${mm}월 매출 마감<small>거래명세서 대조용 · 그레이박스 · 오이도 · 바스 따로 · 납품요청일 기준${totN?` · <b style="color:var(--acc2)">단가 없음 ${totN}줄</b>`:''}</small></span>
+      <span><span class="k" style="display:block">세 곳 합계</span><span class="v" style="display:block;color:#15803d">${tot?won(tot)+'원':'-'}</span></span>
+      <span class="ar">▾</span></div>
+    ${body}</div>`;
+}
+function sellCloseExcel(ym){
+  if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 — 잠시 후 다시'); return; }
+  const wb=XLSX.utils.book_new(), sum=[['매출처','기간','마감일','장수','금액(공급가)','단가 없음']];
+  let tot=0, n=0;
+  SELL_CLOSE_GROUPS.forEach(g=>{
+    const rg=sellCloseRange(g.k, ym), rows=sellCloseRows(g, ym), amt=rows.reduce((s,r)=>s+(r.amt||0),0);
+    tot+=amt; n+=rows.length;
+    sum.push([g.name, rg.from+' ~ '+rg.to, sellCloseOwn(g.k, ym)?'직접 정함':'말일(기본)', rows.reduce((s,r)=>s+r.qty,0), amt, rows.filter(r=>r.price==null).length||'']);
+    const aoa=[[g.name+' '+(+ym.slice(5,7))+'월 마감', rg.from+' ~ '+rg.to, '', '기준', '납품요청일 · 단가는 발주일 그때 한샘 단가표(공급가)'],[],
+      ['납품요청일','발주일','구분','납품번호','참조오더','제품코드','품명','사이즈','수량','단가','금액','비고']]
+      .concat(rows.sort((a,b)=>String(a.rday).localeCompare(String(b.rday))||String(a.delivNo).localeCompare(String(b.delivNo)))
+        .map(r=>[r.rday, r.day, r.as?'AS':'정오더', r.delivNo, r.refNo, r.code, r.name, r.size, r.qty, r.price==null?'':r.price, r.amt==null?'':r.amt, r.price==null?'단가 없음':'']))
+      .concat([[], ['합계','','','','','','','',rows.reduce((s,r)=>s+r.qty,0),'',amt]]);
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:11},{wch:11},{wch:7},{wch:12},{wch:12},{wch:12},{wch:40},{wch:11},{wch:6},{wch:10},{wch:12},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, ws, g.name.replace(/[\\\/?*\[\]:]/g,'').slice(0,31));
+  });
+  sum.push([], ['세 곳 합계','','','',tot,'']);
+  const ws0=XLSX.utils.aoa_to_sheet(sum); ws0['!cols']=[{wch:18},{wch:24},{wch:11},{wch:8},{wch:14},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws0, '요약');
+  wb.SheetNames.unshift(wb.SheetNames.pop());   // 요약을 맨 앞에
+  XLSX.writeFile(wb, odFileName([ym.slice(2,4)+ym.slice(5,7),'한샘','매출마감']) + '.xlsx');
+  showToast(`📥 ${+ym.slice(5,7)}월 매출 마감 엑셀 — ${n}줄`);
+}
 function renderLgSummary(){
   const host=document.getElementById('lg-summary'); if(!host) return;
   lgDashCss(); window._lgHsCache={};
@@ -20338,7 +20473,8 @@ function renderLgSummary(){
     <div class="lgd-head" onclick="lgDashToggle('daily')" style="grid-template-columns:minmax(0,1fr) 18px"><span class="h">📅 ${mm}월 일별 전체 내역<small>날짜를 누르면 그날 거래처별 상세</small></span><span class="ar">▾</span></div>
     ${dailyBody}</div>`;
 
-  host.innerHTML = bar + cards + todayBody + monthSec + dailySec;
+  let scSec=''; try{ scSec=sellCloseSecHtml(ym); }catch(e){ console.warn('[매출 마감]', e); }
+  host.innerHTML = bar + cards + todayBody + monthSec + scSec + dailySec;
   try{ lgRenderExtraHeads(); }catch(e){}
 }
 /* 업체별 표 — opt.scope(펼침 기억 열쇠) · opt.title. 업체 줄을 누르면 그 업체 거래 상세(lgVendorDetailHtml)가 바로 아래 펼쳐집니다. */
