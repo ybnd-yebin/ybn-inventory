@@ -1933,6 +1933,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   --warn:#d18116; --bad:#e0453f; --chip:#eceef2;
 }
 #pg-bas *{box-sizing:border-box}
+@media (min-width:1200px){ #pg-bas{max-width:1440px} }   /* 발주 현황 표(11칸)가 1100px 에 안 들어가서 — 원유리 탭(12-72)과 같은 폭 (2026-10-26) */
 #pg-bas{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
   background:var(--bg);color:var(--txt);font-size:15px;line-height:1.5}
 #pg-bas .bas-head{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);
@@ -2032,28 +2033,60 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .bas-side-note>div+div{margin-top:4px}
 #pg-bas .bas-grp{font-size:12.5px;font-weight:800;color:var(--sub);margin:16px 2px 6px}   /* 재고 기록 탭 안 묶음 이름 */
 #pg-bas .bas-grp:first-child{margin-top:2px}
-/* 현황 요약 3칸 (2단계) — 색은 뜻이 있을 때만: 빨강 = 납기 지남·모자람, 주황 = 주의·자료 빠짐, 없으면 회색 - */
-#pg-bas .bas-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
-#pg-bas .bas-tile{display:block;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+/* 현황·발주 — 사장님 시안(2026-10-26 YBND_BAS_UI_새시안)을 덜 꾸며서. 색은 뜻이 있을 때만: 빨강 = 납기 지남·모자람, 주황 = 주의·자료 빠짐 */
+#pg-bas .bas-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+#pg-bas .bas-tile{display:flex;flex-direction:column;gap:5px;text-align:left;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);
   cursor:pointer;font:inherit;color:var(--txt);min-width:0}
 #pg-bas .bas-tile:hover{border-color:var(--accent)}
 #pg-bas .bas-tile .k{font-size:12px;color:var(--sub);font-weight:700}
-#pg-bas .bas-tile .v{font-size:20px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
-#pg-bas .bas-tile .v small{font-size:12px;font-weight:600;color:var(--sub);margin-left:4px}
-#pg-bas .bas-tile .s{font-size:11.5px;color:var(--sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#pg-bas .bas-tile.bad{border-color:var(--bad)} #pg-bas .bas-tile.bad .v{color:var(--bad)}
-#pg-bas .bas-tile.warn{border-color:var(--warn)} #pg-bas .bas-tile.warn .v{color:var(--warn)}
+#pg-bas .bas-tile .v{font-size:24px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
+#pg-bas .bas-tile .v small{font-size:12px;font-weight:500;color:var(--sub);margin-left:5px}
+#pg-bas .bas-tile .s{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11.5px;color:var(--sub)}
+#pg-bas .bas-tile.bad .v{color:var(--bad)} #pg-bas .bas-tile.warn .v{color:var(--warn)}
 #pg-bas .bas-tile .v.none{color:var(--sub)}
-#pg-bas #bas-srmCov:not(:empty){margin:-2px 2px 10px}
-/* 접는 단추 — 점선, 펼치면 실선 (7번 2항) */
-#pg-bas .bas-fold>summary{list-style:none;cursor:pointer;font-size:12px;color:var(--sub);padding:3px 10px;border:1px dashed var(--line);border-radius:7px;white-space:nowrap}
-#pg-bas .bas-fold>summary::-webkit-details-marker{display:none}
-#pg-bas .bas-fold[open]>summary{border-style:solid;color:var(--txt)}
-#pg-bas .bas-fold-body{margin:6px 0 8px}
+#pg-bas .bas-banner{font-size:12.5px;color:var(--warn);background:#fffaf1;border:1px solid #f3e3c4;border-radius:10px;padding:9px 14px;margin:0 0 12px;line-height:1.55}
+#pg-bas .bas-banner b{font-weight:700}
+#pg-bas .bas-ph{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+#pg-bas .bas-ph h2{margin:0!important;display:flex;align-items:center;gap:8px}
+#pg-bas .bas-ph .sub{font-size:12px;color:var(--sub);margin-top:4px}
+#pg-bas .bas-cnt{font-size:11.5px;font-weight:700;color:var(--sub);background:var(--chip);border-radius:6px;padding:2px 8px}
+#pg-bas .bas-link{border:0;background:none!important;color:var(--accent);font-size:12.5px;padding:2px 0;white-space:nowrap}
+#pg-bas .bas-link:hover{text-decoration:underline}
+/* 미납 목록 — 한 발주 = 한 줄: 무엇 · 몇 장 · 넣기 */
+#pg-bas .bas-ords{border-top:1px solid var(--line)}
+#pg-bas .bas-ord{display:grid;grid-template-columns:minmax(220px,1.6fr) minmax(150px,.8fr) auto;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line)}
+#pg-bas .bas-ord:last-child{border-bottom:0}
+#pg-bas .bas-ord .eb{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:11.5px;color:var(--sub)}
+#pg-bas .bas-ord .nm{font-weight:700;font-size:13.5px}
+#pg-bas .bas-ord .mt{font-size:11.5px;color:var(--sub);margin-top:2px}
+#pg-bas .bas-ord .mt span+span:before{content:' · '}
+#pg-bas .bas-q{display:flex;gap:14px;align-items:flex-end}
+#pg-bas .bas-q div{display:flex;flex-direction:column;min-width:34px;text-align:right}
+#pg-bas .bas-q small{font-size:11px;color:var(--sub)}
+#pg-bas .bas-q b{font-size:17px;font-variant-numeric:tabular-nums}
+#pg-bas .bas-q .rem b{color:var(--bad)}
 #pg-bas .bas-ship{white-space:nowrap;text-align:right}
-#pg-bas .bas-ship input{padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)}
-#pg-bas .bas-ship input[type=number]{width:58px;text-align:center;font-size:12px;font-weight:700}
-#pg-bas .bas-ship button{padding:4px 10px;font-size:11px}
+#pg-bas .bas-ship input{padding:5px 7px;font-size:12px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);color:var(--txt)}
+#pg-bas .bas-ship input[type=number]{width:60px;text-align:right;font-weight:700}
+#pg-bas .bas-ship button{padding:5px 12px;font-size:12px}
+#pg-bas .bas-sumline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font-size:11.5px;color:var(--sub)}
+#pg-bas td.stt{text-align:center}
+/* 접는 단추 — 점선, 펼치면 실선 (7번 2항) */
+#pg-bas .bas-fold>summary,#pg-bas .bas-fbtn{list-style:none;cursor:pointer;font-size:12px;color:var(--sub);padding:4px 11px;border:1px dashed var(--line);border-radius:7px;white-space:nowrap;background:none;font-weight:600}
+#pg-bas .bas-fold>summary::-webkit-details-marker{display:none}
+#pg-bas .bas-fold[open]>summary,#pg-bas .bas-fbtn.on{border-style:solid;color:var(--txt)}
+#pg-bas .bas-fold-body{margin:6px 0 8px;padding:9px 13px;background:var(--panel2);border-radius:8px}
+#pg-bas .bas-fold-body .hint{margin:0}
+/* 발주 현황 거르기 꼬리표 (3단계) */
+#pg-bas .bas-flt{display:flex;gap:4px;flex-wrap:wrap}
+#pg-bas .bas-flt button{padding:3px 11px;font-size:12px;border-radius:20px;background:none;border:1px solid var(--line);color:var(--sub);font-weight:600}
+#pg-bas .bas-flt button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#pg-bas .bas-subrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 2px 10px;font-size:12px;color:var(--sub)}
+#pg-bas .bas-head-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:900px){
+  #pg-bas .bas-ord{grid-template-columns:1fr auto}
+  #pg-bas .bas-ord .bas-ship{grid-column:1 / -1}
+}
 #pg-bas .bas-main{flex:1 1 auto;min-width:0;max-width:none;margin:0;padding:12px 12px 12px 0}
 #pg-bas .card{padding:12px 14px;margin-bottom:10px;border-radius:12px}
 #pg-bas .card h2{margin-bottom:8px}
@@ -2071,10 +2104,14 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   #pg-bas .bas-side-note{display:flex;gap:8px;flex-wrap:wrap;margin:0;width:100%}
   #pg-bas .bas-side-note>div+div{margin-top:0}
   #pg-bas .bas-main{padding:8px}
-  #pg-bas .bas-tiles{gap:5px}
-  #pg-bas .bas-tile{padding:7px 8px}
-  #pg-bas .bas-tile .v{font-size:15px}
-  #pg-bas .bas-tile .v small{display:block;margin:0}
+  #pg-bas .bas-tiles{grid-template-columns:1fr 1fr;gap:6px}
+  #pg-bas .bas-tile{padding:10px 11px}
+  #pg-bas .bas-tile:nth-child(3){grid-column:1 / -1}
+  #pg-bas .bas-tile .v{font-size:20px}
+  #pg-bas .bas-ord{grid-template-columns:1fr}
+  #pg-bas .bas-q{justify-content:flex-start}
+  #pg-bas .bas-ship{text-align:left}
+  #pg-bas .bas-ph{flex-wrap:wrap}
   #pg-bas .card{padding:10px}
   #pg-bas input:not([type=checkbox]){max-width:100%}
   #pg-bas .card h2 .muted{display:block;margin-left:0}
@@ -2106,14 +2143,22 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="bas-tiles" id="bas-nowTiles"></div>
   <div id="bas-srmCov"></div>
   <div class="card" id="bas-nowOpenCard">
-    <h2>📥 미납 발주 <span class="muted" id="bas-poOpenCount"></span></h2>
-    <div class="tbl-wrap" id="bas-poOpen"></div>
+    <div class="bas-ph">
+      <div><h2>미납 발주 <span class="bas-cnt" id="bas-poOpenCount"></span></h2>
+        <div class="sub">납품이 필요한 발주입니다. 보낸 날·수량을 고치고 [납품함]을 누르십시오.</div></div>
+      <button class="bas-link" onclick="BAS.goTab('deliv')">전체 발주 보기 →</button>
+    </div>
+    <div id="bas-poOpen"></div>
   </div>
   <div class="card" id="bas-nowStockCard">
-    <h2>📦 지금 창고 재고 <span class="muted">월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고</span></h2>
-    <div class="row" style="margin:10px 0 4px;align-items:center;gap:8px">
-      <div id="bas-stockSum"></div>
-      <details class="bas-fold" style="margin-left:auto" ontoggle="document.getElementById('bas-stockHow').hidden=!this.open"><summary>ⓘ 계산 방법</summary></details>
+    <div class="bas-ph">
+      <div><h2>지금 창고 재고 <span class="bas-cnt" id="bas-stockCnt"></span></h2>
+        <div class="sub">월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고</div></div>
+      <div class="bas-head-tools"><div id="bas-stockSum"></div></div>
+    </div>
+    <div class="bas-sumline" style="margin:0 0 6px">
+      <span>예상 재고는 마지막으로 올린 창고 출고 자료까지만 뺀 값입니다.</span>
+      <details class="bas-fold" ontoggle="document.getElementById('bas-stockHow').hidden=!this.open"><summary>ⓘ 계산 방법</summary></details>
     </div>
     <div class="bas-fold-body" id="bas-stockHow" hidden>
       <div class="hint">
@@ -2303,13 +2348,19 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- 납품 기록 -->
 <section class="page" id="bas-page-deliv">
-  <!-- 📦 납품서에서 온 바스 (2026-10-21 — CLAUDE.md 12-62). 앱 납품서 탭에 올린 한샘 납품서의 BB 품목을 찾아 보여 주고, 눌러서 넣습니다 -->
-  <div class="card" id="bas-slipCard">
-    <h2>📦 납품서에서 온 바스 <span class="muted" id="bas-slipCount"></span></h2>
-    <div id="bas-slipBody"></div>
-  </div>
-  <div class="card" style="border-color:var(--warn)">
-    <h2>① 발주 받기 <span class="muted">한샘이 우리한테 넣은 주문 — 아직 납품 안 한 것도 여기 넣습니다</span></h2>
+  <!-- 발주·납품 (2026-10-26 개편 3단계) — 기본 흐름: 발주 등록 → 미납 확인 → [납품함]. 나머지 넣는 길은 아래 「보조」 단추 뒤에 접어 둡니다.
+       카드·칸 아이디는 예전 그대로라 넣는 일(poAdd·poShip·addDeliv·pasteAdd·slipAdd)은 하나도 안 바뀝니다 -->
+  <div id="bas-slipBar"></div>
+
+  <div class="card" id="bas-posCard">
+    <div class="bas-ph">
+      <div><h2>발주 현황 <span class="bas-cnt" id="bas-poCount"></span></h2>
+        <div class="sub">물건을 보냈으면 그 줄에서 보낸 날·수량을 고치고 [납품함]. 오더번호가 그 발주에 저절로 붙습니다.</div></div>
+      <div class="bas-head-tools"><div class="bas-flt" id="bas-poFlt"></div>
+        <button class="primary" id="bas-fb-poAddCard" style="padding:6px 14px;font-size:12.5px" onclick="BAS.toggleSub('poAddCard')">＋ 발주 등록</button></div>
+    </div>
+    <div class="bas-fold-body" id="bas-poAddCard" hidden>
+      <div style="font-weight:700;margin-bottom:4px">발주 등록 <span class="mini" style="font-weight:500">한샘이 넣은 주문 — 아직 납품 안 한 것도 여기 넣습니다</span></div>
     <div class="hint">발주가 왔다는 건 <b>창고 물량이 떨어졌다</b>는 뜻입니다. 납품하기 전에 먼저 넣어두면
       미납이 얼마인지, 발주가 얼마나 자주 오는지 보입니다.<br>
       <b>P/O구매오더상세</b> 화면의 표를 그대로 복사해 붙여넣고, 위쪽 <b>오더번호·발주일자</b>만 채우면 됩니다.</div>
@@ -2325,18 +2376,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <span class="hint" id="bas-poInfo"></span>
     </div>
     <div id="bas-poPreview" style="margin-top:8px"></div>
-  </div>
-
-  <div class="card">
-    <h2>발주 현황 <span class="muted" id="bas-poCount"></span></h2>
-    <div class="hint"><b>물건을 보내셨으면 여기 줄에서 바로 넣으세요.</b>
-      수량은 미납분이 미리 채워져 있으니, 실제로 보낸 만큼으로 고치고 <b>[납품함]</b>만 누르시면 됩니다.
-      아래 「납품 추가」로 내려가 다시 칠 필요 없습니다.<br>
-      <span class="mini">미납 잔량은 발주일이 이른 것부터 채웁니다(선입선출). 여기서 넣은 납품은 오더번호로 그 발주에 정확히 붙습니다.</span></div>
+    </div>
     <div class="tbl-wrap" id="bas-poTbl"></div>
+    <div class="mini" style="margin-top:6px">미납 잔량은 발주일이 이른 것부터 채웁니다(선입선출). 오더번호가 붙은 납품은 그 발주에 바로 붙습니다.</div>
   </div>
 
-  <div class="card" id="bas-delivAddCard">
+  <div class="bas-subrow">보조
+    <button class="bas-fbtn" id="bas-fb-slipCard" onclick="BAS.toggleSub('slipCard')">📦 납품서 대조 <span id="bas-slipBtnCnt"></span></button>
+    <button class="bas-fbtn" id="bas-fb-delivAddCard" onclick="BAS.toggleSub('delivAddCard')">발주 없는 납품</button>
+    <button class="bas-fbtn" id="bas-fb-pasteCard" onclick="BAS.toggleSub('pasteCard')">여러 건 붙여넣기</button>
+    <button class="bas-fbtn" id="bas-fb-delivLogCard" onclick="BAS.toggleSub('delivLogCard')">납품 기록 보기</button>
+  </div>
+  <!-- 📦 납품서에서 온 바스 (2026-10-21 — CLAUDE.md 12-62). 앱 납품서 탭에 올린 한샘 납품서의 BB 품목을 찾아 보여 주고, 눌러서 넣습니다 -->
+  <div class="card" id="bas-slipCard" hidden>
+    <h2>📦 납품서에서 온 바스 <span class="muted" id="bas-slipCount"></span></h2>
+    <div id="bas-slipBody"></div>
+  </div>
+  <div class="card" id="bas-delivAddCard" hidden>
     <h2>납품 직접 넣기 <span class="muted">발주에 없는 것만 — 보통은 위 발주 줄의 [납품함]을 쓰세요</span></h2>
     <div class="hint" style="margin-bottom:8px">
       발주를 안 거치고 나간 물량(샘플·긴급분 등)만 여기에 손으로 넣습니다.
@@ -2352,8 +2408,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <div id="bas-dCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
   </div>
-
-  <div class="card">
+  <div class="card" id="bas-pasteCard" hidden>
     <h2>납품 여러 건 붙여넣기 <span class="muted">이미 보낸 것을 몰아서 기록할 때</span></h2>
     <div class="hint" style="color:var(--warn);margin-bottom:6px">
       ⚠ 위 <b>① 발주 받기</b>와 붙여넣는 표는 같지만 <b>들어가는 곳이 다릅니다</b> —
@@ -2371,7 +2426,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     <div id="bas-pastePreview" style="margin-top:8px"></div>
   </div>
-
+  <div id="bas-delivLogCard" hidden>
   <div class="card">
     <h2>발주 단위 <span class="muted">참조문서번호로 묶은 발주 — 줄을 눌러 펼치면 개별 건을 고치거나 지울 수 있습니다</span></h2>
     <div class="tbl-wrap" id="bas-orderTbl"></div>
@@ -2385,6 +2440,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="ghost" id="bas-btnExportDeliv">CSV 내보내기</button>
       <button class="ghost" id="bas-btnClearDeliv" style="color:var(--bad)">전체 지우기</button>
     </div>
+  </div>
   </div>
 </section>
 
@@ -29085,28 +29141,27 @@ function renderStock(){
       (n[0]?`<span class="chip b">모자람 ${n[0]}종</span> `:'')
     + (n[1]?`<span class="chip b">급함 ${n[1]}종</span> `:'')
     + (n[2]?`<span class="chip w">주의 ${n[2]}종</span> `:'')
-    + (n[3]?`<span class="chip g">여유 ${n[3]}종</span>`:'')
-    + `<span class="mini" style="margin-left:8px">모두 ${rows.length}종 · 오늘 ${TODAY} 기준</span>`;
+    + (n[3]?`<span class="chip g">여유 ${n[3]}종</span>`:'');   // 「모두 N종」은 제목 옆 칸(stockCnt)으로
 
   var _tc=$b("thCrit"); if(_tc) _tc.textContent=DAYS_CRIT;
   var _tl=$b("thLow"); if(_tl) _tl.textContent=DAYS_LOW;
   /* 표를 '식' 그대로 읽히게 만든다 — 월말 실사 ＋ 그 뒤 입고 － 창고 출고 ＝ 예상 재고.
      궁금한 건 그 네 숫자뿐이라, 나머지(예정 출고·바닥 날짜)는 작은 글씨로 밀어 둔다. */
+  const cnt=$b('stockCnt'); if(cnt) cnt.textContent=`${rows.length}종`;
+  // 식(＋ － ＝)은 카드 머리에 한 번 적고, 표는 숫자 칸만 (사장님 시안 2026-10-26). 상태 칩 = 위 요약 칩과 같은 등급
+  const ST_LAB=['모자람','급함','주의','여유'], ST_CHIP=['b','b','w','g'];
   w.innerHTML=`<table><thead><tr>
     <th>제품</th>
     <th class="num" style="width:110px">월말 실사</th>
-    <th class="num" style="width:36px"></th>
     <th class="num" style="width:120px">그 뒤 입고</th>
-    <th class="num" style="width:36px"></th>
     <th class="num" style="width:120px">창고 출고</th>
-    <th class="num" style="width:36px"></th>
     <th class="num" style="width:110px">예상 재고</th>
+    <th class="stt" style="width:64px">상태</th>
     </tr></thead><tbody>`+
     rows.map(({c,s})=>{
       const col=s.rank<=1?'var(--bad)':s.rank===2?'var(--warn)':'var(--good)';
       const lastIn=lastInSince(c, s.baseDate);
       const rng=outRange(s.baseDate);
-      const op=(t)=>`<td class="num" style="color:var(--sub);font-size:15px;font-weight:700">${t}</td>`;
       // 기준: 실사가 있으면 그 날짜, 없으면 마지막 입고로 잡은 하한
       const baseCell = s.anchor==='실사'
         ? `<b style="font-size:17px">${s.base}</b><div class="mini">${s.baseDate}</div>`
@@ -29143,13 +29198,11 @@ function renderStock(){
       return `<tr>
         <td>${nameOf(c)}<div class="mini">${c}</div></td>
         <td class="num">${baseCell}</td>
-        ${op('＋')}
         <td class="num">${inCell}</td>
-        ${op('－')}
         <td class="num">${outCell}</td>
-        ${op('＝')}
-        <td class="num"><b style="font-size:21px;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥':''}${s.stock}</b>
+        <td class="num"><b style="font-size:20px;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥':''}${s.stock}</b>
           ${side.length?`<div class="mini">${side.join('<br>')}</div>`:''}</td>
+        <td class="stt"><span class="chip ${ST_CHIP[s.rank]}">${ST_LAB[s.rank]}</span></td>
       </tr>`;
     }).join('')+`</tbody></table>`;
 }
@@ -29392,7 +29445,7 @@ function renderSrmCoverage(){
   const host=$b('srmCov'); if(!host) return;
   const c=srmCoverage();
   if(!c){
-    host.innerHTML='<div class="hint">아직 창고 출고 자료가 없습니다 — <b>재고 기록</b> 탭의 「① 창고 출고」에서 판매오더 리스트를 올려주세요.<br>이걸 올려야 재고 추측이 움직입니다.</div>';
+    host.innerHTML='<div class="bas-banner">아직 창고 출고 자료가 없습니다 — <b>재고 기록</b> 탭의 「① 창고 출고」에서 판매오더 리스트를 올려주세요. 이걸 올려야 재고 추측이 움직입니다.</div>';
     return;
   }
   const md=s=>s.slice(5).replace('-','/');
@@ -29406,7 +29459,7 @@ function renderSrmCoverage(){
   if(c.stale.length)
     warns.push(`출고일이 지났는데 그 전에 뽑은 값만 있는 날 <b>${c.stale.length}일</b> — 다시 뽑아 넣으면 정확해집니다.`);
   html += warns.length
-    ? `<div class="hint" style="color:var(--warn)">${warns.map(w=>'⚠ '+w).join('<br>')}</div>`
+    ? `<div class="bas-banner"><b>출고 자료를 확인해 주십시오.</b> ${warns.join('<br>')}</div>`
     : '';
   host.innerHTML=html;
 }
@@ -29418,24 +29471,25 @@ function goCard(id){ const e=$b(id); if(e) e.scrollIntoView({behavior:'smooth',b
 function renderNowTiles(open){
   const host=$b('nowTiles'); if(!host) return;
   const tile=(cls,k,v,s,on)=>`<button class="bas-tile ${cls}" onclick="${on}"><div class="k">${k}</div><div class="v${v==='-'?' none':''}">${v}</div><div class="s">${s}</div></button>`;
+  const tag=(c,t)=>`<span class="chip ${c}">${t}</span>`;
   // ① 미납 발주
   const q=open.reduce((a,r)=>a+r.remain,0), late=open.filter(r=>r.due&&r.due<TODAY).length;
-  const t1=tile(late?'bad':open.length?'warn':'', '📥 미납 발주',
+  const t1=tile(late?'bad':'', '미납 발주',
     open.length?`${open.length}건<small>${q}장</small>`:'-',
-    late?`납기 지남 ${late}건`:open.length?'납기 안 지남':'미납 없음', `BAS.goCard('nowOpenCard')`);
-  // ② 부족 재고 — 재고 표 칩과 같은 등급: 0 모자람 · 1 급함(빨강) · 2 주의(주황) · 3 여유
+    late?tag('b',`납기 지남 ${late}건`):open.length?'납기 안 지남':'미납 없음', `BAS.goCard('nowOpenCard')`);
+  // ② 창고 재고 — 재고 표 칩과 같은 등급: 0 모자람 · 1 급함(빨강) · 2 주의(주황) · 3 여유
   const n=[0,0,0,0]; stockRows().forEach(x=>n[x.s.rank]++);
   const red=n[0]+n[1];
-  const t2=tile(red?'bad':n[2]?'warn':'', '📦 부족 재고',
-    red?`${red}종`:'-',
-    [n[0]?`모자람 ${n[0]}`:'', n[1]?`급함 ${n[1]}`:'', n[2]?`주의 ${n[2]}`:'', `여유 ${n[3]}`].filter(Boolean).join(' · '),
+  const t2=tile(red?'bad':n[2]?'warn':'', '창고 재고',
+    red?`${red}종<small>모자람·급함</small>`:n[2]?`${n[2]}종<small>주의</small>`:'-',
+    [n[0]?tag('b',`모자람 ${n[0]}`):'', n[1]?tag('b',`급함 ${n[1]}`):'', red&&n[2]?tag('w',`주의 ${n[2]}`):'', `<span>여유 ${n[3]}종</span>`].filter(Boolean).join(''),
     `BAS.goCard('nowStockCard')`);
   // ③ 출고 자료 — 「올린 범위」 판정 그대로
-  const c=srmCoverage(), md=s=>s.slice(5).replace('-','/');
+  const c=srmCoverage(), md=s=>s.slice(5).replace('-','.');
   const iss=c?[c.sinceLast>0?`${c.sinceLast}일 안 올림`:'', c.missing.length?`빠진 날 ${c.missing.length}일`:'', c.stale.length?`다시 뽑을 날 ${c.stale.length}일`:''].filter(Boolean):[];
-  const t3=tile(!c||iss.length?'warn':'', '📊 출고 자료',
-    c?`${md(c.last)}<small>마지막</small>`:'-',
-    !c?'아직 없음 — 재고 기록에서 올리기':iss.length?iss.join(' · '):'빠진 날 없음',
+  const t3=tile('', '출고 자료 (SRM)',
+    c?`${md(c.last)}<small>마지막 등록</small>`:'-',
+    !c?tag('w','아직 없음'):iss.length?iss.map(x=>tag('w',x)).join(''):'빠진 날 없음',
     `BAS.goTab('record')`);
   host.innerHTML=t1+t2+t3;
 }
@@ -29467,25 +29521,28 @@ function renderNow(){
   const openHost=$b('poOpen');
   if(openHost){
     const oc=$b('poOpenCount');
-    if(oc) oc.textContent=open.length?`${open.length}건 · ${open.reduce((a,r)=>a+r.remain,0)}장`:'';
+    if(oc){ oc.textContent=open.length?`${open.length}건 · ${open.reduce((a,r)=>a+r.remain,0)}장`:''; oc.style.display=open.length?'':'none'; }
     if(!open.length){
       openHost.innerHTML=(ST.pos&&ST.pos.length)
         ? '<div class="hint">미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.</div>'
         : '<div class="hint">아직 넣은 발주가 없습니다 — <b>발주·납품</b> 탭의 「① 발주 받기」에 P/O 표를 붙여넣어 주세요.</div>';
     }else{
       /* 간략 표 + 그 자리에서 납품 (2026-10-26 2단계). 넣기는 발주·납품 탭과 같은 poShip — 칸 아이디만 앞에 'nw' 를 붙여 두 탭의 칸이 섞이지 않게 합니다 */
-      openHost.innerHTML=`<table><thead><tr><th>오더번호</th><th>발주일</th><th>제품</th>
-            <th class="num">발주</th><th class="num">미납</th><th>납기</th><th class="bas-ship">보낸 것 넣기</th></tr></thead><tbody>`
-        +open.map(r=>{
+      // 한 발주 = 한 줄 (사장님 시안 2026-10-26): 상태·납기 / 제품 / 코드·오더·발주일 | 발주·납품·미납 | 보낸 날·수량·[납품함]
+      const md=s=>s?s.slice(5).replace('-','.'):'-';
+      openHost.innerHTML=`<div class="bas-ords">`+open.map(r=>{
           const late=r.due&&r.due<TODAY;
-          return `<tr><td class="mini">${r.ord}</td><td class="mini">${r.odate||'-'}</td><td style="white-space:normal;min-width:150px">${nameOf(r.code)}<div class="mini">${r.code}</div></td>
-            <td class="num">${r.qty}</td>
-            <td class="num" style="font-weight:700;color:var(--bad)">${r.remain}</td>
-            <td${late?' style="color:var(--bad)"':''}>${r.due||'-'}${late?' <span class="mini">지남</span>':''}</td>
-            <td class="bas-ship"><input type="date" id="bas-nwpod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날">
+          const st=late?'<span class="chip b">납기 지남</span>':r.filled>0?'<span class="chip w">일부 납품</span>':'<span class="chip w">미납</span>';
+          return `<div class="bas-ord">
+            <div><div class="eb">${st}<span>${r.due?md(r.due)+' 납기':'납기 -'}</span></div>
+              <div class="nm">${nameOf(r.code)}</div>
+              <div class="mt"><span>${r.code}</span><span>오더 ${r.ord}</span><span>${md(r.odate)} 발주</span></div></div>
+            <div class="bas-q"><div><small>발주</small><b>${r.qty}</b></div><div><small>납품</small><b>${r.filled||0}</b></div><div class="rem"><small>미납</small><b>${r.remain}</b></div></div>
+            <div class="bas-ship"><input type="date" id="bas-nwpod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날">
               <input type="number" id="bas-nwpoq-${r.ord}-${r.code}" value="${r.remain}" title="실제로 보낸 수량">
-              <button class="primary" onclick="BAS.poShip('${r.ord}','${r.code}','nw')">납품함</button></td></tr>`;
-        }).join('')+`</tbody></table>`;
+              <button class="primary" onclick="BAS.poShip('${r.ord}','${r.code}','nw')">납품함</button></div>
+          </div>`;
+        }).join('')+`</div>`;
     }
   }
   renderNowTiles(open);
@@ -29736,6 +29793,12 @@ function renderSlips(){
   const nw=by('new'), ck=by('chk'), done=rows.filter(r=>r.st==='in'||r.st==='have'), sk=by('skip');
   const cnt=$b('slipCount');
   if(cnt) cnt.textContent=rows.length?`새것 ${nw.length} · 확인 필요 ${ck.length} · 들어감 ${done.length}${sk.length?` · 치움 ${sk.length}`:''}`:'';
+  // 접어 둔 카드 대신 위에 한 줄 띠 — 넣을 것이 있을 때만 (2026-10-26 3단계)
+  const todoN=nw.length+ck.length, bar=$b('slipBar'), bc=$b('slipBtnCnt');
+  if(bc) bc.textContent=todoN?`(${todoN})`:'';
+  if(bar) bar.innerHTML=todoN?`<div class="bas-banner" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span><b>📦 납품서에서 온 바스</b> — 새것 ${nw.length}줄${ck.length?` · 확인 필요 ${ck.length}줄`:''}. 납품 기록과 견줘 보고 넣으십시오.</span>
+      <button class="bas-link" style="margin-left:auto" onclick="BAS.toggleSub('slipCard',true)">열어 보기 →</button></div>`:'';
   if(!rows.length){ host.innerHTML='<div class="mini">앱 📦 납품서 탭에 바스(BB…) 품목이 든 납품서가 아직 없습니다.</div>'; return; }
   const st={new:'<span class="chip g">새것</span>', chk:'<span class="chip b">확인 필요</span>', in:'<span class="chip n">넣음</span>',
             have:'<span class="chip n">이미 있음</span>', skip:'<span class="chip n">치움</span>'};
@@ -29984,25 +30047,44 @@ function poDel(ord,code,qty){
   ST.pos=(ST.pos||[]).filter(p=>!(p.ord===ord&&p.code===code&&p.qty===qty));
   save(); refresh(); toast('발주를 지웠습니다');
 }
+/* 접어 둔 칸 펴고 접기 (2026-10-26 3단계) — 칸은 그대로 두고 hidden 만 바꿉니다. 단추(bas-fb-아이디)는 펼치면 실선 */
+function toggleSub(id, force){
+  const el=$b(id); if(!el) return;
+  const open = force!=null ? !!force : el.hidden;
+  el.hidden=!open;
+  const b=$b('fb-'+id); if(b) b.classList.toggle('on', open);
+  if(open && id!=='poAddCard') el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+/* 발주 현황 거르기 — 보이기만 거릅니다(미납 계산 poWithRemain 그대로). 기본 = 미납 */
+let _poFlt='open';
+function setPoFilter(f){ _poFlt=f; renderPos(); }
 function renderPos(){
   const host=$b('poTbl'); if(!host) return;
-  const rows=poWithRemain();
+  const all=poWithRemain();
   const cnt=$b('poCount');
-  const openN=rows.filter(r=>r.remain>0).length;
-  const openQ=rows.filter(r=>r.remain>0).reduce((a,r)=>a+r.remain,0);
-  if(cnt) cnt.textContent = rows.length ? `${rows.length}건 · 미납 ${openN}건 ${openQ}장` : '';
-  if(!rows.length){ host.innerHTML='<div class="empty">아직 넣은 발주가 없습니다. 위에 P/O 표를 붙여넣어 주세요.</div>'; return; }
+  const openN=all.filter(r=>r.remain>0).length;
+  const openQ=all.filter(r=>r.remain>0).reduce((a,r)=>a+r.remain,0);
+  if(cnt) cnt.textContent = all.length ? `${all.length}건 · 미납 ${openN}건 ${openQ}장` : '';
+  const flt=$b('poFlt');
+  if(flt){
+    const F=[['open','미납',openN],['done','납품완료',all.length-openN],['all','전체',all.length]];
+    flt.innerHTML=all.length?F.map(([k,t,n])=>`<button class="${_poFlt===k?'on':''}" onclick="BAS.setPoFilter('${k}')">${t} ${n}</button>`).join(''):'';
+  }
+  if(!all.length){ host.innerHTML='<div class="empty">아직 넣은 발주가 없습니다. 위 「＋ 발주 등록」에서 P/O 표를 붙여넣어 주세요.</div>'; return; }
+  const rows=all.filter(r=>_poFlt==='all'||(_poFlt==='open'?r.remain>0:r.remain<=0));
+  if(!rows.length){ host.innerHTML=`<div class="empty">${_poFlt==='open'?'미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.':'납품을 마친 발주가 아직 없습니다.'}</div>`; return; }
   host.innerHTML=`<table><thead><tr>
       <th>상태</th><th>오더번호</th><th>발주일</th><th>제품</th>
       <th class="num">발주</th><th class="num" title="발주가 들어온 날, 창고에 얼마나 남아 있었는지">발주 시점 재고</th>
       <th class="num">납품</th><th class="num">미납</th><th>납기</th>
-      <th style="min-width:210px">보낸 것 넣기</th><th></th>
+      <th class="bas-ship">보낸 것 넣기</th><th></th>
     </tr></thead><tbody>`+
     rows.map(r=>{
       const done=r.remain<=0;
       const late=!done && r.due && r.due<TODAY;
       const chip = done?'<span class="chip g">납품완료</span>'
                  : late?'<span class="chip b">납기 지남</span>'
+                 : r.filled>0?'<span class="chip w">일부 납품</span>'
                  : '<span class="chip w">미납</span>';
       return `<tr${done?' style="opacity:.55"':''}>
         <td>${chip}</td>
@@ -30010,7 +30092,7 @@ function renderPos(){
         <td><input type="date" value="${r.odate||''}" title="발주가 들어온 날 — 고치면 바로 저장됩니다"
              onchange="BAS.poSetDate('${r.ord}','${r.code}',this.value)"
              style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)"></td>
-        <td>${nameOf(r.code)}<div class="mini">${r.code}</div></td>
+        <td style="white-space:normal;min-width:150px">${nameOf(r.code)}<div class="mini">${r.code}</div></td>
         <td class="num">${r.qty}</td>
         <td class="num">${atOrderCell(r.code, r.odate)}</td>
         <td class="num">${r.filled||'·'}</td>
@@ -30587,7 +30669,7 @@ $b('dShip').value=TODAY;
 $b('closeMonth').value=ym(TODAY);
 
 function open(){ try{ refresh(); }catch(e){ console.error('[바스재고]', e); toast('⚠ 바스 화면을 그리다 멈췄습니다'); } }
-return {open, goTab, goCard, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
+return {open, goTab, goCard, toggleSub, setPoFilter, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
 })();
 </script>
 <!-- ══ 🧭 대분류·소분류 메뉴 (1차 UI 개편 2026-10-23) — CLAUDE.md 12-67 ══
