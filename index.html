@@ -2072,6 +2072,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .bas-ship button{padding:5px 12px;font-size:12px}
 #pg-bas .bas-sumline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font-size:11.5px;color:var(--sub)}
 #pg-bas td.stt{text-align:center}
+#pg-bas .bas-closed-note{white-space:normal;max-width:230px;min-width:170px;margin-left:auto;text-align:right;line-height:1.45}   /* 잔량 종료 줄 (6단계) */
+#pg-bas td.c-ship button.quiet{padding:5px 10px;font-size:12px;margin-left:4px}
+#pg-bas .bas-shipx{text-align:right;margin-top:3px;font-size:11.5px;color:var(--sub)}
+#pg-bas button.bas-lnk{background:none!important;border:0;padding:0 2px;font-size:11.5px;font-weight:500;color:var(--sub);text-decoration:underline dotted}
+#pg-bas button.bas-lnk:hover{color:var(--txt)}
 /* 접는 단추 — 점선, 펼치면 실선 (7번 2항) */
 #pg-bas .bas-fold>summary,#pg-bas .bas-fbtn{list-style:none;cursor:pointer;font-size:12px;color:var(--sub);padding:4px 11px;border:1px dashed var(--line);border-radius:7px;white-space:nowrap;background:none;font-weight:600}
 #pg-bas .bas-fold>summary::-webkit-details-marker{display:none}
@@ -2103,8 +2108,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   #pg-bas #bas-poTbl td.c-n{order:6;text-align:left;font-variant-numeric:tabular-nums}
   #pg-bas #bas-poTbl td.c-n:before{content:attr(data-l);display:block;font-size:11px;font-weight:500;color:var(--sub)}
   #pg-bas #bas-poTbl td.c-ship{order:7;flex-basis:100%;display:flex;gap:6px;align-items:center;padding-top:6px;border-top:1px dashed var(--line)}
-  #pg-bas #bas-poTbl td.c-ship:not(:has(input)){display:none}
-  #pg-bas #bas-poTbl td.c-ship button{margin-left:auto}
+  #pg-bas #bas-poTbl td.c-ship:not(:has(input)):not(:has(button)){display:none}
+  #pg-bas #bas-poTbl td.c-ship{flex-wrap:wrap}
+  #pg-bas #bas-poTbl td.c-ship button.primary{margin-left:auto}
+  #pg-bas #bas-poTbl td.c-ship .bas-shipx{flex-basis:100%}
+  #pg-bas #bas-poTbl td.c-ship .bas-closed-note{flex:1;max-width:none}
 }
 #pg-bas .bas-main{flex:1 1 auto;min-width:0;max-width:none;margin:0;padding:12px 12px 12px 0}
 /* 4단계 (2026-10-26) — 촘촘한 ERP 대신 여백·위계: 카드 넉넉히, 제목 한 단계 크게, 주 단추는 또렷하게 오른쪽, 부가 단추는 작고 차분하게 */
@@ -28385,7 +28393,7 @@ const SEED_NAMES={"BB1000108":"EURO5 베일화이트 하부장 새틴WH 도어 3
    묶음(SECS)마다 고친 때(_at)를 적어 두고, 시트에서 받을 때 **묶음마다 나중에 고친 쪽**이 이깁니다.
    예시 스냅샷(snaps)은 이 기기에만 둡니다 — 동기화에 안 실립니다. */
 const LS='ybn-bas-v1', LS_OLD='bas-vmi-v2';
-const SECS=['srm','counts','delivs','pos','close','returns','prices','names','slipSkip'];
+const SECS=['srm','counts','delivs','pos','close','returns','prices','names','slipSkip','poClose'];
 const SEED_PRICES={}, SEED_DELIVS=[], SEED_COUNTS={};   // 숫자는 이어받는 자료에 들어 있습니다(공개 저장소 — 코드에 안 적음)
 function _norm(s){
   s=s||{};
@@ -28394,6 +28402,9 @@ function _norm(s){
     returns:s.returns||{}, names:Object.assign({},SEED_NAMES,s.names||{}),
     pos:s.pos||[],        // 발주(P/O) 기록 · 납품 전에도 넣어두는 것
     slipSkip:s.slipSkip||{},   // 납품서에서 온 바스 줄 가운데 「안 넣기」로 치운 것 {납품번호|코드: 때}
+    // 잔량 종료 (2026-10-26 6단계) {오더번호|코드: {on, day, reason, qty, filled, rest, at, by, undoneAt}}
+    // 납품 기록·발주 수량은 안 건드리는 「업무상 끝냄」 표시. 취소는 지우지 않고 on:false — 지우면 다른 기기의 옛 종료가 되살아납니다
+    poClose:s.poClose||{},
     srm:s.srm||{},        // 출고일 -> {asof, rows[]} · 창고에서 실제로 나간 물량
     close:s.close||{},    // 마감월 -> {at, rows{코드:{...}}} · 한샘이 보내온 마감내역 원본
     counts:Object.assign({},SEED_COUNTS,s.counts||{}),   // 실사날짜 -> {코드:수량}
@@ -28477,6 +28488,18 @@ function mergeFromSheet(r){
   let n=0;
   SECS.forEach(k=>{
     const ra=String(r.at[k]||''), la=String(ST._at[k]||'');
+    if(k==='poClose'){
+      /* 잔량 종료는 묶음 통째가 아니라 발주 줄마다 나중에 고친 쪽이 이깁니다 — 두 기기가 서로 다른 발주를 종료해도 둘 다 남게.
+         시트에 이 묶음이 없으면(옛 판 기기가 덮어 올린 경우) 이 기기 것을 그대로 두고, 다시 올립니다 */
+      const rc=r.poClose||{}, lc=ST.poClose||(ST.poClose={});
+      let ch=0, behind=!r.poClose&&Object.keys(lc).length>0;
+      Object.keys(rc).forEach(key=>{ const a=rc[key]; if(!a) return; const b=lc[key];
+        if(!b || String(a.at||'')>String(b.at||'')){ lc[key]=a; ch++; } });
+      Object.keys(lc).forEach(key=>{ const a=rc[key]; if(!a || String(lc[key].at||'')>String(a.at||'')) behind=true; });
+      if(ch){ if(ra>la) ST._at[k]=ra; n++; }
+      if(behind) _poCloseBehind=true;
+      return;
+    }
     if(!ra || ra<=la || r[k]===undefined) return;
     if(k==='srm'){
       const from=String(r.srmFrom||'');
@@ -28494,8 +28517,15 @@ function mergeFromSheet(r){
     ST._at[k]=ra; n++;
   });
   if(n){ _primeCache(); _write(); }
+  if(_poCloseBehind){   // 이 기기의 종료 표시가 시트보다 앞섬 → 한 번 올림
+    _poCloseBehind=false;
+    ST._at.poClose=new Date().toISOString(); _primeCache(); _write();
+    try{ if(typeof meta!=='undefined') meta.lastLocalChange=ST._at.poClose; }catch(e){}
+    clearTimeout(_syncT); _syncT=setTimeout(()=>{ try{ if(typeof autoSync==='function') autoSync(); }catch(e){} }, 2500);
+  }
   return n;
 }
+let _poCloseBehind=false;
 
 /* ── 옛 화면 자료 넣기 — 옛 화면 「📤 내보내기」 .json, 또는 같은 주소의 옛 저장함 ── */
 function _adopt(s, from){
@@ -29684,7 +29714,7 @@ function renderNow(){
     :'<div class="empty">품목이 없습니다.</div>';
 
   // 미납 발주 — 발주가 왔다는 건 창고가 비었다는 뜻이라, 맨 위에서 먼저 보이게 한다.
-  const open=(typeof poWithRemain==='function'?poWithRemain():[]).filter(r=>r.remain>0);
+  const open=(typeof poWithRemain==='function'?poWithRemain():[]).filter(isOpenPo);   // 잔량 종료한 것은 빼고
   const openHost=$b('poOpen');
   if(openHost){
     const oc=$b('poOpenCount');
@@ -30166,6 +30196,10 @@ function poWithRemain(){
       for(const p of list){
         if(q<=0) break;
         if(d.ship && p.odate && d.ship < p.odate) continue;   // 발주 전에 나간 건 이 발주 몫이 아니다
+        // 잔량 종료한 발주는 종료일 「뒤에」 나간 오더번호 없는 납품을 받지 않습니다(사장님 2026-10-26 B안).
+        // 종료일 전에 나간 납품은 예전처럼 이 발주를 채운 채로 둡니다 — 지난 실적·미납이 바뀌지 않게
+        const cl=closeOf(p.ord, p.code);
+        if(cl && d.ship && d.ship > cl.day) continue;
         const need=Math.max(0,(p.qty||0)-p.filled);
         if(need<=0) continue;
         const use=Math.min(need,q); p.filled+=use; q-=use;
@@ -30173,8 +30207,70 @@ function poWithRemain(){
     });
   });
   return Object.values(byCode).flat()
-    .map(p=>({...p, remain:Math.max(0,(p.qty||0)-p.filled)}))
+    .map(p=>{ const remain=Math.max(0,(p.qty||0)-p.filled), cl=closeOf(p.ord,p.code);
+      // closed = 잔량 종료(남은 것이 있을 때만). 다 채워졌으면 종료 표시가 있어도 「전량 납품」
+      return {...p, remain, closed: remain>0 && cl ? cl : null}; })
     .sort((a,b)=>String(b.odate).localeCompare(String(a.odate)));
+}
+/* ── 잔량 종료 (2026-10-26 6단계 — 바스_UI설계안.md 7번) ── */
+const poKey=(ord,code)=>`${ord}|${code}`;
+function closeOf(ord, code){ const c=(ST.poClose||{})[poKey(ord,code)]; return c&&c.on ? c : null; }
+/* 상태 — 저장하지 않고 그때그때: 전량 납품 · 잔량 종료 · 납기 지남 · 일부 납품 · 미납 */
+function poStatus(r){
+  if(r.remain<=0) return {k:'done', t:'납품완료', c:'g'};
+  if(r.closed)    return {k:'closed', t:'잔량 종료', c:'n'};
+  if(r.due && r.due<TODAY) return {k:'late', t:'납기 지남', c:'b'};
+  if(r.filled>0)  return {k:'part', t:'일부 납품', c:'w'};
+  return {k:'open', t:'미납', c:'w'};
+}
+const isOpenPo=r=>r.remain>0 && !r.closed;   // 미납 경고·납품할 발주 = 이것만
+function _closeWrite(list, reason, day){
+  const now=new Date().toISOString(), by=(typeof getActor==='function'?getActor():'')||'';
+  ST.poClose=ST.poClose||{};
+  const raised=[];
+  list.forEach(r=>{
+    /* 종료일은 이미 들어와 있는 이 품목 납품(발주일 뒤)의 마지막 날보다 앞일 수 없습니다 —
+       앞이면 그 납품이 종료일 「뒤」가 되어 다른 발주로 옮겨 가 지난 실적이 바뀝니다. 그래서 그 날로 올립니다 */
+    const last=(ST.delivs||[]).filter(d=>d.code===r.code && d.ship && (!r.odate || d.ship>=r.odate))
+      .reduce((m,d)=>d.ship>m?d.ship:m, '');
+    const eff = last && last>day ? last : day;
+    if(eff!==day) raised.push(`${nameOf(r.code)} → ${eff}`);
+    ST.poClose[poKey(r.ord,r.code)]={on:true, day:eff, reason, qty:r.qty, filled:r.filled||0, rest:r.remain, at:now, by};
+  });
+  save(); refresh();
+  if(raised.length) alert(`종료일을 이미 들어온 마지막 납품일로 맞췄습니다 (그 전 납품이 다른 발주로 옮겨 가지 않게):\n${raised.join('\n')}`);
+}
+function _askClose(what){
+  const reason=prompt(`${what}\n\n종료 사유를 적어 주십시오 (예: 한샘 요청으로 잔량 취소).`, '');
+  if(reason===null) return null;
+  if(!reason.trim()){ toast('사유를 적어야 종료됩니다'); return null; }
+  const day=prompt('종료 날짜 (YYYY-MM-DD)', TODAY);
+  if(day===null) return null;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(day.trim())){ toast('날짜는 2026-10-26 꼴로 적어 주십시오'); return null; }
+  return {reason:reason.trim(), day:day.trim()};
+}
+function poClose(ord, code){
+  const r=poWithRemain().find(x=>x.ord===ord&&x.code===code);
+  if(!r || r.remain<=0){ toast('남은 수량이 없는 발주입니다'); return; }
+  const a=_askClose(`${ord} · ${nameOf(code)}\n발주 ${r.qty}장 · 납품 ${r.filled||0}장 · 남은 ${r.remain}장을 보내지 않고 끝냅니다.\n납품 기록·재고·월 마감은 그대로(${r.filled||0}장)입니다.`);
+  if(!a) return;
+  _closeWrite([r], a.reason, a.day);
+  toast(`잔량 ${r.remain}장 종료 — 「잔량 종료」 꼬리표에서 볼 수 있습니다`);
+}
+function poCloseOrder(ord){
+  const list=poWithRemain().filter(x=>x.ord===ord && isOpenPo(x));
+  if(!list.length){ toast('이 오더에 남은 발주가 없습니다'); return; }
+  const a=_askClose(`오더 ${ord} — 남은 품목 ${list.length}개(${list.reduce((s,x)=>s+x.remain,0)}장)를 모두 끝냅니다.\n`+list.map(x=>`· ${nameOf(x.code)} 남은 ${x.remain}장`).join('\n'));
+  if(!a) return;
+  _closeWrite(list, a.reason, a.day);
+  toast(`오더 ${ord} 남은 ${list.length}품목 종료`);
+}
+function poCloseUndo(ord, code){
+  const k=poKey(ord,code), c=(ST.poClose||{})[k];
+  if(!c||!c.on){ toast('종료된 발주가 아닙니다'); return; }
+  if(!confirm(`${ord} · ${nameOf(code)}\n${c.day} 종료(${c.reason})를 취소하고 다시 미납으로 돌립니다.`)) return;
+  ST.poClose[k]=Object.assign({}, c, {on:false, undoneAt:TODAY, at:new Date().toISOString()});
+  save(); refresh(); toast('종료를 취소했습니다 — [납품함]으로 더 넣을 수 있습니다');
 }
 /* 발주 → 납품으로 이어주기.
    발주 줄의 [납품 넣기]를 누르면 아래 「납품 추가」 칸에 그 발주 내용을 채워 준다.
@@ -30188,6 +30284,7 @@ function poWithRemain(){
 function poShip(ord, code, pre){   // pre: 칸 아이디 앞붙임 — 현황 미납 표는 'nw' (2026-10-26). 넣는 일은 같습니다
   const r=poWithRemain().find(x=>x.ord===ord && x.code===code);
   if(!r){ toast('발주를 찾지 못했어요'); return; }
+  if(r.closed){ toast('잔량 종료한 발주입니다 — 먼저 「종료 취소」를 누르십시오'); return; }
   const id=s=>$b((pre||'')+s+ord+'-'+code);
   const qEl=id('poq-'), dEl=id('pod-');
   const q=parseInt(qEl&&qEl.value)||0;
@@ -30229,17 +30326,20 @@ function renderPos(){
   const host=$b('poTbl'); if(!host) return;
   const all=poWithRemain();
   const cnt=$b('poCount');
-  const openN=all.filter(r=>r.remain>0).length;
-  const openQ=all.filter(r=>r.remain>0).reduce((a,r)=>a+r.remain,0);
+  const opens=all.filter(isOpenPo), closedN=all.filter(r=>r.closed).length;
+  const openN=opens.length, openQ=opens.reduce((a,r)=>a+r.remain,0);
   if(cnt) cnt.textContent = all.length ? `${all.length}건 · 미납 ${openN}건 ${openQ}장` : '';
   const flt=$b('poFlt');
   if(flt){
-    const F=[['open','미납',openN],['done','납품완료',all.length-openN],['all','전체',all.length]];
-    flt.innerHTML=all.length?F.map(([k,t,n])=>`<button class="${_poFlt===k?'on':''}" onclick="BAS.setPoFilter('${k}')">${t} ${n}</button>`).join(''):'';
+    // 미납(미납·일부 납품) · 잔량 종료 · 납품완료 · 전체 — 보이기만 거릅니다
+    const F=[['open','미납',openN],['closed','잔량 종료',closedN],['done','납품완료',all.filter(r=>r.remain<=0).length],['all','전체',all.length]];
+    flt.innerHTML=all.length?F.filter(([k,,n])=>k!=='closed'||n||_poFlt==='closed').map(([k,t,n])=>`<button class="${_poFlt===k?'on':''}" onclick="BAS.setPoFilter('${k}')">${t} ${n}</button>`).join(''):'';
   }
   if(!all.length){ host.innerHTML='<div class="empty">아직 넣은 발주가 없습니다. 위 「＋ 발주 등록」에서 P/O 표를 붙여넣어 주세요.</div>'; return; }
-  const rows=all.filter(r=>_poFlt==='all'||(_poFlt==='open'?r.remain>0:r.remain<=0));
-  if(!rows.length){ host.innerHTML=`<div class="empty">${_poFlt==='open'?'미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.':'납품을 마친 발주가 아직 없습니다.'}</div>`; return; }
+  const rows=all.filter(r=>_poFlt==='all'||(_poFlt==='open'?isOpenPo(r):_poFlt==='closed'?!!r.closed:r.remain<=0));
+  if(!rows.length){ host.innerHTML=`<div class="empty">${_poFlt==='open'?'미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.':_poFlt==='closed'?'잔량 종료한 발주가 없습니다.':'납품을 마친 발주가 아직 없습니다.'}</div>`; return; }
+  // 같은 오더에 남은 품목이 둘 이상이면 「오더 남은 것 모두 종료」 단추를 붙입니다
+  const multi={}; opens.forEach(r=>{ multi[r.ord]=(multi[r.ord]||0)+1; });
   host.innerHTML=`<table><thead><tr>
       <th>상태</th><th>오더번호</th><th>발주일</th><th>제품</th>
       <th class="num">발주</th><th class="num" title="발주가 들어온 날, 창고에 얼마나 남아 있었는지">발주 시점 재고</th>
@@ -30247,32 +30347,33 @@ function renderPos(){
       <th class="bas-ship">보낸 것 넣기</th><th></th>
     </tr></thead><tbody>`+
     rows.map(r=>{
-      const done=r.remain<=0;
-      const late=!done && r.due && r.due<TODAY;
-      const chip = done?'<span class="chip g">납품완료</span>'
-                 : late?'<span class="chip b">납기 지남</span>'
-                 : r.filled>0?'<span class="chip w">일부 납품</span>'
-                 : '<span class="chip w">미납</span>';
+      const ps=poStatus(r), done=ps.k==='done', closed=ps.k==='closed';
+      const chip=`<span class="chip ${ps.c}">${ps.t}</span>`;
+      let ship;
+      if(done) ship='<span class="mini">—</span>';
+      else if(closed) ship=`<div class="mini bas-closed-note"><b>${r.closed.day} 종료</b> · 잔량 ${r.remain}장<br>${String(r.closed.reason||'').replace(/[<>&"]/g,'')}${r.closed.by?` · ${String(r.closed.by).replace(/[<>&"]/g,'')}`:''}</div>
+             <div class="bas-shipx"><button class="bas-lnk" onclick="BAS.poCloseUndo('${r.ord}','${r.code}')">종료 취소</button></div>`;
+      else ship=`<input type="date" id="bas-pod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날"
+                 style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
+             <input type="number" id="bas-poq-${r.ord}-${r.code}" value="${r.remain}" title="실제로 보낸 수량"
+                 style="width:58px;padding:4px;text-align:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
+             <button class="primary" style="padding:6px 14px;font-size:12.5px" onclick="BAS.poShip('${r.ord}','${r.code}')">납품함</button>
+             <div class="bas-shipx"><button class="bas-lnk" title="남은 수량을 보내지 않고 이 발주를 끝냅니다 — 납품 기록·재고·월 마감은 그대로" onclick="BAS.poClose('${r.ord}','${r.code}')">잔량 종료</button>${multi[r.ord]>1?`
+             · <button class="bas-lnk" title="이 오더의 남은 품목을 한꺼번에 끝냅니다" onclick="BAS.poCloseOrder('${r.ord}')">오더 전체 종료</button>`:''}</div>`;
       // 칸마다 이름(c-…)·꼬리표(data-l) — 좁은 화면에서 표 대신 카드로 보이게(2026-10-26 5단계, CSS 만으로)
-      return `<tr class="po-row"${done?' style="opacity:.55"':''}>
+      return `<tr class="po-row"${done||closed?' style="opacity:.6"':''}>
         <td class="c-st">${chip}</td>
         <td class="mini c-ord">${r.ord}</td>
         <td class="c-od"><input type="date" value="${r.odate||''}" title="발주가 들어온 날 — 고치면 바로 저장됩니다"
              onchange="BAS.poSetDate('${r.ord}','${r.code}',this.value)"
              style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)"></td>
-        <td class="c-nm" style="white-space:normal;min-width:150px">${nameOf(r.code)}<div class="mini">${r.code}</div></td>
+        <td class="c-nm" style="white-space:normal;min-width:140px">${nameOf(r.code)}<div class="mini">${r.code}</div></td>
         <td class="num c-n" data-l="발주">${r.qty}</td>
-        <td class="num c-n" data-l="발주 시점 재고">${atOrderCell(r.code, r.odate)}</td>
+        <td class="num c-n" data-l="발주 시점 재고" style="white-space:normal;min-width:84px">${atOrderCell(r.code, r.odate)}</td>
         <td class="num c-n" data-l="납품">${r.filled||'·'}</td>
-        <td class="num c-n" data-l="미납" style="font-weight:700;color:${done?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
+        <td class="num c-n" data-l="${closed?'종료 잔량':'미납'}" style="font-weight:700;color:${done||closed?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
         <td class="c-n" data-l="납기">${r.due||'<span class="mini">—</span>'}</td>
-        <td class="c-ship" style="white-space:nowrap">${done
-          ? '<span class="mini">—</span>'
-          : `<input type="date" id="bas-pod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날"
-                 style="padding:4px 6px;font-size:11px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
-             <input type="number" id="bas-poq-${r.ord}-${r.code}" value="${r.remain}" title="실제로 보낸 수량"
-                 style="width:58px;padding:4px;text-align:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--txt)">
-             <button class="primary" style="padding:6px 14px;font-size:12.5px" onclick="BAS.poShip('${r.ord}','${r.code}')">납품함</button>`}</td>
+        <td class="c-ship" style="white-space:nowrap">${ship}</td>
         <td class="c-del"><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="BAS.poDel('${r.ord}','${r.code}',${r.qty})">🗑</button></td>
       </tr>`;
     }).join('')+`</tbody></table>`;
@@ -30837,7 +30938,7 @@ $b('dShip').value=TODAY;
 $b('closeMonth').value=ym(TODAY);
 
 function open(){ try{ refresh(); }catch(e){ console.error('[바스재고]', e); toast('⚠ 바스 화면을 그리다 멈췄습니다'); } }
-return {open, goTab, goCard, toggleSub, setPoFilter, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
+return {open, goTab, goCard, toggleSub, setPoFilter, poClose, poCloseOrder, poCloseUndo, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
 })();
 </script>
 <!-- ══ 🧭 대분류·소분류 메뉴 (1차 UI 개편 2026-10-23) — CLAUDE.md 12-67 ══
