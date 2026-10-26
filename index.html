@@ -13529,7 +13529,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     else if(id==='delivery'){renderDelivery(); if(typeof renderDelivArchive==='function') renderDelivArchive();}
     else if(id==='todo')renderTodo();
     else if(id==='board'){renderNotices();renderSchedules();renderCal();}
-    else if(id==='stock')renderSub(curSub);
+    else if(id==='stock')showSub(curSub);   // 2026-10-26 — renderSub 만 하면 처음 열 때 「현황」 칸(가림 없음)이 보이고 탭은 「인쇄실」이 켜져 어긋났습니다(휴대폰 아래 줄·옛 탭 줄)
     else if(id==='mat')renderMat();
     else if(id==='order')renderOrderPage();
     else if(id==='order-analysis')renderAnalysis();
