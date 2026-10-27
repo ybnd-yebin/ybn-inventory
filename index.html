@@ -32172,5 +32172,70 @@ var SN3=(function(){
   return {render:render, need:need, cat:cat};
 })();
 </script>
+<!-- ⭐ 오늘 화면 왼쪽 즐겨찾기 (사장님 2026-10-27 「양쪽이 많이 비는데 왼쪽에 즐겨찾기 버튼 각 기기별로」) — CLAUDE.md 12-90
+     넓은 PC(1440px 이상)에서만 오늘 화면 왼쪽 빈자리에 붙박이. 단추 = GNAV_MENU 소분류(여는 길 GNAV.go 그대로).
+     고른 것은 이 기기에만 ybn-fav-v1(이름 목록) — 시트로 안 보냅니다. 메뉴 이름이 바뀌어 못 찾는 것은 조용히 건너뜀. -->
+<style>
+#fav-rail{display:none}
+@media (min-width:1440px){
+  #pg-home #fav-rail{display:flex;flex-direction:column;gap:6px;position:fixed;left:16px;top:calc(var(--fav-top,120px) + 14px);
+    width:min(220px,calc((100vw - 1100px)/2 - 32px));max-height:calc(100vh - var(--fav-top,120px) - 30px);overflow:auto;z-index:50}
+}
+#fav-rail .fv-hd{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:800;color:var(--tx2);padding:0 2px}
+#fav-rail .fv-ed{border:1px dashed var(--b2);background:none;color:var(--tx3);font-size:11px;border-radius:6px;padding:2px 7px;cursor:pointer;font-family:inherit}
+#fav-rail .fv-ed.on{border-style:solid;color:var(--acc);border-color:var(--acc)}
+#fav-rail .fv-b{display:flex;align-items:center;gap:6px;text-align:left;background:var(--s1);border:1px solid var(--b1);border-radius:9px;padding:8px 10px;
+  font-size:12.5px;font-weight:600;color:var(--tx1);cursor:pointer;font-family:inherit;width:100%}
+#fav-rail .fv-b:hover{border-color:var(--acc);color:var(--acc)}
+#fav-rail .fv-b small{margin-left:auto;color:var(--tx3);font-weight:400;font-size:10.5px}
+#fav-rail .fv-empty{font-size:11.5px;color:var(--tx3);padding:4px 2px;line-height:1.5}
+#fav-rail .fv-g{font-size:10.5px;color:var(--tx3);font-weight:700;margin:6px 2px 0}
+#fav-rail .fv-pick{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);padding:3px 4px;border-radius:6px;cursor:pointer}
+#fav-rail .fv-pick:hover{background:var(--s2)}
+#fav-rail .fv-pick input{margin:0}
+#fav-rail .fv-pick .fv-up{margin-left:auto;border:none;background:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px}
+</style>
+<script>
+var FAV=(function(){
+  var KEY='ybn-fav-v1', edit=false;
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function load(){ try{ var v=JSON.parse(localStorage.getItem(KEY)||'null'); if(Array.isArray(v)) return v; }catch(e){} return null; }
+  function save(a){ try{ localStorage.setItem(KEY, JSON.stringify(a)); }catch(e){} }
+  // 처음(저장 없음) 기본값 — 사장님이 자주 쓰는 화면
+  var DEF=['발주 작성','납품서 접수·목록','원유리·웜코튼(인쇄실)','에토프','매입매출'];
+  function list(){ var a=load(); return a||DEF.slice(); }
+  function menu(){ return (typeof GNAV_MENU!=='undefined')?GNAV_MENU:[]; }
+  function find(t){ var M=menu(); for(var c=0;c<M.length;c++) for(var i=0;i<M[c].items.length;i++) if(M[c].items[i].t===t) return {c:c,i:i,it:M[c].items[i]}; return null; }
+  function setTop(){ var h=document.querySelector('.hdr'); if(h) document.documentElement.style.setProperty('--fav-top', h.getBoundingClientRect().bottom+'px'); }
+  function render(){
+    var R=document.getElementById('fav-rail');
+    if(!R){ var home=document.getElementById('pg-home'); if(!home) return; R=document.createElement('div'); R.id='fav-rail'; home.appendChild(R); }
+    setTop();
+    var fav=list(), h='<div class="fv-hd"><span>⭐ 즐겨찾기</span><button class="fv-ed'+(edit?' on':'')+'" onclick="FAV.toggle()" title="이 기기에만 저장됩니다">'+(edit?'다 고름':'고르기')+'</button></div>';
+    if(!edit){
+      var bs=fav.map(function(t){ var f=find(t); if(!f) return ''; return '<button class="fv-b" onclick="FAV.go(\''+esc(t).replace(/'/g,"\\'")+'\')">'+esc(t)+(f.it.href?'<small>↗</small>':'')+'</button>'; }).join('');
+      h+= bs || '<div class="fv-empty">「고르기」를 눌러 자주 여는 화면을 고르십시오. 이 기기에만 저장됩니다.</div>';
+    }else{
+      h+='<div class="fv-empty">체크한 차례대로 놓입니다. ↑ 로 올립니다.</div>';
+      menu().forEach(function(g){
+        h+='<div class="fv-g">'+esc(g.c)+'</div>';
+        g.items.forEach(function(it){
+          var k=fav.indexOf(it.t), q=esc(it.t).replace(/'/g,"\\'");
+          h+='<label class="fv-pick"><input type="checkbox"'+(k>=0?' checked':'')+' onchange="FAV.pick(\''+q+'\',this.checked)">'+esc(it.t)
+            +(k>0?'<button class="fv-up" onclick="event.preventDefault();FAV.up(\''+q+'\')" title="위로">↑</button>':'')+'</label>';
+        });
+      });
+    }
+    R.innerHTML=h;
+  }
+  function go(t){ var f=find(t); if(f && typeof GNAV!=='undefined') GNAV.go(f.c,f.i); }
+  function toggle(){ edit=!edit; if(!load()) save(list()); render(); }
+  function pick(t,on){ var a=list().filter(function(x){return x!==t;}); if(on) a.push(t); save(a); render(); }
+  function up(t){ var a=list(), k=a.indexOf(t); if(k>0){ a[k]=a[k-1]; a[k-1]=t; save(a); } render(); }
+  try{ render(); window.addEventListener('resize', function(){ clearTimeout(FAV._t); FAV._t=setTimeout(setTop,150); }); }
+  catch(e){ console.warn('[즐겨찾기]', e); }
+  return {render:render, go:go, toggle:toggle, pick:pick, up:up};
+})();
+</script>
 </body>
 </html>
