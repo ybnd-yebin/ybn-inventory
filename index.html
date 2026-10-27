@@ -2430,7 +2430,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas tr.st-row:hover td{background:#fafbfc}
 #pg-bas tr.st-row td.c-nm .tg{display:inline-block;width:12px;color:var(--sub);font-size:11px}
 #pg-bas tr.st-more td{background:var(--panel2);white-space:normal;padding:10px 14px}
-#pg-bas .st-more-in{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;font-size:12px}
+#pg-bas .st-more-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;font-size:12px}
+#pg-bas #bas-stockTbl td.c-f{display:none}
+#pg-bas #bas-stockTbl .nm1{font-weight:600}
 #pg-bas .st-more-in h4{margin:0 0 4px;font-size:11.5px;color:var(--sub);font-weight:700}
 #pg-bas .st-more-in .ln{display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums;line-height:1.7}
 @media(min-width:1360px){
@@ -2447,6 +2449,15 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   #pg-bas tr.st-more{display:block}
   #pg-bas tr.st-more td{display:block;border:0;border-radius:10px;margin-bottom:10px}
   #pg-bas .st-more-in{grid-template-columns:1fr}
+  /* 품목 카드 4줄 (2026-10-27): 이름·상태 / 사이즈·코드 / 실사＋입고−출고 식 · 예상 재고 / 바닥 예상. 큰 숫자 셋은 숨기고 식 한 줄로 */
+  #pg-bas #bas-stockTbl tr.st-row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm st" "f tot";gap:6px 10px;padding:12px 2px}
+  #pg-bas #bas-stockTbl tr.st-row td:nth-child(2),#pg-bas #bas-stockTbl tr.st-row td:nth-child(3),#pg-bas #bas-stockTbl tr.st-row td:nth-child(4){display:none}
+  #pg-bas #bas-stockTbl td.c-f{display:block;grid-area:f;align-self:end;white-space:normal;font-size:12px}
+  #pg-bas #bas-stockTbl td.c-tot{grid-area:tot;background:none;padding:0;text-align:right;border-radius:0;min-width:0}
+  #pg-bas #bas-stockTbl td.c-nm{min-width:0}
+  #pg-bas #bas-stockTbl td.c-tot:before{display:none}
+  #pg-bas #bas-stockTbl td.c-tot>b{font-size:20px!important}
+  #pg-bas #bas-stockTbl td.c-nm{font-size:13.5px}
 }
 </style>
 <!-- 분류는 왼쪽 세로 꼬리표 (사장님 2026-10-21 「왼쪽행으로 … 좀더 간략」). 휴대폰은 위 한 줄 -->
@@ -30400,18 +30411,22 @@ function renderStock(){
         side.push(`<span style="color:var(--warn)">실사끼리 안 맞습니다`
           +` <span class="mini">(${s.burn.from}→${s.burn.to} 사이 ${-s.burn.used}장 늘었습니다)</span></span>`);
       }
-      if(s.eta && s.daysLeft!=null && s.daysLeft<=180) side.push(`<b>${s.eta}쯤 바닥</b>`);
+      /* 예상 재고 밑에는 「바닥 예상」 한 줄만 (사장님 2026-10-27 「줄바꿈이 엄청 일어나」). 나머지 곁가지(side)는 줄을 눌러 펼친 칸 「소진·예정」으로 — 1700px 이상은 제 칸(xCells) */
+      const eta=(s.eta && s.daysLeft!=null && s.daysLeft<=180) ? `${s.eta.slice(5).replace('-','/')} 바닥` : '';
+      const nm=nmSplit(nameOf(c));
+      const cf=`${s.anchor==='실사'?'실사 '+s.base:s.anchor==='입고'?'실사 없음 ≥'+s.base:'실사 없음'} + 입고 ${s.inn||0} − 출고 ${s.out||0}`;
       // 칸 이름·꼬리표 — 휴대폰에서 표 대신 카드로 (2026-10-26 5단계, CSS 만으로)
-      return `<tr class="st-row" onclick="BAS.stToggle('${c}')" title="눌러서 미납 발주·최근 납품·창고 출고 보기">
-        <td class="c-nm"><span class="tg">${stOpen[c]?'▾':'▸'}</span>${nameOf(c)}<div class="mini">${c}</div></td>
+      return `<tr class="st-row" onclick="BAS.stToggle('${c}')" title="눌러서 미납 발주·최근 납품·소진·예정 보기">
+        <td class="c-nm"><span class="tg">${stOpen[c]?'▾':'▸'}</span><b class="nm1">${nm[0]}</b><div class="mini">${nm[1]?nm[1]+' · ':''}${c}</div></td>
         <td class="num c-n" data-l="월말 실사">${baseCell}</td>
         <td class="num c-n" data-l="그 뒤 입고">${inCell}</td>
         <td class="num c-n" data-l="창고 출고">${outCell}</td>
         <td class="num c-n c-tot" data-l="예상 재고"><b style="font-size:20px;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥':''}${s.stock}</b>
-          ${side.length?`<div class="mini sd">${side.join('<br>')}</div>`:''}</td>
+          ${eta?`<div class="mini sd">${eta}</div>`:''}</td>
+        <td class="c-f mini">${cf}</td>
         ${xCells(c,s,lp)}
         <td class="stt c-st"><span class="chip ${ST_CHIP[s.rank]}">${ST_LAB[s.rank]}</span></td>
-      </tr>`+(stOpen[c]?`<tr class="st-more"><td colspan="10">${stMoreHtml(c,s)}</td></tr>`:'');
+      </tr>`+(stOpen[c]?`<tr class="st-more"><td colspan="11">${stMoreHtml(c,s,side)}</td></tr>`:'');
     }).join('')+`</tbody></table>`;
 }
 
@@ -30731,7 +30746,13 @@ function xCells(c,s,lp){
 /* 재고 표 품목 줄 펼치기 — 그 품목의 미납 발주 · 최근 납품 · 최근 30일 창고 출고 (보기만) */
 var stOpen={};
 function stToggle(c){ stOpen[c]=!stOpen[c]; renderStock(); }
-function stMoreHtml(c,s){
+/* 제품명 두 층 — 괄호 앞은 굵게, 괄호 속(사이즈 등)은 코드와 함께 작은 둘째 줄. 글자는 빼지 않습니다 */
+function nmSplit(n){
+  n=String(n||''); const i=n.indexOf('(');
+  if(i<=0) return [n,''];
+  return [n.slice(0,i).trim(), n.slice(i).replace(/^\(\s*/,'').replace(/\s*\)\s*$/,'')];
+}
+function stMoreHtml(c,s,side){
   const md=x=>x?x.slice(5).replace('-','/'):'-';
   const po=(typeof poWithRemain==='function'?poWithRemain():[]).filter(r=>r.code===c&&isOpenPo(r));
   const dv=(ST.delivs||[]).filter(x=>x.code===c&&x.ship<=TODAY).sort((a,b)=>a.ship<b.ship?1:-1).slice(0,5);
@@ -30741,6 +30762,7 @@ function stMoreHtml(c,s){
     <div><h4>미납 발주</h4>${po.length?po.map(r=>ln(`${md(r.odate)} 발주 · 오더 ${r.ord}`,`${r.remain}장`)).join(''):'<div class="mini">없음</div>'}</div>
     <div><h4>최근 납품</h4>${dv.length?dv.map(x=>ln(md(x.ship),`${x.qty}장`)).join(''):'<div class="mini">없음</div>'}</div>
     <div><h4>창고 출고</h4>${ln('최근 30일 (SRM)',`${out30}장`)}${s.monthly>0?ln(`한 달 소진 (${s.rateSrc} 기준)`,`${fmt(s.monthly)}장`):''}${s.eta&&s.daysLeft!=null&&s.daysLeft<=180?ln('바닥 예상',md(s.eta)):''}</div>
+    ${side&&side.length?`<div class="sx"><h4>소진·예정</h4>${side.map(x=>`<div style="line-height:1.7">${x}</div>`).join('')}</div>`:''}
   </div>`;
 }
 function renderNow(){
