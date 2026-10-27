@@ -919,10 +919,28 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       var n=e.target.closest && e.target.closest('#sp-storage .info-note'); if(n) n.classList.toggle('open');
     });
     </script>
+    <style>
+      #soonap-art .sa-btn{border:1px dashed var(--b2);background:var(--s1);color:var(--tx2);border-radius:6px;padding:5px 10px;font-size:11.5px;cursor:pointer;font-family:inherit}
+      #soonap-art.open .sa-btn{border-style:solid;color:var(--tx1)}
+      #soonap-art .sa-body{display:none;margin-top:8px}
+      #soonap-art.open .sa-body{display:block}
+      #soonap-art textarea{width:100%;min-height:90px;box-sizing:border-box;font-size:12px;font-family:inherit;border:1px solid var(--b2);border-radius:6px;padding:6px;background:var(--bg);color:var(--tx1)}
+    </style>
+    <div id="soonap-art" style="display:flex;flex-direction:column;align-items:flex-end;margin-bottom:8px">
+      <button class="sa-btn" onclick="soonapArtToggle()">📋 아티팩트 기록 붙여넣기</button>
+      <div class="sa-body" style="align-self:stretch">
+        <div class="card" style="margin:0">
+          <div style="font-size:12px;color:var(--tx2);line-height:1.55">직원 아티팩트 <b>수납 현황 → 기록</b> 표를 통째로 복사해 붙여 넣으십시오. <b>입고</b>는 입고 기록으로, <b>발주</b>는 발주중으로 들어갑니다. 취소된(회색) 줄은 넣지 않고, 예전에 넣은 줄이 아티팩트에서 취소됐으면 지웁니다. 같은 줄은 다시 붙여도 두 번 들어가지 않습니다.</div>
+          <textarea id="soonap-art-ta" placeholder="2026-10-20	입고	글래스 도어 450 (441*2165)	151	아름유리	취소"></textarea>
+          <div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="f-btn on" onclick="soonapArtRead()">읽어 보기</button></div>
+          <div id="soonap-art-prev"></div>
+        </div>
+      </div>
+    </div>
     <div id="soonap-glass"></div>
     <div class="card">
       <div class="card-ttl"><span>🗄️ 수납유리재고</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">납품서 자동 반영 · 37종</span></div>
-      <div class="info-note">📊 <b>＋입고</b> 버튼으로 입고 수량을 넣으면 <b>총재고</b>가 쌓이고, 한샘 납품서를 올리면 <b>출고가 자동 차감</b>됩니다(중복 없음). 지난 날짜로 넣으실 때는 수량 뒤에 날짜를 붙이면 됩니다 — <b>30 7/28</b> 처럼요. 이번주·이번달 출고와 6개월 월평균은 자동 집계돼요. <b>발주</b> 버튼으로 발주 수량을 적어두면 나중에 입고 누를 때 자동으로 채워집니다. 표를 옆으로 밀면 모든 열이 보입니다. 비규격은 맨 아래 별도로 모아둡니다.</div>
+      <div class="info-note">📊 <b>총재고 = 이달 기초재고 − 이달 납품(발주일 기준·AS 제외) + 이달 입고</b>입니다(월 격자·글래스도어와 같은 셈). 처음에는 <b>실사</b>로 지금 수량을 한 번 넣어 주셔야 숫자가 나옵니다. <b>＋입고</b> 버튼으로 입고 수량을 넣으면 재고가 늘고, 한샘 납품서를 올리면 <b>출고가 자동 차감</b>됩니다(중복 없음). 지난 날짜로 넣으실 때는 수량 뒤에 날짜를 붙이면 됩니다 — <b>30 7/28</b> 처럼요. 이번주·이번달 출고와 6개월 월평균은 자동 집계돼요. <b>발주</b> 버튼으로 발주 수량을 적어두면 나중에 입고 누를 때 자동으로 채워집니다. 표를 옆으로 밀면 모든 열이 보입니다. 비규격은 맨 아래 별도로 모아둡니다.</div>
       <div class="filter-row" id="soonap-filter"></div>
       <div id="soonap-body"></div>
     </div>
@@ -3831,6 +3849,58 @@ if(!soonap.active) soonap.active={};
 if(!soonap.base) soonap.base={};     // 'YYYY-MM' -> {코드: 원재고}  월 격자에서 손으로 넣은 월초 재고만
 function saveSoonap(){ _put('ybn-soonap-v1', soonap); }
 function soonapActive(code){ return soonap.active[code]!==undefined ? !!soonap.active[code] : (SOONAP_DEFAULT_INACTIVE.indexOf(code)<0); }
+/* 🔄 기기끼리 합치기 (2026-10-27) — 예전에는 시트에서 받은 것을 통째로 썼습니다(soonap=data.soonap).
+   그래서 아무것도 안 넣은 기기 하나가 올리면 다른 기기에서 넣은 입고·실사가 지워졌습니다(10-27 시트가 통째로 비어 있었음).
+   · 칸 값(발주중·활성·월초 재고)은 칸마다 고친 때 soonap.at{'o|코드','a|코드','b|YYYY-MM|코드'} — 나중에 고친 쪽.
+     때가 없는 옛 값은 이 기기 것을 지키고, 이 기기에 없을 때만 받은 값을 씁니다.
+   · 입고 한 줄·아티팩트 발주 한 줄은 번호(id)로 모읍니다. 지운 줄은 soonap.insDel{id: 때} — 다른 기기에서 되살아나지 않게. */
+if(!soonap.at) soonap.at={};
+if(!soonap.insDel) soonap.insDel={};
+if(!soonap.artPo) soonap.artPo={};    // 아티팩트에서 붙여 넣은 발주 {id:{code,qty,date,memo,updatedAt}}
+function soonapStamp(k){ (soonap.at=soonap.at||{})[k]=new Date().toISOString(); }
+function soonapEnsureIds(s){
+  const ins=(s&&s.ins)||{};
+  for(const c in ins) for(const e of (ins[c]||[])){ if(e && !e.id) e.id='in_'+c+'_'+String(e.at||''); }   // 옛 줄 — 기기마다 같은 번호
+  return s;
+}
+soonapEnsureIds(soonap);
+function soonapMerge(local, remote){
+  const L=soonapEnsureIds(local||{}), R=soonapEnsureIds(JSON.parse(JSON.stringify(remote||{})));
+  const La=L.at||{}, Ra=R.at||{};
+  const out={ins:{}, onorder:{}, active:{}, base:{}, at:{}, insDel:{}, artPo:{}};
+  // 지운 표시 — 둘 다 모으고 180일 지난 것은 덜어냄
+  const cut=new Date(Date.now()-180*86400000).toISOString();
+  [L.insDel, R.insDel].forEach(d=>{ for(const k in (d||{})){ const v=String(d[k]||''); if(v>=cut && (!out.insDel[k] || v>out.insDel[k])) out.insDel[k]=v; } });
+  // 칸 값 — 나중에 고친 쪽
+  const pick=(k, lv, rv, set)=>{
+    const lt=String(La[k]||''), rt=String(Ra[k]||'');
+    let v; if(rt>lt) v=rv; else if(lt>rt) v=lv; else v=(lv!==undefined?lv:rv);
+    if(lt||rt) out.at[k]=lt>rt?lt:rt;
+    if(v!==undefined && v!==null) set(v);
+  };
+  const keys=(a,b)=>[...new Set(Object.keys(a||{}).concat(Object.keys(b||{})))];
+  keys(L.onorder,R.onorder).concat(Object.keys(La).concat(Object.keys(Ra)).filter(k=>k.startsWith('o|')).map(k=>k.slice(2))).forEach(c=>{
+    pick('o|'+c, (L.onorder||{})[c], (R.onorder||{})[c], v=>{ out.onorder[c]=v; }); });
+  keys(L.active,R.active).concat(Object.keys(La).concat(Object.keys(Ra)).filter(k=>k.startsWith('a|')).map(k=>k.slice(2))).forEach(c=>{
+    pick('a|'+c, (L.active||{})[c], (R.active||{})[c], v=>{ out.active[c]=v; }); });
+  const bk=new Set();
+  [L.base,R.base].forEach(B=>{ for(const ym in (B||{})) for(const c in (B[ym]||{})) bk.add(ym+'|'+c); });
+  Object.keys(La).concat(Object.keys(Ra)).filter(k=>k.startsWith('b|')).forEach(k=>bk.add(k.slice(2)));
+  bk.forEach(yc=>{ const [ym,c]=yc.split('|');
+    pick('b|'+yc, ((L.base||{})[ym]||{})[c], ((R.base||{})[ym]||{})[c], v=>{ (out.base[ym]=out.base[ym]||{})[c]=v; }); });
+  // 입고 줄 — 번호로, 나중에 고친 쪽
+  const all={};
+  [[L,0],[R,1]].forEach(([S,side])=>{ for(const c in (S.ins||{})) for(const e of (S.ins[c]||[])){
+    if(!e||out.insDel[e.id]) continue;
+    const o=all[e.id];
+    if(!o || String(e.updatedAt||'')>String(o.e.updatedAt||'')) all[e.id]={c, e};
+  } });
+  for(const id in all){ const {c,e}=all[id]; (out.ins[c]=out.ins[c]||[]).push(e); }
+  for(const c in out.ins) out.ins[c].sort((a,b)=>String(a.at)<String(b.at)?-1:1);
+  [L.artPo, R.artPo].forEach(P=>{ for(const id in (P||{})){ if(out.insDel[id]) continue; const o=out.artPo[id];
+    if(!o || String(P[id].updatedAt||'')>String(o.updatedAt||'')) out.artPo[id]=P[id]; } });
+  return out;
+}
 /* 🚪 시그니처 글래스도어 (사장님 2026-10-26) — 수납유리재고 맨 위 카드로 봅니다.
    · 18T용(채널) 은 유리가 예전 450·500 과 같아 **그 줄에 합쳐** 셉니다 — 납품서의 18T 코드를 예전 코드로 돌립니다.
    · 행잉은 유리가 달라(×2101) 제 줄입니다. 직원 재고 페이지(수납 현황)와 같은 묶음입니다.
@@ -3978,18 +4048,22 @@ function renderSoonap(){
           `<button class="sn-mb pri" onclick="soonapInPrompt('${cEsc}')">＋입고</button><button class="sn-mb" onclick="soonapGlassReal('${cEsc}')">실사</button><button class="sn-mb" onclick="soonapOrderPrompt('${cEsc}')">발주</button>`, true);
         continue;
       }
-      mR += snMItem(soonapName(code), m.hasIn?m.total:'-', m.hasIn&&m.total<=0,
+      // 총재고도 글래스도어·월 격자와 같은 셈 (2026-10-27) — 이달 기초재고 − 이달 납품(발주일·AS 제외) + 이달 입고.
+      // 예전 셈(첫 입고 뒤 입고 합 − 출고)은 기초재고를 넣을 자리가 없어 실사를 맞출 수 없었습니다. 기초재고가 없으면 「—」.
+      const sn=soonapNowOf(code), tot=sn.now, low=tot!=null&&tot<=0;
+      mR += snMItem(soonapName(code), tot==null?'-':tot, low,
         [['이번주', m.week], ['이번달', m.month], ['월평균', m.avg], ['발주중', m.onorder]],
-        `<button class="sn-mb pri" onclick="soonapInPrompt('${cEsc}')">＋입고</button><button class="sn-mb" onclick="soonapOrderPrompt('${cEsc}')">발주</button><label class="sn-ma"><input type="checkbox" ${act?'checked':''} onchange="soonapToggle('${cEsc}')"> 활성</label>`, act);
+        `<button class="sn-mb pri" onclick="soonapInPrompt('${cEsc}')">＋입고</button><button class="sn-mb" onclick="soonapGlassReal('${cEsc}')">실사</button><button class="sn-mb" onclick="soonapOrderPrompt('${cEsc}')">발주</button><label class="sn-ma"><input type="checkbox" ${act?'checked':''} onchange="soonapToggle('${cEsc}')"> 활성</label>`, act);
       r += `<tr style="border-bottom:1px solid var(--b1);${act?'':'opacity:.5'}">
         <td style="padding:6px 8px;min-width:160px;line-height:1.3">${soonapName(code)}<div style="font-size:9px;color:var(--tx3)">${soonapCodesOf(code)}</div></td>
-        <td style="text-align:center;font-weight:700;font-size:15px;color:${m.hasIn&&m.total<=0?'var(--acc4)':'var(--tx1)'}">${m.hasIn?m.total:'—'}</td>
+        <td style="text-align:center;font-weight:700;font-size:15px;color:${low?'var(--acc4)':'var(--tx1)'};cursor:pointer" onclick="soonapGlassReal('${cEsc}')" title="이달 기초재고 ${sn.base==null?'-':sn.base} − 이달 납품 ${sn.ord} + 이달 입고 ${sn.ins} · 눌러서 실사">${tot==null?'—':tot}</td>
         <td style="text-align:center;color:var(--tx1)">${m.week||'·'}</td>
         <td style="text-align:center;color:var(--tx1)">${m.month||'·'}</td>
         <td style="text-align:center;color:var(--tx2)">${m.avg||'·'}</td>
         <td style="text-align:center;color:var(--acc2);font-weight:600">${m.onorder||'·'}</td>
         <td style="text-align:center;white-space:nowrap;padding:4px 6px">
           <button onclick="soonapInPrompt('${cEsc}')" style="background:var(--acc);color:#fff;border:none;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px">＋입고</button>
+          <button onclick="soonapGlassReal('${cEsc}')" style="background:var(--s1);color:var(--tx1);border:1px solid var(--b2);border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;font-family:inherit;margin-right:4px">실사</button>
           <button onclick="soonapOrderPrompt('${cEsc}')" style="background:var(--s2);color:var(--tx1);border:1px solid var(--b2);border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer;font-family:inherit">발주</button>
         </td>
         <td style="text-align:center"><input type="checkbox" ${act?'checked':''} onchange="soonapToggle('${cEsc}')"></td>
@@ -4104,8 +4178,8 @@ function soonapInPrompt(code){
   const at = (r.date===todayStr())
     ? new Date().toISOString()
     : r.date+'T'+new Date().toISOString().slice(11);
-  (soonap.ins[code]=soonap.ins[code]||[]).push({qty:q, at, by:(typeof getActor==='function'?getActor():'')||''});
-  if(pend>0){ const left=Math.max(0,pend-q); if(left) soonap.onorder[code]=left; else delete soonap.onorder[code]; }
+  (soonap.ins[code]=soonap.ins[code]||[]).push({id:"in_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,6), updatedAt:new Date().toISOString(), qty:q, at, by:(typeof getActor==='function'?getActor():'')||''});
+  if(pend>0){ const left=Math.max(0,pend-q); if(left) soonap.onorder[code]=left; else delete soonap.onorder[code]; soonapStamp("o|"+code); }
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
   if(typeof showToast==='function') showToast(`✅ ${code} 입고 ${q}장${r.date===todayStr()?'':' ('+r.date.slice(5).replace('-','/')+')'}`);
 }
@@ -4188,6 +4262,7 @@ function soonapInDelete(code,at){
   const {arr,i}=soonapInFind(code,at); if(i<0){ showToast('그 입고 기록을 찾지 못했습니다'); return; }
   const e=arr[i];
   if(!confirm(`${soonapName(code)}\n${String(e.at).slice(0,10)} 입고 ${e.qty}장을 지웁니다.`)) return;
+  if(e.id) (soonap.insDel=soonap.insDel||{})[e.id]=new Date().toISOString();   // 다른 기기에서 되살아나지 않게
   arr.splice(i,1);
   if(!arr.length) delete soonap.ins[code];
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
@@ -4199,13 +4274,125 @@ function soonapOrderPrompt(code){
   if(v===null) return;
   const q=Number(String(v).trim())||0;
   if(q<=0) delete soonap.onorder[code]; else soonap.onorder[code]=q;
+  soonapStamp("o|"+code);
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
 }
 function soonapToggle(code){
-  soonap.active[code]=!soonapActive(code);
+  soonap.active[code]=!soonapActive(code); soonapStamp("a|"+code);
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
 }
 function soonapSetCat(c){ soonapCat=c; renderSoonap(); }
+
+/* 📋 직원 아티팩트(EURO700 유리 → 수납 현황)의 「기록」 붙여넣기 (사장님 2026-10-27 「입출고 기록에서 따올께」)
+   · 한 줄 = 날짜 ⇥ 구분 ⇥ 품목 ⇥ 수량 ⇥ 업체·메모 ⇥ 취소. 끝에 「취소」 단추 글자가 붙은 줄만 살아 있는 줄이고,
+     없는 줄은 아티팩트에서 이미 취소된(회색 줄) 기록입니다 — 넣지 않고, 예전에 넣었던 것이면 지웁니다.
+   · 입고 → 입고 기록(soonap.ins) · 발주 → soonap.artPo. 발주중 = 아티팩트 발주 합 − 아티팩트 입고 합(0 아래는 0).
+   · 같은 줄은 번호(art|날짜|구분|품목|수량|메모|몇 번째)로 알아봐서 다시 붙여도 두 번 들어가지 않습니다.
+   · 품목 이름은 월 격자 표(SOONAP_SHEET)의 품명과 맞춥니다. 못 찾은 품목은 넣지 않고 드러냅니다. */
+function soonapArtNorm(s){ return String(s||'').replace(/\s+/g,'').toLowerCase(); }
+function soonapArtCode(item){
+  const s=String(item||'').trim();
+  const name=s.replace(/\s*\((?:[^()]|\([^()]*\))*\)\s*$/,'');   // 끝 괄호(사이즈·대원 품명) 떼기
+  const n=soonapArtNorm(name);
+  for(const [,items] of SOONAP_SHEET) for(const [code,,nm] of items){ if(soonapArtNorm(nm)===n) return code; }
+  if(/행잉/.test(s)){ if(/450/.test(s)) return 'CAIB14167'; if(/500/.test(s)) return 'CAIB14168'; }
+  return '';
+}
+function soonapArtParse(text){
+  const rows=[], seen={};
+  String(text||'').split(/\r?\n/).forEach(line=>{
+    const t=line.split('\t').map(x=>x.trim());
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(t[0]||'')) return;           // 머리줄·안내 글은 건너뜀
+    let live=false;
+    if(t[t.length-1]==='취소'){ live=true; t.pop(); }
+    while(t.length && t[t.length-1]==='') t.pop();
+    const [date, kindRaw, item, qtyS, ...rest]=t;
+    const memo=rest.join(' ').trim();
+    const kind=/입고/.test(kindRaw||'') ? 'in' : /발주/.test(kindRaw||'') ? 'po' : '';
+    const qty=Number(String(qtyS||'').replace(/,/g,''));
+    const base=['art',date,soonapArtNorm(kindRaw),soonapArtNorm(item),qty,soonapArtNorm(memo)].join('|');
+    const nth=seen[base]=(seen[base]||0)+1;
+    rows.push({id:base+'|'+nth, date, kindRaw:kindRaw||'', kind, item:item||'', qty, memo, live, code:soonapArtCode(item)});
+  });
+  return rows;
+}
+function soonapArtHas(id){
+  if(soonap.artPo && soonap.artPo[id]) return true;
+  for(const c in soonap.ins) if((soonap.ins[c]||[]).some(e=>e.id===id)) return true;
+  return false;
+}
+function soonapArtState(r){
+  if(!r.kind) return {st:'skip', why:'모르는 구분'};
+  if(!r.code) return {st:'skip', why:'못 찾은 품목'};
+  if(!Number.isFinite(r.qty) || !r.qty) return {st:'skip', why:'수량 없음'};
+  const has=soonapArtHas(r.id);
+  if(!r.live) return has ? {st:'del', why:'아티팩트에서 취소 — 지움'} : {st:'skip', why:'취소된 줄'};
+  return has ? {st:'have', why:'이미 있음'} : {st:'new', why:'새로 넣음'};
+}
+let soonapArtRows=null;
+function soonapArtToggle(){ const b=document.getElementById('soonap-art'); if(b) b.classList.toggle('open'); renderSoonapArt(); }
+function soonapArtRead(){
+  const ta=document.getElementById('soonap-art-ta'); if(!ta) return;
+  soonapArtRows=soonapArtParse(ta.value);
+  if(!soonapArtRows.length) showToast('날짜로 시작하는 줄을 못 찾았습니다 — 기록 표를 통째로 복사해 붙여 주세요');
+  renderSoonapArt();
+}
+function renderSoonapArt(){
+  const host=document.getElementById('soonap-art-prev'); if(!host) return;
+  const rows=soonapArtRows;
+  if(!rows || !rows.length){ host.innerHTML=''; return; }
+  const st=rows.map(soonapArtState);
+  const cnt={new:0,have:0,del:0,skip:0}; st.forEach(s=>cnt[s.st]++);
+  const col={new:'var(--acc)',have:'var(--tx3)',del:'var(--acc4)',skip:'#d97706'};
+  const td='padding:5px 8px;border-bottom:1px solid var(--b1);white-space:nowrap';
+  let h=`<div style="font-size:12px;margin:8px 0 6px;color:var(--tx2)">새로 넣음 <b style="color:var(--acc)">${cnt.new}</b> · 이미 있음 <b>${cnt.have}</b> · 지움 <b style="color:var(--acc4)">${cnt.del}</b> · 안 넣음 <b style="color:#d97706">${cnt.skip}</b></div>`;
+  h+=`<div style="overflow-x:auto"><table style="width:100%;min-width:640px;border-collapse:collapse;font-size:12px"><thead><tr style="color:var(--tx2);font-size:11px;text-align:left">`
+    +`<th style="${td}">날짜</th><th style="${td}">구분</th><th style="${td}">품목</th><th style="${td};text-align:right">수량</th><th style="${td}">메모</th><th style="${td}">앱 품목</th><th style="${td}">처리</th></tr></thead><tbody>`;
+  rows.forEach((r,i)=>{ const s=st[i];
+    h+=`<tr style="${r.live?'':'color:var(--tx3);text-decoration:line-through'}"><td style="${td};font-variant-numeric:tabular-nums">${r.date}</td><td style="${td}">${brEsc(r.kindRaw)}</td>`
+      +`<td style="${td};white-space:normal">${brEsc(r.item)}</td><td style="${td};text-align:right;font-variant-numeric:tabular-nums">${Number.isFinite(r.qty)?r.qty:'-'}</td>`
+      +`<td style="${td}">${brEsc(r.memo)||'-'}</td><td style="${td};font-size:11px">${r.code?brEsc(r.code):'-'}</td>`
+      +`<td style="${td};text-decoration:none;color:${col[s.st]};font-weight:600">${s.why}</td></tr>`; });
+  h+=`</tbody></table></div>`;
+  h+=`<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px"><button class="f-btn" onclick="soonapArtRows=null;renderSoonapArt()">닫기</button>`
+    +`<button class="f-btn on" ${cnt.new+cnt.del?'':'disabled'} onclick="soonapArtApply()">넣기 (${cnt.new+cnt.del}줄)</button></div>`;
+  host.innerHTML=h;
+}
+function soonapArtApply(){
+  const rows=soonapArtRows||[]; if(!rows.length) return;
+  const now=new Date().toISOString();
+  let nIn=0, nPo=0, nDel=0;
+  const touched=new Set();
+  rows.forEach(r=>{
+    const s=soonapArtState(r);
+    if(s.st==='new'){
+      touched.add(r.code);
+      if(r.kind==='in'){
+        (soonap.ins[r.code]=soonap.ins[r.code]||[]).push({id:r.id, qty:r.qty, at:r.date+"T09:00:"+String(rows.indexOf(r)%60).padStart(2,"0")+".000Z", by:"아티팩트", memo:r.memo, src:'art', updatedAt:now});
+        nIn++;
+      } else { soonap.artPo[r.id]={code:r.code, qty:r.qty, date:r.date, memo:r.memo, updatedAt:now}; nPo++; }
+    } else if(s.st==='del'){
+      touched.add(r.code);
+      for(const c in soonap.ins){ const a=soonap.ins[c]; const i=a.findIndex(e=>e.id===r.id); if(i>=0){ a.splice(i,1); if(!a.length) delete soonap.ins[c]; } }
+      delete soonap.artPo[r.id];
+      soonap.insDel[r.id]=now; nDel++;
+    }
+  });
+  // 발주중 = 아티팩트 발주 − 아티팩트 입고 (그 품목만)
+  touched.forEach(code=>{
+    let po=0, inn=0;
+    for(const id in soonap.artPo){ const p=soonap.artPo[id]; if(p.code===code) po+=Number(p.qty)||0; }
+    (soonap.ins[code]||[]).forEach(e=>{ if(e.src==='art') inn+=Number(e.qty)||0; });
+    const left=Math.max(0, po-inn);
+    if(left) soonap.onorder[code]=left; else delete soonap.onorder[code];
+    soonapStamp('o|'+code);
+  });
+  saveSoonap(); if(typeof autoSync==='function') autoSync();
+  soonapArtRows=null; const ta=document.getElementById('soonap-art-ta'); if(ta) ta.value='';
+  renderSoonap(); renderSoonapArt();
+  try{ renderSoonapGrid(); renderSoonapInSheet(); }catch(e){}
+  showToast(`✅ 입고 ${nIn} · 발주 ${nPo}${nDel?' · 지움 '+nDel:''}줄 넣었습니다`);
+}
 
 /* ══════════════════════════════════════════════════════════════════════
    수납유리 월 격자 — 손으로 적던 엑셀(월별 재고 시트)을 그대로 재현.
@@ -4523,6 +4710,7 @@ function soonapSeedBase(){
   if(!confirm('엑셀 7월 재고 시트의 원재고 37종을 그대로 넣습니다.\n\n이미 넣으신 값이 있으면 덮어씁니다.\n넣은 뒤에도 칸을 눌러 하나씩 고치실 수 있습니다.'))return;
   soonap.base=soonap.base||{};
   soonap.base['2026-07']=Object.assign({}, soonap.base['2026-07']||{}, SOONAP_SEED_202607);
+  Object.keys(SOONAP_SEED_202607).forEach(c=>soonapStamp("b|2026-07|"+c));
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonapGrid();
   if(typeof showToast==='function') showToast('✅ 7월 원재고 37종 반영');
 }
@@ -4574,6 +4762,7 @@ function soonapBasePrompt(code){
     if(!Number.isFinite(q)){ if(typeof alert==='function') alert('숫자를 입력하세요.'); return; }
     (soonap.base[soonapYm]=soonap.base[soonapYm]||{})[code]=q;
   }
+  soonapStamp('b|'+soonapYm+'|'+code);
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonapGrid();
   if(typeof showToast==='function') showToast(`✅ ${soonapYm} 원재고 반영`);
 }
@@ -4602,7 +4791,7 @@ function soonapRealPrompt(code){
   if(!Number.isFinite(q)){ if(typeof alert==='function') alert('숫자를 입력하세요.'); return; }
   const newBase = q + ord - ins;
   soonap.base=soonap.base||{};
-  (soonap.base[soonapYm]=soonap.base[soonapYm]||{})[code]=newBase;
+  (soonap.base[soonapYm]=soonap.base[soonapYm]||{})[code]=newBase; soonapStamp("b|"+soonapYm+"|"+code);
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonapGrid();
   if(typeof showToast==='function') showToast(`✅ 실재고 ${q}장 — 원재고를 ${newBase}로 맞췄습니다`);
 }
@@ -4631,7 +4820,7 @@ function soonapGlassReal(code){
   if(!Number.isFinite(q)){ alert('숫자를 입력하세요.'); return; }
   const newBase=q + s.ord - s.ins;
   soonap.base=soonap.base||{};
-  (soonap.base[s.ym]=soonap.base[s.ym]||{})[code]=newBase;
+  (soonap.base[s.ym]=soonap.base[s.ym]||{})[code]=newBase; soonapStamp("b|"+s.ym+"|"+code);
   saveSoonap(); if(typeof autoSync==='function') autoSync(); renderSoonap();
   if(typeof showToast==='function') showToast(`✅ ${soonapName(code)} 실사 ${q}장 — ${+s.ym.slice(5)}월 기초재고 ${newBase}`);
 }
@@ -10518,9 +10707,12 @@ function applyMergedFromSheet(data){
     orderLog=orderLog.filter(o=>!orderDeleted[o && o.id]); // 삭제된 발주는 부활 금지
     saveOrderLog();
   }
-  // ── 수납유리재고(soonap) 병합: 받은 스냅샷 채택 (단일 사용자 위주) ──
+  // ── 수납유리재고(soonap) 병합: 칸마다·줄마다 합칩니다 (2026-10-27 — 예전엔 받은 것을 통째로 써서 넣은 기록이 지워졌음) ──
   if(data.soonap!==undefined && data.soonap && typeof soonap!=='undefined'){
-    soonap=data.soonap;
+    const _snR=(typeof soonapMerge==='function') ? soonapMerge({}, data.soonap) : null;   // 받은 것만 다듬은 모양 — 견주기용
+    soonap=(typeof soonapMerge==='function') ? soonapMerge(soonap, data.soonap) : data.soonap;
+    // 이 기기 것이 시트보다 앞서면(시트에 없는 입고·실사) 받은 뒤 한 번 올립니다 — 한샘 단가표와 같은 자리(_hsNeedPush)
+    try{ if(_snR && JSON.stringify(_snR)!==JSON.stringify(soonapMerge({}, soonap))){ window._snNeedPush=true; } }catch(e){}
     if(!soonap.ins) soonap.ins={};
     if(!soonap.onorder) soonap.onorder={};
     if(!soonap.active) soonap.active={};
@@ -21858,7 +22050,7 @@ async function autoSyncOnLoad(){
     try{ if(typeof etpAutoDeduct==='function') etpAutoDeduct(); }catch(e){ console.warn('[에토프 자동차감]', e); }
     updateGsStatus('ok');
     // 📋 한샘 단가표가 시트보다 앞서 있으면 한 번 올립니다(받은 뒤라 다른 기기 것은 이미 합쳐져 있음)
-    if(window._hsNeedPush){ window._hsNeedPush=false; console.log('[한샘 단가] 시트에 없는 단가표를 올립니다'); setTimeout(()=>{ try{ autoSync(); }catch(e){} },2000); }
+    if(window._hsNeedPush || window._snNeedPush){ console.log(window._snNeedPush?'[수납유리] 시트에 없는 기록을 올립니다':'[한샘 단가] 시트에 없는 단가표를 올립니다'); window._hsNeedPush=false; window._snNeedPush=false; setTimeout(()=>{ try{ autoSync(); }catch(e){} },2000); }
     // 현재 보고 있는 탭 전체 갱신 (납품서·재고 등도 함께 다시 그림)
     if(typeof rerenderAfterSync==='function'){ try{ rerenderAfterSync(); }catch(e){ renderHome(); } }
     else renderHome();
