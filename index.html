@@ -11043,6 +11043,7 @@ function applyMergedFromSheet(data){
   }
   if(data.etpPOs!==undefined && Array.isArray(data.etpPOs) && typeof etpPOs!=='undefined'){
     etpPOs=mergeById(etpPOs, data.etpPOs, 'id');
+    try{ if(typeof etpCloseOldPOs==="function") etpCloseOldPOs(); }catch(e){ console.warn("[에토프] 옛 발주 끝내기", e); }   // 다른 기기에서 온 옛 발주도 (12-94)
     etpPOs=etpPOs.filter(p=>p && p.id && !etpPoDeleted[p.id]);       // 지운 발주는 부활 금지
   }
   if((data.etpLedger!==undefined || data.etpPOs!==undefined || data.etpDeleted!==undefined) && typeof etpSaveLedger==='function'){
@@ -25775,6 +25776,7 @@ function artAlignBtnHtml(){
 function renderEtp(){
   const el = document.getElementById('etp-body');
   if(!el) return;
+  try{ etpCloseOldPOs(); }catch(e){ console.warn('[에토프] 옛 발주 끝내기', e); }   // 10/21 까지 발주 = 끝남 (2026-10-28)
 
   // 딸린 자료가 안 붙었으면 조용히 빈 화면을 내지 않고 드러냅니다 (CLAUDE.md 9-3)
   const miss = etpDataMissing();
@@ -27115,13 +27117,34 @@ function etpRcvPOs(){
     return { po, rows, ordered, got, left, over, closed, rawN };
   }).sort((a, b) => (b.left > 0) - (a.left > 0) || String(b.po.date || '').localeCompare(String(a.po.date || '')));
 }
+/* 10/21 까지 발주는 끝난 것으로 (사장님 2026-10-28 「거기까지는 다 자동입고 잡아도 괜찮아」)
+   9/8~10/21 현성 에토프 발주는 발주탭에서 원유리로 자동 입고됐거나(10/24 전 옛 방식) 시드라, 에토프 쪽 「들어옴 0」으로 남아 있었습니다.
+   재고는 안 건드리고 「끝내기」만 붙입니다 — 실제 숫자는 직원 재고 맞춤(관리 창)이 잡습니다. 손으로 「다시 열기」 한 것은 그대로 둡니다(reopened).
+   날짜는 ETP_OLD_PO_DONE_TO 한 곳. 처음 그릴 때·시트 받은 뒤 부릅니다(바뀐 게 있을 때만 저장·올리기). */
+var ETP_OLD_PO_DONE_TO = '2026-10-21';
+function etpCloseOldPOs(){
+  if(!Array.isArray(etpPOs)) return 0;
+  let n = 0; const at = new Date().toISOString();
+  etpPOs.forEach(po => {
+    if(!po || po.canceled || po.status === 'done' || po.reopened) return;
+    if(!po.date || po.date > ETP_OLD_PO_DONE_TO) return;
+    po._statusBefore = po.status || ''; po.status = 'done'; po.closedAt = at; po.closedBy = 'old-auto'; po.updatedAt = at; n++;
+  });
+  if(n){
+    etpSavePOs();
+    if(typeof meta !== 'undefined') meta.lastLocalChange = at;
+    if(typeof autoSync === 'function') setTimeout(() => { try{ autoSync(); }catch(e){} }, 1500);
+    console.log('[에토프] ' + ETP_OLD_PO_DONE_TO + ' 까지 발주 ' + n + '건을 끝냄으로 표시(재고 그대로)');
+  }
+  return n;
+}
 /* 「입고 안 하고 끝내기」 — 남은 수량을 더 기다리지 않습니다. 재고·발주탭은 안 건드립니다(되돌리기: 「다시 열기」).
    9/14 이후 현성 에토프 발주는 입고가 발주와 이어지지 않은 채(직원 숫자 맞춤 등) 「들어옴 0」으로 남아 있어 만들었습니다(2026-10-27). */
 function etpRcvClose(id, on){
   const po = (etpPOs || []).find(p => p && p.id === id); if(!po) return;
   if(on && !confirm(po.date + ' 발주를 「입고 안 하고 끝내기」 할까요?\n\n남은 수량을 더 기다리지 않습니다 — 재고는 그대로입니다. 「다시 열기」로 되돌릴 수 있습니다.')) return;
-  if(on){ po._statusBefore = po.status || ''; po.status = 'done'; po.closedAt = new Date().toISOString(); }
-  else { po.status = po._statusBefore && po._statusBefore !== 'done' ? po._statusBefore : ''; delete po.closedAt; }
+  if(on){ po._statusBefore = po.status || ''; po.status = 'done'; po.closedAt = new Date().toISOString(); delete po.reopened; }
+  else { po.status = po._statusBefore && po._statusBefore !== 'done' ? po._statusBefore : ''; delete po.closedAt; po.reopened = true; }   // 손으로 연 것은 아래 「옛 발주 끝내기」가 다시 안 닫음
   po.updatedAt = new Date().toISOString();
   etpSavePOs();
   if(typeof meta !== 'undefined') meta.lastLocalChange = new Date().toISOString();
