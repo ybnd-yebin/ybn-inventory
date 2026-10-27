@@ -20821,6 +20821,7 @@ function hsDelivRows(keep){
     const whName=delivDestGroup(d.dest), as=String(d.refNo||'').startsWith('54');
     (d.items||[]).forEach(it=>{
       const q=Number(it.qty)||0; if(!q || !it.code) return;
+      if(isBasCode(it.code)) return;   // 바스는 아래 🛁 바스재고 납품 기록으로 셉니다(두 번 안 세게)
       const nm=it.name||it.short||'';
       const size=hsSizeOf(nm);
       const p=hsPriceOf(it.code, size, whName, book, day);   // 발주일 그때 단가(2026-10-20)
@@ -20828,7 +20829,26 @@ function hsDelivRows(keep){
                  price:p?p.price:null, other:p?p.other:false, src:p?p.src:'', diff:p?!!p.diff:false, approx:p?!!p.approx:false, amt:p?p.price*q:null });
     });
   });
+  hsBasDelivRows(keep).forEach(r=>out.push(r));
   return out.sort((a,b)=>a.day.localeCompare(b.day)||a.code.localeCompare(b.code));
+}
+/* 바스(드림하이텍) 매출 = 🛁 바스재고 「발주·납품」 납품 기록 (사장님 2026-10-27 「바스는 내용이 얼마 안 되니 바스재고 기록으로」).
+   📦 납품서의 바스 줄은 위에서 뺍니다. 날짜는 **출고일(ship = 납품요청일)** 하나 — 「오늘 매출」·월 누적·매출 마감 모두.
+   단가는 기록에 적힌 값(그때 단가) → 없으면 hsPriceOf(SRM·합의서·바스재고 단가표) → 없으면 「단가 없음」. 반품은 안 뺍니다(적힌 적 없음). */
+function hsBasDelivRows(keep){
+  let S=null; try{ S=(typeof BAS!=='undefined' && BAS.state) ? BAS.state() : null; }catch(e){ S=null; }
+  if(!S || !Array.isArray(S.delivs)) return [];
+  const names=S.names||{}, out=[];
+  S.delivs.forEach(x=>{
+    const q=Number(x&&x.qty)||0, code=String(x&&x.code||'').trim(), day=String(x&&x.ship||'').slice(0,10);
+    if(!q || !code || !day) return;
+    if(!keep({ orderDate:day, delivReqDate:day })) return;
+    const own=Number(x.price)||0, p=own>0 ? { price:own, src:'바스재고 기록' } : hsPriceOf(code, '', '바스', null, day);
+    const ref=String(x.ref||'');
+    out.push({ day, rday:day, delivNo:String(x.no||''), refNo:ref, as:ref.startsWith('54'), whName:'바스', corp:'드림하이텍', code, name:names[code]||code, size:'', qty:q,
+               price:p?p.price:null, other:false, src:p?p.src:'', diff:false, approx:p?!!p.approx:false, amt:p?p.price*q:null });
+  });
+  return out;
 }
 function hsMonthExcel(){
   if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 — 잠시 후 다시'); return; }
@@ -31552,6 +31572,9 @@ function renderClose(){
   const w=$b('closeTbl');
   if(!codes.length){w.innerHTML=`<div class="empty">${mo}에 납품 기록이 없습니다.</div>`;return;}
   let tQty=0,tRet=0,tAmt=0;
+  /* 반품 칸 — 한샘 마감내역 양식(Σ 납품량·Σ 반품량·Σ 마감수량)을 본뜬 칸인데 적힌 적이 없습니다(사장님 2026-10-27 「반품칸 정리」).
+     그 달 반품이 없으면 칸을 숨기고 점선 「반품 적기」 뒤에 둡니다. 계산(마감 = 납품 − 반품)은 그대로. */
+  const showRet = closeRetOpen || codes.some(c=>Number((ST.returns[mo]||{})[c]||0)>0);
   const body=codes.map(c=>{
     const qty=g[c];
     const ret=Number((ST.returns[mo]||{})[c]||0);
@@ -31564,22 +31587,25 @@ function renderClose(){
       <td class="num">${price?won(price):'<span class="chip b">단가 없음</span>'}</td>
       <td>KRW</td>
       <td class="num">${qty}</td>
-      <td class="num"><input type="number" value="${ret}" style="width:64px;padding:4px 6px"
+      ${showRet?`<td class="num"><input type="number" value="${ret}" style="width:64px;padding:4px 6px"
         onchange="BAS.setReturn('${mo}','${c}',this.value)"></td>
-      <td class="num"><b>${close}</b></td><td>EA</td>
+      <td class="num"><b>${close}</b></td>`:''}<td>EA</td>
       <td class="num">${price?won(amt):'—'}</td><td>KRW</td>
     </tr>`;
   }).join('');
   w.innerHTML=`<table><thead><tr>
     <th>자재</th><th>자재내역</th><th class="num">단가</th><th>통화</th>
-    <th class="num">Σ 납품량</th><th class="num">Σ 반품량</th><th class="num">Σ 마감수량</th>
+    <th class="num">Σ 납품량</th>${showRet?'<th class="num">Σ 반품량</th><th class="num">Σ 마감수량</th>':''}
     <th>OUn</th><th class="num">Σ 마감금액</th><th>통화</th></tr></thead>
     <tbody>${body}</tbody>
     <tfoot><tr style="background:#fffbe6;font-weight:700">
       <td colspan="4" class="num">합계</td>
-      <td class="num">${tQty}</td><td class="num">${tRet}</td><td class="num">${tQty-tRet}</td>
-      <td>EA</td><td class="num">${won(tAmt)}</td><td>KRW</td></tr></tfoot></table>`;
+      <td class="num">${tQty}</td>${showRet?`<td class="num">${tRet}</td><td class="num">${tQty-tRet}</td>`:''}
+      <td>EA</td><td class="num">${won(tAmt)}</td><td>KRW</td></tr></tfoot></table>`
+    + (tRet ? '' : `<div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="quiet" style="border-style:dashed;font-size:11px;padding:4px 10px" onclick="BAS.toggleRet()">${showRet?'반품 칸 접기':'반품 적기'}</button></div>`);
 }
+var closeRetOpen=false;   // var — 화면을 막 그릴 때 이 줄보다 먼저 불려도 되게
+function toggleRet(){ closeRetOpen=!closeRetOpen; renderClose(); }
 function setReturn(mo,code,v){
   ST.returns[mo]=ST.returns[mo]||{};
   ST.returns[mo][code]=Number(v)||0;save();renderClose();
@@ -31881,7 +31907,7 @@ $b('dShip').value=TODAY;
 $b('closeMonth').value=ym(TODAY);
 
 function open(){ try{ refresh(); }catch(e){ console.error('[바스재고]', e); toast('⚠ 바스 화면을 그리다 멈췄습니다'); } }
-return {open, goTab, goCard, toggleSub, setPoFilter, poClose, poCloseOrder, poCloseUndo, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
+return {open, goTab, goCard, toggleSub, setPoFilter, poClose, poCloseOrder, poCloseUndo, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, toggleRet, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
 })();
 </script>
 <!-- ══ 🧭 대분류·소분류 메뉴 (1차 UI 개편 2026-10-23) — CLAUDE.md 12-67 ══
