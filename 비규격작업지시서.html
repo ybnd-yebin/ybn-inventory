@@ -3978,6 +3978,13 @@ function _frameTxt(c){
 }
 function _glassTxt(c){ return c.glass.map(gl=>`${gl.gw}×${gl.gh}${gl.n>1?'×'+gl.n:''}`).join(' / '); }
 let checkOpen=true, checkDateFilter='all';
+/* 한 주 지난 발주일 칩·묶음은 접어 둡니다 (사장님 2026-10-28 「지난 건 거의 찾을 일 없음 — 한 달에 한 번쯤」).
+   기준 = 오늘에서 CHK_RECENT_DAYS 일 전보다 앞선 발주일. 고른 날짜는 지나도 늘 보입니다.
+   펼침은 이 창에서만 기억합니다(새로 열면 다시 접힘). 대상(include) 고르는 법은 그대로입니다. */
+const CHK_RECENT_DAYS=7;
+let chkShowOld=false;
+function chkRecentCut(){ const d=new Date(); d.setDate(d.getDate()-CHK_RECENT_DAYS); return ymd(d); }
+function chkToggleOld(){ chkShowOld=!chkShowOld; renderCheck(); }
 let chkOpenDates=new Set();   // 손으로 펼쳐 둔 날짜 — 기본은 전부 접힘
 
 /* ── 날짜 칩이 곧 「대상 고르기」입니다 (사장님 2026-09-30) ───────────────
@@ -4033,13 +4040,18 @@ function renderCheck(){
     <span class="ck-hint">날짜를 누르면 <b>그 날짜가 발주 대상</b>이 됩니다 · 제목을 누르면 내용이 펼쳐집니다</span></div>`;
   if(!checkOpen){ area.innerHTML=head; return; }
 
-  const chips=['all',...dates].map(d=>{
+  const cut=chkRecentCut();
+  const isOld=d=>d!=='(미지정)' && d!==checkDateFilter && String(d)<cut;
+  const oldDates=dates.filter(isOld);
+  const visDates=chkShowOld ? dates : dates.filter(d=>!isOld(d));
+  const chips=['all',...visDates].map(d=>{
     const lbl = d==='all' ? '전체' : (d==='(미지정)' ? '미지정' : fmtDate(d));
     const cnt = d==='all' ? ROWS.length : ROWS.filter(r=>chkOrderDate(r)===d).length;
     return `<button class="ckf-chip${checkDateFilter===d?' on':''}" onclick="setCheckDate('${d}')">${lbl} <span style="opacity:.6">${cnt}</span></button>`;
-  }).join('');
+  }).join('')
+    + (oldDates.length ? `<button class="ckf-chip" style="border-style:${chkShowOld?'solid':'dashed'};color:#6b7280" onclick="chkToggleOld()" title="한 주 지난 발주일">${chkShowOld?'지난 것 접기 ▴':`지난 것 ${oldDates.length} ▾`}</button>` : '');
 
-  const shownDates = checkDateFilter==='all' ? dates : [checkDateFilter];
+  const shownDates = checkDateFilter==='all' ? visDates : [checkDateFilter];
 
   const sectionOf=d=>{
     const rows=ROWS.map((r,i)=>({r,i})).filter(x=>chkOrderDate(x.r)===d && x.r.code);
