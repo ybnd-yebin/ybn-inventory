@@ -1239,14 +1239,18 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <!-- 🟠 에토프재고 — 외주(현성유리) 인쇄유리 사이즈별 재고. 2026-10-13 재고관리 안으로 (사장님 「인쇄실 탭 옆에」) -->
   <!-- 🟠 에토프재고 — 외주(현성유리) 인쇄유리 사이즈별 재고 -->
   <div id="sp-etp" class="sub-pg" style="display:none;padding:14px 14px 80px">
-    <div class="card" style="border-left:3px solid var(--etp)">
-      <div class="card-ttl"><span>🟠 에토프 인쇄유리 재고 (외주 · 현성유리)</span></div>
-      <div class="info-note" style="margin-top:6px">
-        에토프 색상 인쇄를 현성유리에 넘겼습니다. 현성이 원판 구매·재단·인쇄를 다 하고, 우리는 <b>완성된 인쇄유리를 사이즈별로</b> 받습니다.
-        웜코튼은 계속 우리가 인쇄하므로 여기에 없습니다.<br>
-        재고는 <b>사이즈 기준</b>이고 모델명은 참고로만 띄웁니다 — 한 사이즈를 여러 모델이 나눠 쓰기 때문에 모델로 쪼개면 같은 유리가 흩어집니다.
+    <!-- 머리 카드 (2026-10-27 배치 개편) — 큰 가로 단추를 걷고 제목 줄 오른쪽에 작게, 설명은 점선 단추 뒤에 -->
+    <div class="card etp-top" style="border-left:3px solid var(--etp)">
+      <div class="etp-top-r1">
+        <div class="card-ttl" style="margin:0"><span>🟠 에토프 인쇄유리 재고 (외주 · 현성유리)</span></div>
+        <div class="etp-top-btns">
+          <button class="etp-sbtn" onclick="etpOpenInput('paste')">📋 붙여넣기</button>
+          <button class="etp-sbtn" onclick="etpOpenInput('count')">🔢 실사</button>
+          <button class="etp-sbtn" onclick="etpExport()">⬇ 내보내기</button>
+          <button class="etp-sbtn pri" onclick="etpOpenInput('manual')">✍️ 넣기</button>
+        </div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px">
+      <div class="etp-top-r2">
         <div class="filter-row" style="margin-bottom:0">
           <button class="f-btn etp-mode-btn on" data-mode="fill" onclick="etpSetMode('fill')" title="지금은 재고를 처음 쌓는 중입니다. 안전재고에 못 미치는 것을 부족으로 봅니다">목표채우기</button>
           <button class="f-btn etp-mode-btn" data-mode="normal" onclick="etpSetMode('normal')" title="같은 판정에 최근 3개월 실측 월평균을 곁들여 보여줍니다">정상운영</button>
@@ -1255,27 +1259,60 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
         <input type="number" id="etp-days" min="1" max="120" value="10" onchange="etpSetDays(this.value)"
                style="width:64px;padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-family:'JetBrains Mono',monospace">
         <span style="font-size:11px;color:var(--tx3)">영업일치</span>
+        <button class="etp-fbtn" onclick="this.closest('.etp-top').classList.toggle('info-on')">설명 보기</button>
       </div>
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-        <button onclick="etpOpenInput('manual')" style="flex:1;min-width:120px;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">✍️ 넣기</button>
-        <button onclick="etpOpenInput('paste')" style="flex:1;min-width:120px;padding:11px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">📋 붙여넣기</button>
-        <button onclick="etpOpenInput('count')" style="flex:1;min-width:120px;padding:11px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx1);font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif">🔢 실사</button>
-        <button onclick="etpExport()" style="padding:11px 14px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">⬇ 내보내기</button>
+      <div class="info-note etp-info" style="margin-top:8px">
+        에토프 색상 인쇄를 현성유리에 넘겼습니다. 현성이 원판 구매·재단·인쇄를 다 하고, 우리는 <b>완성된 인쇄유리를 사이즈별로</b> 받습니다.
+        웜코튼은 계속 우리가 인쇄하므로 여기에 없습니다.<br>
+        재고는 <b>사이즈 기준</b>이고 모델명은 참고로만 띄웁니다 — 한 사이즈를 여러 모델이 나눠 쓰기 때문에 모델로 쪼개면 같은 유리가 흩어집니다.
       </div>
     </div>
     <div id="etp-body"></div>
-    <!-- 휴대폰 정리 (2026-10-26 「정보가 과다」) — 설명·아티팩트 칸은 제목을 눌러 펼침, 단추는 작게. PC 는 그대로 -->
+    <!-- 배치 (2026-10-27 사장님 「배치안대로」) — 1400px 이상 두 단(왼쪽 목록 · 오른쪽 발주·차감·입고·불량),
+         900px 이상 사이즈 목록은 열 맞춘 표, 가끔 쓰는 넷은 맨 아래 「관리 도구」에 접어 둠. 계산·저장은 그대로 -->
+    <style>
+    #sp-etp .etp-top-r1{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap}
+    #sp-etp .etp-top-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+    #sp-etp .etp-sbtn{padding:6px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap}
+    #sp-etp .etp-sbtn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700;padding:6px 16px}
+    #sp-etp .etp-top-r2{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+    #sp-etp .etp-fbtn{padding:4px 10px;border:1px dashed var(--b2);border-radius:7px;background:none;color:var(--tx2);font-size:11px;cursor:pointer;font-family:inherit}
+    #sp-etp .etp-top .etp-info{display:none}
+    #sp-etp .etp-top.info-on .etp-info{display:block}
+    #sp-etp .etp-top.info-on .etp-fbtn{border-style:solid}
+    #sp-etp .etp-tools{margin-top:14px}
+    #sp-etp .etp-tools-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    #sp-etp .etp-tools-bar .etp-fbtn::after{content:' ▾'}
+    #sp-etp .etp-tools.on .etp-tools-bar .etp-fbtn{border-style:solid}
+    #sp-etp .etp-tools.on .etp-tools-bar .etp-fbtn::after{content:' ▴'}
+    #sp-etp .etp-tools-in{display:none;margin-top:8px}
+    #sp-etp .etp-tools.on .etp-tools-in{display:block}
+    /* 사이즈 목록 — 넓으면 칸, 좁으면 예전 꼬리말 한 줄 */
+    #sp-etp .etp-xc,#sp-etp .etp-tw{display:none}
+    #sp-etp .etp-xc{flex:none;text-align:right;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--tx2)}
+    #sp-etp .etp-xc.mdl{text-align:left;font-family:inherit;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    @media (min-width:900px){
+      #sp-etp .etp-xc{display:block}
+      #sp-etp .etp-tn{display:none}
+      #sp-etp .etp-tw{display:block}
+    }
+    @media (min-width:1400px){
+      #pg-stock.sec-pg:has(> #sp-etp:not([style*="none"])){max-width:min(1800px,calc(100vw - 48px))}
+      #sp-etp .etp-wide{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;align-items:start}
+      #sp-etp .etp-side{position:sticky;top:150px;max-height:calc(100vh - 165px);overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+      #sp-etp .etp-side > .card:first-child{margin-top:0}
+    }
+    </style>
+    <!-- 휴대폰 정리 (2026-10-26 「정보가 과다」) — 아티팩트 칸은 제목을 눌러 펼침, 단추는 작게. PC 는 그대로 -->
     <style>
     @media (max-width:560px){
       #sp-etp{padding-top:10px!important}
-      #sp-etp > .card:first-child .card-ttl{cursor:pointer;font-size:13px}
-      #sp-etp > .card:first-child .card-ttl::after,#sp-etp .m-fold > .card-ttl::after{content:'▾';margin-left:6px;color:var(--tx3);font-size:11px}
-      #sp-etp > .card:first-child.m-open .card-ttl::after,#sp-etp .m-fold.m-open > .card-ttl::after{content:'▴'}
-      #sp-etp > .card:first-child .info-note{display:none}
-      #sp-etp > .card:first-child.m-open .info-note{display:block}
-      #sp-etp > .card:first-child > div:nth-child(3){margin-top:6px!important;gap:6px!important;font-size:11px}
-      #sp-etp > .card:first-child > div:last-child{gap:6px!important;margin-top:8px!important;flex-wrap:nowrap!important}
-      #sp-etp > .card:first-child > div:last-child > button{flex:1 1 0!important;min-width:0!important;padding:7px 4px!important;font-size:11.5px!important;white-space:nowrap}
+      #sp-etp .etp-top .card-ttl{font-size:13px}
+      #sp-etp .m-fold > .card-ttl::after{content:'▾';margin-left:6px;color:var(--tx3);font-size:11px}
+      #sp-etp .m-fold.m-open > .card-ttl::after{content:'▴'}
+      #sp-etp .etp-top-r2{margin-top:6px;gap:6px;font-size:11px}
+      #sp-etp .etp-top-btns{width:100%;flex-wrap:nowrap}
+      #sp-etp .etp-top-btns .etp-sbtn{flex:1 1 0;min-width:0;padding:7px 4px;font-size:11.5px}
       #sp-etp .etp-head b{font-size:16px!important}
       #sp-etp .etp-head > div:first-child{gap:10px!important}
       #sp-etp .etp-todo span{font-size:11.5px!important}
@@ -1290,7 +1327,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     document.addEventListener('click', function(e){
       if(!window.matchMedia || !matchMedia('(max-width:560px)').matches) return;
       if(e.target.closest('button,input,a')) return;
-      var t=e.target.closest('#sp-etp > .card:first-child > .card-ttl, #sp-etp .m-fold > .card-ttl');
+      var t=e.target.closest('#sp-etp .m-fold > .card-ttl');
       if(t) t.parentElement.classList.toggle('m-open');
     });
     </script>
@@ -24679,10 +24716,26 @@ function etpTodoHtml(){
       '</div>').join('') +
   '</div>';
 }
+/* ⚙ 관리 도구 펼침 — 이 기기에만 기억 (var: 앱을 막 열 때 renderEtp 가 먼저 돌아도 TDZ 가 안 나게, 12-57) */
+var etpToolsOpen = null;
+function etpToolsOpenGet(){
+  if(etpToolsOpen == null){ try{ etpToolsOpen = localStorage.getItem('ybn-etp-tools-open-v1') === '1'; }catch(e){ etpToolsOpen = false; } }
+  return etpToolsOpen;
+}
+function etpToolsToggle(force){
+  etpToolsOpen = (force === true) ? true : !etpToolsOpenGet();
+  try{ localStorage.setItem('ybn-etp-tools-open-v1', etpToolsOpen ? '1' : '0'); }catch(e){}
+  document.querySelectorAll('#sp-etp .etp-tools').forEach(t => t.classList.toggle('on', etpToolsOpen));
+}
+
 // 아래 카드로 데려다 줍니다
 function etpJump(id){
   const el = document.getElementById(id);
   if(!el) return;
+  const tl = el.closest('.etp-tools');
+  if(tl && !tl.classList.contains('on')) etpToolsToggle(true);   // 접힌 관리 도구 안이면 먼저 펼칩니다
+  const sd = el.closest('.etp-side');                                  // 오른쪽 칸 안이면 그 칸만 굴립니다
+  if(sd && getComputedStyle(sd).overflowY === 'auto'){ sd.scrollTop = el.offsetTop - sd.offsetTop; }
   el.scrollIntoView({ behavior:'smooth', block:'start' });
   el.style.transition = 'box-shadow .4s';
   el.style.boxShadow = '0 0 0 3px var(--acc2)';
@@ -24744,6 +24797,22 @@ function etpRowHtml(r){
   if(r.cumOut > 0)    tail += ' · <span title="' + (window._etpCumFrom ? window._etpCumFrom + ' 부터 올라온 납품서 합(AS 포함)' : '올라온 납품서 합') + '">누적 ' + r.cumOut + '장</span>';
   if(etpMode === 'normal' && r.measAvg != null) tail += ' · <span style="color:var(--acc5)">실측 ' + etpDot(r.measAvg) + '</span>';
 
+  /* 넓은 화면(900px 이상) — 숫자는 제 칸으로, 꼬리말에는 칸에 없는 말만 (2026-10-27 배치 개편). 값은 위 꼬리말과 같은 r 그대로 */
+  const tw = [];
+  if(r.nonstd)                         tw.push(etpNonStdTail(r) || '건별로 받아 바로 씁니다');
+  else if(!(r.avg > 0) && r.noMaster)  tw.push('한 달에 몇 장 쓰는지 모름');
+  if(r.cur < 0)                        tw.push('<b style="color:var(--acc4)">모자랍니다</b>');
+  else if(r.cover == null && r.cur > 0) tw.push('8개월간 출고 없음');
+  if(etpMode === 'normal' && r.measAvg != null) tw.push('<span style="color:var(--acc5)">실측 ' + etpDot(r.measAvg) + '</span>');
+  const xc = (w, v, col) => '<div class="etp-xc" style="width:' + w + 'px' + (col ? ';color:' + col : '') + '">' + v + '</div>';
+  const mdlCell = '<div class="etp-xc mdl" style="width:170px" title="' + etpEsc(r.models.join(' · ')) + '">' +
+    (r.models.length ? etpEsc(r.models[0]) + (r.models.length > 1 ? ' <span style="color:var(--tx3)">외 ' + (r.models.length - 1) + '</span>' : '') : '<span style="color:var(--tx3)">-</span>') + '</div>';
+  const numCells =
+    xc(50, r.avg > 0 ? etpDot(r.avg) : '-') +
+    xc(56, r.cover != null ? r.cover : '-') +
+    xc(50, (r.onOrder > 0 && !r.nonstd) ? '<b>' + r.onOrder + '</b>' : '-', (r.onOrder > 0 && !r.nonstd) ? 'var(--acc)' : '') +
+    xc(50, r.cumOut > 0 ? r.cumOut : '-', 'var(--tx3)');
+
   const mdl = r.models.length
     ? (r.models.length > 2
         ? etpEsc(r.models.slice(0, 2).join(' · ')) + ' <span style="color:var(--tx3)">외 ' + (r.models.length - 2) + '개</span>'
@@ -24759,10 +24828,13 @@ function etpRowHtml(r){
           (r.lr ? '<span title="관통보링이라 좌우를 따로 셉니다 — 서로 바꿔 쓸 수 없습니다" style="font-size:11px;font-weight:900;color:var(--acc5);margin-left:4px">' + r.lr + '</span>' : '') +
           badge + flag + nobom + nstd +
         '</div>' +
-        '<div style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + tail + '</div>' +
+        '<div class="etp-tn" style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + tail + '</div>' +
+        (tw.length ? '<div class="etp-tw" style="font-size:10px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + tw.join(' · ') + '</div>' : '') +
       '</div>' +
+      mdlCell +
       '<div style="width:52px;text-align:right;flex:none;font-family:\'JetBrains Mono\',monospace;font-size:17px;font-weight:900;color:' + (r.cur < 0 ? 'var(--acc4)' : 'var(--tx1)') + '">' + r.cur + '</div>' +
       '<div style="width:44px;text-align:right;flex:none;font-family:\'JetBrains Mono\',monospace;font-size:13px;color:var(--tx2)">' + (r.safety ? r.safety : '-') + (r.safetyManual ? '<span title="손으로 정한 값" style="color:var(--acc5)">*</span>' : '') + '</div>' +
+      numCells +
       '<div style="width:44px;text-align:right;flex:none;font-size:12px;font-weight:800;color:' + (r.short ? 'var(--acc2)' : 'var(--tx3)') + '" title="' + (r.short ? '안전재고(' + r.safety + ')보다 적습니다 — 눈금일 뿐 꼭 채울 양은 아닙니다' : '') + '">' + (r.short ? '부족' : '-') + '</div>' +
       '<span style="flex:none;color:var(--tx3);font-size:11px">' + (open ? '▾' : '▸') + '</span>' +
     '</div>';
@@ -25165,8 +25237,8 @@ function renderEtp(){
   /* 누적 출고 — 올라온 납품서 전부(AS 포함)를 유리로 펼친 합 (사장님 2026-10-13 「여태 누적수량도 볼 수 있었으면」).
      월평균(안전재고의 바탕)과 따로 봅니다 — 월평균은 ETP_SIZE_MASTER 고정표입니다. */
   try{ const cm = etpMeasured({ includeAS:true }); rows.forEach(r => { r.cumOut = cm.bySize[r.size] || 0; }); window._etpCumFrom = cm.from || ''; }catch(e){ console.warn('[에토프] 누적', e); }
-  const head = etpHeadHtml(rows) + etpTodoHtml() +
-    (function(){ try{ return artCmpHtml(rows); }catch(e){ console.warn('[아티팩트 맞춰 보기]', e); return ''; } })();   // 🔁 2026-10-13
+  const head = etpHeadHtml(rows);
+  const art = (function(){ try{ return artCmpHtml(rows); }catch(e){ console.warn('[아티팩트 맞춰 보기]', e); return ''; } })();   // 🔁 2026-10-13 → 관리 도구 안
 
   const shown = rows.filter(r => {
     if(!etpMatchRow(r)) return false;
@@ -25190,12 +25262,25 @@ function renderEtp(){
     : (shown.length
         ? '<div class="card" style="padding:0;overflow:hidden">' +
             '<div style="display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--s3);border-bottom:1px solid var(--b1);font-size:10.5px;font-weight:700;color:var(--tx2)">' +
-              '<span style="flex:1">사이즈</span><span style="width:52px;text-align:right">재고</span><span style="width:44px;text-align:right">안전</span><span style="width:44px;text-align:right">상태</span><span style="width:8px"></span></div>' +
+              '<span style="flex:1">사이즈</span><span class="etp-xc mdl" style="width:170px;font-size:10.5px">쓰는 모델</span><span style="width:52px;text-align:right">재고</span><span style="width:44px;text-align:right">안전</span>' +
+            '<span class="etp-xc" style="width:50px;font-size:10.5px;font-family:inherit">한 달</span><span class="etp-xc" style="width:56px;font-size:10.5px;font-family:inherit">영업일치</span><span class="etp-xc" style="width:50px;font-size:10.5px;font-family:inherit">발주중</span><span class="etp-xc" style="width:50px;font-size:10.5px;font-family:inherit">누적</span>' +
+            '<span style="width:44px;text-align:right">상태</span><span style="width:8px"></span></div>' +
             shown.map(etpRowHtml).join('') + '</div>'
         : '<div class="card"><div class="empty"><div class="empty-ico">🔍</div>해당하는 사이즈가 없습니다</div></div>');
 
+  // 관리 도구 — 가끔 쓰는 넷을 맨 아래에 접어 둡니다. 「확인 필요」가 남았으면 단추 옆에 건수(할 일이라 주황)
+  const chkN = (function(){ try{ return etpCheckSizes().filter(x => x.ovr == null).length; }catch(e){ return 0; } })();
+  const tools =
+    '<div class="etp-tools' + (etpToolsOpenGet() ? ' on' : '') + '">' +
+      '<div class="etp-tools-bar"><button class="etp-fbtn" onclick="etpToolsToggle()">⚙ 관리 도구</button>' +
+        '<span style="font-size:11px;color:var(--tx3)">월평균 확인 필요' + (chkN ? ' <b style="color:var(--acc2)">' + chkN + '</b>' : '') + ' · 오더번호로 되짚기 · 실측 대조 · 아티팩트 맞춰 보기</span></div>' +
+      '<div class="etp-tools-in">' + etpCheckCardHtml() + etpLookupCardHtml() + etpMeasureCardHtml() + art + '</div>' +
+    '</div>';
+
   el.innerHTML =
     head +
+    '<div class="etp-wide"><div class="etp-main">' +
+    etpTodoHtml() +
     '<div class="filter-row" style="margin-top:10px;margin-bottom:6px">' +
       '<span style="font-size:11px;color:var(--tx2);align-self:center;margin-right:2px">보기</span>' +
       '<button class="f-btn' + (etpListBy === 'size' ? ' on' : '') + '" onclick="etpSetListBy(\'size\')">📐 사이즈</button>' +
@@ -25204,13 +25289,13 @@ function renderEtp(){
     '<div class="filter-row" style="margin-top:0">' + chip('short', '부족만') + chip('all', '전체') + chip('over', '과잉') + chip('nomaster', '확인 필요') + '</div>' +
     '<input class="inp" id="etp-search" value="' + etpEsc(etpSearchKey) + '" placeholder="🔍 사이즈 / 모델명 검색..." oninput="etpOnSearch(this.value)">' +
     list +
-    etpDeductCardHtml() +
-    etpCheckCardHtml() +
+    '</div><div class="etp-side">' +      // 오른쪽 — 매일 손이 가는 발주·차감·입고·불량 (좁으면 목록 아래로)
     etpDraftCardHtml() +
+    etpDeductCardHtml() +
     etpPoCardHtml() +
     etpDefectCardHtml() +
-    etpLookupCardHtml() +
-    etpMeasureCardHtml();
+    '</div></div>' +
+    tools;
 
   // 글자를 치던 자리를 잃지 않게 커서를 되돌립니다
   const s = document.getElementById('etp-search');
