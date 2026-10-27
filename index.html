@@ -3645,6 +3645,7 @@ function ybnPack(json){
 function J(s){try{return s?JSON.parse(ybnUnz(s)):null;}catch{return null;}}
 let stock=J(localStorage.getItem(LS.stock))||{};
 let meta=J(localStorage.getItem(LS.meta))||{};
+for(const k in meta){ if(/^_ext\d*$|^_extN$/.test(k)) delete meta[k]; }   // 시트 덧붙임 조각이 이 기기 meta 에 남았으면 걷어냄(2026-10-27)
 let workLog=J(localStorage.getItem(LS.work))||[];
 let inkLog=J(localStorage.getItem(LS.ink))||[];
 let inkRates=J(localStorage.getItem(LS.inkRate))||{WC:1.5,ETP:1.5};
@@ -10292,8 +10293,9 @@ function mergeOdVendorsLocal(localObj, remoteObj){
 const GS_EXT_LIMIT=45000;      // 시트 한 칸 5만자 제한 — 넘기면 통째로 날아가므로 미리 막는다
 /* 한 칸에 다 안 들어가면 여러 칸(_ext1.._ext8)에 나눠 담고 _extN 에 칸 수를 적습니다.
    2026-07-30: 한 칸만 쓰다가 45,000자를 넘겨 11가지가 통째로 동기화에서 빠지는 일이 있었습니다.
-   여덟 칸이면 약 36만 자까지 실립니다. 그래도 넘치면 그건 시트 스크립트를 고쳐야 할 신호입니다. */
-const GS_EXT_MAX_PARTS=8;
+   여덟 칸이면 약 36만 자까지 실립니다. 그래도 넘치면 그건 시트 스크립트를 고쳐야 할 신호입니다.
+   2026-10-27: 89%(321k / 360k)까지 차서 열여섯 칸(약 72만 자)으로 늘렸습니다. 받는 쪽은 _extN 만큼 읽으므로 옛 판 기기도 그대로 읽습니다. */
+const GS_EXT_MAX_PARTS=16;
 function metaForSync(){
   const ext={};
   const put=(k,v)=>{ if(v!==undefined) ext[k]=v; };
@@ -10388,7 +10390,7 @@ function expandSheetExtras(data){
   else if(typeof m._ext==='string') raw=m._ext;                       // 옛 방식: 한 칸
   // 로컬 meta·localStorage 를 더럽히지 않게 떼어낸다
   delete m._ext; delete m._extN;
-  for(let i=1;i<=GS_EXT_MAX_PARTS;i++) delete m['_ext'+i];
+  for(const k in m){ if(/^_ext\d+$/.test(k)) delete m[k]; }   // 칸 수와 상관없이 조각은 모두 떼어냄(옛 판이 남긴 _ext9.. 도)
   delete m._probe;                       // 2026-07-22 점검 때 생긴 빈 칸. 시트에 남아 있어 무시한다
   if(!raw) return;
   let ext=null;
