@@ -2151,7 +2151,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   --warn:#d18116; --bad:#e0453f; --chip:#eceef2;
 }
 #pg-bas *{box-sizing:border-box}
-@media (min-width:1200px){ #pg-bas{max-width:1440px} }   /* 발주 현황 표(11칸)가 1100px 에 안 들어가서 — 원유리 탭(12-72)과 같은 폭 (2026-10-26) */
+@media (min-width:1200px){ #pg-bas{max-width:1440px} }
+@media (min-width:1400px){ #pg-bas.sec-pg{max-width:min(1800px, calc(100vw - 48px));margin:0 auto} }   /* 넓은 PC 는 양옆까지 (사장님 2026-10-27) — 원유리·에토프와 같은 폭 */   /* 발주 현황 표(11칸)가 1100px 에 안 들어가서 — 원유리 탭(12-72)과 같은 폭 (2026-10-26) */
 #pg-bas{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
   background:var(--bg);color:var(--txt);font-size:15px;line-height:1.5}
 #pg-bas .bas-head{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);
@@ -2419,6 +2420,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .bas-now-side .bas-banner{margin-bottom:14px}
 #pg-bas #bas-stockTbl td.c-nm{white-space:normal;min-width:170px}
 #pg-bas #bas-stockTbl td.c-tot{white-space:normal;min-width:150px}
+/* 넓은 화면(1700px~)에서는 예상 재고 밑 작은 글(소진·바닥·발주 오는 때·예정)을 제 칸으로 — 줄이 한 줄로 낮아져 한 화면에 더 많이 보입니다 */
+#pg-bas #bas-stockTbl .c-x{display:none}
+@media(min-width:1700px){
+  #pg-bas #bas-stockTbl .c-x{display:table-cell}
+  #pg-bas #bas-stockTbl td.c-tot .sd{display:none}
+}
 #pg-bas tr.st-row{cursor:pointer}
 #pg-bas tr.st-row:hover td{background:#fafbfc}
 #pg-bas tr.st-row td.c-nm .tg{display:inline-block;width:12px;color:var(--sub);font-size:11px}
@@ -14374,6 +14381,8 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     else if(id==='ledger'){ if(lgGate()) renderLedger(); }   // 🔒 관리자 PIN (2026-10-20)
     else if(id==='vendors')renderVendors();
     else if(id==='settings')initGsUI();
+    /* 🛁 바스재고 — 여기 빠져 있어 메뉴로 들어가면 안 그려지고, 시트 받기가 끝나야(약 10초) 그려졌습니다 (2026-10-27 사장님 「10초쯤 걸린다」) */
+    else if(id==='bas'){ try{ BAS.open(); }catch(e){ console.warn('[바스재고]', e); } }
   };
 });
 
@@ -30349,6 +30358,10 @@ function renderStock(){
     <th class="num" style="width:120px">그 뒤 입고</th>
     <th class="num" style="width:120px">창고 출고</th>
     <th class="num" style="width:110px">예상 재고</th>
+    <th class="num c-x" style="width:100px">한 달 소진</th>
+    <th class="num c-x" style="width:96px">바닥 예상</th>
+    <th class="num c-x" style="width:120px">발주 오던 재고</th>
+    <th class="c-x" style="width:150px">예정</th>
     <th class="stt" style="width:64px">상태</th>
     </tr></thead><tbody>`+
     rows.map(({c,s})=>{
@@ -30395,9 +30408,10 @@ function renderStock(){
         <td class="num c-n" data-l="그 뒤 입고">${inCell}</td>
         <td class="num c-n" data-l="창고 출고">${outCell}</td>
         <td class="num c-n c-tot" data-l="예상 재고"><b style="font-size:20px;color:${col}">${s.anchor==='입고'&&s.stock>0?'≥':''}${s.stock}</b>
-          ${side.length?`<div class="mini">${side.join('<br>')}</div>`:''}</td>
+          ${side.length?`<div class="mini sd">${side.join('<br>')}</div>`:''}</td>
+        ${xCells(c,s,lp)}
         <td class="stt c-st"><span class="chip ${ST_CHIP[s.rank]}">${ST_LAB[s.rank]}</span></td>
-      </tr>`+(stOpen[c]?`<tr class="st-more"><td colspan="6">${stMoreHtml(c,s)}</td></tr>`:'');
+      </tr>`+(stOpen[c]?`<tr class="st-more"><td colspan="10">${stMoreHtml(c,s)}</td></tr>`:'');
     }).join('')+`</tbody></table>`;
 }
 
@@ -30702,6 +30716,17 @@ function countMissing(){
   if(TODAY<=addDays(prevEnd,7)) return '';
   const lo=addDays(prevEnd,-5), hi=addDays(prevEnd,7);
   return Object.keys(ST.counts||{}).some(k=>k>=lo&&k<=hi) ? '' : `${+prevEnd.slice(5,7)}월 말 실사 없음`;
+}
+/* 넓은 화면 전용 칸 넷 — 예상 재고 밑 작은 글(side)과 같은 값을 제 칸에 (2026-10-27). 좁으면 CSS 로 숨기고 작은 글을 씁니다 */
+function xCells(c,s,lp){
+  const md=x=>x?x.slice(5).replace('-','/'):'-';
+  const near=lp && s.stock<=lp.max;
+  const plan=[s.planOut?`출고 −${s.planOut} → ${s.left}`:'', s.soon?`${md(s.soonDate)} +${s.soon} 입고`:'',
+    (!(s.monthly>0) && s.burn && s.burn.used<0)?'<span style="color:var(--warn)">실사끼리 안 맞음</span>':''].filter(Boolean);
+  return `<td class="num c-x">${s.monthly>0?`<b>${fmt(s.monthly)}</b><div class="mini"${s.rateSrc==='실사'?'':' style="color:var(--warn)"'}>${s.rateSrc} 기준</div>`:'-'}</td>
+    <td class="num c-x">${s.eta&&s.daysLeft!=null&&s.daysLeft<=180?`<b>${md(s.eta)}</b><div class="mini">${Math.round(s.daysLeft)}일 뒤</div>`:'-'}</td>
+    <td class="num c-x">${lp?`<b${near?' style="color:var(--warn)"':''}>${fmt(lp.avg)}장</b><div class="mini">${lp.n}회 · ${lp.min}~${lp.max}</div>`:'-'}</td>
+    <td class="c-x mini" style="white-space:normal">${plan.length?plan.join('<br>'):'-'}</td>`;
 }
 /* 재고 표 품목 줄 펼치기 — 그 품목의 미납 발주 · 최근 납품 · 최근 30일 창고 출고 (보기만) */
 var stOpen={};
