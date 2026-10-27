@@ -21594,19 +21594,49 @@ function sellCloseRows(g, ym){
   const {from,to}=sellCloseRange(g.k, ym);
   return hsDelivRows(d=>{ const r=d.delivReqDate||d.orderDate||''; return r>=from && r<=to; }).filter(g.test);
 }
-function sellCloseSet(k, ym, val){
+function sellCloseSet(k, ym, val, quiet){
   val=String(val||'').trim();
+  const g=SELL_CLOSE_GROUPS.find(x=>x.k===k), gn=g?g.name:k;
   if(val){
     const prev=sellCloseDate(k, sellYmShift(ym,-1)), next=sellCloseOwn(k, sellYmShift(ym,1));
-    if(val<=prev){ showToast(`마감일은 지난달 마감(${prev}) 뒤여야 합니다`); renderLgSummary(); return; }
-    if(next && val>=next){ showToast(`마감일은 다음 달 마감(${next}) 앞이어야 합니다`); renderLgSummary(); return; }
+    if(val<=prev){ showToast(`${gn} ${+ym.slice(5,7)}월 마감일은 지난달 마감(${prev}) 뒤여야 합니다`); if(!quiet) renderLgSummary(); return false; }
+    if(next && val>=next){ showToast(`${gn} ${+ym.slice(5,7)}월 마감일은 다음 달 마감(${next}) 앞이어야 합니다`); if(!quiet) renderLgSummary(); return false; }
     if(val===lgMonthEnd(ym)) val='';   // 말일로 고르면 기본값과 같음
   }
   sellClose[k+'|'+ym]={ d:val, at:new Date().toISOString(), by:(typeof getActor==='function'&&getActor())||'' };
+  if(quiet) return true;
   sellCloseSave();
   renderLgSummary();
-  const g=SELL_CLOSE_GROUPS.find(x=>x.k===k);
-  showToast(`📑 ${g?g.name:k} ${+ym.slice(5,7)}월 마감일 → ${val ? +val.slice(5,7)+'/'+ +val.slice(8,10) : '말일(기본)'}`);
+  showToast(`📑 ${gn} ${+ym.slice(5,7)}월 마감일 → ${val ? +val.slice(5,7)+'/'+ +val.slice(8,10) : '말일(기본)'}`);
+  return true;
+}
+/* 시작일 고치기 (사장님 2026-10-27 「마감일을 10/26 으로 잡으면 시작일도 그 전달 마감일로」) — 시작일 = 전달 마감일 다음 날이라,
+   시작일을 고르면 **전달 마감일을 그 전날로** 적습니다. 두 달이 겹치거나 비는 날이 생기지 않습니다. */
+function sellCloseSetStart(k, ym, val){
+  val=String(val||'').trim(); const pym=sellYmShift(ym,-1);
+  if(!val){ sellCloseSet(k, pym, ''); return; }
+  const to=sellCloseDate(k, ym);
+  if(val>to){ showToast(`시작일은 이 달 마감일(${to}) 앞이어야 합니다`); renderLgSummary(); return; }
+  const p=new Date(val+'T00:00:00'); p.setDate(p.getDate()-1);
+  sellCloseSet(k, pym, _ymdLocal(p));
+}
+/* ⚙ 달마다 마감일 — 한 표에서 매출처·달마다 마감일을 적습니다. 「셋 다」는 세 매출처를 같은 날로 */
+function sellCloseSetAll(ym, val){
+  let ok=0; SELL_CLOSE_GROUPS.forEach(g=>{ if(sellCloseSet(g.k, ym, val, true)) ok++; });
+  sellCloseSave(); renderLgSummary();
+  if(ok) showToast(`📑 ${+ym.slice(5,7)}월 마감일 → ${val ? +val.slice(5,7)+'/'+ +val.slice(8,10) : '말일(기본)'} (${ok}곳)`);
+}
+function sellCloseCfgHtml(ym){
+  const months=[]; for(let i=5;i>=-1;i--) months.push(sellYmShift(ym,-i));
+  const inp=(k,m)=>{ const own=!!sellCloseOwn(k,m); return `<input type="date" value="${sellCloseDate(k,m)}" onchange="sellCloseSet('${k}','${m}',this.value)" style="font-size:11.5px;padding:3px 4px;border:1px solid ${own?'var(--acc)':'var(--b2)'};border-radius:6px;background:var(--s1);color:var(--tx1);width:100%;min-width:0">`; };
+  const C='48px repeat(3,minmax(0,1fr)) minmax(0,1fr)';
+  return `<div style="padding:8px 12px;border-top:1px solid var(--b1);background:var(--s2)">
+    <div style="font-size:10.5px;color:var(--tx3);margin-bottom:6px">달마다 마감일 — 파란 테두리는 직접 정한 날, 회색은 말일(기본). 시작일은 늘 전달 마감일 다음 날입니다.</div>
+    <div style="display:grid;grid-template-columns:${C};gap:6px;font-size:10.5px;font-weight:700;color:var(--tx2);padding-bottom:4px"><span>달</span>${SELL_CLOSE_GROUPS.map(g=>`<span>${g.name.replace('한샘 · ','')}</span>`).join('')}<span>셋 다</span></div>
+    ${months.map(m=>`<div style="display:grid;grid-template-columns:${C};gap:6px;align-items:center;padding:2px 0${m===ym?';background:var(--s1);border-radius:6px':''}">
+      <b style="font-size:12px">${+m.slice(5,7)}월</b>${SELL_CLOSE_GROUPS.map(g=>inp(g.k,m)).join('')}
+      <input type="date" onchange="sellCloseSetAll('${m}',this.value)" title="세 매출처를 같은 날로" style="font-size:11.5px;padding:3px 4px;border:1px dashed var(--b2);border-radius:6px;background:none;color:var(--tx2);width:100%;min-width:0"></div>`).join('')}
+  </div>`;
 }
 function sellCloseSecHtml(ym){
   const mm=+ym.slice(5,7), won=x=>Math.round(x||0).toLocaleString('ko-KR');
@@ -21633,23 +21663,31 @@ function sellCloseSecHtml(ym){
       }
       return `<div class="lgd-vrow" onclick="lgDashToggle('scv','${key}')" style="display:grid;grid-template-columns:${C};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)">
         <span style="min-width:0"><b style="font-size:12.5px">${x.g.name}</b><span style="display:block;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--tx3)">${md(x.rg.from)} ~ ${md(x.rg.to)}</span></span>
-        <span onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px">
-          <input type="date" value="${x.rg.to}" onchange="sellCloseSet('${key}','${ym}',this.value)" title="이 달 ${x.g.name} 마감일 — 바꾸면 기간이 따라 바뀝니다" style="font-size:11.5px;padding:3px 4px;border:1px solid ${x.own?'var(--acc)':'var(--b2)'};border-radius:6px;background:var(--s1);color:var(--tx1);width:112px;min-width:0">
-          ${x.own?`<button onclick="sellCloseSet('${key}','${ym}','')" title="말일(기본)로 되돌리기" class="icon-btn" style="font-size:11px;padding:0 2px">↺</button>`:''}</span>
+        <span class="sc-dt" onclick="event.stopPropagation()">
+          <input type="date" value="${x.rg.from}" onchange="sellCloseSetStart('${key}','${ym}',this.value)" title="시작일 — 바꾸면 전달 마감일이 그 전날로 바뀝니다" style="border:1px solid ${sellCloseOwn(key, sellYmShift(ym,-1))?'var(--acc)':'var(--b2)'}">
+          <span style="color:var(--tx3)">~</span>
+          <input type="date" value="${x.rg.to}" onchange="sellCloseSet('${key}','${ym}',this.value)" title="이 달 ${x.g.name} 마감일 — 바꾸면 기간이 따라 바뀝니다" style="border:1px solid ${x.own?'var(--acc)':'var(--b2)'}">
+          ${x.own?`<button onclick="sellCloseSet('${key}','${ym}','')" title="마감일을 말일(기본)로 되돌리기" class="icon-btn" style="font-size:11px;padding:0 2px">↺</button>`:''}</span>
         <span class="sc-q" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${x.qty||'-'}</span>
         ${num(x.amt,'#15803d')}<span style="color:var(--tx3);font-size:11px">${o?'▴':'▾'}</span></div>
         ${x.own||x.none?`<div style="padding:0 12px 6px;font-size:10.5px;display:flex;gap:10px;flex-wrap:wrap">${x.own?'<span style="color:var(--acc)">마감일 직접 정함</span>':''}${x.none?`<span style="color:var(--acc2)">단가 없음 ${x.none}줄</span>`:''}</div>`:''}
         ${det}`; }).join('');
-    body=`<style>.sc-wrap{--scc:minmax(0,1.4fr) 140px 56px minmax(92px,1fr) 14px;--scd:52px 52px minmax(0,1fr) minmax(0,1fr) 44px 92px}@media (max-width:560px){.sc-wrap{--scc:minmax(0,1fr) 132px minmax(58px,auto) 10px;--scd:46px minmax(0,1fr) 36px 80px}.sc-wrap .sc-q,.sc-wrap .sc-x{display:none}}</style>
+    body=`<style>.sc-wrap{--scc:minmax(0,1.2fr) 268px 56px minmax(92px,1fr) 14px;--scd:52px 52px minmax(0,1fr) minmax(0,1fr) 44px 92px}
+      .sc-dt{display:flex;align-items:center;gap:4px}.sc-dt input{font-size:11.5px;padding:3px 4px;border-radius:6px;background:var(--s1);color:var(--tx1);width:112px;min-width:0}
+      .sc-cfg{overflow-x:auto}.sc-cfg>div{min-width:560px}
+      @media (max-width:560px){.sc-wrap{--scc:minmax(0,1fr) 122px minmax(58px,auto) 10px;--scd:46px minmax(0,1fr) 36px 80px}.sc-wrap .sc-q,.sc-wrap .sc-x{display:none}
+        .sc-dt{flex-direction:column;align-items:stretch;gap:2px}.sc-dt>span{display:none}.sc-dt input{width:100%}}</style>
     <div class="lgd-body sc-wrap" style="padding:0"><div>
       <div style="display:grid;grid-template-columns:${C};gap:8px;padding:7px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
-        <span>매출처 · 기간</span><span>마감일</span><span class="sc-q" style="text-align:right">장수</span><span style="text-align:right">📤 매출(공급가)</span><span></span></div>
+        <span>매출처 · 기간</span><span>시작일 ~ 마감일</span><span class="sc-q" style="text-align:right">장수</span><span style="text-align:right">📤 매출(공급가)</span><span></span></div>
       ${rowsHtml}
       <div style="display:grid;grid-template-columns:${C};gap:8px;align-items:center;padding:8px 12px;border-top:2px solid var(--b2);background:var(--s1)">
         <b style="font-size:12.5px">합계</b><span></span><span class="sc-q" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${totQ||'-'}</span>${num(tot,'#15803d')}<span></span></div>
       <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--b1);background:var(--s2)">
-        <span style="font-size:10.5px;color:var(--tx3);flex:1;min-width:200px">납품요청일 기준 · 마감일 기본은 말일, 칸을 눌러 이 달만 바꿉니다 · 손으로 적은 매출은 안 들어갑니다</span>
+        <span style="font-size:10.5px;color:var(--tx3);flex:1;min-width:200px">납품요청일 기준 · 마감일 기본은 말일 · 시작일을 바꾸면 전달 마감일이 따라 바뀝니다 · 손으로 적은 매출은 안 들어갑니다</span>
+        <button class="lgd-nb" onclick="lgDash.sccfg=!lgDash.sccfg;renderLgSummary()" style="${lgDash.sccfg?'':'border-style:dashed'}">⚙ 달마다 마감일</button>
         <button class="lgd-nb" onclick="sellCloseExcel('${ym}')">📥 마감 엑셀</button></div>
+      ${lgDash.sccfg?`<div class="sc-cfg">${sellCloseCfgHtml(ym)}</div>`:''}
     </div></div>`;
   }
   return `<div class="lgd-sec${open?' open':''}">
