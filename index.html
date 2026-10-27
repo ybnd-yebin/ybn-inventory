@@ -926,6 +926,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       #soonap-art.open .sa-body{display:block}
       #soonap-art textarea{width:100%;min-height:90px;box-sizing:border-box;font-size:12px;font-family:inherit;border:1px solid var(--b2);border-radius:6px;padding:6px;background:var(--bg);color:var(--tx1)}
     </style>
+    <!-- 🖥️ 넓은 PC(1400px 이상) 세 단 — 왼쪽 요약·분류 | 가운데 표 | 오른쪽 붙여넣기·최근 입고·발주중·이번 주 납품 (사장님 2026-10-27 ①안). 좁으면 예전 차례 그대로 -->
+    <div class="sn3">
+    <div class="sn3-l" id="sn3-left"></div>
+    <div class="sn3-r">
     <div id="soonap-art" style="display:flex;flex-direction:column;align-items:flex-end;margin-bottom:8px">
       <button class="sa-btn" onclick="soonapArtToggle()">📋 아티팩트 기록 붙여넣기</button>
       <div class="sa-body" style="align-self:stretch">
@@ -937,12 +941,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
         </div>
       </div>
     </div>
+    <div id="sn3-right"></div>
+    </div>
+    <div class="sn3-m">
     <div id="soonap-glass"></div>
     <div class="card">
       <div class="card-ttl"><span>🗄️ 수납유리재고</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">납품서 자동 반영 · 37종</span></div>
       <div class="info-note">📊 <b>총재고 = 이달 기초재고 − 이달 납품(발주일 기준·AS 제외) + 이달 입고</b>입니다(월 격자·글래스도어와 같은 셈). 처음에는 <b>실사</b>로 지금 수량을 한 번 넣어 주셔야 숫자가 나옵니다. <b>＋입고</b> 버튼으로 입고 수량을 넣으면 재고가 늘고, 한샘 납품서를 올리면 <b>출고가 자동 차감</b>됩니다(중복 없음). 지난 날짜로 넣으실 때는 수량 뒤에 날짜를 붙이면 됩니다 — <b>30 7/28</b> 처럼요. 이번주·이번달 출고와 6개월 월평균은 자동 집계돼요. <b>발주</b> 버튼으로 발주 수량을 적어두면 나중에 입고 누를 때 자동으로 채워집니다. 표를 옆으로 밀면 모든 열이 보입니다. 비규격은 맨 아래 별도로 모아둡니다.</div>
       <div class="filter-row" id="soonap-filter"></div>
       <div id="soonap-body"></div>
+    </div>
+    </div>
     </div>
     <div class="card">
       <div class="card-ttl"><span>📅 월 격자</span><span style="font-size:10px;color:var(--tx3);font-weight:400;text-transform:none;letter-spacing:0">손으로 적던 엑셀 그대로 · 자동</span></div>
@@ -3981,6 +3990,7 @@ function soonapKey(code){ return SOONAP_ALIAS[code] || code; }
 function soonapCodesOf(key){ return [key].concat(Object.keys(SOONAP_ALIAS).filter(c=>SOONAP_ALIAS[c]===key)).join(' · '); }
 function soonapName(code){ if(SOONAP_LABEL[code]) return SOONAP_LABEL[code]; try{ return (typeof HANSAEM_CATALOG!=='undefined' && HANSAEM_CATALOG[code]) ? HANSAEM_CATALOG[code][0] : code; }catch(e){ return code; } }
 let soonapCat='all';
+let soonapNeedOnly=false;   // 실사 필요(기초재고 없음)만 보기 — 넓은 화면 왼쪽 요약에서 켬
 
 // 납품서(delivLog)에서 수납 대상 유리의 출고/예정 집계. id 기준 중복 없음, 삭제(툼스톤) 제외.
 function soonapAgg(){
@@ -4086,9 +4096,12 @@ function renderSoonap(){
     if(!SOONAP_GROUPS[g]) continue;
     const isGlass = g==='글래스도어';
     let r='';
-    if(!isGlass){ r += `<tr><td colspan="8" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${g} <span style="color:var(--tx3);font-weight:400">${SOONAP_GROUPS[g].length}종</span></td></tr>`;
-      mR += `<div class="sn-mg">${g} <span>${SOONAP_GROUPS[g].length}종</span></div>`; }
-    for(const code of SOONAP_GROUPS[g]){
+    // 「실사 필요」만 보기 (넓은 화면 왼쪽 요약에서 누름, 2026-10-27) — 기초재고가 없어 총재고가 「—」인 품목만. 글래스도어 카드는 그대로
+    const codesG = (isGlass||!soonapNeedOnly) ? SOONAP_GROUPS[g] : SOONAP_GROUPS[g].filter(c=>soonapNowOf(c).now==null);
+    if(!isGlass && !codesG.length) continue;
+    if(!isGlass){ r += `<tr><td colspan="8" style="background:var(--s2);font-weight:700;color:var(--acc);font-size:11px;padding:6px 8px">${g} <span style="color:var(--tx3);font-weight:400">${codesG.length}종</span></td></tr>`;
+      mR += `<div class="sn-mg">${g} <span>${codesG.length}종</span></div>`; }
+    for(const code of codesG){
       const rec=norm[code];
       const m=soonapMetrics(code, rec?rec.evs:[], ctx);
       const act=soonapActive(code);
@@ -32083,6 +32096,81 @@ var WD=(function(){
   return {render:render, toggle:toggle};
 })();
 function wdToggle(){ WD.toggle(); }
+</script>
+<!-- 🖥️ 수납유리재고 넓은 PC 세 단 (사장님 2026-10-27 ①안 「직접 해놓고 보면서 수정」) — 숫자는 이 탭 함수 그대로, 새 계산·저장 없음.
+     1400px 이상: 왼쪽 요약·분류 | 가운데 글래스도어·표 | 오른쪽 붙여넣기·최근 입고·발주중·이번 주 납품. 좁으면 예전 차례(붙여넣기 → 카드 → 표). 끄기 = 인쇄실과 같은 「좌우 카드」(wd-off) -->
+<style>
+#sp-storage .sn3-l, #sp-storage #sn3-right{display:none}
+@media (min-width:1400px){
+  #pg-stock.sec-pg:has(> #sp-storage:not([style*="none"])){max-width:min(1800px,calc(100vw - 48px))}
+  body:not(.wd-off) #sp-storage .sn3{display:grid;grid-template-columns:200px minmax(0,1fr) 300px;gap:14px;align-items:start;margin-bottom:14px}
+  body:not(.wd-off) #sp-storage .sn3-l{display:flex;flex-direction:column;gap:10px;position:sticky;top:150px;grid-column:1;grid-row:1}
+  body:not(.wd-off) #sp-storage .sn3-m{grid-column:2;grid-row:1;min-width:0}
+  body:not(.wd-off) #sp-storage .sn3-r{grid-column:3;grid-row:1;display:flex;flex-direction:column;gap:10px;position:sticky;top:150px;max-height:calc(100vh - 170px);overflow:auto}
+  body:not(.wd-off) #sp-storage #sn3-right{display:flex;flex-direction:column;gap:10px}
+  body:not(.wd-off) #sp-storage .sn3-r #soonap-art{margin-bottom:0;align-items:stretch}
+  body:not(.wd-off) #sp-storage .sn3-r #soonap-art .sa-btn{width:100%}
+  body:not(.wd-off) #sp-storage .sn3-m #soonap-filter{display:none}   /* 분류는 왼쪽 꼬리표로 */
+  body:not(.wd-off) #sp-storage .sn3-m .sn-t > .card, body:not(.wd-off) #sp-storage .sn3-m > .card{margin-top:0}
+  #sp-storage .sn3-l .wd-tabs{display:flex;flex-direction:column;gap:2px}
+  #sp-storage .sn3-l .wd-tab{text-align:left;border:none;background:none;padding:5px 8px;border-radius:6px;font-size:12px;color:var(--tx2);cursor:pointer;font-family:inherit;display:flex;justify-content:space-between}
+  #sp-storage .sn3-l .wd-tab:hover{background:var(--s2)}
+  #sp-storage .sn3-l .wd-tab.on{background:var(--s2);color:var(--acc);font-weight:700;box-shadow:inset 3px 0 0 var(--acc)}
+  #sp-storage .sn3-l .wd-tab span{color:var(--tx3);font-weight:400}
+  #sp-storage .wd-row.on{color:var(--acc)} #sp-storage .wd-row.on b{color:var(--acc)}
+  #sp-storage .sn3-r .wd-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+</style>
+<script>
+var SN3=(function(){
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function row(label,val,go,cls,tip){ return '<div class="wd-row'+(go?' go':'')+(cls?' '+cls:'')+'"'+(go?' onclick="'+go+'"':'')+(tip?' title="'+esc(tip)+'"':'')+'><span>'+esc(label)+'</span><b>'+(val==null||val===''?'-':esc(val))+'</b></div>'; }
+  function short(code){ var n=soonapName(code); return n.replace(/^(EURO\s*|AL프레임\s*|KB\s*)/,''); }
+  function left(){
+    var codes=SOONAP_CODES.filter(function(c){ return soonapActive(c); });
+    var need=0, zero=0, onord=0, insM=0;
+    var ym=todayStr().slice(0,7), inIdx=soonapInIndex();
+    codes.forEach(function(c){ var s=soonapNowOf(c); if(s.now==null) need++; else if(s.now<=0) zero++; insM+=soonapSumOf(inIdx,ym,c); });
+    Object.keys(soonap.onorder||{}).forEach(function(c){ onord+=Number(soonap.onorder[c])||0; });
+    var tabs=['all'].concat(Object.keys(SOONAP_GROUPS).filter(function(g){return g!=='글래스도어';}));
+    return '<div class="wd-card"><h4>🗄️ 수납유리 한눈에</h4>'
+      + row('실사 필요', need?need+'종':'-', 'SN3.need()', soonapNeedOnly?'on':'', '기초재고가 없어 총재고가 「—」인 품목 — 누르면 그것만 보기')
+      + row('재고 0 이하', zero?zero+'종':'-')
+      + row('발주중', onord?onord+'장':'-')
+      + row(+ym.slice(5)+'월 입고', insM?insM+'장':'-')
+      + '</div><div class="wd-card"><h4>분류</h4><div class="wd-tabs">'
+      + tabs.map(function(g){ var n=g==='all'?SOONAP_CODES.filter(function(c){return SOONAP_GROUP_OF[c]!=='글래스도어';}).length:SOONAP_GROUPS[g].length;
+          return '<button class="wd-tab'+(soonapCat===g&&!soonapNeedOnly?' on':'')+'" onclick="SN3.cat(\''+g+'\')">'+(g==='all'?'전체':esc(g))+' <span>'+n+'</span></button>'; }).join('')
+      + '</div></div>';
+  }
+  function right(){
+    var ins=[]; Object.keys(soonap.ins||{}).forEach(function(c){ (soonap.ins[c]||[]).forEach(function(e){ ins.push({c:c,e:e}); }); });
+    ins.sort(function(a,b){ return String(b.e.at||'').localeCompare(String(a.e.at||'')); });
+    var rec=ins.slice(0,8).map(function(x){ return row(String(x.e.at||'').slice(5,10).replace('-','/')+' '+short(x.c), x.e.qty, null, '', soonapName(x.c)+(x.e.by?' · '+x.e.by:'')+(x.e.memo?' · '+x.e.memo:'')); }).join('');
+    var po=Object.keys(soonap.onorder||{}).filter(function(c){ return Number(soonap.onorder[c])>0; })
+      .map(function(c){ return row(short(c), soonap.onorder[c]+'장', null, '', soonapName(c)); }).join('');
+    var ctx=soonapCtx(), agg=soonapAgg(), wk=[];
+    Object.keys(agg.norm).forEach(function(c){ var q=0; agg.norm[c].evs.forEach(function(e){ if(e.ship>=ctx.monS && e.ship<=ctx.friS) q+=Number(e.qty)||0; }); if(q) wk.push({c:c,q:q}); });
+    wk.sort(function(a,b){ return b.q-a.q; });
+    var wks=wk.slice(0,5).map(function(x){ return row(short(x.c), x.q+'장', null, '', soonapName(x.c)); }).join('');
+    return '<div class="wd-card"><h4>📥 최근 입고</h4>'+(rec||'<div>기록이 없습니다</div>')+'</div>'
+      + '<div class="wd-card"><h4>🧾 발주중</h4>'+(po||'<div>없습니다</div>')+'</div>'
+      + '<div class="wd-card"><h4>📦 이번 주 납품 많은 품목</h4>'+(wks||'<div>없습니다</div>')+'</div>';
+  }
+  function render(){
+    var L=document.getElementById('sn3-left'), R=document.getElementById('sn3-right'); if(!L||!R) return;
+    if(!(window.matchMedia&&matchMedia('(min-width:1400px)').matches) || document.body.classList.contains('wd-off')) return;
+    try{ L.innerHTML=left(); }catch(e){ console.warn('[수납 세 단 왼쪽]',e); }
+    try{ R.innerHTML=right(); }catch(e){ console.warn('[수납 세 단 오른쪽]',e); }
+  }
+  function need(){ soonapNeedOnly=!soonapNeedOnly; if(soonapNeedOnly) soonapCat='all'; renderSoonap(); }
+  function cat(g){ soonapNeedOnly=false; soonapSetCat(g); }
+  try{
+    if(typeof renderSoonap==='function'){ var _o=renderSoonap; renderSoonap=function(){ var r=_o.apply(this,arguments); try{ render(); }catch(e){ console.warn('[수납 세 단]',e); } return r; }; }
+    window.addEventListener('resize', function(){ clearTimeout(SN3._t); SN3._t=setTimeout(render,200); });
+  }catch(e){ console.warn('[수납 세 단]', e); }
+  return {render:render, need:need, cat:cat};
+})();
 </script>
 </body>
 </html>
