@@ -20704,7 +20704,7 @@ function hsPriceOf(code, size, whName, book, day){
   if(!e){ const same=Object.values(b).filter(x=>x.code===code).sort((x,y)=>String(y.last||'').localeCompare(String(x.last||'')));
           e=same.find(x=>x.wh===wh) || same[0] || null; }
   const M=hsMaster(), m=M ? M.map[code] : null;
-  if(!e && !m) return null;
+  if(!e && !m) return hsBasPriceOf(code);
   const D=String(day||todayStr()), MD=String((M&&M.date)||''), before = !!(MD && D<MD);
   // 합의서 값 — 등록일 전이면 기존금액(없으면 모름)
   const mP = !m ? null : before ? (m.old!=null ? m.old : null) : m.price;
@@ -20721,6 +20721,13 @@ function hsPriceOf(code, size, whName, book, day){
   const near = sAt || (obs.length ? obs[0] : null);
   if(near) return { price:near.p, other, src:'SRM', diff:false, approx:true };
   return { price:m.price, other:false, src:'합의서', approx:true };
+}
+/* 바스(BB…)는 합의서·SRM 둘 다 없을 때만 🛁 바스재고 「월 마감」 단가표를 봅니다 (사장님 2026-10-27 「마지막 순서로」).
+   그 표는 코드마다 **최신 값 하나**라 그때 단가로 나누지 못합니다. 0·빈 값은 「단가 없음」 그대로. */
+function hsBasPriceOf(code){
+  if(!isBasCode(code)) return null;
+  let p=0; try{ p=Number(((typeof BAS!=='undefined' && BAS.state && BAS.state().prices)||{})[code])||0; }catch(e){ p=0; }
+  return p>0 ? { price:p, other:false, src:'바스재고 단가표', diff:false } : null;
 }
 // 📥 합의서 엑셀 읽기 — 「자재코드」·「변경금액」 머리를 찾아 그 칸으로(줄·칸 자리가 바뀌어도 되게)
 function hsMasterPick(){ const el=document.getElementById('hs-master-file'); if(el){ el.value=''; el.click(); } }
@@ -20916,7 +20923,7 @@ function hsLkRows(){
     const p=hsPriceOf(code, size||'', whName, book, td), m=M?M.map[code]:null;
     const e=wh?book[hsKey(code,size,wh)]:null;
     rows.push({ code, size:size||'', wh:wh||'', whName:wh?whName:'', name:nm(code), price:p?p.price:null, src:p?p.src:'', approx:p?!!p.approx:false,
-      at: !p ? '' : p.src==='SRM' ? (e&&e.last || lastBy[code] || '') : ((M&&M.date)||''),
+      at: !p ? '' : p.src==='SRM' ? (e&&e.last || lastBy[code] || '') : p.src==='바스재고 단가표' ? '' : ((M&&M.date)||''),
       old: m && m.old!=null ? m.old : null, master: m ? m.price : null, srmDiff: !!(p&&p.diff) });
   };
   if(M) Object.keys(M.map).forEach(c=>add(c,'',''));
