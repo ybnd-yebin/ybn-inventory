@@ -870,7 +870,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <!-- STOCK -->
 <div class="sec-pg" id="pg-stock">
   <nav class="sub-nav">
-    <button class="sub-nav-btn on" onclick="showSub('stocklist')" style="order:0"><span class="ico">📦</span>인쇄실</button>
+    <button class="sub-nav-btn on" onclick="showSub('stocklist')" style="order:0"><span class="ico">📦</span>웜코튼</button>
     <button class="sub-nav-btn" onclick="showSub('etp')" style="order:1"><span class="ico">🟠</span>에토프</button>
     <!-- 완제품 탭 제거: 완제품은 조립실에서 관리(일원화). renderFinished/finApply 함수는 보존(홈 알림 등에서 참조). -->
     <!-- 2026-10-26 사장님 차례: 인쇄실 · 에토프 · 수납유리 · 조립실(바스는 따로 된 탭) — 나머지는 숨김만. 단추 자체는 지우지 않음(showSub 가 SUBS 차례로 씀), 차례는 order 로 -->
@@ -1102,7 +1102,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </style>
     <div class="wd-grid"><aside class="wd-rail" id="wd-left"></aside><div class="wd-main">
     <div class="stk-head">
-      <h2>📦 원유리 · 웜코튼 <span style="font-size:13px;color:var(--tx2);font-weight:600">(인쇄실)</span> <button class="wd-tg" onclick="wdToggle()" title="좌우 카드 켜고 끄기">좌우 카드</button></h2>
+      <h2>📦 웜코튼 <button class="wd-tg" onclick="wdToggle()" title="좌우 카드 켜고 끄기">좌우 카드</button></h2>
+      <!-- 안 탭 — 원유리(예전 화면 그대로) · 인쇄유리(웜코튼 인쇄유리 장부). 사장님 2026-10-27, CLAUDE.md 12-92 -->
+      <div class="stk-tabs"><button id="stk-tab-raw" class="on" onclick="stkSetMode('raw')">원유리</button><button id="stk-tab-pr" onclick="stkSetMode('pr')">인쇄유리</button></div>
       <div class="stk-kpis" id="stock-kpis"></div>
     </div>
     <div id="inkcut-card" style="margin:0 0 10px"></div>
@@ -1125,6 +1127,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <span style="margin-left:auto;color:var(--tx3)">🟢 최근 6개월=납품서 실데이터 · 회색=과거 분석 폴백</span>
     </div>
     <div id="stock-list"></div>
+    <div id="stock-printed" style="display:none"></div>
     <!-- 비규격 섹션 (사이즈 매핑 안 된 모델들) -->
     <div id="stock-misc-section" style="margin-top:20px"></div>
     </div><aside class="wd-rail" id="wd-right"></aside></div>
@@ -6887,6 +6890,7 @@ function stkKpiGo(f){
 function setStockFilter(f,btn){stockFilter=f;document.querySelectorAll('#sp-stocklist .f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStockList();}
 function renderStockList(){
   try{ renderInkCut(); }catch(e){ console.warn('[1액형 전환]', e); }
+  if(typeof stkMode!=='undefined' && stkMode==='pr'){ try{ stkPrRender(); }catch(e){ console.warn('[인쇄유리]', e); } return; }
   let q=(document.getElementById('stock-search')?.value||'').toLowerCase().trim();
   const qNorm = q.replace(/[×x*\s]/g,'');
   const qDigits = q.replace(/[^0-9]/g,'');
@@ -31865,7 +31869,7 @@ var GNAV_MENU=[
     { t:'발주분석', m:'order-analysis' },
   ]},
   { c:'재고관리', items:[   // 2026-10-26 사장님 차례 — 다섯만 늘 보이고, more:true 는 「더보기 ▾」 안에 접힘(화면·기능 그대로)
-    { t:'원유리·웜코튼(인쇄실)', m:'stock', s:'stocklist' },
+    { t:'웜코튼', m:'stock', s:'stocklist' },
     { t:'에토프', m:'stock', s:'etp' },
     { t:'수납유리재고', m:'stock', s:'storage' },
     { t:'바스재고', m:'bas' },
@@ -32272,8 +32276,9 @@ var FAV=(function(){
   function load(){ try{ var v=JSON.parse(localStorage.getItem(KEY)||'null'); if(Array.isArray(v)) return v; }catch(e){} return null; }
   function save(a){ try{ localStorage.setItem(KEY, JSON.stringify(a)); }catch(e){} }
   // 처음(저장 없음) 기본값 — 사장님이 자주 쓰는 화면
-  var DEF=['발주 작성','납품서 접수·목록','원유리·웜코튼(인쇄실)','에토프','매입매출'];
-  function list(){ var a=load(); return a||DEF.slice(); }
+  var DEF=['발주 작성','납품서 접수·목록','웜코튼','에토프','매입매출'];
+  var RENAMED={'원유리·웜코튼(인쇄실)':'웜코튼'};   // 메뉴 이름이 바뀐 것 — 예전에 고른 즐겨찾기를 새 이름으로 (2026-10-27)
+  function list(){ var a=load(); if(!a) return DEF.slice(); return a.map(function(t){ return RENAMED[t]||t; }).filter(function(t,i,s){ return s.indexOf(t)===i; }); }
   function menu(){ return (typeof GNAV_MENU!=='undefined')?GNAV_MENU:[]; }
   function find(t){ var M=menu(); for(var c=0;c<M.length;c++) for(var i=0;i<M[c].items.length;i++) if(M[c].items[i].t===t) return {c:c,i:i,it:M[c].items[i]}; return null; }
   function setTop(){ var h=document.querySelector('.hdr'); if(h) document.documentElement.style.setProperty('--fav-top', h.getBoundingClientRect().bottom+'px'); }
@@ -32305,6 +32310,119 @@ var FAV=(function(){
   try{ render(); window.addEventListener('resize', function(){ clearTimeout(FAV._t); FAV._t=setTimeout(setTop,150); }); }
   catch(e){ console.warn('[즐겨찾기]', e); }
   return {render:render, go:go, toggle:toggle, pick:pick, up:up};
+})();
+</script>
+<!-- 🔵 웜코튼 탭 안 「인쇄유리」 (사장님 2026-10-27) — CLAUDE.md 12-92
+     웜코튼 인쇄유리 장부(stockEvents `${w}x${h}_WC`)를 사이즈마다 표로. 숫자는 있던 함수 그대로(getPrintedQty·rollingShipStats·getRawQty), 새 계산·저장 없음.
+     실측은 사이즈 창을 「실측 · 웜코튼」으로 열어 그 창에서 넣습니다(저장하는 길은 예전 그대로). 9/10 전 자체 에토프 인쇄분은 아래에 접어 둠. -->
+<style>
+#sp-stocklist .stk-tabs{display:flex;gap:4px}
+#sp-stocklist .stk-tabs button{padding:4px 12px;border:1px solid var(--b2);border-bottom-width:2px;border-radius:7px;background:var(--s1);color:var(--tx2);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+#sp-stocklist .stk-tabs button.on{background:var(--s2);color:var(--acc);border-color:var(--acc)}
+#sp-stocklist.pr-mode #stock-list, #sp-stocklist.pr-mode #stock-misc-section, #sp-stocklist.pr-mode .stk-search .filter-row, #sp-stocklist.pr-mode #stock-period-note{display:none!important}
+#stock-printed .stp-flt{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+#stock-printed .stp-r{display:grid;grid-template-columns:150px minmax(0,1fr) 90px 100px 80px 130px 80px 70px;align-items:center;gap:0 10px;padding:7px 12px;border-top:1px solid var(--b1)}
+#stock-printed .stp-r.hd{border-top:none;background:var(--s2);font-size:11.5px;font-weight:700;color:var(--tx2)}
+#stock-printed .stp-row{cursor:pointer}
+#stock-printed .stp-row:hover{background:var(--s2)}
+#stock-printed .stp-row.minus{background:rgba(248,81,73,.06);box-shadow:inset 3px 0 0 #f85149}
+#stock-printed .stp-n{text-align:right;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+#stock-printed .stp-sub{font-size:10.5px;color:var(--tx3);font-weight:400}
+#stock-printed .stp-cnt{padding:3px 9px;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap}
+#stock-printed .stp-old{margin-top:14px;border:1px solid var(--b1);border-radius:10px;background:var(--s1)}
+#stock-printed .stp-old summary{cursor:pointer;padding:8px 12px;font-size:12px;font-weight:700;color:var(--tx2)}
+#stock-printed .stp-old .stp-r{grid-template-columns:150px minmax(0,1fr) 90px 130px}
+@media (max-width:900px){
+  #stock-printed .stp-r{grid-template-columns:120px minmax(0,1fr) 72px 84px 64px 70px;gap:0 8px}
+  #stock-printed .stp-r>:nth-child(6), #stock-printed .stp-r>:nth-child(7){display:none}
+}
+@media (max-width:560px){
+  #stock-printed .stp-r{grid-template-columns:minmax(0,1fr) 58px 64px 58px;gap:0 6px;padding:7px 8px}
+  #stock-printed .stp-r>:nth-child(2), #stock-printed .stp-r>:nth-child(5){display:none}
+  #stock-printed .stp-old .stp-r{grid-template-columns:minmax(0,1fr) 64px}
+  #stock-printed .stp-old .stp-r>:nth-child(4){display:none}
+  #stock-printed .stp-minus{display:none}
+}
+</style>
+<script>
+var stkMode='raw', stkPrFilter='all';   // 이 창에서만 — 웜코튼 탭을 새로 열면 늘 원유리부터
+function stkSetMode(m){
+  stkMode=(m==='pr')?'pr':'raw';
+  var sp=document.getElementById('sp-stocklist'); if(sp) sp.classList.toggle('pr-mode', stkMode==='pr');
+  var a=document.getElementById('stk-tab-raw'), b=document.getElementById('stk-tab-pr');
+  if(a) a.classList.toggle('on', stkMode==='raw'); if(b) b.classList.toggle('on', stkMode==='pr');
+  var pr=document.getElementById('stock-printed'); if(pr) pr.style.display=(stkMode==='pr')?'block':'none';
+  renderStockList();
+}
+function stkPrSetFilter(f){ stkPrFilter=f; stkPrRender(); }
+function stkPrCount(key){ openSizeModal(key); try{ setSzmMode('count'); setSzmTarget('WC'); }catch(e){ console.warn('[인쇄유리 실측]', e); } }
+function stkPrRender(){
+  var el=document.getElementById('stock-printed'); if(!el) return;
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function qty(sg,col){ var k=sg.w+'x'+sg.h+'_'+col; if(stockEvents[k]&&stockEvents[k].length) return getPrintedQty(sg.w,sg.h,col); return (getSzStock(sg.w,sg.h,col).printed)||0; }
+  function lastCount(k){ var l=null; (stockEvents[k]||[]).forEach(function(e){ if(e.type==='count'&&(!l||String(e.at)>String(l.at))) l=e; }); return l; }
+  var q=(document.getElementById('stock-search')||{}).value||''; q=q.toLowerCase().trim();
+  var qn=q.replace(/[×x*\s]/g,'');
+  var groups=(typeof SIZE_GROUPS!=='undefined')?SIZE_GROUPS.slice():[];
+  var rows=[], old=[];
+  groups.forEach(function(sg){
+    var key=sg.w+'x'+sg.h;
+    if(q){
+      var hit=(String(sg.w)+String(sg.h)).toLowerCase().indexOf(qn)>=0 || (sg.label&&sg.label.toLowerCase().indexOf(q)>=0)
+        || (sg.models||[]).some(function(m){ return String(m).toLowerCase().indexOf(q)>=0 || String(m).replace(/\s+/g,'').toLowerCase().indexOf(qn)>=0; });
+      if(!hit) return;
+    }
+    var wc=qty(sg,'WC'), etp=qty(sg,'ETP');
+    if(etp!==0) old.push({sg:sg,key:key,q:etp,lc:lastCount(key+'_ETP')});
+    var roll=(typeof rollingShipStats==='function')?rollingShipStats(sg.w,sg.h,6):null;
+    var am=(roll&&roll.avgByColor)?roll.avgByColor.WC:0;
+    var hasEv=!!(stockEvents[key+'_WC']&&stockEvents[key+'_WC'].length);
+    if(wc===0 && !(am>0) && !hasEv) return;
+    rows.push({sg:sg,key:key,q:wc,am:am,lc:lastCount(key+'_WC'),raw:getRawQty(sg.w,sg.h)});
+  });
+  var nMinus=rows.filter(function(r){return r.q<0;}).length, total=rows.reduce(function(a,r){return a+(r.q>0?r.q:0);},0);
+  var k=document.getElementById('stock-kpis');
+  if(k) k.innerHTML='<button class="stk-kpi" onclick="stkPrSetFilter(\'has\')">🔵 인쇄유리 <b>'+total+'</b>장</button>'
+    +'<button class="stk-kpi red" onclick="stkPrSetFilter(\'minus\')">장부 마이너스 <b>'+(nMinus||'-')+'</b></button>'
+    +'<button class="stk-kpi" onclick="stkPrSetFilter(\'all\')">사이즈 <b>'+rows.length+'</b></button>';
+  var list=rows.filter(function(r){
+    if(stkPrFilter==='has') return r.q>0;
+    if(stkPrFilter==='minus') return r.q<0;
+    if(stkPrFilter==='used') return r.am>0;
+    return true;
+  });
+  list.sort(function(a,b){ if((a.q<0)!==(b.q<0)) return a.q<0?-1:1; if(b.am!==a.am) return b.am-a.am; return (a.sg.w-b.sg.w)||String(a.sg.h).localeCompare(String(b.sg.h)); });
+  function f1(n){ return n>0?(n<10?n.toFixed(1):Math.round(n)):'-'; }
+  function models(sg){ var u=[]; (sg.models||[]).forEach(function(m){ m=String(m).replace(/\s+[LR]$/,''); if(u.indexOf(m)<0) u.push(m); }); return esc(u.slice(0,3).join(' · '))+(u.length>3?' <span class="stp-sub">외 '+(u.length-3)+'</span>':''); }
+  function lc(l){ return l?esc(formatEventDate(l.at))+' <span class="stp-sub">'+l.qty+'장</span>':'-'; }
+  var chip=function(f,t){ return '<button class="f-btn'+(stkPrFilter===f?' on':'')+'" onclick="stkPrSetFilter(\''+f+'\')">'+t+'</button>'; };
+  var h='<div class="stp-flt">'+chip('all','전체')+chip('has','📦 재고 있음')+chip('minus','🔴 장부 마이너스')+chip('used','최근 6개월 사용')+'</div>'
+    +'<div class="stk-tbl"><div class="stp-r hd"><span>사이즈</span><span>관련 모델</span><span class="stp-n">인쇄유리</span><span class="stp-n">월 사용 <span class="stp-sub">6개월</span></span>'
+    +'<span class="stp-n">몇 달 치</span><span>마지막 실측</span><span class="stp-n">원유리 <span class="stp-sub">참고</span></span><span></span></div>';
+  if(!list.length) h+='<div class="stk-foot">해당하는 사이즈가 없습니다</div>';
+  list.forEach(function(r){
+    var cover=(r.am>0&&r.q>0)?(r.q/r.am):0;
+    h+='<div class="stp-r stp-row'+(r.q<0?' minus':'')+'" onclick="openSizeModal(\''+r.key+'\')">'
+      +'<span class="stk-sz">'+r.sg.w+'×'+esc(r.sg.h)+'</span><span style="font-size:11.5px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+models(r.sg)+'</span>'
+      +'<span class="stp-n"><b style="font-size:15px;color:'+(r.q<0?'#f85149':'var(--tx1)')+'">'+(r.q===0?'-':r.q)+'</b>'+(r.q<0?' <span class="stp-sub stp-minus" style="color:#f85149">장부 −</span>':'')+'</span>'
+      +'<span class="stp-n">'+f1(r.am)+'</span><span class="stp-n">'+(cover?cover.toFixed(1):'-')+'</span>'
+      +'<span style="font-size:11.5px">'+lc(r.lc)+'</span><span class="stp-n" style="color:var(--tx2)">'+(r.raw||'-')+'</span>'
+      +'<span><button class="stp-cnt" onclick="event.stopPropagation();stkPrCount(\''+r.key+'\')">실측</button></span></div>';
+  });
+  h+='<div class="stk-foot">월 사용 = 최근 6개월 납품서의 웜코튼 몫(AS 제외) · 몇 달 치 = 인쇄유리 ÷ 월 사용 · 줄을 누르면 사이즈 창, 「실측」은 사이즈 창을 실측 · 웜코튼으로 엽니다</div></div>';
+  if(old.length){
+    old.sort(function(a,b){ return Math.abs(b.q)-Math.abs(a.q); });
+    h+='<details class="stp-old"><summary>🟠 9/10 전 자체 인쇄한 에토프 남은 것 — '+old.length+'사이즈 · '+old.reduce(function(a,r){return a+r.q;},0)+'장</summary>'
+      +'<div class="stp-r hd"><span>사이즈</span><span>관련 모델</span><span class="stp-n">남은 장수</span><span>마지막 실측</span></div>'
+      +old.map(function(r){ return '<div class="stp-r stp-row'+(r.q<0?' minus':'')+'" onclick="openSizeModal(\''+r.key+'\')"><span class="stk-sz">'+r.sg.w+'×'+esc(r.sg.h)+'</span><span style="font-size:11.5px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+models(r.sg)+'</span><span class="stp-n"><b>'+r.q+'</b></span><span style="font-size:11.5px">'+lc(r.lc)+'</span></div>'; }).join('')
+      +'</details>';
+  }
+  el.innerHTML=h;
+}
+(function(){
+  try{
+    if(typeof showSub==='function'){ var _o=showSub; showSub=function(id){ if(id==='stocklist' && (typeof curSub==='undefined'||curSub!=='stocklist')){ stkMode='raw'; var sp=document.getElementById('sp-stocklist'); if(sp) sp.classList.remove('pr-mode'); var a=document.getElementById('stk-tab-raw'),b=document.getElementById('stk-tab-pr'),pr=document.getElementById('stock-printed'); if(a)a.classList.add('on'); if(b)b.classList.remove('on'); if(pr)pr.style.display='none'; } return _o.apply(this,arguments); }; }
+  }catch(e){ console.warn('[웜코튼 안 탭]', e); }
 })();
 </script>
 </body>
