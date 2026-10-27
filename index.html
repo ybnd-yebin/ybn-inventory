@@ -1257,27 +1257,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <!-- 🟠 에토프재고 — 외주(현성유리) 인쇄유리 사이즈별 재고. 2026-10-13 재고관리 안으로 (사장님 「인쇄실 탭 옆에」) -->
   <!-- 🟠 에토프재고 — 외주(현성유리) 인쇄유리 사이즈별 재고 -->
   <div id="sp-etp" class="sub-pg" style="display:none;padding:14px 14px 80px">
-    <!-- 머리 카드 (2026-10-27 배치 개편) — 큰 가로 단추를 걷고 제목 줄 오른쪽에 작게, 설명은 점선 단추 뒤에 -->
-    <div class="card etp-top" style="border-left:3px solid var(--etp)">
+    <!-- 머리 (2026-10-27 세 번째 「이 부분이 너무 복잡해」) — 카드 대신 제목 한 줄 + 오른쪽 작은 단추. 목표채우기·안전재고 기준은 ⚙ 관리 도구 안 「재고 기준」으로 옮김 -->
+    <div class="etp-top">
       <div class="etp-top-r1">
-        <div class="card-ttl" style="margin:0"><span>🟠 에토프 인쇄유리 재고 (외주 · 현성유리)</span></div>
+        <div class="etp-ttl">🟠 에토프 인쇄유리 재고 <span>외주 · 현성유리</span>
+          <button class="etp-fbtn" onclick="this.closest('.etp-top').classList.toggle('info-on')">설명</button></div>
         <div class="etp-top-btns">
           <button class="etp-sbtn" onclick="etpOpenInput('paste')">📋 붙여넣기</button>
           <button class="etp-sbtn" onclick="etpOpenInput('count')">🔢 실사</button>
           <button class="etp-sbtn" onclick="etpExport()">⬇ 내보내기</button>
           <button class="etp-sbtn pri" onclick="etpOpenInput('manual')">✍️ 넣기</button>
         </div>
-      </div>
-      <div class="etp-top-r2">
-        <div class="filter-row" style="margin-bottom:0">
-          <button class="f-btn etp-mode-btn on" data-mode="fill" onclick="etpSetMode('fill')" title="지금은 재고를 처음 쌓는 중입니다. 안전재고에 못 미치는 것을 부족으로 봅니다">목표채우기</button>
-          <button class="f-btn etp-mode-btn" data-mode="normal" onclick="etpSetMode('normal')" title="같은 판정에 최근 3개월 실측 월평균을 곁들여 보여줍니다">정상운영</button>
-        </div>
-        <span style="font-size:11px;color:var(--tx2)">안전재고 기준</span>
-        <input type="number" id="etp-days" min="1" max="120" value="10" onchange="etpSetDays(this.value)"
-               style="width:64px;padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-family:'JetBrains Mono',monospace">
-        <span style="font-size:11px;color:var(--tx3)">영업일치</span>
-        <button class="etp-fbtn" onclick="this.closest('.etp-top').classList.toggle('info-on')">설명 보기</button>
       </div>
       <div class="info-note etp-info" style="margin-top:8px">
         에토프 색상 인쇄를 현성유리에 넘겼습니다. 현성이 원판 구매·재단·인쇄를 다 하고, 우리는 <b>완성된 인쇄유리를 사이즈별로</b> 받습니다.
@@ -1298,6 +1288,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     #sp-etp .etp-top .etp-info{display:none}
     #sp-etp .etp-top.info-on .etp-info{display:block}
     #sp-etp .etp-top.info-on .etp-fbtn{border-style:solid}
+    /* 머리 한 줄 + 숫자 카드 (2026-10-27 세 번째) */
+    #sp-etp .etp-top{margin-bottom:10px}
+    #sp-etp .etp-ttl{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:800;color:var(--tx1)}
+    #sp-etp .etp-ttl > span{font-size:11.5px;font-weight:500;color:var(--tx3)}
+    #sp-etp .etp-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+    #sp-etp .etp-tile{position:relative;background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:9px 12px;min-width:0}
+    #sp-etp .etp-tile[onclick]{cursor:pointer}
+    #sp-etp .etp-tile[onclick]:hover{border-color:var(--b2)}
+    #sp-etp .etp-tile .lb{font-size:11px;color:var(--tx2);font-weight:600}
+    #sp-etp .etp-tile .v{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:900;color:var(--tx1);margin-top:2px}
+    #sp-etp .etp-tile .v small{font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:500;color:var(--tx3);margin-left:3px}
+    #sp-etp .etp-tile .sb{font-size:10.5px;color:var(--tx3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #sp-etp .etp-tile.warn{border-color:rgba(234,108,0,.45);background:rgba(234,108,0,.05)}
+    #sp-etp .etp-tile.warn .v,#sp-etp .etp-tile.warn .sb{color:var(--acc2)}
+    #sp-etp .etp-tile.act{padding-right:64px}
+    #sp-etp .etp-tbtn{position:absolute;right:10px;top:50%;transform:translateY(-50%);padding:5px 12px;border:none;border-radius:14px;background:var(--acc2);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
+    #sp-etp .etp-tbtn.red{background:var(--acc4)}
     /* 도구 줄 — 거르기 · 보기 · 검색 · 개수 */
     #sp-etp .etp-listwrap{margin-top:12px}
     #sp-etp .etp-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
@@ -1383,16 +1390,18 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <style>
     @media (max-width:560px){
       #sp-etp{padding-top:10px!important}
-      #sp-etp .etp-top .card-ttl{font-size:13px}
+      #sp-etp .etp-ttl{font-size:14px;flex-wrap:wrap}
       #sp-etp .m-fold > .card-ttl::after{content:'▾';margin-left:6px;color:var(--tx3);font-size:11px}
       #sp-etp .m-fold.m-open > .card-ttl::after{content:'▴'}
-      #sp-etp .etp-top-r2{margin-top:6px;gap:6px;font-size:11px}
+      #sp-etp .etp-tiles{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+      #sp-etp .etp-tile{padding:7px 8px}
+      #sp-etp .etp-tile .sb{display:none}
+      #sp-etp .etp-tile .lb{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      #sp-etp .etp-tile.act{padding-right:8px}
+      #sp-etp .etp-tbtn{position:static;transform:none;margin-top:4px;padding:3px 10px;font-size:11px}
+      #sp-etp .etp-tile .v{font-size:15px}
       #sp-etp .etp-top-btns{width:100%;flex-wrap:nowrap}
       #sp-etp .etp-top-btns .etp-sbtn{flex:1 1 0;min-width:0;padding:7px 4px;font-size:11.5px}
-      #sp-etp .etp-head b{font-size:16px!important}
-      #sp-etp .etp-head > div:first-child{gap:10px!important}
-      #sp-etp .etp-todo span{font-size:11.5px!important}
-      #sp-etp .etp-todo button{padding:4px 11px!important;font-size:11px!important}
       #sp-etp .m-fold > .card-ttl{cursor:pointer}
       #sp-etp .m-fold:not(.m-open) > :not(.card-ttl){display:none}
       #sp-etp .m-fold > .card-ttl button{display:none}
@@ -25489,7 +25498,7 @@ function renderEtp(){
   /* 누적 출고 — 올라온 납품서 전부(AS 포함)를 유리로 펼친 합 (사장님 2026-10-13 「여태 누적수량도 볼 수 있었으면」).
      월평균(안전재고의 바탕)과 따로 봅니다 — 월평균은 ETP_SIZE_MASTER 고정표입니다. */
   try{ const cm = etpMeasured({ includeAS:true }); rows.forEach(r => { r.cumOut = cm.bySize[r.size] || 0; }); window._etpCumFrom = cm.from || ''; }catch(e){ console.warn('[에토프] 누적', e); }
-  const head = etpHeadHtml(rows);
+  const head = etpTilesHtml(rows);   // 숫자 카드 한 줄 (예전 etpHeadHtml + etpTodoHtml)
   const art = (function(){ try{ return artCmpHtml(rows); }catch(e){ console.warn('[아티팩트 맞춰 보기]', e); return ''; } })();   // 🔁 2026-10-13 → 관리 도구 안
 
   /* 📋 SKU 표 — 직원 아티팩트를 본떠 이것이 화면의 주인입니다 (사장님 2026-10-27 「이게 메인으로 … 내꺼는 너무 복잡해」).
@@ -25547,7 +25556,7 @@ function renderEtp(){
     ['po',     '📥 발주서·발주 기록', poN, () => etpPoCardHtml()],
     ['defect', '🚫 불량', 0, () => etpDefectCardHtml()],
     ['draft',  '🧾 발주 초안', 0, () => etpDraftCardHtml()],
-    ['tools',  '⚙ 관리 도구', chkN, () => etpCheckCardHtml() + etpLookupCardHtml() + etpMeasureCardHtml() + art]
+    ['tools',  '⚙ 관리 도구', chkN, () => etpSetCardHtml() + etpCheckCardHtml() + etpLookupCardHtml() + etpMeasureCardHtml() + art]
   ];
   const foldBlock =
     '<div class="etp-folds">' +
@@ -25558,7 +25567,7 @@ function renderEtp(){
       folds.map(f => '<div class="etp-fold' + (etpFoldIs(f[0]) ? ' on' : '') + '" data-k="' + f[0] + '">' + f[3]() + '</div>').join('') +
     '</div>';
 
-  el.innerHTML = head + etpTodoHtml() + listBlock + foldBlock;
+  el.innerHTML = head + listBlock + foldBlock;
 
   // 글자를 치던 자리를 잃지 않게 커서를 되돌립니다
   const s = document.getElementById('etp-search');
@@ -25751,6 +25760,64 @@ function etpFoldToggle(k, force){
   document.querySelectorAll('#sp-etp .etp-fold[data-k="' + k + '"], #sp-etp .etp-fold-bar [data-k="' + k + '"]').forEach(x => x.classList.toggle('on', !!st[k]));
 }
 function etpToolsToggle(force){ etpFoldToggle('tools', force); }   // 예전 이름 — 남은 부름을 위해
+
+/* ── 숫자 카드 한 줄 (사장님 2026-10-27 「이 부분이 너무 복잡해 … 상단에 작은 카드배너처럼」)
+   예전 요약 카드(etpHeadHtml)와 「지금 하실 일」(etpTodoHtml)을 작은 카드 한 줄로 합칩니다. 숫자는 같은 함수 그대로.
+   「N개 사이즈가 모자랍니다 — 발주 초안」 줄은 뺐습니다 — 아래 표의 「발주 필요」 거르기가 같은 것을 보여 줍니다. */
+function etpTilesHtml(rows){
+  const total  = rows.reduce((s, r) => s + r.cur, 0);
+  const shortN = rows.filter(r => r.short).length;
+  const onOrd  = rows.reduce((s, r) => s + r.onOrder, 0);
+  const lastIn = etpLastDate('in'), lastOut = etpLastDate('out');
+  const gap = lastOut ? etpBizGap(lastOut, todayStr()) : 0;
+  const late = !!lastOut && gap >= ETP_LATE_BIZ;
+  const dl = (function(){ try{ return etpDeductList().wait.filter(x => x.choice === 'out'); }catch(e){ return []; } })();
+  const dlQ = dl.reduce((s, x) => s + x.total, 0);
+  const chk = (function(){ try{ return etpCheckSizes().filter(x => x.ovr == null).length; }catch(e){ return 0; } })();
+
+  const tile = (lbl, val, sub, opt) => {
+    opt = opt || {};
+    return '<div class="etp-tile' + (opt.cls ? ' ' + opt.cls : '') + '"' + (opt.go ? ' onclick="' + opt.go + '"' : '') + (opt.title ? ' title="' + etpEsc(opt.title) + '"' : '') + '>' +
+      '<div class="lb">' + lbl + '</div>' +
+      '<div class="v">' + val + '</div>' +
+      (sub ? '<div class="sb">' + sub + '</div>' : '') +
+      (opt.btn || '') +
+    '</div>';
+  };
+  const t = [
+    tile('총 재고', total + '<small>장</small>', '', { title:'사이즈별 재고를 다 더한 것' }),
+    tile('부족', shortN + '<small>품목</small>', '안전재고 미만', { cls: shortN ? 'warn' : '', go:"etpSetFilter('short');etpJump('etp-list')" }),
+    tile('발주중', onOrd + '<small>장</small>', '아직 안 들어온 것', { go:"etpJump('etp-po')" }),
+    tile('납품서 반영', etpMd(lastOut) + '<small>출고</small>', late ? gap + '영업일 밀림 — 재고가 실제보다 많아 보입니다' : '입고 ' + etpMd(lastIn),
+         { cls: late ? 'warn' : '', title: lastOut ? '' : '아직 출고 반영 없음 — 차감 시작일 ' + etpMd(etpCutover) })
+  ];
+  if(dl.length) t.push(tile('📤 재고에서 안 빠짐', dl.length + '<small>건 · ' + dlQ + '장</small>', '올라온 납품서',
+    { cls:'act', btn:'<button class="etp-tbtn red" onclick="event.stopPropagation();etpApplyDeduct()">빼기</button>' }));
+  if(chk) t.push(tile('⚠ 월평균 모름', chk + '<small>사이즈</small>', '안전재고를 못 정함',
+    { cls:'act', go:"etpJump('etp-check')", btn:'<button class="etp-tbtn" onclick="event.stopPropagation();etpJump(\'etp-check\')">보기</button>' }));
+  return '<div class="etp-tiles">' + t.join('') + '</div>';
+}
+
+/* ⚙ 재고 기준 — 목표채우기/정상운영 · 안전재고 기준일수. 머리에서 관리 도구 안으로 옮겼습니다(자주 안 바꿉니다).
+   id(etp-days)·class(etp-mode-btn)는 그대로라 etpSetMode·etpSetDays·renderEtp 끝의 맞추기가 그대로 돕니다. */
+function etpSetCardHtml(){
+  return '<div class="card" id="etp-set">' +
+    '<div class="card-ttl"><span>⚙ 재고 기준</span></div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px">' +
+      '<div class="filter-row" style="margin-bottom:0">' +
+        '<button class="f-btn etp-mode-btn' + (etpMode === 'fill' ? ' on' : '') + '" data-mode="fill" onclick="etpSetMode(\'fill\')">목표채우기</button>' +
+        '<button class="f-btn etp-mode-btn' + (etpMode === 'normal' ? ' on' : '') + '" data-mode="normal" onclick="etpSetMode(\'normal\')">정상운영</button>' +
+      '</div>' +
+      '<span style="font-size:11px;color:var(--tx2)">안전재고 기준</span>' +
+      '<input type="number" id="etp-days" min="1" max="120" value="' + etpSafetyDays + '" onchange="etpSetDays(this.value)" style="width:64px;padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-family:\'JetBrains Mono\',monospace">' +
+      '<span style="font-size:11px;color:var(--tx3)">영업일치</span>' +
+    '</div>' +
+    '<div class="info-note" style="margin-top:8px">' +
+      '<b>안전재고</b> = 한 달 평균 ÷ 20영업일 × 이 기준일수 (최소 3장). 지금 <b>' + etpSafetyDays + '영업일치</b>를 들고 있으면 「정상」, 모자라면 「부족」입니다.<br>' +
+      '<b>목표채우기</b> — 재고를 처음 쌓는 동안의 보기. <b>정상운영</b> — 같은 판정에, 줄을 펼치면 최근 3개월 납품서로 다시 센 월평균(실측)을 곁들입니다.' +
+    '</div></div>';
+}
+function etpGoSettings(){ etpJump('etp-set'); }   // 메뉴 「기준정보·설정 › 에토프 안전재고」
 
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -31737,7 +31804,7 @@ var GNAV_MENU=[
   { c:'기준정보·설정', items:[
     { t:'거래처', m:'vendors' },
     { t:'모델·규격', m:'stock', s:'spec' },
-    { t:'에토프 안전재고', m:'stock', s:'etp', el:'etp-days' },
+    { t:'에토프 안전재고', m:'stock', s:'etp', fn:'etpGoSettings' },
     { t:'설정', m:'settings' },
   ]},
 ];
