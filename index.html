@@ -1286,39 +1286,97 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       </div>
     </div>
     <div id="etp-body"></div>
-    <!-- 배치 (2026-10-27 사장님 「배치안대로」) — 1400px 이상 두 단(왼쪽 목록 · 오른쪽 발주·차감·입고·불량),
-         900px 이상 사이즈 목록은 열 맞춘 표, 가끔 쓰는 넷은 맨 아래 「관리 도구」에 접어 둠. 계산·저장은 그대로 -->
+    <!-- 배치 (2026-10-27 두 번째 — 직원 아티팩트 본뜸 「이게 메인으로」) — SKU 표가 화면의 주인, 나머지는 단추 뒤에 접음. 계산·저장은 그대로 -->
     <style>
     #sp-etp .etp-top-r1{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap}
     #sp-etp .etp-top-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
     #sp-etp .etp-sbtn{padding:6px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--tx1);font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap}
     #sp-etp .etp-sbtn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700;padding:6px 16px}
     #sp-etp .etp-top-r2{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
-    #sp-etp .etp-fbtn{padding:4px 10px;border:1px dashed var(--b2);border-radius:7px;background:none;color:var(--tx2);font-size:11px;cursor:pointer;font-family:inherit}
+    #sp-etp .etp-fbtn{padding:5px 11px;border:1px dashed var(--b2);border-radius:7px;background:none;color:var(--tx2);font-size:11.5px;cursor:pointer;font-family:inherit}
+    #sp-etp .etp-fbtn.on{border-style:solid;color:var(--tx1);background:var(--s2)}
     #sp-etp .etp-top .etp-info{display:none}
     #sp-etp .etp-top.info-on .etp-info{display:block}
     #sp-etp .etp-top.info-on .etp-fbtn{border-style:solid}
-    #sp-etp .etp-tools{margin-top:14px}
-    #sp-etp .etp-tools-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    #sp-etp .etp-tools-bar .etp-fbtn::after{content:' ▾'}
-    #sp-etp .etp-tools.on .etp-tools-bar .etp-fbtn{border-style:solid}
-    #sp-etp .etp-tools.on .etp-tools-bar .etp-fbtn::after{content:' ▴'}
-    #sp-etp .etp-tools-in{display:none;margin-top:8px}
-    #sp-etp .etp-tools.on .etp-tools-in{display:block}
-    /* 사이즈 목록 — 넓으면 칸, 좁으면 예전 꼬리말 한 줄 */
-    #sp-etp .etp-xc,#sp-etp .etp-tw{display:none}
-    #sp-etp .etp-xc{flex:none;text-align:right;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--tx2)}
-    #sp-etp .etp-xc.mdl{text-align:left;font-family:inherit;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    @media (min-width:900px){
-      #sp-etp .etp-xc{display:block}
-      #sp-etp .etp-tn{display:none}
-      #sp-etp .etp-tw{display:block}
-    }
+    /* 도구 줄 — 거르기 · 보기 · 검색 · 개수 */
+    #sp-etp .etp-listwrap{margin-top:12px}
+    #sp-etp .etp-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+    #sp-etp .etp-seg{display:inline-flex;border:1px solid var(--b2);border-radius:8px;overflow:hidden;background:var(--s1)}
+    #sp-etp .etp-seg button{border:none;border-left:1px solid var(--b2);background:none;padding:7px 11px;font-size:12px;color:var(--tx2);cursor:pointer;font-family:inherit;white-space:nowrap}
+    #sp-etp .etp-seg button:first-child{border-left:none}
+    #sp-etp .etp-seg button.on{background:rgba(29,111,181,.10);color:var(--acc);font-weight:700}
+    #sp-etp .etp-seg .n{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--tx3);margin-left:2px}
+    #sp-etp .etp-q{width:240px;padding:7px 11px;border:1px solid var(--b2);border-radius:8px;background:var(--s1);color:var(--tx1);font-size:12px;font-family:inherit}
+    #sp-etp .etp-cnt{font-size:11px;color:var(--tx3);font-family:'JetBrains Mono',monospace}
+    /* SKU 표 */
+    #sp-etp .etp-tbl-wrap{background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow-x:auto}
+    #sp-etp table.etp-tbl{width:100%;border-collapse:collapse;min-width:880px}
+    #sp-etp .etp-tbl th{background:var(--s3);color:var(--tx2);font-size:11px;font-weight:700;text-align:right;padding:9px 12px;border-bottom:1px solid var(--b1);white-space:nowrap;cursor:pointer;user-select:none}
+    #sp-etp .etp-tbl th .srt{color:var(--tx3);font-weight:400}
+    #sp-etp .etp-tbl td{padding:9px 12px;border-bottom:1px solid var(--b1);text-align:right;vertical-align:middle;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--tx2);white-space:nowrap}
+    #sp-etp .etp-tbl .l{text-align:left}
+    #sp-etp .etp-tbl td.b{font-weight:800;color:var(--tx1);font-size:13.5px}
+    #sp-etp .etp-tbl .z{color:var(--tx3)}
+    #sp-etp .etp-tbl td.sku{font-family:inherit;white-space:normal;border-left:3px solid transparent;cursor:pointer;min-width:170px}
+    #sp-etp .etp-tbl tr.minus td.sku{border-left-color:var(--acc4)}
+    #sp-etp .etp-tbl tr.short td.sku{border-left-color:var(--acc2)}
+    #sp-etp .etp-tbl tr.open td{background:var(--s2)}
+    #sp-etp .etp-tbl .sku .sz{font-family:'JetBrains Mono',monospace;font-size:13.5px;font-weight:700;color:var(--tx1)}
+    #sp-etp .etp-tbl .sku .m{font-size:10.5px;color:var(--tx3);line-height:1.5;margin-top:2px}
+    #sp-etp .etp-tbl tr.etp-det td{text-align:left;font-family:inherit;white-space:normal;background:var(--s2);padding:10px 14px 12px}
+    #sp-etp .etp-pill{display:inline-block;padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;color:var(--tx3)}
+    #sp-etp .etp-pill.minus{background:rgba(220,38,38,.08);color:var(--acc4);border:1px solid rgba(220,38,38,.35)}
+    #sp-etp .etp-pill.short{background:rgba(234,108,0,.08);color:var(--acc2);border:1px solid rgba(234,108,0,.35)}
+    #sp-etp .etp-need{display:inline-block;padding:2px 9px;border-radius:11px;font-weight:800;background:rgba(234,108,0,.08);color:var(--acc2);border:1px solid rgba(234,108,0,.35)}
+    #sp-etp .etp-lr{font-family:'Noto Sans KR',sans-serif;font-size:10.5px;font-weight:700;color:var(--acc5);border:1px solid var(--acc5);border-radius:10px;padding:0 6px;margin-left:3px}
+    #sp-etp .etp-tag{font-family:'Noto Sans KR',sans-serif;font-size:9.5px;font-weight:700;color:var(--tx3);border:1px solid var(--b2);border-radius:8px;padding:0 5px;margin-left:3px}
+    #sp-etp .etp-tag.w{color:var(--acc2);border-color:var(--acc2)}
+    #sp-etp .etp-add{padding:4px 10px;border:1px solid var(--acc);border-radius:7px;background:none;color:var(--acc);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
+    #sp-etp .etp-add.q{border-color:var(--b2);color:var(--tx3);font-weight:500}
+    #sp-etp .etp-add.in{background:var(--acc);color:#fff}
+    /* 🛒 담은 것 — 표를 보는 동안 화면 아래에 붙어 있음 */
+    #sp-etp .etp-cart{position:sticky;bottom:12px;z-index:5;margin-top:10px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 14px;border:1px solid var(--acc);border-radius:10px;background:var(--s1);box-shadow:0 4px 16px rgba(0,0,0,.12);font-size:12px;color:var(--tx2)}
+    #sp-etp .etp-cart.empty{border-color:var(--b2);box-shadow:none;position:static}
+    #sp-etp .etp-cart .items{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+    #sp-etp .etp-cart .it{display:inline-flex;align-items:center;gap:4px;padding:3px 6px 3px 9px;border:1px solid var(--b2);border-radius:14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--tx1)}
+    #sp-etp .etp-cart .it input{width:44px;padding:1px 4px;border:1px solid var(--b2);border-radius:5px;background:var(--s2);color:var(--tx1);font-family:inherit;font-size:11.5px;text-align:right}
+    #sp-etp .etp-cart .it .x{cursor:pointer;color:var(--tx3);padding:0 3px}
+    #sp-etp .etp-cart .btns{display:flex;gap:6px;margin-left:auto}
+    /* 접는 칸 */
+    #sp-etp .etp-folds{margin-top:16px}
+    #sp-etp .etp-fold-bar{display:flex;flex-wrap:wrap;gap:6px}
+    #sp-etp .etp-fold{display:none;margin-top:8px}
+    #sp-etp .etp-fold.on{display:block}
     @media (min-width:1400px){
       #pg-stock.sec-pg:has(> #sp-etp:not([style*="none"])){max-width:min(1800px,calc(100vw - 48px))}
-      #sp-etp .etp-wide{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;align-items:start}
-      #sp-etp .etp-side{position:sticky;top:150px;max-height:calc(100vh - 165px);overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
-      #sp-etp .etp-side > .card:first-child{margin-top:0}
+    }
+    @media (max-width:900px){
+      /* 태블릿 — 총입고·총출고·불량은 줄을 펼치면 보입니다 */
+      #sp-etp table.etp-tbl{min-width:0}
+      #sp-etp .etp-tbl .c-io,#sp-etp .etp-tbl th .srt{display:none}
+      #sp-etp .etp-tbl th,#sp-etp .etp-tbl td{padding-left:8px;padding-right:8px}
+    }
+    @media (max-width:700px){
+      #sp-etp table.etp-tbl{min-width:0}
+      #sp-etp .etp-tbl .c-opt{display:none}
+      #sp-etp .etp-tbl th,#sp-etp .etp-tbl td{padding:8px 6px}
+      #sp-etp .etp-tbl td.sku{min-width:0}
+      #sp-etp .etp-q{width:100%}
+      #sp-etp .etp-bar .etp-seg:first-child{display:flex;overflow-x:auto;max-width:100%}
+      #sp-etp .etp-cart{bottom:calc(64px + env(safe-area-inset-bottom))}
+      #sp-etp .etp-cart .btns{width:100%;justify-content:flex-end}
+    }
+    @media (max-width:560px){
+      /* 휴대폰 — 표는 사이즈·상태·재고·권장·담기만, 담은 것 띠는 한 줄(무엇을 담았는지는 표의 ✓ 로) */
+      #sp-etp .etp-tbl .c-ord,#sp-etp .etp-tbl .c-st,#sp-etp .etp-tbl th .srt{display:none}  /* 상태는 왼쪽 띠·재고 숫자 색으로 */
+      #sp-etp .etp-tbl th,#sp-etp .etp-tbl td{padding:8px 4px;font-size:12px}
+      #sp-etp .etp-tbl th:first-child,#sp-etp .etp-tbl td:first-child{padding-left:8px}
+      #sp-etp .etp-pill,#sp-etp .etp-need{padding:1px 6px;font-size:10.5px}
+      #sp-etp .etp-add{padding:3px 7px;font-size:11px}
+      #sp-etp .etp-lr{display:inline-block;margin:2px 0 0}
+      #sp-etp .etp-cart{padding:8px 10px;gap:6px}
+      #sp-etp .etp-cart .items,#sp-etp .etp-cart .more{display:none}
+      #sp-etp .etp-cart .btns{width:auto}
     }
     </style>
     <!-- 휴대폰 정리 (2026-10-26 「정보가 과다」) — 아티팩트 칸은 제목을 눌러 펼침, 단추는 작게. PC 는 그대로 -->
@@ -24794,7 +24852,7 @@ function etpSeedIn(seed){
 // ── 화면 ─────────────────────────────────────────────────────────────
 /* 기존 앱의 3단 구조를 따릅니다: 헤드라인 → 필터칩 → 리스트.
    색은 빨강(부족)·주황(밀림) 둘뿐입니다. 늘리면 어느 것이 급한지 안 보입니다. */
-var etpFilter = 'short';                 // 'short'(기본) | 'all' | 'over' | 'nomaster'
+var etpFilter = 'need';                  // 'need'(기본 — 발주 필요) · all · minus · short · ok · over · nomaster (2026-10-27)
 var etpOpen   = {};                      // {size:true} 펼쳐 둔 줄
 var etpSearchKey = '';
 
@@ -24910,7 +24968,7 @@ function etpTodoHtml(){
     todo.push({
       color:'var(--acc)', ico:'🧾',
       text:'<b>' + short.length + '개 사이즈</b>가 모자랍니다 — 발주 초안을 뽑을 수 있습니다',
-      btn:'보기', fn:'etpJump(\'etp-draft\')'
+      btn:'보기', fn:'etpSetFilter(\'need\');etpJump(\'etp-list\')'
     });
   }
   if(!todo.length) return '';
@@ -24924,26 +24982,12 @@ function etpTodoHtml(){
       '</div>').join('') +
   '</div>';
 }
-/* ⚙ 관리 도구 펼침 — 이 기기에만 기억 (var: 앱을 막 열 때 renderEtp 가 먼저 돌아도 TDZ 가 안 나게, 12-57) */
-var etpToolsOpen = null;
-function etpToolsOpenGet(){
-  if(etpToolsOpen == null){ try{ etpToolsOpen = localStorage.getItem('ybn-etp-tools-open-v1') === '1'; }catch(e){ etpToolsOpen = false; } }
-  return etpToolsOpen;
-}
-function etpToolsToggle(force){
-  etpToolsOpen = (force === true) ? true : !etpToolsOpenGet();
-  try{ localStorage.setItem('ybn-etp-tools-open-v1', etpToolsOpen ? '1' : '0'); }catch(e){}
-  document.querySelectorAll('#sp-etp .etp-tools').forEach(t => t.classList.toggle('on', etpToolsOpen));
-}
-
-// 아래 카드로 데려다 줍니다
+// 아래 카드로 데려다 줍니다 — 접힌 칸(etpFoldToggle) 안이면 먼저 펼칩니다
 function etpJump(id){
   const el = document.getElementById(id);
   if(!el) return;
-  const tl = el.closest('.etp-tools');
-  if(tl && !tl.classList.contains('on')) etpToolsToggle(true);   // 접힌 관리 도구 안이면 먼저 펼칩니다
-  const sd = el.closest('.etp-side');                                  // 오른쪽 칸 안이면 그 칸만 굴립니다
-  if(sd && getComputedStyle(sd).overflowY === 'auto'){ sd.scrollTop = el.offsetTop - sd.offsetTop; }
+  const fd = el.closest('.etp-fold');
+  if(fd && !fd.classList.contains('on')) etpFoldToggle(fd.getAttribute('data-k'), true);
   el.scrollIntoView({ behavior:'smooth', block:'start' });
   el.style.transition = 'box-shadow .4s';
   el.style.boxShadow = '0 0 0 3px var(--acc2)';
@@ -25161,7 +25205,7 @@ function etpModelListHtml(){
   let list = etpModelRows();
   const k = etpSearchKey;
   if(k) list = list.filter(m => etpFuzzy(m.model, k) || m.glass.some(g => etpFuzzy(g.key, k.replace(/[x*×\s]/g, 'x'))));
-  if(etpFilter === 'short') list = list.filter(m => m.short);
+  if(etpFilter === 'short' || etpFilter === 'need' || etpFilter === 'minus') list = list.filter(m => m.short);
   if(etpFilter === 'over')  list = list.filter(m => !m.short && m.sets >= 20);
   if(etpFilter === 'nomaster') list = list.filter(m => m.glass.some(g => !etpInMaster(g.key)));
   if(!list.length) return '<div class="card"><div class="empty"><div class="empty-ico">🔍</div>해당하는 모델이 없습니다</div></div>';
@@ -25448,62 +25492,73 @@ function renderEtp(){
   const head = etpHeadHtml(rows);
   const art = (function(){ try{ return artCmpHtml(rows); }catch(e){ console.warn('[아티팩트 맞춰 보기]', e); return ''; } })();   // 🔁 2026-10-13 → 관리 도구 안
 
-  const shown = rows.filter(r => {
-    if(!etpMatchRow(r)) return false;
-    if(etpFilter === 'short')    return r.short;
-    if(etpFilter === 'over')     return r.over;
-    if(etpFilter === 'nomaster') return r.noMaster;
-    return true;
-  });
+  /* 📋 SKU 표 — 직원 아티팩트를 본떠 이것이 화면의 주인입니다 (사장님 2026-10-27 「이게 메인으로 … 내꺼는 너무 복잡해」).
+     숫자는 다 있던 것 — 재고·발주중·안전재고·월평균은 etpBuildRows, 권장발주는 etpDraftOrder(발주 초안과 같은 값),
+     불량은 에토프 장부의 불량 출고(etpIsDefect), 총출고 = 출고 − 불량. 발주점·「주의」는 우리 앱에 정한 규칙이 없어 넣지 않았습니다. */
+  const need = {};
+  try{ etpDraftOrder().forEach(x => { need[x.size] = x.qty; }); }catch(e){ console.warn('[에토프] 권장발주', e); }
+  const defQ = {};
+  try{ etpRows().forEach(x => { if(etpIsDefect(x)) defQ[x.size] = (defQ[x.size] || 0) + (Number(x.qty) || 0); }); }catch(e){}
+  rows.forEach(r => { r.need = need[r.size] || 0; r.def = defQ[r.size] || 0; r.shipOut = r.out - r.def; });
 
-  const cnt = {
-    short: rows.filter(r => r.short).length,
-    all: rows.length,
-    over: rows.filter(r => r.over).length,
-    nomaster: rows.filter(r => r.noMaster).length
-  };
-  const chip = (id, label) =>
-    '<button class="f-btn' + (etpFilter === id ? ' on' : '') + '" onclick="etpSetFilter(\'' + id + '\',this)">' + label + ' ' + cnt[id] + '</button>';
+  const FILTERS = [
+    ['all',      '전체',      r => true],
+    ['minus',    '마이너스',  r => r.cur < 0],
+    ['need',     '발주 필요', r => r.need > 0],
+    ['short',    '부족',      r => r.short],
+    ['ok',       '정상',      r => !r.short && !r.over && r.cur >= 0],
+    ['over',     '과잉',      r => r.over],
+    ['nomaster', '확인 필요', r => r.noMaster]
+  ];
+  const fx = FILTERS.find(f => f[0] === etpFilter) || FILTERS[0];
+  let shown = rows.filter(r => etpMatchRow(r) && fx[2](r));
+  shown = etpSortRows(shown);
+
+  const chips = FILTERS.map(f =>
+    '<button class="' + (etpFilter === f[0] ? 'on' : '') + '" onclick="etpSetFilter(\'' + f[0] + '\')">' + f[1] +
+    ' <span class="n">' + rows.filter(f[2]).length + '</span></button>').join('');
 
   const list = (etpListBy === 'model')
     ? etpModelListHtml(rows)
-    : (shown.length
-        ? '<div class="card" style="padding:0;overflow:hidden">' +
-            '<div style="display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--s3);border-bottom:1px solid var(--b1);font-size:10.5px;font-weight:700;color:var(--tx2)">' +
-              '<span style="flex:1">사이즈</span><span class="etp-xc mdl" style="width:170px;font-size:10.5px">쓰는 모델</span><span style="width:52px;text-align:right">재고</span><span style="width:44px;text-align:right">안전</span>' +
-            '<span class="etp-xc" style="width:50px;font-size:10.5px;font-family:inherit">한 달</span><span class="etp-xc" style="width:56px;font-size:10.5px;font-family:inherit">영업일치</span><span class="etp-xc" style="width:50px;font-size:10.5px;font-family:inherit">발주중</span><span class="etp-xc" style="width:50px;font-size:10.5px;font-family:inherit">누적</span>' +
-            '<span style="width:44px;text-align:right">상태</span><span style="width:8px"></span></div>' +
-            shown.map(etpRowHtml).join('') + '</div>'
+    : (shown.length ? etpTableHtml(shown)
         : '<div class="card"><div class="empty"><div class="empty-ico">🔍</div>해당하는 사이즈가 없습니다</div></div>');
 
-  // 관리 도구 — 가끔 쓰는 넷을 맨 아래에 접어 둡니다. 「확인 필요」가 남았으면 단추 옆에 건수(할 일이라 주황)
-  const chkN = (function(){ try{ return etpCheckSizes().filter(x => x.ovr == null).length; }catch(e){ return 0; } })();
-  const tools =
-    '<div class="etp-tools' + (etpToolsOpenGet() ? ' on' : '') + '">' +
-      '<div class="etp-tools-bar"><button class="etp-fbtn" onclick="etpToolsToggle()">⚙ 관리 도구</button>' +
-        '<span style="font-size:11px;color:var(--tx3)">월평균 확인 필요' + (chkN ? ' <b style="color:var(--acc2)">' + chkN + '</b>' : '') + ' · 오더번호로 되짚기 · 실측 대조 · 아티팩트 맞춰 보기</span></div>' +
-      '<div class="etp-tools-in">' + etpCheckCardHtml() + etpLookupCardHtml() + etpMeasureCardHtml() + art + '</div>' +
+  const listBlock =
+    '<div class="etp-listwrap" id="etp-list">' +
+      '<div class="etp-bar">' +
+        '<div class="etp-seg">' + chips + '</div>' +
+        '<div class="etp-seg">' +
+          '<button class="' + (etpListBy === 'size' ? 'on' : '') + '" onclick="etpSetListBy(\'size\')">사이즈</button>' +
+          '<button class="' + (etpListBy === 'model' ? 'on' : '') + '" onclick="etpSetListBy(\'model\')">모델명</button>' +
+        '</div>' +
+        '<input class="etp-q" id="etp-search" value="' + etpEsc(etpSearchKey) + '" placeholder="규격·모델 검색 (445729, M4573…)" oninput="etpOnSearch(this.value)">' +
+        '<span class="etp-cnt">' + (etpListBy === 'model' ? '' : shown.length + ' / ' + rows.length + '종') + '</span>' +
+      '</div>' +
+      list +
+      etpBuyBarHtml(rows) +
     '</div>';
 
-  el.innerHTML =
-    head +
-    '<div class="etp-wide"><div class="etp-main">' +
-    etpTodoHtml() +
-    '<div class="filter-row" style="margin-top:10px;margin-bottom:6px">' +
-      '<span style="font-size:11px;color:var(--tx2);align-self:center;margin-right:2px">보기</span>' +
-      '<button class="f-btn' + (etpListBy === 'size' ? ' on' : '') + '" onclick="etpSetListBy(\'size\')">📐 사이즈</button>' +
-      '<button class="f-btn' + (etpListBy === 'model' ? ' on' : '') + '" onclick="etpSetListBy(\'model\')">🚪 모델명</button>' +
-    '</div>' +
-    '<div class="filter-row" style="margin-top:0">' + chip('short', '부족만') + chip('all', '전체') + chip('over', '과잉') + chip('nomaster', '확인 필요') + '</div>' +
-    '<input class="inp" id="etp-search" value="' + etpEsc(etpSearchKey) + '" placeholder="🔍 사이즈 / 모델명 검색..." oninput="etpOnSearch(this.value)">' +
-    list +
-    '</div><div class="etp-side">' +      // 오른쪽 — 매일 손이 가는 발주·차감·입고·불량 (좁으면 목록 아래로)
-    etpDraftCardHtml() +
-    etpDeductCardHtml() +
-    etpPoCardHtml() +
-    etpDefectCardHtml() +
-    '</div></div>' +
-    tools;
+  // 나머지는 접어 둡니다 — 단추 한 줄, 누르면 그 칸만 펼침 (이 기기에 기억)
+  const chkN = (function(){ try{ return etpCheckSizes().filter(x => x.ovr == null).length; }catch(e){ return 0; } })();
+  const dedN = (function(){ try{ return etpDeductList().wait.filter(x => x.choice === 'out').length; }catch(e){ return 0; } })();
+  const poN  = Array.isArray(etpPOs) ? etpPOs.filter(p => p && !p.canceled && etpPoStatus(p) !== 'done').length : 0;
+  const folds = [
+    ['deduct', '📤 납품서 차감', dedN, () => etpDeductCardHtml()],
+    ['po',     '📥 발주서·발주 기록', poN, () => etpPoCardHtml()],
+    ['defect', '🚫 불량', 0, () => etpDefectCardHtml()],
+    ['draft',  '🧾 발주 초안', 0, () => etpDraftCardHtml()],
+    ['tools',  '⚙ 관리 도구', chkN, () => etpCheckCardHtml() + etpLookupCardHtml() + etpMeasureCardHtml() + art]
+  ];
+  const foldBlock =
+    '<div class="etp-folds">' +
+      '<div class="etp-fold-bar">' + folds.map(f =>
+        '<button class="etp-fbtn' + (etpFoldIs(f[0]) ? ' on' : '') + '" data-k="' + f[0] + '" onclick="etpFoldToggle(\'' + f[0] + '\')">' + f[1] +
+        (f[2] ? ' <b style="color:var(--acc2)">' + f[2] + '</b>' : '') + '</button>').join('') +
+      '</div>' +
+      folds.map(f => '<div class="etp-fold' + (etpFoldIs(f[0]) ? ' on' : '') + '" data-k="' + f[0] + '">' + f[3]() + '</div>').join('') +
+    '</div>';
+
+  el.innerHTML = head + etpTodoHtml() + listBlock + foldBlock;
 
   // 글자를 치던 자리를 잃지 않게 커서를 되돌립니다
   const s = document.getElementById('etp-search');
@@ -25515,6 +25570,187 @@ function renderEtp(){
     b.classList.toggle('on', b.getAttribute('data-mode') === etpMode);
   });
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   📋 에토프 SKU 표 · 🛒 담기 · 접는 칸 (사장님 2026-10-27 — 직원 아티팩트 벤치마킹)
+   모양·편의만. 재고·안전재고·권장발주 계산은 예전 함수 그대로입니다.
+   ══════════════════════════════════════════════════════════════════════ */
+// 열 머리를 누르면 그 칸으로 정렬 (한 번 더 누르면 반대로). 비워 두면 예전 차례(월평균 많은 순)
+var etpSortK = '', etpSortD = -1;
+var ETP_SORT_VAL = {
+  sku:   r => r.size,
+  st:    r => (r.cur < 0 ? 0 : r.short ? 1 : r.over ? 3 : 2),
+  cur:   r => r.cur,     ord:  r => r.onOrder,  safe: r => r.safety,  avg: r => r.avg,
+  inq:   r => r.in,      outq: r => r.shipOut,  def:  r => r.def,     need: r => r.need
+};
+function etpSortRows(list){
+  const f = ETP_SORT_VAL[etpSortK];
+  if(!f) return list;
+  return list.slice().sort((a, b) => {
+    const x = f(a), y = f(b);
+    const c = (typeof x === 'string') ? x.localeCompare(y) : (x - y);
+    return c * etpSortD || a.size.localeCompare(b.size);
+  });
+}
+function etpSortBy(k){
+  if(etpSortK === k) etpSortD = -etpSortD;
+  else { etpSortK = k; etpSortD = (k === 'sku' || k === 'st') ? 1 : -1; }
+  renderEtp();
+}
+
+function etpTableHtml(list){
+  const th = (k, label, cls) => '<th class="' + (cls || '') + '" onclick="etpSortBy(\'' + k + '\')">' + label +
+    (etpSortK === k ? (etpSortD > 0 ? ' ▲' : ' ▼') : ' <span class="srt">⇅</span>') + '</th>';
+  const dash = v => (v == null || v === 0) ? '<span class="z">-</span>' : v;
+  const body = list.map(r => {
+    const st  = r.cur < 0 ? 'minus' : r.short ? 'short' : '';
+    const pill = r.cur < 0 ? '<span class="etp-pill minus">● 마이너스</span>'
+              : r.short    ? '<span class="etp-pill short">● 부족</span>'
+              : r.over     ? '<span class="etp-pill">과잉</span>'
+              : '<span class="etp-pill">정상</span>';
+    const lr = r.lr ? ' <span class="etp-lr" title="관통보링이라 좌우를 따로 셉니다">● ' + (r.lr === 'L' ? '좌' : '우') + ' 보링</span>' : '';
+    const tags = (r.nonstd ? ' <span class="etp-tag">비규격</span>' : '') +
+                 (r.noMaster ? ' <span class="etp-tag w" title="한 달에 몇 장 쓰는지 몰라 안전재고를 하한 3장으로 둡니다 — 관리 도구 「확인 필요」에서 채웁니다">' + (r.avgSet ? '월평균 정함' : '확인 필요') + '</span>' : '');
+    const mdl = r.models.length
+      ? r.models.slice(0, 3).map(m => '<div>' + etpEsc(m) + '</div>').join('') + (r.models.length > 3 ? '<div>외 ' + (r.models.length - 3) + '개</div>' : '')
+      : (r.nonstd ? '<div>' + (etpNonStdTail(r) || '건별로 받아 바로 씁니다') + '</div>' : '');
+    const inCart = etpBuyGet()[r.size];
+    const add = inCart
+      ? '<button class="etp-add in" onclick="etpBuyDel(\'' + r.size + '\')" title="담은 것에서 빼기">✓ ' + inCart + '</button>'
+      : '<button class="etp-add' + (r.need ? '' : ' q') + '" onclick="etpBuyAdd(\'' + r.size + '\',' + (r.need || 0) + ')">＋ 담기</button>';
+    const open = !!etpOpen[r.size];
+    const det = !open ? '' :
+      '<tr class="etp-det"><td colspan="12">' +
+        '<div style="font-size:11px;color:var(--tx2);margin-bottom:6px">입고 ' + r.in + ' · 출고 ' + r.out + ' · 조정 ' + (r.adj > 0 ? '+' : '') + r.adj + ' = <b style="color:var(--tx1)">' + r.cur + '</b>' +
+          (r.cover != null ? ' · ' + r.cover + '영업일치' : '') + (r.cumOut ? ' · 누적 출고 ' + r.cumOut + '장' : '') +
+          (etpMode === 'normal' && r.measAvg != null ? ' · <span style="color:var(--acc5)">실측 월 ' + etpDot(r.measAvg) + '</span>' : '') + '</div>' +
+        etpHistoryHtml(r.size) +
+      '</td></tr>';
+    return '<tr class="' + st + (open ? ' open' : '') + '">' +
+      '<td class="l sku" onclick="etpToggleSize(\'' + r.size + '\')">' +
+        '<div class="sz">' + etpBaseSize(r.size).replace('x', '×') + (r.lr ? ' ' + r.lr : '') + lr + tags + '</div>' +
+        '<div class="m">' + mdl + '</div></td>' +
+      '<td class="l c-st">' + pill + '</td>' +
+      '<td class="b"' + (r.cur < 0 ? ' style="color:var(--acc4)"' : r.short ? ' style="color:var(--acc2)"' : '') + '>' + r.cur + '</td>' +
+      '<td class="c-ord" style="color:var(--acc)">' + dash(r.nonstd ? 0 : r.onOrder) + '</td>' +
+      '<td class="c-opt">' + (r.safety || '<span class="z">-</span>') + (r.safetyManual ? '<span title="손으로 정한 값" style="color:var(--acc5)">*</span>' : '') + '</td>' +
+      '<td class="c-opt">' + (r.avg > 0 ? etpDot(r.avg) : '<span class="z">-</span>') + '</td>' +
+      '<td class="c-opt c-io">' + dash(r.in) + '</td>' +
+      '<td class="c-opt c-io">' + dash(r.shipOut) + '</td>' +
+      '<td class="c-opt c-io">' + dash(r.def) + '</td>' +
+      '<td>' + (r.need ? '<span class="etp-need">● ' + r.need + '</span>' : '<span class="z">-</span>') + '</td>' +
+      '<td class="c-add">' + add + '</td>' +
+    '</tr>' + det;
+  }).join('');
+  return '<div class="etp-tbl-wrap"><table class="etp-tbl"><thead><tr>' +
+    th('sku', 'SKU', 'l') + th('st', '상태', 'l c-st') + th('cur', '현재고') + th('ord', '발주중', 'c-ord') +
+    th('safe', '안전재고', 'c-opt') + th('avg', '한 달', 'c-opt') + th('inq', '총입고', 'c-opt c-io') + th('outq', '총출고', 'c-opt c-io') + th('def', '불량', 'c-opt c-io') +
+    th('need', '권장발주') + '<th class="c-add"></th>' +
+    '</tr></thead><tbody>' + body + '</tbody></table></div>';
+}
+
+/* 🛒 담기 — 부족한 사이즈를 장바구니처럼 모아 발주탭으로 (사장님 2026-10-27). 이 기기에만 기억합니다.
+   발주탭에는 칸만 채웁니다 — 기록은 발주탭에서 「💾 발주 리스트에 기록」을 눌러야 됩니다. */
+var etpOrdCart = null;
+function etpBuyGet(){
+  if(etpOrdCart == null){ try{ etpOrdCart = JSON.parse(localStorage.getItem('ybn-etp-cart-v1') || '{}') || {}; }catch(e){ etpOrdCart = {}; } }
+  return etpOrdCart;
+}
+function etpBuySave(){ try{ localStorage.setItem('ybn-etp-cart-v1', JSON.stringify(etpBuyGet())); }catch(e){} }
+function etpBuyAdd(size, q){
+  const n = Number(q) > 0 ? Number(q) : (Number(etpLotSize) || 10);
+  etpBuyGet()[size] = n; etpBuySave(); renderEtp();
+}
+function etpBuyDel(size){ delete etpBuyGet()[size]; etpBuySave(); renderEtp(); }
+function etpBuyQty(size, v){
+  const n = Math.max(0, Math.round(Number(v) || 0));
+  if(n) etpBuyGet()[size] = n; else delete etpBuyGet()[size];
+  etpBuySave(); renderEtp();
+}
+function etpBuyClear(){
+  if(!Object.keys(etpBuyGet()).length) return;
+  if(!confirm('담은 것을 모두 비울까요?')) return;
+  etpOrdCart = {}; etpBuySave(); renderEtp();
+}
+function etpBuyAddAllNeed(){
+  let n = 0;
+  etpDraftOrder().forEach(x => { if(!etpBuyGet()[x.size]){ etpBuyGet()[x.size] = x.qty; n++; } });
+  etpBuySave(); renderEtp();
+  showToast(n ? '권장발주 ' + n + '종을 담았습니다' : '더 담을 것이 없습니다');
+}
+function etpBuyBarHtml(rows){
+  const c = etpBuyGet(), keys = Object.keys(c);
+  const needN = rows.filter(r => r.need > 0 && !c[r.size]).length;
+  if(!keys.length){
+    return needN ? '<div class="etp-cart empty"><span>🛒 권장발주가 있는 사이즈 <b>' + needN + '종</b></span>' +
+      '<button class="etp-sbtn" onclick="etpBuyAddAllNeed()">권장발주 모두 담기</button></div>' : '';
+  }
+  const ns = etpNonStdSizes();
+  const tot = keys.reduce((s, k) => s + c[k], 0);
+  const nsN = keys.filter(k => ns[k]).length;
+  return '<div class="etp-cart">' +
+    '<span class="ttl">🛒 담은 것 <b>' + keys.length + '종 · ' + tot + '장</b>' + (nsN ? ' <span style="color:var(--tx3);font-weight:400">(비규격 ' + nsN + '종 — 따로 한 장)</span>' : '') + '</span>' +
+    '<span class="items">' + keys.sort().map(k =>
+      '<span class="it">' + etpBaseSize(k).replace('x', '×') + (etpKeyLr(k) ? ' ' + etpKeyLr(k) : '') +
+      ' <input type="number" min="0" value="' + c[k] + '" onchange="etpBuyQty(\'' + k + '\',this.value)">' +
+      '<span class="x" onclick="etpBuyDel(\'' + k + '\')" title="빼기">✕</span></span>').join('') + '</span>' +
+    '<span class="btns">' +
+      (needN ? '<button class="etp-sbtn more" onclick="etpBuyAddAllNeed()">권장 ' + needN + '종 더 담기</button>' : '') +
+      '<button class="etp-sbtn" onclick="etpBuyClear()">비우기</button>' +
+      '<button class="etp-sbtn pri" onclick="etpBuyToOrder()">발주로 넘기기 →</button>' +
+    '</span></div>';
+}
+/* 발주탭으로 — 「지금 발주할 것 → 발주서 만들기」(tdyOrderNowFill)와 같은 길: 현성유리 · 3.2T 백사틴.
+   정규격·비규격은 현성 단가가 달라 한 장에 섞지 않습니다(12-41) — 정규격 먼저, 넘긴 것만 담은 것에서 빠집니다. */
+function etpBuyToOrder(){
+  const c = etpBuyGet(), ns = etpNonStdSizes();
+  const all = Object.keys(c).filter(k => c[k] > 0).map(k => ({ size:k, qty:c[k], nonstd:!!ns[k] }));
+  if(!all.length){ showToast('담은 것이 없습니다'); return; }
+  const std = all.filter(x => !x.nonstd), non = all.filter(x => x.nonstd);
+  const pick = std.length ? std : non, kind = std.length ? 'std' : 'non';
+  const cur = odLines.filter(l => String(l.w || '').trim() || String(l.h || '').trim() || String(l.pname || '').trim());
+  if(cur.length && !confirm('발주 입력칸에 품목 ' + cur.length + '줄이 있습니다.\n지우고 담은 것으로 채울까요?')) return;
+  if(typeof odEditAbortIfAny === 'function'){ try{ odEditAbortIfAny(); }catch(e){} }
+  showMain('order');
+  const csel = document.getElementById('od-cat');
+  if(csel && [...csel.options].some(x => x.value === '유리')) csel.value = '유리';
+  odCatChanged();
+  const vsel = document.getElementById('od-vendor');
+  let ok = false;
+  if(vsel && [...vsel.options].some(x => x.value === '현성유리')){
+    vsel.value = '현성유리'; odVendorChanged();
+    const ti = (curCatVendors()['현성유리'] || []).findIndex(p => p.type === TDY_ORDER_TYPE[kind]);
+    if(ti >= 0){ document.getElementById('od-type').value = String(ti); odTypeChanged(); ok = true; }
+  }
+  odLines = pick.map(x => {
+    const m = String(x.size).match(/^(\d+)x(\d+)(?:\s*([LR]))?/i) || [];
+    return { w:m[1] || '', h:m[2] || '', qty:x.qty, pname:'', color:'에토프', bigo:m[3] ? (OD_THROUGH_BORE.bigo + ' ' + m[3].toUpperCase()) : '' };
+  });
+  renderOdLines();
+  pick.forEach(x => { delete c[x.size]; }); etpBuySave();
+  setTimeout(() => { const top = document.getElementById('od-vendor'); if(top) top.scrollIntoView({ behavior:'smooth', block:'center' }); }, 120);
+  showToast(!ok ? '⚠ 현성유리·백사틴 종류를 못 찾아 품목만 채웠습니다 — 발주처·종류를 고르십시오'
+    : '🛒 현성 ' + (kind === 'std' ? '정규격' : '비규격') + ' ' + pick.length + '종 ' + pick.reduce((s, x) => s + x.qty, 0) + '장을 채웠습니다'
+      + (kind === 'std' && non.length ? ' — 비규격 ' + non.length + '종은 담은 것에 남겨 두었습니다' : ''));
+}
+
+// 접는 칸 — 납품서 차감 · 발주 기록 · 불량 · 발주 초안 · 관리 도구. 이 기기에만 기억 (var: TDZ 피함, 12-57)
+var etpFoldSt = null;
+function etpFoldGet(){
+  if(etpFoldSt == null){
+    try{ etpFoldSt = JSON.parse(localStorage.getItem('ybn-etp-folds-v1') || '{}') || {}; }catch(e){ etpFoldSt = {}; }
+    try{ if(localStorage.getItem('ybn-etp-tools-open-v1') === '1') etpFoldSt.tools = 1; }catch(e){}   // 어제 판 「관리 도구」 펼침 이어받기
+  }
+  return etpFoldSt;
+}
+function etpFoldIs(k){ return !!etpFoldGet()[k]; }
+function etpFoldToggle(k, force){
+  const st = etpFoldGet();
+  if(force === true) st[k] = 1; else if(st[k]) delete st[k]; else st[k] = 1;
+  try{ localStorage.setItem('ybn-etp-folds-v1', JSON.stringify(st)); }catch(e){}
+  document.querySelectorAll('#sp-etp .etp-fold[data-k="' + k + '"], #sp-etp .etp-fold-bar [data-k="' + k + '"]').forEach(x => x.classList.toggle('on', !!st[k]));
+}
+function etpToolsToggle(force){ etpFoldToggle('tools', force); }   // 예전 이름 — 남은 부름을 위해
 
 
 /* ══════════════════════════════════════════════════════════════════════
