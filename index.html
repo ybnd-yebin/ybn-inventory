@@ -24538,10 +24538,35 @@ function etpAvgOf(size){
   if(typeof etpAvgOvr !== 'undefined' && etpAvgOvr && etpAvgOvr[size] != null){
     return Number(etpAvgOvr[size]) || 0;
   }
+  /* 그다음은 최근 6개월 실측 (사장님 2026-10-27 「점점 추세라는 게 있으니까」) — 에토프 색만 · AS 포함 · 비규격 빼고.
+     실적이 없는 사이즈만 아래 고정값(ETP_SIZE_MASTER, 26년 1~8월)으로 물러납니다 — 갑자기 0 으로 떨어지지 않게. */
+  const m6 = etpAvg6Map();
+  if(m6.map[size] > 0) return m6.map[size];
   if(typeof ETP_SIZE_MASTER === 'undefined') return 0;
   const b = etpBaseSize(size);
   const f = ETP_SIZE_MASTER.find(x => x.size === b);
   return f ? (Number(f.etpAvg) || 0) : 0;
+}
+/* 최근 6개월 실측 월평균 — 사이즈마다 (etpMeasured 그대로, AS 포함).
+   나누는 달 수 = 그 기간 안 첫 납품서 날부터 오늘까지(30.44일 = 한 달). 앱에 납품서가 6/1부터라 지금은 6개월이 안 됩니다 —
+   있는 만큼으로 나누고, 날이 가면 저절로 6개월이 찹니다. 납품서 수·오늘 날짜가 바뀔 때만 다시 셉니다(var: TDZ 피함, 12-57). */
+var _etpAvg6 = { sig:'', map:{}, from:'', months:0 };
+function etpAvg6Map(){
+  const log = (typeof delivLog !== 'undefined' ? delivLog : []) || [];
+  const td = todayStr();
+  const last = log[log.length - 1];
+  const sig = log.length + '|' + ((last && (last.id || last.delivNo)) || '') + '|' + td;   // 가볍게 — 사이즈마다 여러 번 불립니다
+  if(_etpAvg6 && _etpAvg6.sig === sig) return _etpAvg6;   // 앱을 막 열 때는 아직 undefined 일 수 있음
+  _etpAvg6 = { sig, map:{}, from:'', months:0 };   // 먼저 비워 둡니다 — 세는 중에 다시 불려도 돌지 않게
+  try{
+    const d = new Date(td + 'T00:00:00'); d.setMonth(d.getMonth() - 6);
+    const m = etpMeasured({ includeAS:true, from:_ymdLocal(d) });
+    const start = m.from || _ymdLocal(d);
+    const months = Math.max(1, ((new Date(td + 'T00:00:00') - new Date(start + 'T00:00:00')) / 86400000 + 1) / 30.44);
+    Object.keys(m.bySize || {}).forEach(k => { _etpAvg6.map[k] = Math.round(m.bySize[k] / months * 10) / 10; });
+    _etpAvg6.from = start; _etpAvg6.months = Math.round(months * 10) / 10;
+  }catch(e){ console.warn('[에토프] 6개월 평균', e); }
+  return _etpAvg6;
 }
 
 /* 안전재고 = MAX(3, ROUND(월평균 ÷ 20영업일 × 기준일수))
@@ -24609,7 +24634,7 @@ function etpBuildRows(){
       onOrder: etpOpenQtyOf(size),
       short: st.cur < sf.n,
       over:  st.cur >= sf.n && ((cov != null && cov > ETP_OVER_COVER) || (avg <= 0 && st.cur > 0)),
-      noMaster: !etpInMaster(size) && !ns[size],
+      noMaster: !etpInMaster(size) && !ns[size] && !(etpAvg6Map().map[size] > 0),   // 6개월 실측이 있으면 「모름」 아님 (2026-10-27)
       nonstd: !!ns[size],
       avgSet: !!(typeof etpAvgOvr !== 'undefined' && etpAvgOvr && etpAvgOvr[size] != null),
       noBom:    !etpInBom(size),
@@ -25662,6 +25687,7 @@ var ETP_SORT_VAL = {
   sku:   r => r.size,
   st:    r => (r.cur < 0 ? 0 : r.short ? 1 : r.over ? 3 : 2),
   cur:   r => r.cur,     ord:  r => r.onOrder,  safe: r => r.safety,  avg: r => r.avg,
+  cum:   r => r.cumOut || 0,
   inq:   r => r.in,      outq: r => r.shipOut,  def:  r => r.def,     need: r => r.need
 };
 function etpSortRows(list){
@@ -25680,7 +25706,10 @@ function etpSortBy(k){
 }
 
 function etpTableHtml(list){
-  const th = (k, label, cls) => '<th class="' + (cls || '') + '" onclick="etpSortBy(\'' + k + '\')">' + label +
+  const a6 = etpAvg6Map();
+  const avgTip = '최근 6개월 실측 월평균 — 에토프만 · AS 포함 · ' + etpMd(a6.from) + '부터 ' + a6.months + '개월치. 실적 없는 사이즈는 26년 1~8월 고정값';
+  const cumTip = '총 누적 출고 — 앱에 올라온 납품서 전부(AS 포함) · ' + etpMd(window._etpCumFrom || '') + '부터';
+  const th = (k, label, cls, tip) => '<th class="' + (cls || '') + '"' + (tip ? ' title="' + etpEsc(tip) + '"' : '') + ' onclick="etpSortBy(\'' + k + '\')">' + label +
     (etpSortK === k ? (etpSortD > 0 ? ' ▲' : ' ▼') : ' <span class="srt">⇅</span>') + '</th>';
   const dash = v => (v == null || v === 0) ? '<span class="z">-</span>' : v;
   const body = list.map(r => {
@@ -25716,6 +25745,7 @@ function etpTableHtml(list){
       '<td class="c-ord" style="color:var(--acc)">' + dash(r.nonstd ? 0 : r.onOrder) + '</td>' +
       '<td class="c-opt">' + (r.safety || '<span class="z">-</span>') + (r.safetyManual ? '<span title="손으로 정한 값" style="color:var(--acc5)">*</span>' : '') + '</td>' +
       '<td class="c-opt">' + (r.avg > 0 ? etpDot(r.avg) : '<span class="z">-</span>') + '</td>' +
+      '<td class="c-opt c-io" style="color:var(--tx1)">' + dash(r.cumOut) + '</td>' +
       '<td class="c-opt c-io">' + dash(r.in) + '</td>' +
       '<td class="c-opt c-io">' + dash(r.shipOut) + '</td>' +
       '<td class="c-opt c-io">' + dash(r.def) + '</td>' +
@@ -25725,7 +25755,7 @@ function etpTableHtml(list){
   }).join('');
   return '<div class="etp-tbl-wrap"><table class="etp-tbl"><thead><tr>' +
     th('sku', 'SKU', 'l') + th('st', '상태', 'l c-st') + th('cur', '현재고') + th('ord', '발주중', 'c-ord') +
-    th('safe', '안전재고', 'c-opt') + th('avg', '한 달', 'c-opt') + th('inq', '총입고', 'c-opt c-io') + th('outq', '총출고', 'c-opt c-io') + th('def', '불량', 'c-opt c-io') +
+    th('safe', '안전재고', 'c-opt') + th('avg', '한 달', 'c-opt', avgTip) + th('cum', '총 누적', 'c-opt c-io', cumTip) + th('inq', '총입고', 'c-opt c-io') + th('outq', '총출고', 'c-opt c-io') + th('def', '불량', 'c-opt c-io') +
     th('need', '권장발주') + '<th class="c-add"></th>' +
     '</tr></thead><tbody>' + body + '</tbody></table></div>';
 }
@@ -27616,7 +27646,7 @@ function etpCheckSizes(){
   const seen = {}, out = [];
   const ns = etpNonStdSizes();          // 비규격은 건별이라 월평균을 물을 자리가 아닙니다
   const add = size => {
-    if(seen[size] || etpInMaster(size) || ns[size]) return;
+    if(seen[size] || etpInMaster(size) || ns[size] || etpAvg6Map().map[size] > 0) return;   // 6개월 실측이 있으면 물을 것 없음
     seen[size] = 1;
     const base = etpBaseSize(size);
     out.push({
