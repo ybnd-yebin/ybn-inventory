@@ -24547,23 +24547,57 @@ function etpAvgOf(size){
   const f = ETP_SIZE_MASTER.find(x => x.size === b);
   return f ? (Number(f.etpAvg) || 0) : 0;
 }
-/* 최근 6개월 실측 월평균 — 사이즈마다 (etpMeasured 그대로, AS 포함).
-   나누는 달 수 = 그 기간 안 첫 납품서 날부터 오늘까지(30.44일 = 한 달). 앱에 납품서가 6/1부터라 지금은 6개월이 안 됩니다 —
-   있는 만큼으로 나누고, 날이 가면 저절로 6개월이 찹니다. 납품서 수·오늘 날짜가 바뀔 때만 다시 셉니다(var: TDZ 피함, 12-57). */
+/* 최근 6개월 실측 월평균 — 사이즈마다 (AS 포함). 2026-10-27 두 번째: 6/1 전은 출고정리 엑셀(ETP_PAST_DAILY), 6/1 부터는 앱 납품서.
+   나누는 달 수 = 기간 첫날부터 오늘까지 − 자료 없는 날(5/22~5/31) ÷ 30.44. 납품서 수·오늘 날짜가 바뀔 때만 다시 셉니다(var: TDZ 피함, 12-57). */
 var _etpAvg6 = { sig:'', map:{}, from:'', months:0 };
+// ETP_PAST_DAILY 에서 [from, to] 사이(경계 cut 앞만)를 사이즈마다 더합니다. 표가 없으면(낡은 ybn-data.js) null
+function etpPastBySize(from, to){
+  if(typeof ETP_PAST_DAILY === 'undefined' || !ETP_PAST_DAILY || !ETP_PAST_DAILY.days) return null;
+  const P = ETP_PAST_DAILY, out = {};
+  Object.keys(P.days).forEach(d => {
+    if(d >= P.cut || (from && d < from) || (to && d > to)) return;
+    String(P.days[d] || '').split(',').forEach(t => {
+      const m = t.match(/^(\d+x\d+)([LR])?:(\d+)$/);
+      if(!m) return;
+      const k = m[1] + (m[2] ? ' ' + m[2] : '');
+      out[k] = (out[k] || 0) + Number(m[3]);
+    });
+  });
+  return out;
+}
 function etpAvg6Map(){
   const log = (typeof delivLog !== 'undefined' ? delivLog : []) || [];
   const td = todayStr();
   const last = log[log.length - 1];
   const sig = log.length + '|' + ((last && (last.id || last.delivNo)) || '') + '|' + td;   // 가볍게 — 사이즈마다 여러 번 불립니다
   if(_etpAvg6 && _etpAvg6.sig === sig) return _etpAvg6;   // 앱을 막 열 때는 아직 undefined 일 수 있음
-  _etpAvg6 = { sig, map:{}, from:'', months:0 };   // 먼저 비워 둡니다 — 세는 중에 다시 불려도 돌지 않게
+  _etpAvg6 = { sig, map:{}, from:'', months:0, past:false };   // 먼저 비워 둡니다 — 세는 중에 다시 불려도 돌지 않게
   try{
     const d = new Date(td + 'T00:00:00'); d.setMonth(d.getMonth() - 6);
-    const m = etpMeasured({ includeAS:true, from:_ymdLocal(d) });
-    const start = m.from || _ymdLocal(d);
-    const months = Math.max(1, ((new Date(td + 'T00:00:00') - new Date(start + 'T00:00:00')) / 86400000 + 1) / 30.44);
-    Object.keys(m.bySize || {}).forEach(k => { _etpAvg6.map[k] = Math.round(m.bySize[k] / months * 10) / 10; });
+    const from6 = _ymdLocal(d);
+    const P = (typeof ETP_PAST_DAILY !== 'undefined') ? ETP_PAST_DAILY : null;
+    const bySize = {};
+    let start;
+    if(P && from6 < P.cut){
+      // 6/1 전은 엑셀 표, 6/1 부터는 앱 납품서 — 앱의 6/1 전 납품서(몇 장 섞여 있음)는 엑셀과 겹쳐 쓰지 않습니다
+      const past = etpPastBySize(from6, '') || {};
+      const m = etpMeasured({ includeAS:true, from:P.cut });
+      [past, m.bySize || {}].forEach(o => Object.keys(o).forEach(k => { bySize[k] = (bySize[k] || 0) + o[k]; }));
+      start = from6 > P.from ? from6 : P.from;
+      _etpAvg6.past = true;
+    } else {
+      const m = etpMeasured({ includeAS:true, from:from6 });
+      Object.assign(bySize, m.bySize || {});
+      start = m.from || from6;
+    }
+    const dayN = s => Math.round(new Date(s + 'T00:00:00') / 86400000);
+    let days = dayN(td) - dayN(start) + 1;
+    if(P && P.gap){   // 자료 없는 날(엑셀도 납품서도 없음)은 빼고 나눕니다 — 안 빼면 평균이 낮게 잡힘
+      const a = start > P.gap[0] ? start : P.gap[0], b = td < P.gap[1] ? td : P.gap[1];
+      if(a <= b) days -= dayN(b) - dayN(a) + 1;
+    }
+    const months = Math.max(1, days / 30.44);
+    Object.keys(bySize).forEach(k => { _etpAvg6.map[k] = Math.round(bySize[k] / months * 10) / 10; });
     _etpAvg6.from = start; _etpAvg6.months = Math.round(months * 10) / 10;
   }catch(e){ console.warn('[에토프] 6개월 평균', e); }
   return _etpAvg6;
@@ -25594,7 +25628,14 @@ function renderEtp(){
 
   /* 누적 출고 — 올라온 납품서 전부(AS 포함)를 유리로 펼친 합 (사장님 2026-10-13 「여태 누적수량도 볼 수 있었으면」).
      월평균(안전재고의 바탕)과 따로 봅니다 — 월평균은 ETP_SIZE_MASTER 고정표입니다. */
-  try{ const cm = etpMeasured({ includeAS:true }); rows.forEach(r => { r.cumOut = cm.bySize[r.size] || 0; }); window._etpCumFrom = cm.from || ''; }catch(e){ console.warn('[에토프] 누적', e); }
+  /* 총 누적 — 6/1 전은 출고정리 엑셀(ETP_PAST_DAILY, 25년 8월부터), 6/1 부터는 앱 납품서 (2026-10-27 두 번째). 표가 없으면 예전처럼 납품서만 */
+  try{
+    const P = (typeof ETP_PAST_DAILY !== 'undefined') ? ETP_PAST_DAILY : null;
+    const past = P ? (etpPastBySize('', '') || {}) : {};
+    const cm = etpMeasured(P ? { includeAS:true, from:P.cut } : { includeAS:true });
+    rows.forEach(r => { r.cumOut = (cm.bySize[r.size] || 0) + (past[r.size] || 0); });
+    window._etpCumFrom = P ? P.from : (cm.from || '');
+  }catch(e){ console.warn('[에토프] 누적', e); }
   const head = etpTilesHtml(rows);   // 숫자 카드 한 줄 (예전 etpHeadHtml + etpTodoHtml)
   const art = (function(){ try{ return artCmpHtml(rows); }catch(e){ console.warn('[아티팩트 맞춰 보기]', e); return ''; } })();   // 🔁 2026-10-13 → 관리 도구 안
 
@@ -25707,8 +25748,8 @@ function etpSortBy(k){
 
 function etpTableHtml(list){
   const a6 = etpAvg6Map();
-  const avgTip = '최근 6개월 실측 월평균 — 에토프만 · AS 포함 · ' + etpMd(a6.from) + '부터 ' + a6.months + '개월치. 실적 없는 사이즈는 26년 1~8월 고정값';
-  const cumTip = '총 누적 출고 — 앱에 올라온 납품서 전부(AS 포함) · ' + etpMd(window._etpCumFrom || '') + '부터';
+  const avgTip = '최근 6개월 실측 월평균 — 에토프만 · AS 포함 · ' + a6.from + '부터 ' + a6.months + '개월치' + (a6.past ? ' (6/1 전은 출고정리 엑셀, 자료 없는 5/22~5/31 은 빼고 나눔)' : '') + '. 실적 없는 사이즈는 26년 1~8월 고정값';
+  const cumTip = '총 누적 출고 — AS 포함 · ' + (window._etpCumFrom || '') + '부터 (6/1 전은 출고정리 엑셀, 그 뒤는 앱 납품서)';
   const th = (k, label, cls, tip) => '<th class="' + (cls || '') + '"' + (tip ? ' title="' + etpEsc(tip) + '"' : '') + ' onclick="etpSortBy(\'' + k + '\')">' + label +
     (etpSortK === k ? (etpSortD > 0 ? ' ▲' : ' ▼') : ' <span class="srt">⇅</span>') + '</th>';
   const dash = v => (v == null || v === 0) ? '<span class="z">-</span>' : v;
