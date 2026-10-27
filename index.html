@@ -32319,7 +32319,18 @@ var FAV=(function(){
 #sp-stocklist .stk-tabs{display:flex;gap:4px}
 #sp-stocklist .stk-tabs button{padding:4px 12px;border:1px solid var(--b2);border-bottom-width:2px;border-radius:7px;background:var(--s1);color:var(--tx2);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
 #sp-stocklist .stk-tabs button.on{background:var(--s2);color:var(--acc);border-color:var(--acc)}
-#sp-stocklist.pr-mode #stock-list, #sp-stocklist.pr-mode #stock-misc-section, #sp-stocklist.pr-mode .stk-search .filter-row, #sp-stocklist.pr-mode #stock-period-note{display:none!important}
+/* 바탕색으로 두 표를 가름 (사장님 2026-10-27) — 원유리 연하늘 · 인쇄유리 노란기 있는 연베이지. 부족·마이너스 줄 색은 그 위에 그대로 */
+#stock-list .stk-tbl{background:#eef7fd;border-color:#cfe5f5}
+#stock-list .stk-r.hd{background:#dbeefa}
+#stock-list .stk-row:hover{background:#e0f0fb}
+#stock-list .stk-det{background:#e5f2fb}
+#stock-printed .stk-tbl, #stock-printed .stp-old{background:#fbf6e7;border-color:#ebdfb9}
+#stock-printed .stp-r.hd{background:#f3e9cc}
+#stock-printed .stp-row:hover{background:#f5edd4}
+#stock-printed .stk-foot{border-top-color:#ebdfb9}
+#sp-stocklist #stk-tab-raw.on{background:#dbeefa;border-color:#8fc3e6;color:#1f5f8b}
+#sp-stocklist #stk-tab-pr.on{background:#f3e9cc;border-color:#d6c28a;color:#7a5f1c}
+#sp-stocklist.pr-mode #stock-list,#sp-stocklist.pr-mode #stock-misc-section, #sp-stocklist.pr-mode .stk-search .filter-row, #sp-stocklist.pr-mode #stock-period-note{display:none!important}
 #stock-printed .stp-flt{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
 #stock-printed .stp-r{display:grid;grid-template-columns:150px minmax(0,1fr) 90px 100px 80px 130px 80px 70px;align-items:center;gap:0 10px;padding:7px 12px;border-top:1px solid var(--b1)}
 #stock-printed .stp-r.hd{border-top:none;background:var(--s2);font-size:11.5px;font-weight:700;color:var(--tx2)}
