@@ -10187,7 +10187,7 @@ function updateGsSyncTime(){
       const s=ms=>(ms/1000).toFixed(1);
       box.innerHTML='<div style="font-weight:700;margin-bottom:3px">⏱ 시트 받기 시간 (최근 '+hist.length+'번, 초)</div><table style="border-collapse:collapse;font-variant-numeric:tabular-nums;white-space:nowrap">'
         +'<tr style="color:var(--tx3)"><td style="padding:1px 8px 1px 0">때</td><td style="padding:1px 6px;text-align:right">받기</td><td style="padding:1px 6px;text-align:right">크기</td><td style="padding:1px 6px;text-align:right">합치기</td><td style="padding:1px 6px;text-align:right">저장</td><td style="padding:1px 6px;text-align:right">전체</td></tr>'
-        +hist.map(h=>'<tr><td style="padding:1px 8px 1px 0">'+((d=>(d.getMonth()+1)+'/'+d.getDate()+' '+d.toTimeString().slice(0,5))(new Date(h.at)))+'</td><td style="padding:1px 6px;text-align:right">'+s(h.getMs)+'</td><td style="padding:1px 6px;text-align:right">'+(h.chars/1048576).toFixed(1)+'MB</td><td style="padding:1px 6px;text-align:right">'+s(h.mergeMs)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.saveMs)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.totalMs)+'</td></tr>').join('')
+        +hist.map(h=>'<tr><td style="padding:1px 8px 1px 0">'+((d=>(d.getMonth()+1)+'/'+d.getDate()+' '+d.toTimeString().slice(0,5))(new Date(h.at)))+'</td><td style="padding:1px 6px;text-align:right">'+s(h.getMs)+'</td><td style="padding:1px 6px;text-align:right">'+(h.zChars?(h.zChars/1048576).toFixed(1)+'→':'')+(h.chars/1048576).toFixed(1)+'MB</td><td style="padding:1px 6px;text-align:right">'+s(h.mergeMs)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.saveMs)+'</td><td style="padding:1px 6px;text-align:right">'+s(h.totalMs)+'</td></tr>').join('')
         +'</table>'+(hist[0].top?'<div style="color:var(--tx3);margin-top:3px">큰 것: '+hist[0].top+'</div>':'');
     }
   }catch(e){}
@@ -10619,12 +10619,26 @@ async function gsFetch(method,body,qs=''){
   try{
     if(method==='GET'){
       // ⏱ 받기 시간·크기를 잽니다(2026-10-26 「시트 받기가 점점 느려짐」) — 결과는 같고 재기만 더함
+      // 📦 압축 받기(2026-10-27 · CLAUDE.md 12-85) — 전체 읽기는 readz 로 청합니다. 시트 코드가 압축본({z:'gzip-b64'})을 주면 풀고,
+      //    옛 시트 코드는 모르는 action 이라 예전처럼 통째로 줍니다 → 그대로 씀. 풀다 실패하면 예전 read 로 한 번 더.
+      const wantZ = qs==='?action=read' && typeof DecompressionStream==='function';
       const t0=performance.now();
-      const res=await fetch(gsUrl+qs,{method:'GET'});
+      const res=await fetch(gsUrl+(wantZ?'?action=readz':qs),{method:'GET'});
       const txt=await res.text();
       const t1=performance.now();
-      const json=JSON.parse(txt);
-      window._gsLastGet={ ms:t1-t0, parseMs:performance.now()-t1, chars:txt.length, qs:qs };
+      let json=JSON.parse(txt), rawChars=txt.length, zipped=false;
+      if(json && json.z==='gzip-b64' && typeof json.body==='string'){
+        try{
+          const bin=atob(json.body), u8=new Uint8Array(bin.length);
+          for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+          const plain=await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+          json=JSON.parse(plain); rawChars=plain.length; zipped=true;
+        }catch(ze){
+          console.warn('[압축 받기] 풀기 실패 — 예전 방식으로 다시 받습니다', ze);
+          return await gsFetch('GET',null,'?action=read&plain=1');
+        }
+      }
+      window._gsLastGet={ ms:t1-t0, parseMs:performance.now()-t1, chars:rawChars, zChars:zipped?txt.length:0, qs:qs };
       if(!json.ok)throw new Error(json.error||'서버 오류');
       return json.data;
     } else {
@@ -21767,10 +21781,10 @@ function syncBar(state, msg){
 function syncTimingNote(tm, data){
   try{
     const g=tm.get||{}, s=x=>(x/1000).toFixed(1)+'초';
-    const mb=g.chars?(g.chars/1048576).toFixed(1)+'MB':'-';
+    const mb=g.chars?(g.zChars?'압축 '+(g.zChars/1048576).toFixed(1)+'MB → '+(g.chars/1048576).toFixed(1)+'MB':(g.chars/1048576).toFixed(1)+'MB'):'-';
     const sizes={}; try{ for(const k in (data||{})){ const v=data[k]; sizes[k]=v==null?0:(typeof v==='string'?v.length:JSON.stringify(v).length); } }catch(e){}
     const top=Object.keys(sizes).sort((a,b)=>sizes[b]-sizes[a]).slice(0,6).map(k=>k+' '+Math.round(sizes[k]/1024)+'K');
-    const rec={ at:new Date().toISOString(), getMs:Math.round(g.ms||0), parseMs:Math.round(g.parseMs||0), chars:g.chars||0,
+    const rec={ at:new Date().toISOString(), getMs:Math.round(g.ms||0), parseMs:Math.round(g.parseMs||0), chars:g.chars||0, zChars:g.zChars||0,
       mergeMs:Math.round(tm.b-tm.a), saveMs:Math.round(tm.c-tm.b), drawMs:Math.round(tm.d-tm.c), totalMs:Math.round(tm.d-tm.start), top:top.join(' · ') };
     let hist=[]; try{ hist=JSON.parse(localStorage.getItem('ybn-sync-timing-v1')||'[]'); }catch(e){}
     hist.push(rec); hist=hist.slice(-20);
