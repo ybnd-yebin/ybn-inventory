@@ -17151,6 +17151,20 @@ function odParseExcelBuf(buf, fileName){
   return out;
 }
 
+/* PDF 한 쪽을 그림 파일로 — 글자 읽기(odImgRead)는 카톡 이미지 크기(가로 약 1000px)에 맞춰 두었습니다 */
+const OD_PDF_PIC_W = 1100;
+async function odPdfPageToImage(page, name){
+  const v1=page.getViewport({scale:1});
+  const vp=page.getViewport({scale:OD_PDF_PIC_W/v1.width});
+  const c=document.createElement('canvas'); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+  const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height);
+  // intent 'print' — 화면 그리기(requestAnimationFrame)를 안 써서 창이 가려져 있어도 끝납니다
+  await page.render({canvasContext:g, viewport:vp, intent:'print'}).promise;
+  const blob=await new Promise(ok=>c.toBlob(ok,'image/png'));
+  if(!blob) return null;
+  try{ return new File([blob], name, {type:'image/png'}); }catch(e){ blob.name=name; return blob; }
+}
+
 /* 엑셀·PDF 를 가리지 않고 받습니다. 확장자로 갈라 읽고, 읽은 것을 한 창에 모아 보여 줍니다. */
 async function odImportAny(input){
   const files=[...(input.files||[])];
@@ -17158,6 +17172,7 @@ async function odImportAny(input){
   if(!files.length) return;
   odImportParsed=[];
   const bad=[];
+  const picPages=[];   // 글자 없이 그림만 든 PDF 쪽 → 「이미지로 넣기」(글자 읽기)로 넘깁니다
   showToast('⏳ 발주서를 읽는 중…');
   for(const file of files){
     const isPdf=/\.pdf$/i.test(file.name);
@@ -17166,7 +17181,14 @@ async function odImportAny(input){
         if(typeof pdfjsLib==='undefined'){ bad.push(file.name+' (PDF 기능 로딩 중)'); continue; }
         const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
         for(let p=1;p<=pdf.numPages;p++){
-          const tc=await (await pdf.getPage(p)).getTextContent();
+          const page=await pdf.getPage(p);
+          const tc=await page.getTextContent();
+          // 그림으로만 저장된 PDF(아티팩트 등에서 뽑은 것) — 글자가 하나도 없습니다 (사장님 2026-10-29)
+          if(!tc.items.some(it=>(it.str||'').trim())){
+            const pg=await odPdfPageToImage(page, file.name.replace(/\.pdf$/i,'')+(pdf.numPages>1?` (p${p})`:'')+'.png');
+            if(pg) picPages.push(pg);
+            continue;
+          }
           const parsed=odParsePdfPage(tc.items);
           if(parsed){ parsed.sheet=file.name+(pdf.numPages>1?` (p${p})`:''); odImportParsed.push(parsed); }
         }
@@ -17176,7 +17198,9 @@ async function odImportAny(input){
       }
     }catch(err){ console.log('발주서 읽기 실패', file.name, err); bad.push(file.name); }
   }
+  if(picPages.length){ odImgOpen(); odImgAddFiles(picPages); }
   if(!odImportParsed.length){
+    if(picPages.length){ showToast('📷 그림으로 된 PDF 라 글자 읽기로 넘겼습니다 — 20~30초 걸립니다'); return; }
     showToast(bad.length?('읽지 못했습니다 — '+bad[0]+(bad.length>1?' 외 '+(bad.length-1)+'개':'')):'읽을 발주 품목이 없습니다');
     return;
   }
@@ -19840,7 +19864,7 @@ async function odImgRun(){
       j.status='read'; renderOdImgList();
       try{
         await odOcrReady();
-        j.res=await odImgRead(j.url);
+        j.res=await odImgRead(j.url, odNameHint(j.name));
         j.status='done';
         const chk=odImgCheck(j.res);
         j.pick = chk.totalOk!==false && chk.dup!=='same';
@@ -19887,7 +19911,7 @@ function odImgBigo(s){
   known.forEach(k=>{ const sc=lcs(t,k)/Math.max(t.length,k.length); if(sc>score){ score=sc; best=k; } });
   return score>=0.7 ? best : t;
 }
-async function odImgRead(url){
+async function odImgRead(url, hint){
   const S=2, {c, vsegs}=await odImgPrep(url, S);
   const r=await odOcr.ko.recognize(c);
   const lines=(r.data.lines||[]).map(l=>({t:(l.text||'').replace(/\n/g,''), b:l.bbox, words:l.words||[]}));
@@ -19910,7 +19934,8 @@ async function odImgRead(url){
   for(const l of lines){
     if(l.b.y1>head.b.y0) break;
     const left=(l.t.trim().split(/\s{2,}/)[0]||'').trim();
-    if(/사틴|샤틴|투명|은경|브론즈|백유리/.test(left)) res.type=left.replace(/^3\s*[.,]\s*2\s*[T7]\s*/,'3.2T ');
+    if(/사틴|샤틴|투명|은경|브론즈|백유리/.test(left)) res.type=left.replace(/^3\s*[.,]\s*2\s*[T7]\s*/,'3.2T ')
+      .replace(/^5\s*[1lI7|]\s*(?=백|투명|브론즈)/,'5T');   // '5T백유리' 를 '51백유리' 로 읽습니다(실측 2026-10-29)
   }
   // 칸 경계 = 표 머리 높이를 지나는 세로선
   const hy=(head.b.y0+head.b.y1)/2, xs=[];
@@ -19961,9 +19986,20 @@ async function odImgRead(url){
   if(res.rows.length && !res.rows[0].pname && !/정규격/.test(res.type)){
     let i=0; while(i<res.rows.length && !res.rows[i].pname){ res.rows[i].pname='비규격'; i++; }
   }
+  // 못 읽은 발주처·발주일은 파일 이름(우리 저장 이름 꼴 `261029_현성_5T백유리 비규격`, 12-35)에서 채웁니다
+  if(hint){
+    if(!res.vendor && hint.vendor){ res.vendor=hint.vendor; res.notes.push('발주처는 파일 이름에서 읽었습니다'); }
+    if(!res.date && hint.date) res.date=hint.date;
+  }
   if(!res.vendor) res.notes.push('발주처를 못 읽었습니다');
   if(!res.date) res.notes.push('발주일을 못 읽었습니다');
   return res;
+}
+function odNameHint(name){
+  const m=String(name||'').match(/^(\d{2})(\d{2})(\d{2})_([^_]+)_/);
+  if(!m) return null;
+  const v=m[4].trim();
+  return { date:`20${m[1]}-${m[2]}-${m[3]}`, vendor: /^(대원|현성|아름)$/.test(v) ? v+'유리' : v };
 }
 function odImgCheck(res){
   const sum=res.rows.reduce((s,r)=>s+(Number(r.qty)||0),0);
