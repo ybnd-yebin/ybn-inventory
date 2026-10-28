@@ -690,24 +690,26 @@ function leadDays(name, isBasRow, code){
 //   불러올 때마다 다시 계산해 준다. 이러면 앞으로 리드타임을 또 고쳐도
 //   기존 스냅샷이 저절로 따라온다 — 다시 올릴 필요가 없다.
 //   ※ byDate(출고일별 수량)는 엑셀 원본이라 절대 건드리지 않는다.
+var ORDER_RULE_V = 2;   // orderDayOf 규칙 판 — 오이도 토요일 영업일(2026-10-28)
 function recomputeLeadRows(rows){
   if(!Array.isArray(rows)) return 0;   // 항상 '바뀐 행 수'를 돌려준다(합산에 쓰이므로)
   let changed = 0;
   for(const row of rows){
     if(!row || !row.byDate) continue;
     const lead = leadDays(row.name, false, row.code);
-    if(lead === row.lead) continue;          // 안 바뀐 행은 그대로 둔다
+    // 오이도 역산 규칙이 바뀌었으므로(2026-10-28) 그 전 판으로 센 오이도 행도 다시 셉니다.
+    const oidoStale = row.oido && row.orderRule !== ORDER_RULE_V;
+    if(lead === row.lead && !oidoStale) continue;          // 안 바뀐 행은 그대로 둔다
     row.lead = lead;
     const byOrder = {};
     for(const iso in row.byDate){
       const n = row.byDate[iso];
       if(!(n>0)) continue;
-      // 파싱 때와 똑같은 규칙: 오이도는 주말 출고분을 직전 영업일로 당겨 합산
-      const effShip = row.oido ? pullWeekendToPrevBusinessDay(iso) : iso;
-      const orderDay = subBusinessDays(effShip, lead-1);
+      const orderDay = orderDayOf(iso, lead, row.oido);   // 파싱 때와 똑같은 규칙
       byOrder[orderDay] = (byOrder[orderDay]||0) + n;
     }
     row.byOrder = byOrder;
+    row.orderRule = ORDER_RULE_V;
     changed++;
   }
   return changed;
@@ -838,6 +840,20 @@ function pullWeekendToPrevBusinessDay(iso){
   while(!isBusinessDay(cur) && guard<15){ cur=addDays(cur,-1); guard++; }
   return cur;
 }
+// ★ 출고일 → 발주일 (역산) — 여기 한 곳에서만 셉니다 (사장님 2026-10-28)
+//   그레이박스: 월~금이 영업일. 발주일 = 출고일 − (리드−1)영업일.
+//   오이도   : 토요일도 영업일(토요일 납품이 있음). 토요일까지 세어 거꾸로 간 뒤,
+//              발주일이 토요일이면 금요일에 미리 보므로(납품서도 금요일로 뽑힘) 직전 영업일로.
+//     예) 리드 3일 — 토 출고 ← 목 발주 · 월 출고 ← 금 · 화 출고 ← 토 → 금에 보임
+//   ⚠ 예전에는 토요일 '출고일'을 금요일로 당긴 뒤 세어, 금·토 출고분이 같은 수요일로 합쳐졌습니다.
+function isOidoBizDay(iso){ return new Date(iso+'T00:00:00').getDay()!==0 && !HOLIDAYS_2026.has(iso); }
+function orderDayOf(shipISO, lead, oido){
+  const n = Math.max(0, (lead||5)-1);
+  if(!oido) return subBusinessDays(shipISO, n);
+  let cur=shipISO, k=0, guard=0;
+  while(k<n && guard<120){ cur=addDays(cur,-1); guard++; if(isOidoBizDay(cur)) k++; }
+  return rollToBusinessDay(cur);
+}
 function isGlassDoor(name){ return /글래스\s*도어|글래스\s*채널/.test(name||''); }
 // 기준일 다음날부터 영업일 n개를 반환
 function nextBusinessDays(fromISO, n){
@@ -951,17 +967,15 @@ function parseSheet(aoa, asofISO, isOido, src){
         // ── 주말 출고 처리 ──────────────────────────────
         // 글래스도어는 오이도 / 그레이박스 두 곳으로 나뉘어 운영되며 제품코드가 동일함.
         // 구분은 파일명에 '(오이도)'가 있는지로만 함 (filenameIsOido → isOido).
-        //  · 오이도  : 토요일도 출고함. 단 토요일 출고분은 금요일에 선발주를 받아
-        //              금요일에 작업하므로, 오더는 직전 금요일로 당겨 합산한다.
+        //  · 오이도  : 토요일도 영업일. 토요일 '발주'는 금요일에 미리 보므로 금요일에 합산.
         //  · 그레이박스: 토/일 출고 없음. (혹시 주말 값이 들어와도 건드리지 않음)
-        const effShip = isOido ? pullWeekendToPrevBusinessDay(dc.iso) : dc.iso;
-        // 오더발행일 = 출고일 - (리드-1)영업일
-        const orderDay = subBusinessDays(effShip, lead-1);
+        //  규칙은 orderDayOf() 한 곳.
+        const orderDay = orderDayOf(dc.iso, lead, isOido);
         byOrder[orderDay] = (byOrder[orderDay]||0) + n;
       }
     }
     const total = Number(ar[COL.total]||0);
-    rows.push({code,name,vendor,vkey,src:src||'',oido:!!isOido,lead,nonstd:isNonStd(name),byDate,byOrder,total});
+    rows.push({code,name,vendor,vkey,src:src||'',oido:!!isOido,lead,nonstd:isNonStd(name),byDate,byOrder,total,orderRule:ORDER_RULE_V});
   }
   return rows;
 }
@@ -2079,9 +2093,8 @@ function buildMatchRows(orderDate){
     if(isGuhyeongAS(v.name)){ guhyeongSkipped++; continue; }
     const bas = isBas(v, ybCodes);
     const lead = leadDays(v.name, bas, v.code);
-    const predShip = shipFromOrderDate(orderDate, lead);
-    const effShip = v.oido ? pullWeekendToPrevBusinessDay(predShip) : predShip;
-    if(v.shipDate !== effShip) continue;
+    // 출고일에서 거꾸로 센 발주일이 이 발주일인가 (오이도 토요일 발주분은 금요일에 들어옴)
+    if(orderDayOf(v.shipDate, lead, v.oido) !== orderDate) continue;
     if(bas){ basQty += v.qty; continue; }        // 바스는 대조 대상 아님
     const dk = v.oido?'O':'G';
     const k = matchKey(v.code, v.name, dk);
@@ -2100,7 +2113,7 @@ function buildMatchRows(orderDate){
     const dk = v.oido?'O':'G';
     const k = matchKey(v.code, v.name, dk);
     const lead = leadDays(v.name, false, v.code);
-    const od = subBusinessDays(v.shipDate, lead-1);   // 출고일 → 예상 발주일 (역산)
+    const od = orderDayOf(v.shipDate, lead, v.oido);   // 출고일 → 예상 발주일 (역산)
     const prev = yesiAny.get(k);
     if(!prev || od < prev) yesiAny.set(k, od);
   }
@@ -2439,14 +2452,18 @@ function renderForecast(){
     // 바스 판정 = 드림 벤더 + 와이비 코드셋에 없는 코드 (접두사 하드코딩 안 함)
     const isBasRow = isBas(v, ybCodesFc);  // 파일 출처 기준 (벤더 칸은 못 믿는다)
     const lead = leadDays(v.name, isBasRow, v.code);
-    const predShip = shipFromOrderDate(orderDate, lead);
-    // 오이도 주말 출고분 금요일 당김 반영
-    const effShip = v.oido ? pullWeekendToPrevBusinessDay(predShip) : predShip;
-    if(v.shipDate !== effShip) continue;   // 이 발주일에 안 뜸
+    // 출고일에서 거꾸로 센 발주일이 이 발주일인가 (오이도 토요일 발주분은 금요일에 들어옴)
+    if(orderDayOf(v.shipDate, lead, v.oido) !== orderDate) continue;   // 이 발주일에 안 뜸
 
     const dk = v.oido?'O':'G';
     const key = v.code+'|'+dk;
-    if(seen.has(key)) continue; seen.add(key);
+    // 오이도 금요일은 출고일이 둘(월·화)이라 같은 코드가 두 번 올 수 있음 → 합칩니다
+    if(seen.has(key)){
+      const r0 = rows.find(r=>r.code===v.code && r.dest===dk);
+      if(r0){ r0.yq += v.qty; if(!String(r0.shipDate).includes(v.shipDate)) r0.shipDate += ', '+v.shipDate; }
+      continue;
+    }
+    seen.add(key);
     // 구형(AS전용)은 AS 실물과 견준다. 단 AS 발주는 요청보다 먼저 뜨기도 하므로 참고용.
     const guh = isGuhyeongAS(v.name);
     const aq = (guh ? actualByKeyAS : actualByKey).get(key)||0;
@@ -2797,7 +2814,7 @@ document.getElementById('exportCsv').onclick=()=>{
   const ybCodes = ybndCodeSet();
   let rows=[['조회일','조회시각','제품코드','제품명','분류','벤더','중복제외','오이도','리드타임','출고일','오더예상일','수량']];
   for(const s of SNAPS) for(const r of s.rows) for(const [d,q] of Object.entries(r.byDate)){
-    const orderDay=subBusinessDays(d,(r.lead||5)-1);
+    const orderDay=orderDayOf(d, r.lead||5, r.oido);
     const dropped = ((r.src||snapSrc(s))==='DREAM' && ybCodes.has(r.code)) ? 'Y' : '';
     rows.push([s.asof,s.loadedAt,r.code,r.name,catLabel(category(r,ybCodes)),
                vendorLabel(r.vkey),dropped,r.oido?'Y':'',r.lead||'',d,orderDay,q]);
