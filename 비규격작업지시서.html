@@ -968,15 +968,20 @@ const DOOR_LIB = {
 //   W2HBT: 도면이 M과 같다(사용자 확인 2026-09-03). 없으면 밋밋한 폴백 도면이 나갔다.
 // 도면 별칭 — 제 도면이 없는 코드를 다른 코드의 도면으로 돌린다.
 //   BC1A·BC1B는 B의 캐드 도면을 같이 쓴다(사용자 확정 2026-09-08 · CLAUDE.md 12-2-1).
+//   ⚠ B 도면은 **HD 것뿐**이라 OB 도 HD 손잡이 도면(142/110)으로 갔습니다.
+//     OB 는 힌지 상하 **110 · 110** 이라 M(OB) 도면을 씁니다 (사장님 2026-10-28).
+//     계열마다 다르면 { HD:'B', OB:'M' } 꼴로 적습니다.
 //   전용 도면을 새로 만들지 말 것.
 //   MS(EURO500)는 M 의 캐드 도면을 씁니다 (사용자 확정 2026-09-09).
-const DOOR_ALIAS = { W2HBT:'M', BC1A:'B', BC1B:'B', MS:'M' };
+const DOOR_ALIAS = { W2HBT:'M', BC1A:{HD:'B',OB:'M'}, BC1B:{HD:'B',OB:'M'}, MS:'M' };
 function libDoor(code, type){
   const arr = (typeof DOOR_LIB!=='undefined' && DOOR_LIB.drawings) ? DOOR_LIB.drawings : [];
   const want = (type==='HD') ? 'HD' : 'OB';
   const pick = c => arr.find(d => d.codes.includes(c) && d.series===want)
                  || arr.find(d => d.codes.includes(c));   // 계열 폴백(그 코드의 다른 계열이라도)
-  return pick(code) || (DOOR_ALIAS[code] ? pick(DOOR_ALIAS[code]) : null) || null;
+  const al = DOOR_ALIAS[code];
+  const to = (al && typeof al==='object') ? al[want] : al;
+  return pick(code) || (to ? pick(to) : null) || null;
 }
 function libHasDoor(code, type){ return !!libDoor(code, type); }
 
@@ -1856,8 +1861,8 @@ const RULES={
   // BC1A·BC1B: 납품 세로가 910이면 프레임 세로를 고정값으로 푼다(−4 아님). 타입에 따라 갈린다 — HD 764 / OB 732.
   //   가로는 −5, 유리는 0×−3 그대로. 도면은 B 코드의 캐드도면을 같이 쓴다(전용 도면 만들지 말 것).
   //   910 말고 다른 세로는 아직 규칙을 못 받았다 → 계산하지 않고 '확인 필요'로 드러낸다.
-  BC1A:{handle:'both',lr:true,hinge:'155',hSpecial:{HD:{910:764},OB:{910:732}},hot:'155도 힌지',note:'155도 힌지 / 보링 상부 142 · 하부 110'},
-  BC1B:{handle:'both',lr:true,hinge:'155',hSpecial:{HD:{910:764},OB:{910:732}},hot:'155도 힌지',note:'155도 힌지 / 보링 상부 142 · 하부 110'},
+  BC1A:{handle:'both',lr:true,hinge:'155',hSpecial:{HD:{910:764},OB:{910:732}},hot:'155도 힌지',note:'155도 힌지 / 보링 HD 상부 142 · 하부 110 · OB 상하 110'},
+  BC1B:{handle:'both',lr:true,hinge:'155',hSpecial:{HD:{910:764},OB:{910:732}},hot:'155도 힌지',note:'155도 힌지 / 보링 HD 상부 142 · 하부 110 · OB 상하 110'},
   BD2R:{handle:'both',orient:'H',split:'BD2R',note:'가로 서랍·2도어 마이다 합적 / 뒷면 보링위치(상하) 확인'},
   BD3U:{handle:'both',split:'BD3U',note:'대마이다1+소마이다2 합적 / 보링위치(상하) 확인'},
   BDI1R:{handle:'both',hinge:'none',note:'마이다 / 보링위치(상하)·좌우 확인'},
