@@ -16428,6 +16428,15 @@ function odSheetToHtml(wb, ws){
     const src = 'data:image/' + (m.extension === 'png' ? 'png' : 'jpeg') + ';base64,' + btoa(s);
     const tl = im.range && im.range.tl; if(!tl) return;
     const ext = im.range.ext || { width:60, height:60 };
+    // odCompactSheet 가 적어 둔 자리(표 왼쪽 위에서 잰 px) — 엑셀 단위로 적은 칸 안 거리는 여기서 못 읽습니다
+    const ab = (ws._media || []).find(m => m.imageId === im.imageId && m.range === im.range);
+    if(ab && ab._odAbs){
+      const x0 = (() => { let x = 0; for(let c = 1; c < B.c1; c++) x += odColPx(ws.getColumn(c).width); return x; })();
+      const y0 = (() => { let y = 0; for(let r = 1; r < B.r1; r++) y += odRowPx(ws.getRow(r).height); return y; })();
+      imgs += '<img data-ax="' + Math.round(ab._odAbs.x - x0) + '" data-ay="' + Math.round(ab._odAbs.y - y0) + '" data-tw="' + w + '"' +
+              ' src="' + src + '" style="position:absolute;visibility:hidden;width:' + Math.round(ext.width) + 'px;height:' + Math.round(ext.height) + 'px">';
+      return;
+    }
     /* 줄 높이를 더해 자리를 잡으면 조금씩 어긋나 **사인이 「담당」 글자와 겹쳤습니다**
        (2026-09-15). 그래서 자리는 안 적고, 어느 칸인지만 적어 둡니다 —
        화면에 붙인 뒤 그 칸을 실제로 재어 얹습니다(odPlaceImages). */
@@ -16452,6 +16461,14 @@ function odEsc(s){
 function odPlaceImages(node){
   if(!node) return;
   const base = node.getBoundingClientRect();
+  // 표 왼쪽 위에서 잰 자리(odCompactSheet) — 표가 줄어 그려져도 같은 비율로
+  node.querySelectorAll('img[data-ax]').forEach(img => {
+    const tb = node.querySelector('table'); if(!tb){ img.remove(); return; }
+    const t = tb.getBoundingClientRect(), k = t.width / (Number(img.dataset.tw) || t.width);
+    img.style.left = Math.round(t.left - base.left + Number(img.dataset.ax) * k) + 'px';
+    img.style.top  = Math.round(t.top  - base.top  + Number(img.dataset.ay) * k) + 'px';
+    img.style.visibility = 'visible';
+  });
   node.querySelectorAll('img[data-cell]').forEach(img => {
     const [r, c]   = img.dataset.cell.split(',').map(Number);
     const [or, oc] = img.dataset.off.split(',').map(Number);
@@ -16515,7 +16532,143 @@ async function odFilledSheet(o){
   await odSigImgReady();                       // 결재란 그림에 사인을 그리려면 미리 읽어 둡니다
   odFixApproval(wb, ws);                        // 결재란·글씨체를 우리 것으로
   odFillSheet(ws, o);
+  odCompactSheet(wb, ws, o);                    // 사장님 요청본 칸 모양으로(규격 한 칸 · 명판 오른쪽 · 비고 너비는 내용대로)
   return { wb, ws };
+}
+
+/* ══ 발주서 칸 모양 = 사장님 요청본 (2026-10-29, `261029_대원_3.2T백사틴 비규격(요청본).xlsx`) ══
+   채우기(odFillSheet)는 예전 양식 칸(B~O)에 그대로 하고, **맨 끝에 한 번** 요청본 모양으로 바꿉니다 —
+   엑셀·카톡 이미지·PDF 가 모두 odFilledSheet 를 거치므로 세 곳이 같이 바뀝니다. 바꾸는 것:
+     ① 규격 F~I 네 칸 → **F 한 칸** (G·H·I 를 지우고 그 오른쪽을 세 칸씩 당김) — 수량 G · 납기 H · 비고 I~J · 업체명 K · 종이 오른쪽 L
+     ② 명판(㈜ 와이비 앤 디 · 주소 · TEL)은 **I 부터** — 결재란 그림은 표 오른쪽 끝에 붙이고, 도장은 명판 글자 기준 자리
+     ③ 도장은 **97×111px** (요청본 크기 — 예전 107×150 은 세로로 길쭉했음)
+     ④ **비고 칸 너비는 내용대로** — 가장 긴 비고가 들어갈 만큼 J 를 넓히고(최소 요청본 39.125), 짧으면 그 너비로 돌아옵니다.
+        아주 길면(OD_BIGO_MAX_W) 그때만 글자를 줄입니다. 종이는 한 장 맞춤이라 표가 넓어지면 전체가 조금 작게 찍힙니다.
+   숫자는 아래 OD_LAYOUT 한 곳입니다. */
+const OD_LAYOUT = {
+  W: { A:2.625, C:10.25, D:18.5, E:8.125, F:30.625, G:12.75, H:14.875, I:11.125, J:39.125, K:19.375, L:2.625 },   // 요청본 칸 너비
+  BIGO_MAX_W: 95,          // 비고(J) 를 이보다 넓히지는 않습니다 — 넘으면 글자를 줄임
+  APV:  { gapX:30.5, gapH:8, dy:48.2 },  // 결재란: 표 오른쪽 끝과 틈(엑셀 px · 카톡/PDF px) · 7행 위에서 dy(px) — 요청본 H+728382 EMU 와 같은 자리
+  SEAL: { dx:373.7, dy:22, w:97, h:111 } // 도장: 명판 칸(I) 왼쪽 끝에서 dx · 4행 위에서 dy · 크기(px) — 요청본 J+2711618 · 209223 EMU
+};
+function odCompactSheet(wb, ws, o){
+  const DROP0 = 7, DROPN = 3;                                   // G·H·I 세 칸을 지웁니다
+  const mapCol = c => c < DROP0 ? c : (c < DROP0 + DROPN ? DROP0 - 1 : c - DROPN);   // 지우는 칸은 F 로 접힘
+  const letter = c => { let s = ''; while(c > 0){ const m = (c - 1) % 26; s = String.fromCharCode(65 + m) + s; c = (c - m - 1) / 26; } return s; };
+  const colNum = s => [...s].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+  const box = odIsBoxOrder(o);
+  const oldW = {}; for(let c = 1; c <= 40; c++) oldW[c] = ws.getColumn(c).width;
+  const imgs = (ws._media || []).filter(m => m.range && m.range.tl);
+  const isSeal = m => { const im = wb.getImage(Number(m.imageId)); return im && /jpe?g/i.test(im.extension || ''); };
+  const apv = imgs.find(m => !isSeal(m) && m.range.ext && m.range.ext.width > 300);   // 결재란 그림
+  const seal = imgs.find(isSeal);
+
+  // ① 합친 칸을 다 풀어 두고(나중에 옮긴 자리로 다시 겁니다)
+  const merges = Object.keys(ws._merges || {}).map(k => ws._merges[k] && ws._merges[k].model).filter(Boolean)
+    .map(m => ({ top:m.top, left:m.left, bottom:m.bottom, right:m.right }));
+  merges.forEach(m => { try{ ws.unMergeCells(m.top, m.left, m.bottom, m.right); }catch(e){} });
+
+  // ② 칸 옮기기 — F 에는 I 의 오른쪽 선을 받습니다(F~I 합친 칸의 오른쪽 끝선)
+  let maxC = 0; ws.eachRow({ includeEmpty:true }, row => { maxC = Math.max(maxC, row.cellCount || 0); });
+  const fixF = v => (v && typeof v === 'object' && v.formula !== undefined)
+    ? Object.assign({}, v, { formula: String(v.formula).replace(/(\$?)([A-Z]{1,2})(\$?\d+)/g, (q, d, L, n) => d + letter(mapCol(colNum(L))) + n) }) : v;
+  const lastRow = ws.rowCount;
+  for(let r = 1; r <= lastRow; r++){
+    const row = ws.getRow(r);
+    const F = row.getCell(6), I = row.getCell(9);
+    if(I.border && I.border.right){ F.style = JSON.parse(JSON.stringify(F.style || {})); F.border = Object.assign({}, F.border || {}, { right:I.border.right }); }
+    for(let c = DROP0; c <= maxC; c++){
+      const t = row.getCell(c), s = row.getCell(c + DROPN);
+      t.style = JSON.parse(JSON.stringify(s.style || {}));
+      t.value = fixF(s.value);
+    }
+    for(let c = maxC + 1; c <= maxC + DROPN; c++){ const x = row.getCell(c); x.value = null; x.style = {}; }
+  }
+
+  // ③ 합친 칸 다시 — 명판 줄(4~7행, 예전 J~)은 I~K 로 옮겨 겁니다
+  const done = new Set();
+  merges.forEach(m => {
+    let l = mapCol(m.left), rr = mapCol(m.right);
+    if(m.top >= 4 && m.bottom <= 7 && m.left >= 10) return;         // 명판은 아래에서 따로
+    if(l === rr && m.top === m.bottom) return;                      // 한 칸으로 줄어든 것(규격 F~I)은 안 겁니다
+    if(m.left >= DROP0 && m.right < DROP0 + DROPN) return;          // 지운 칸 안에만 있던 것
+    const k = [m.top, l, m.bottom, rr].join(',');
+    if(done.has(k)) return; done.add(k);
+    try{ ws.mergeCells(m.top, l, m.bottom, rr); }catch(e){}
+  });
+  for(let r = 4; r <= 7; r++){
+    const G = ws.getRow(r).getCell(7), I = ws.getRow(r).getCell(9);
+    I.style = JSON.parse(JSON.stringify(G.style || {})); I.value = G.value;
+    G.value = null; G.style = {};
+    if(I.value) I.alignment = Object.assign({}, I.alignment || {}, { horizontal:'left', vertical:'middle' });
+    try{ ws.mergeCells(r, 9, r, 11); }catch(e){}
+  }
+
+  // ④ 칸 너비 — 유리는 요청본, 박스는 예전 너비(규격만 F~I 를 더한 한 칸)
+  const L = OD_LAYOUT, setW = (c, w) => { ws.getColumn(c).width = w; };
+  if(box){
+    for(let c = 1; c <= 40 - DROPN; c++){
+      const w = c < 6 ? oldW[c] : c === 6 ? [6,7,8,9].reduce((s, k) => s + (Number(oldW[k]) || 8.43), 0) : oldW[c + DROPN];
+      setW(c, w);
+    }
+    setW(10, L.W.J);                                                 // 비고 J 는 유리와 같게 — 좁으면 명판(I~K)이 안 들어갑니다
+  } else {
+    for(let c = 1; c <= 40 - DROPN; c++) if(c > 12) setW(c, oldW[c + DROPN]);
+    Object.keys(L.W).forEach(k => setW(colNum(k), L.W[k]));
+  }
+
+  // ⑤ 비고 칸 너비는 내용대로 (I~J 합친 칸, J 가 늘고 줄음)
+  const bigoRows = [];
+  for(let i = 0; i < o.items.length; i++) if(o.items[i] && o.items[i].bigo) bigoRows.push(OD_TPL_ROW0 + i);
+  if(bigoRows.length){
+    const base = ws._odBigoBase || ((ws.getCell('I' + bigoRows[0]).font || {}).size) || 22;
+    const emOf = v => [...String(v || '')].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
+    const em = Math.max(...bigoRows.map(r => emOf(ws.getCell('I' + r).value)));
+    const needPx = em * base * 1.32 + 12;                            // odFitBigo 와 같은 어림
+    const jPx = needPx - odColPx(ws.getColumn(9).width);
+    const jW = Math.min(L.BIGO_MAX_W, Math.max(L.W.J, (jPx - 5) / OD_PX_PER_CHAR + 1));   // +1 = 반올림으로 글자가 0.1pt 줄지 않게
+    setW(10, Math.round(jW * 1000) / 1000);
+    const px = odColPx(ws.getColumn(9).width) + odColPx(ws.getColumn(10).width) - 12;
+    bigoRows.forEach(r => {
+      const c = ws.getCell('I' + r), v = String(c.value || ''); if(!v) return;
+      const fit = px / (emOf(v) * 1.32);
+      c.font = Object.assign({}, c.font || {}, { size: fit < base ? Math.max(8, Math.floor(fit * 10) / 10) : base });
+    });
+  }
+
+  /* ⑥ 그림 자리 — 결재란은 표 오른쪽 끝에 붙이고, 도장은 명판 칸(I) 기준.
+     ⚠ 자리를 **두 벌** 적습니다. ExcelJS 의 칸 안 거리(tl.col 의 소수)는 엑셀 실제 단위와 달라(칸 너비×10000 으로 셈) 엑셀에서 그림이
+       엉뚱하게 앉습니다 — 요청본을 ExcelJS 로 읽으면 도장 자리가 칸 끝(0.99999)으로 잘려 나옵니다(2026-10-29 실측).
+       그래서 엑셀에는 **엑셀 단위(EMU, 1px = 9525)** 로 직접 적고(nativeCol·nativeColOff), 카톡 이미지·PDF 는 _odAbs(표 왼쪽 위에서 잰 px)로 얹습니다.
+     엑셀 칸 픽셀은 기본 글꼴 맑은 고딕 11(숫자 너비 8px)의 엑셀 공식 — 요청본의 자리(결재란 H+728382 · 도장 J+2711618)가 이 공식으로 들어맞습니다. */
+  const MDW = 8, EMU = 9525;
+  const xlPx = w => Math.floor(((256 * (Number(w) || 8.43) + Math.floor(128 / MDW)) / 256) * MDW);
+  const xOfX = c => { let x = 0; for(let k = 1; k < c; k++) x += xlPx(ws.getColumn(k).width); return x; };   // 엑셀 px
+  const xOfH = c => { let x = 0; for(let k = 1; k < c; k++) x += odColPx(ws.getColumn(k).width); return x; }; // 카톡·PDF px
+  const yOfH = r => { let y = 0; for(let k = 1; k < r; k++) y += odRowPx(ws.getRow(k).height); return y; };
+  const putX = (tl, x) => {                                          // 엑셀 px → 몇째 칸 + EMU
+    let c = 1; while(c < 60 && xOfX(c + 1) <= x) c++;
+    tl.nativeCol = c - 1; tl.nativeColOff = Math.round((x - xOfX(c)) * EMU);
+  };
+  const putY = (tl, row0, offPx) => { tl.nativeRow = row0; tl.nativeRowOff = Math.round(offPx * EMU); };
+  if(apv){
+    const w = apv.range.ext.width;
+    putX(apv.range.tl, Math.max(xOfX(7), xOfX(12) - w - L.APV.gapX));
+    putY(apv.range.tl, 6, L.APV.dy);
+    apv._odAbs = { x: Math.max(xOfH(7), xOfH(12) - w - L.APV.gapH), y: yOfH(7) + L.APV.dy };
+  }
+  if(seal){
+    seal.range.ext = { width:L.SEAL.w, height:L.SEAL.h };
+    delete seal.range.br;
+    putX(seal.range.tl, xOfX(9) + L.SEAL.dx);
+    putY(seal.range.tl, 3, L.SEAL.dy);
+    seal._odAbs = { x: xOfH(9) + L.SEAL.dx, y: yOfH(4) + L.SEAL.dy };
+  }
+
+  // ⑦ 인쇄 영역 A1:O27 → A1:L27
+  const pa = ws.pageSetup && ws.pageSetup.printArea;
+  const pm = pa && String(pa).match(/^(\$?)([A-Z]+)(\$?\d+):(\$?)([A-Z]+)(\$?\d+)$/);
+  if(pm) ws.pageSetup.printArea = pm[1] + pm[2] + pm[3] + ':' + pm[4] + letter(mapCol(colNum(pm[5]))) + pm[6];
 }
 
 /* 우리가 적는 칸은 **맞춤을 보장**합니다 (사장님 지적 2026-09-23 "왜이렇게 밀려 납기일 6-7번").
@@ -16733,6 +16886,7 @@ function odFitBigo(ws, rows, o){
     c.style = JSON.parse(JSON.stringify(c.style || {}));          // 서식 덩어리를 나눠 쓰므로 이 칸만 떼어 냄(12-38)
     c.alignment = Object.assign({}, c.alignment || {}, { wrapText:false, shrinkToFit:true, horizontal:'center', vertical:'middle' });
     const base = (c.font && c.font.size) || 11;
+    if(!ws._odBigoBase) ws._odBigoBase = base;                     // 줄이기 전 크기 — odCompactSheet 가 비고 너비를 넓힌 뒤 되돌릴 때 씁니다
     const em = [...v].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
     const fitPt = px / (em * 1.32);
     if(fitPt < base) c.font = Object.assign({}, c.font || {}, { size: Math.max(8, Math.floor(fitPt * 10) / 10) });
