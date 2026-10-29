@@ -4146,6 +4146,8 @@ function soonapMerge(local, remote){
   for(const c in out.ins) out.ins[c].sort((a,b)=>String(a.at)<String(b.at)?-1:1);
   [L.artPo, R.artPo].forEach(P=>{ for(const id in (P||{})){ if(out.insDel[id]) continue; const o=out.artPo[id];
     if(!o || String(P[id].updatedAt||'')>String(o.updatedAt||'')) out.artPo[id]=P[id]; } });
+  // 기준일(아티팩트 재고로 맞춘 날) — 나중에 맞춘 쪽 (12-97)
+  [L.cut, R.cut].forEach(C=>{ if(C && C.d && (!out.cut || String(C.at||'')>String(out.cut.at||''))) out.cut=C; });
   return out;
 }
 /* 🚪 시그니처 글래스도어 (사장님 2026-10-26) — 수납유리재고 맨 위 카드로 봅니다.
@@ -4625,11 +4627,29 @@ function soonapStockParse(text){
   rows.forEach(r=>{ r.dup = r.code && seen[r.code]>1; });
   return rows;
 }
+/* 기준일 후보 — 지금 앱에 있는 그달 1일 ~ 기준일 납품서·입고를 「이미 아티팩트 숫자에 든 것」으로 적어 둡니다 (12-97) */
+let soonapCutDay='';
+function soonapCutDayOf(){ const t=todayStr(), d=soonapCutDay||t; return (d>t || d.slice(0,7)!==t.slice(0,7)) ? t : d; }
+function soonapCutMake(d, codes){
+  const from=d.slice(0,7)+'-01', ids=[], ins=[];
+  (typeof delivLog!=='undefined' && Array.isArray(delivLog) ? delivLog : []).forEach(x=>{
+    const dt=x && (x.orderDate || x.delivReqDate || ''); if(x && x.id && dt>=from && dt<=d) ids.push(x.id); });
+  for(const c in (soonap.ins||{})) for(const e of (soonap.ins[c]||[])){
+    const at=String(e.at||'').slice(0,10); if(e.id && at>=from && at<=d) ins.push(e.id); }
+  return {d, codes:[...new Set(codes)], ids, ins, at:new Date().toISOString(), by:(typeof getActor==='function'?getActor():'')};
+}
+function soonapNowWithCut(code, cut){   // 그 기준일로 맞췄다면 지금 앱 재고 — 미리보기·넣기 같은 셈
+  const keep=soonap.cut; soonap.cut=cut;
+  try{ return soonapNowOf(code); } finally{ soonap.cut=keep; }
+}
 function soonapStockApply(){
   const rows=(soonapStockRows||[]).filter(r=>r.code && !r.dup);
   if(!rows.length) return;
-  const ym=todayStr().slice(0,7);
-  if(!confirm(`아티팩트 재고 ${rows.length}품목을 실사로 넣습니다.\n${+ym.slice(5)}월 기초재고를 거꾸로 맞춰, 앱 재고가 붙여 넣은 숫자와 같아집니다.\n납품·입고 기록은 그대로 둡니다.`)) return;
+  const ym=todayStr().slice(0,7), d=soonapCutDayOf();
+  const md=+d.slice(5,7)+'/'+(+d.slice(8,10));
+  if(!confirm(`아티팩트 재고 ${rows.length}품목을 실사로 넣습니다.\n${+ym.slice(5)}월 기초재고를 거꾸로 맞춰, 앱 재고가 붙여 넣은 숫자와 같아집니다.\n\n기준일 ${md} — 발주일 ${md}까지의 납품서는 아티팩트 숫자에 이미 들어 있는 것으로 보고,\n나중에 올라와도 이 품목에서 다시 빼지 않습니다. 그다음 날 발주부터 앱이 뺍니다.\n납품·입고 기록은 그대로 둡니다.`)) return;
+  const cut=soonapCutMake(d, rows.map(r=>r.code));
+  soonap.cut=cut;
   soonap.base=soonap.base||{};
   rows.forEach(r=>{
     const s=soonapNowOf(r.code);
@@ -4640,16 +4660,18 @@ function soonapStockApply(){
   soonapStockRows=null; const ta=document.getElementById('soonap-art-ta'); if(ta) ta.value='';
   renderSoonap(); renderSoonapArt();
   try{ renderSoonapGrid(); }catch(e){}
-  showToast(`✅ ${rows.length}품목 실사 — ${+ym.slice(5)}월 기초재고를 맞췄습니다`);
+  showToast(`✅ ${rows.length}품목 실사 — 기준일 ${md}, 그다음 날 발주부터 납품서로 뺍니다`);
 }
 function renderSoonapStock(host){
   const rows=soonapStockRows, ym=todayStr().slice(0,7), mo=+ym.slice(5);
   const td='padding:5px 8px;border-bottom:1px solid var(--b1);white-space:nowrap';
   const num='text-align:right;font-variant-numeric:tabular-nums';
   let ok=0, same=0, bad=0;
+  const cd=soonapCutDayOf(), cmd=+cd.slice(5,7)+'/'+(+cd.slice(8,10));
+  const cand=soonapCutMake(cd, rows.filter(r=>r.code&&!r.dup).map(r=>r.code));
   const body=rows.map(r=>{
     let why, col, now='-', diff='-', appOrd='-';
-    if(r.code){ const s=soonapNowOf(r.code); now=s.now==null?'—':s.now; appOrd=s.ord||'-'; if(s.now!=null) diff=r.qty-s.now; }
+    if(r.code){ const s=soonapNowWithCut(r.code, cand); now=s.now==null?'—':s.now; appOrd=s.ord||'-'; if(s.now!=null) diff=r.qty-s.now; }
     if(!r.code){ why='못 찾은 품목 — 안 넣음'; col='#d97706'; bad++; }
     else if(r.dup){ why='같은 품목이 두 번 — 안 넣음'; col='#d97706'; bad++; }
     else if(diff===0){ why='같음'; col='var(--tx3)'; same++; ok++; }
@@ -4661,7 +4683,10 @@ function renderSoonapStock(host){
       +`<td style="${td};${num};${ordWarn?'color:#d97706':''}" title="${mo}월 납품 — 아티팩트 / 앱(발주일·AS 제외)">${r.ord||'-'} / ${appOrd}</td>`
       +`<td style="${td};color:${col};font-weight:600">${why}</td></tr>`;
   }).join('');
+  const t=todayStr();
   host.innerHTML=`<div style="font-size:12px;margin:8px 0 6px;color:var(--tx2)">재고 화면 → <b>실사</b> · 넣을 품목 <b style="color:var(--acc)">${ok}</b>(그중 이미 같음 ${same}) · 안 넣음 <b style="color:#d97706">${bad}</b></div>`
+    +`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;margin:0 0 6px">📌 기준일 <input type="date" value="${cd}" min="${t.slice(0,7)}-01" max="${t}" onchange="soonapCutDay=this.value;renderSoonapArt()" style="width:140px">`
+    +`<span style="color:var(--tx3)">발주일 ${cmd}까지의 납품서는 아티팩트 숫자에 이미 들어 있는 것으로 보고 다시 빼지 않습니다 · 그다음 날 발주부터 앱이 뺍니다</span></div>`
     +`<div style="overflow-x:auto"><table style="width:100%;min-width:680px;border-collapse:collapse;font-size:12px"><thead><tr style="color:var(--tx2);font-size:11px;text-align:left">`
     +`<th style="${td}">품목 (아티팩트)</th><th style="${td}">앱 코드</th><th style="${td};text-align:right">아티팩트 재고</th><th style="${td};text-align:right">앱 지금</th><th style="${td};text-align:right">차이</th><th style="${td};text-align:right">${mo}월 납품 아티/앱</th><th style="${td}">처리</th></tr></thead><tbody>${body}</tbody></table></div>`
     +`<div style="font-size:11px;color:var(--tx3);margin-top:6px">${mo}월 납품이 주황인 줄은 아티팩트와 앱의 납품 수가 다릅니다 — 오늘은 재고가 맞춰지지만, 다음 납품부터 다시 벌어질 수 있습니다.</div>`
@@ -4803,19 +4828,34 @@ function soonapPrevYm(ym){
 function soonapDaysInYm(ym){ return new Date(+ym.slice(0,4), +ym.slice(5,7), 0).getDate(); }
 
 // 납품서 → {ym:{code:{day:qty}}}. 비규격(isBig)은 재고관리 대상이 아니라 제외.
+/* 📌 기준일 (사장님 2026-10-29 「여기 보이는 걸로 수량 맞춰서 내일부터 납품서에서 빼갔으면」) — 12-97
+   아티팩트는 오더가 나오는 즉시 뺍니다. 그래서 아티팩트 재고로 맞춘 날(기준일 d)까지의 발주는 그 숫자에 이미 들어 있습니다.
+   맞출 때 앱에 있던 납품서·입고(ids·ins)는 기초재고 셈에 그대로 쓰고, 그 뒤에 **새로** 들어온 것 가운데
+   발주일(입고일)이 그달 1일 ~ 기준일인 것은 맞춘 품목(codes)에서만 셈에서 뺍니다 — 두 번 안 빠지게. 기준일 다음 날 발주부터 앱이 뺍니다. */
+let _snCutMemo=null;
+function soonapCutInfo(){
+  const c=(typeof soonap!=='undefined' && soonap) ? soonap.cut : null;
+  if(!c || !c.d) return null;
+  if(_snCutMemo && _snCutMemo.src===c) return _snCutMemo;
+  _snCutMemo={src:c, d:c.d, from:String(c.d).slice(0,7)+'-01', codes:new Set(c.codes||[]), ids:new Set(c.ids||[]), ins:new Set(c.ins||[])};
+  return _snCutMemo;
+}
 function soonapOrderIndex(){
   const idx={};
   if(typeof delivLog==='undefined' || !Array.isArray(delivLog)) return idx;
+  const cut=soonapCutInfo();
   for(const d of delivLog){
     if(!d || (d.id && delivDeleted && delivDeleted[d.id]) || !Array.isArray(d.items)) continue;
     if(!soonapGridAS && (d.refNo||'').startsWith('54')) continue;   // AS 제외 (CLAUDE.md 4번)
     const dt = d.orderDate || d.delivReqDate || '';                 // 발주일 기준 (출고일 아님)
     if(!dt || dt.length<10) continue;
     const ym=dt.slice(0,7), day=+dt.slice(8,10);
+    const late=!!(cut && dt>=cut.from && dt<=cut.d && !cut.ids.has(d.id));   // 기준일까지의 발주인데 맞춘 뒤에 올라온 납품서
     for(const it of d.items){
       if(!it || !it.code || it.isBig) continue;
       const k=soonapKey(it.code);   // 18T 채널 → 예전 450·500 줄
       if(!SOONAP_CODE_SET.has(k)) continue;
+      if(late && cut.codes.has(k)) continue;
       const q=Number(it.qty)||0; if(!q) continue;
       const m=idx[ym]=idx[ym]||{};
       const c=m[k]=m[k]||{};
@@ -4828,9 +4868,11 @@ function soonapOrderIndex(){
 // 입고 이력 → {ym:{code:{day:qty}}}
 function soonapInIndex(){
   const idx={};
+  const cut=soonapCutInfo();
   for(const code of Object.keys(soonap.ins||{})){
     for(const e of (soonap.ins[code]||[])){
       const at=String(e.at||'').slice(0,10); if(at.length<10) continue;
+      if(cut && cut.codes.has(code) && at>=cut.from && at<=cut.d && !cut.ins.has(e.id)) continue;   // 기준일까지의 입고인데 맞춘 뒤에 넣은 것
       const q=Number(e.qty)||0; if(!q) continue;
       const m=idx[at.slice(0,7)]=idx[at.slice(0,7)]||{};
       const c=m[code]=m[code]||{};
