@@ -5500,9 +5500,11 @@ function cadGenerate(){
                    : (pageBlocks.every(b => b.oldAll) ? '구형프레임' : '구형프레임 포함');
       const banner={text:(b0?b0.banner:'EURO700 OB 도어'), cont:!!(b0&&(b0.groupCont||b0.isCont)), oldTag};
       // 메모 열쇠 = 발주일 + 장 번호. 다시 뽑아도 같은 장에 붙습니다.
-      // data-e500 = 조립3(안팀장님) 몫 · data-od = 재출력 기억의 열쇠 (부서별 인쇄 pcOpen)
+      // data-e500 = EURO500 블록이 있음(조립3 몫) · data-e700 = EURO500 아닌 블록이 있음(조립1·2·가공 몫)
+      // data-od = 재출력 기억의 열쇠 (부서별 인쇄 pcOpen)
       const e500 = pageBlocks.some(b => b.banner === BANNER.E500) ? '1' : '';
-      html+=`<div class="cad-page" data-memo-key="${esc(ship)}|${sheetCount - pages.length + (pages.indexOf(pageBlocks)+1)}" data-e500="${e500}" data-od="${esc(od)}">`
+      const e700 = pageBlocks.some(b => b.banner !== BANNER.E500) ? '1' : '';
+      html+=`<div class="cad-page" data-memo-key="${esc(ship)}|${sheetCount - pages.length + (pages.indexOf(pageBlocks)+1)}" data-e500="${e500}" data-e700="${e700}" data-od="${esc(od)}">`
           + cadPageSVG(header, banner, pageBlocks) + `</div>`;
     });
   });
@@ -7393,11 +7395,15 @@ function subdoorGenerate(){
      · 같은 발주일·같은 부서를 다시 뽑으면 부서 옆에 빨간 「재출력」 — 원본은 이미 나갔다는 표시.
    ── 부서는 PRINT_DEPTS 한 곳입니다. 부서를 더하거나 빼려면 여기 한 줄.
      only:'e500' = EURO500 띠가 붙은 장만 (조립3 — 사장님 확정)
+     skip:'e500' = EURO500 만 실린 장은 안 받음 (조립1·조립2·가공 — 사장님 2026-10-29
+                   「유로 500이 나올때 다른 부서는 안줘도되고 목재, 포장, 안팀장님 3군데만」)
+                   한 장에 EURO700 과 섞여 있으면 받습니다 — 700 몫이 빠지면 안 되니까.
      glass:true  = 작업지시서 대신 유리 리스트 인쇄실용 (인쇄실 — 사장님 확정)
    ════════════════════════════════════════════════════════════════ */
 const PRINT_DEPTS = {
   euro: [
-    {id:'조립1'}, {id:'조립2'}, {id:'포장'}, {id:'가공'}, {id:'목재'},
+    {id:'조립1', skip:'e500'}, {id:'조립2', skip:'e500'}, {id:'포장'},
+    {id:'가공', skip:'e500'}, {id:'목재'},
     {id:'조립3(안팀장님)', only:'e500'},
     {id:'인쇄실(인쇄용)', glass:true},
   ],
@@ -7442,8 +7448,21 @@ function pcSig(kind, pages){
 function pcDeptPages(kind, d){
   const pages = pcPagesOf(kind);
   if(d.glass) return pcGlassBlocks();
-  if(d.only === 'e500') return pages.filter(p => p.dataset.e500 === '1');
-  return pages;
+  return pages.filter(p => pcDeptHas(d, p));
+}
+// 이 장을 이 부서가 받나 (유리 리스트는 따로)
+function pcDeptHas(d, p){
+  if(d.glass) return false;
+  if(d.only === 'e500') return p.dataset.e500 === '1';
+  // 옛 장(data-e700 없음)은 EURO500 표시가 없으면 700 으로 봅니다
+  if(d.skip === 'e500') return p.dataset.e700 === '1' || (p.dataset.e700 === undefined && p.dataset.e500 !== '1');
+  return true;
+}
+// 이 장의 배부 목록 — 장마다 실제로 받는 곳만 (EURO500 장 = 포장 · 목재 · 조립3)
+function pcDistOf(kind, p){
+  const has700 = p.dataset.e700 === '1' || (p.dataset.e700 === undefined && p.dataset.e500 !== '1');
+  return PRINT_DEPTS[kind].filter(d => d.glass ? (has700 && pcGlassBlocks().length) : pcDeptHas(d, p))
+    .map(d => d.glass ? '인쇄실(유리)' : d.only === 'e500' ? '조립3(유로500)' : d.id).join(' · ');
 }
 function pcOpen(kind){
   const pages = pcPagesOf(kind);
@@ -7457,7 +7476,8 @@ function pcOpen(kind){
     const n = pcDeptPages(kind, d).length;
     const what = !n ? (d.glass ? '유리 리스트 없음' : d.only === 'e500' ? '유로500 없음' : '없음')
                : d.glass ? '유리 리스트 ' + n + '장'
-               : d.only === 'e500' ? '유로500 ' + n + '장' : n + '장';
+               : d.only === 'e500' ? '유로500 ' + n + '장'
+               : d.skip === 'e500' && n < pages.length ? '유로500 빼고 ' + n + '장' : n + '장';
     const re = done[d.id] ? ' <span style="color:#e00000;font-size:11px">이미 뽑음 → 재출력</span>' : '';
     return `<label class="pc-row${n ? '' : ' off'}"><input type="checkbox" data-i="${i}" ${n ? 'checked' : 'disabled'} onchange="pcCount()">`
          + `<span>${esc(d.id)}${re}</span><span class="pc-what">${what}</span></label>`;
@@ -7494,8 +7514,9 @@ function pcPrint(){
   const pages = pcPagesOf(kind), sig = pcSig(kind, pages);
   const log = pcLogRead(), ent = log[sig] || { d:{} };
   // 배부 목록은 **늘 원래 받는 곳 전부**를 적습니다 — 한 부만 다시 뽑아도 몇 곳에 갔는지 보이게.
-  const dist = PRINT_DEPTS[kind].filter(d => pcDeptPages(kind, d).length)
-    .map(d => d.glass ? '인쇄실(유리)' : d.only === 'e500' ? '조립3(유로500)' : d.id).join(' · ');
+  // 작업지시서 장은 장마다(pcDistOf — EURO500 장은 포장·목재·조립3), 유리 리스트는 아래 목록.
+  const dist = PRINT_DEPTS[kind].filter(d => pcDeptPages(kind, d).length && d.only !== 'e500')
+    .map(d => d.glass ? '인쇄실(유리)' : d.id).join(' · ');
   let host = document.getElementById('printCopies');
   if(!host){ host = document.createElement('div'); host.id = 'printCopies'; document.body.appendChild(host); }
   host.innerHTML = '';
@@ -7521,7 +7542,7 @@ function pcPrint(){
       const c = pg.cloneNode(true);
       c.querySelectorAll('.pg-no,.cad-memo-add').forEach(x => x.remove());
       const s = document.createElement('div'); s.className = 'pc-stamp';
-      s.innerHTML = `<span>배부 : ${esc(dist)}</span><span class="pc-no">${label} ${i+1} / ${list.length}</span>`
+      s.innerHTML = `<span>배부 : ${esc(pcDistOf(kind, pg))}</span><span class="pc-no">${label} ${i+1} / ${list.length}</span>`
                   + `<span class="pc-dept">${esc(d.id)}${re ? ' <span class="pc-re">재출력</span>' : ''}</span>`;
       c.appendChild(s);
       host.appendChild(c);
