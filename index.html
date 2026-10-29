@@ -14716,8 +14716,9 @@ const OD_CATALOG = {
       /* 유리장식장도어 **정규격** — 모델명과 유리 사이즈 (사장님 표 2026-10-08, 유리 = 장 −24 × −24).
          단추를 누르면 줄에 유리 사이즈와 모델명이 들어갑니다. 모델을 더하려면 sizes 에 한 줄. */
       {type:'5T 백유리 정규격', fname:'5T 백유리', pick:'5T 백유리 정규격 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'', modelMode:true,
-         models:['60222|571*2089','60235|571*2217','45222|421*2089','45235|421*2217','4586|421*836','5086|471*836','6086|571*836'],
-         sizes:['571*2089|60222','571*2217|60235','421*2089|45222','421*2217|45235','421*836|4586','471*836|5086','571*836|6086'],
+         // 모델명 앞에 「유리장식장」 (사장님 2026-10-29) — 번호(60222)만 쳐도 찾습니다(odFindModel)
+         models:['유리장식장 60222|571*2089','유리장식장 60235|571*2217','유리장식장 45222|421*2089','유리장식장 45235|421*2217','유리장식장 4586|421*836','유리장식장 5086|471*836','유리장식장 6086|571*836'],
+         sizes:['571*2089|유리장식장 60222','571*2217|유리장식장 60235','421*2089|유리장식장 45222','421*2217|유리장식장 45235','421*836|유리장식장 4586','471*836|유리장식장 5086','571*836|유리장식장 6086'],
          hint:'유리장식장도어 정규격 · 모델명(60222 등)을 치거나 아래 단추를 누르면 유리 사이즈가 들어갑니다'},
       // 유리장식장도어 비규격 — 제목 `5T 백유리 투명/반강화` (사장님 2026-10-08)
       /* 사장님 엑셀 양식 그대로 (2026-10-14) — 제목 `5T백유리`(띄어쓰기 없음 · 옆 비고 없음) · 품명 `비규격` · 줄 비고 `반강화/각면`.
@@ -15283,7 +15284,9 @@ function odFindModel(val){
   const s=String(val||'').trim();
   const pm = odPresetModels((curPreset()||{}).p);
   if(pm.length){                                   // 이 종류는 제 목록만 봅니다
-    const hit = pm.find(x => x.name === s);
+    let hit = pm.find(x => x.name === s);
+    // 앞 수식어(「유리장식장 60222」)를 빼고 번호만 쳐도 — 끝 말이 같은 것이 하나뿐일 때만
+    if(!hit && s){ const ends = pm.filter(x => x.name.split(/\s+/).pop() === s); if(ends.length === 1) hit = ends[0]; }
     return hit ? { short:hit.name, glass_w:hit.w, glass_h:hit.h, bigo:hit.bigo, preset:true } : null;
   }
   if(!s || typeof MODELS==='undefined') return null;
@@ -15517,7 +15520,8 @@ function renderOdLines(){
       psHost.innerHTML='<span style="font-size:10px;color:var(--tx3);margin-right:4px">자주 쓰는 사이즈:</span>'+
         /* `'571*2089|60222'` 처럼 모델명을 붙일 수 있습니다 — 단추에 함께 적고, 누르면 그 줄 품명에 들어갑니다 (2026-10-08) */
         p.sizes.map(sz=>{ const [s, model] = String(sz).split('|');
-          return `<button onclick="odAddPresetSize('${sz}')" class="f-btn" style="margin:2px 4px 2px 0">${model ? '<b>'+model+'</b> · ' : ''}${s.replace('*','×')}</button>`; }).join('');
+          // 단추에는 번호만(「유리장식장」 같은 앞 수식어는 칸이 길어져 뺌) — 누르면 이름 전체가 들어갑니다
+          return `<button onclick="odAddPresetSize('${sz}')" class="f-btn" style="margin:2px 4px 2px 0">${model ? '<b>'+model.split(/\s+/).pop()+'</b> · ' : ''}${s.replace('*','×')}</button>`; }).join('');
     } else {
       psHost.innerHTML='';
     }
@@ -15669,6 +15673,7 @@ function odModelInput(i, val){
   if(odThroughBore(val) && m){ if(!odLines[i].bigo || auto){ odLines[i].bigo = OD_THROUGH_BORE.bigo; odLines[i].bigoAuto = OD_THROUGH_BORE.bigo; } }
   else if(auto){ odLines[i].bigo = ''; odLines[i].bigoAuto = ''; }
   if(m && m.preset){                       // 종류에 딸린 모델 — 사이즈와 (있으면) 줄 비고만
+    odLines[i].pname=m.short;              // 번호만 쳤으면 목록 이름(「유리장식장 60222」)으로 채움
     odLines[i].w=m.glass_w; odLines[i].h=m.glass_h; odLines[i].codes=null;
     if(m.bigo && !odLines[i].bigo) odLines[i].bigo=m.bigo;
     renderOdLines();
