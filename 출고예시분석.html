@@ -154,6 +154,9 @@
   table.board td.q.z{color:#cbc6ba}
   table.board td.sum{text-align:center;font-weight:800;background:#fff6c9;font-variant-numeric:tabular-nums}
   table.board thead th.sumh{background:#fff0a8;color:#7a6a00}
+  table.board .td-col{border-right:2px solid #1f5f6b}
+  table.board td.td-diff{background:#fff3d6;color:#8a5a00;font-weight:700}
+  table.board td.td-plus{background:#ddeaf7;color:#1f4f7a;font-weight:700}
   table.board tr.fc-green td.pname{background:#dff0d8}
   table.board tr.fc-apricot td.pname{background:#fbe4d8}
   table.board tr.fc-gray td.pname{background:#e3e4e6}
@@ -1364,7 +1367,7 @@ let SHOW_PAST = false; // 지난 오더예상일 펼침 여부
 function renderDatePicker(allShipDates){
   const el=document.getElementById('shipDatePicker');
   const today = isoToday();
-  const future = allShipDates.filter(d=>d>=today);
+  const future = allShipDates.filter(d=>d>today);   // 오늘은 칩이 아니라 맨 앞 「오늘」 열로 (2026-10-29)
   const past   = allShipDates.filter(d=>d<today);
   const chip = d=>{
     const on = SELECTED_DAYS.includes(d)?' on':'';
@@ -1392,6 +1395,64 @@ function renderDatePicker(allShipDates){
     else SELECTED_DAYS.push(d);
     renderBoard();
   });
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   「오늘」 열 — 오늘 오더발행일의 예시 → 오늘 실제 납품 (2026-10-29, 대리님 표를 본뜸)
+     · 예시 = 표와 같은 최신 예시의 오늘 칸(byOrder[오늘]). 대조 탭(12-10)처럼 전날 예시가 아닙니다 —
+       오늘 무엇이 실제로 왔는지 한눈에 보는 칸이라, 예측이 맞았는지를 재는 대조와는 쓰임이 다릅니다.
+     · 납품 = 발주일이 오늘인 납품서(AS 54* 는 뺌), 열쇠는 대조와 같은 코드＋사이즈＋창고(matchKey).
+     · 같은 열쇠에 예시 줄이 여럿이면(사이즈 표기가 안 읽히는 줄) 예시 수량만큼 차례로 나눠 줍니다.
+     · 예시에 없는데 납품된 것은 「+N」 줄로 따로 붙입니다.
+     · 납품서가 아직 하나도 없으면 예시 숫자만 보입니다(전부 「→0」이 되지 않게).
+     · 합계 칸에는 안 넣습니다 — 합계는 지금처럼 고른 날(앞으로 뜰 것)만 셉니다.
+   ══════════════════════════════════════════════════════════════════ */
+function boardTodayCol(allRows, ybCodes){
+  const day = isoToday();
+  const act = new Map();   // matchKey -> {qty, code, name, dk}
+  let aTot = 0;
+  for(const d of DELIVS){
+    if(d.orderDate!==day || isASOrder(d.refNo)) continue;
+    const dk = d.dest==='OIDO'?'O':'G';
+    for(const it of d.items){
+      const k = matchKey(it.code, it.raw||it.name, dk);
+      if(!act.has(k)) act.set(k,{qty:0, code:it.code, name:it.name||it.raw||it.code, dk});
+      act.get(k).qty += it.qty; aTot += it.qty;
+    }
+  }
+  const cell = new Map();   // row -> {e, a}
+  const byKey = new Map();  // matchKey -> [row…]
+  let eTot = 0;
+  for(const row of allRows){
+    const e = (row.byOrder && row.byOrder[day]) || 0;
+    const k = matchKey(row.code, row.name, row.oido?'O':'G');
+    if(!act.has(k) && !e) continue;
+    cell.set(row, {e, a:0}); eTot += e;
+    if(!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(row);
+  }
+  if(!eTot && !aTot) return null;
+  const extra = [];
+  for(const [k, v] of act){
+    const rows = (byKey.get(k)||[]).filter(r=>cell.get(r).e>0);
+    if(!rows.length){
+      const cat = v.dk==='O' ? 'OIDO'
+                : (!ybCodes.has(v.code) && /^BB/.test(v.code) ? 'BAS' : categoryByName(v.name, false));
+      extra.push({name:v.name, a:v.qty, oido:v.dk==='O', cat});
+      continue;
+    }
+    let left = v.qty;
+    for(const r of rows){ const c = cell.get(r); const g = Math.min(c.e, left); c.a += g; left -= g; }
+    if(left>0) cell.get(rows[rows.length-1]).a += left;   // 예시보다 많이 온 것은 마지막 줄에
+  }
+  return {day, cell, extra, eTot, aTot};
+}
+function boardTodayCell(tc, hasDeliv, bold){
+  const b = bold ? 'font-weight:700;' : '';
+  if(!tc || (!tc.e && !tc.a)) return `<td class="q z td-col">·</td>`;
+  if(!hasDeliv || tc.e===tc.a) return `<td class="q td-col" style="${b}">${tc.e}</td>`;
+  if(!tc.e) return `<td class="q td-col td-plus" style="${b}">+${tc.a}</td>`;
+  return `<td class="q td-col td-diff" style="${b}">${tc.e}→${tc.a}</td>`;
 }
 
 function renderBoard(){
@@ -1430,14 +1491,15 @@ function renderBoard(){
   // 기본 선택: 아직 안 골랐으면, 오늘(실제 날짜) 이후의 가장 가까운 오더예상일 3개
   if(SELECTED_DAYS.length===0){
     const today = isoToday();
-    const future = allOrderDates.filter(d=>d>=today);
+    const future = allOrderDates.filter(d=>d>today);
     SELECTED_DAYS = (future.length?future:allOrderDates.slice(-3)).slice(0,3);
   }
-  SELECTED_DAYS = SELECTED_DAYS.filter(d=>allOrderDates.includes(d));
+  SELECTED_DAYS = SELECTED_DAYS.filter(d=>allOrderDates.includes(d) && d!==isoToday());
   renderDatePicker(allOrderDates);
 
   const days = [...SELECTED_DAYS].sort();
-  if(days.length===0){
+  const TD = boardTodayCol(allRows, ybCodes);   // 맨 앞 「오늘」 열 — 예시 → 납품
+  if(days.length===0 && !TD){
     body.innerHTML=emptyMsg('오더예상일을 골라주세요','위에서 보고 싶은 오더예상일을 클릭하면 표가 떠요.');
     return;
   }
@@ -1448,11 +1510,17 @@ function renderBoard(){
     const cat = category(row, ybCodes);
     if(BOARD_CAT!=='ALL' && cat!==BOARD_CAT) continue;
     const qs=days.map(d=>(row.byOrder&&row.byOrder[d])||0);
-    if(qs.some(q=>q>0)){
+    const tc = TD ? TD.cell.get(row) : null;
+    if(qs.some(q=>q>0) || (tc && (tc.e>0||tc.a>0))){
       const fc = finishColor(row.name);
       const oido = !!row.oido;
-      items.push({name:row.name, qs, sum:qs.reduce((a,c)=>a+c,0), fc, oido, bas:cat==='BAS', lead:row.lead});
+      items.push({name:row.name, qs, sum:qs.reduce((a,c)=>a+c,0), fc, oido, bas:cat==='BAS', lead:row.lead, tc});
     }
+  }
+  // 예시에 없는데 오늘 납품된 것 — 「+N」 줄
+  if(TD) for(const x of TD.extra){
+    if(BOARD_CAT!=='ALL' && x.cat!==BOARD_CAT) continue;
+    items.push({name:x.name, qs:days.map(()=>0), sum:0, fc:finishColor(x.name), oido:x.oido, bas:x.cat==='BAS', tc:{e:0,a:x.a}});
   }
   if(items.length===0){
     body.innerHTML=emptyMsg(`고른 오더예상일에 ${catLabel(BOARD_CAT)} 물량이 없어요`,
@@ -1474,9 +1542,10 @@ function renderBoard(){
   let html=`<div class="board-asof">기준 스냅샷 ${esc(srcTxt)} · 분류: <strong>${catLabel(BOARD_CAT)}</strong> · <strong>오더발행일</strong> 기준(고른 날에 뜰 오더 = 그 날짜+리드타임 출고 물량) · 예시는 후보예요.</div>`;
   html+=`<div class="board-scroll"><table class="board"><thead>
     <tr><th rowspan="2" class="pname" style="text-align:center">제품</th>
+    ${TD?`<th class="dcol td-col">${fmtShort(TD.day)} · 오늘</th>`:''}
     ${days.map(d=>`<th class="dcol">${fmtShort(d)}</th>`).join('')}
     <th class="sumh" rowspan="2">합계</th></tr>
-    <tr>${days.map(d=>`<th class="dow">${dowOf(d)}</th>`).join('')}</tr>
+    <tr>${TD?`<th class="dow td-col">${!TD.aTot?'납품 아직':'납품 '+items.reduce((s,it)=>s+(it.tc?it.tc.a:0),0)}</th>`:''}${days.map(d=>`<th class="dow">${dowOf(d)}</th>`).join('')}</tr>
     </thead><tbody>`;
   let prevOido=true;
   for(const it of items){
@@ -1485,10 +1554,12 @@ function renderBoard(){
     const badge = (it.oido ? ' <span class="oido-tag">오이도</span>' : '')
                 + (it.bas  ? ' <span class="badge-bas">바스</span>' : '');
     html+=`<tr class="${cls}"><td class="pname">${esc(it.name)}${badge}</td>`;
+    if(TD) html+=boardTodayCell(it.tc, TD.aTot>0);
     for(const q of it.qs) html+=`<td class="q${q===0?' z':''}">${q===0?'·':q}</td>`;
-    html+=`<td class="sum">${it.sum}</td></tr>`;
+    html+=`<td class="sum">${it.sum||'-'}</td></tr>`;
   }
   html+=`<tr style="border-top:2px solid var(--ink)"><td class="pname" style="font-weight:700;text-align:right">일자 합계</td>
+    ${TD?boardTodayCell({e:items.reduce((s,it)=>s+(it.tc?it.tc.e:0),0), a:items.reduce((s,it)=>s+(it.tc?it.tc.a:0),0)}, TD.aTot>0, true):''}
     ${dayTotals.map(t=>`<td class="q" style="font-weight:700">${t}</td>`).join('')}
     <td class="sum">${grand}</td></tr>`;
   html+='</tbody></table></div>';
@@ -1498,6 +1569,7 @@ function renderBoard(){
     <span><i style="background:#e3e4e6"></i>브리즈</span>
     <span><i style="background:#fff6c9"></i>오이도 창고물</span>
     <span><i style="background:#d9e8f5"></i>바스(드림하이텍)</span>
+    ${TD&&TD.aTot?`<span><i style="background:#fff3d6"></i>오늘 6→5 = 예시→납품</span><span><i style="background:#ddeaf7"></i>오늘 +N = 예시에 없던 납품</span>`:''}
   </div>`;
   body.innerHTML=html;
 }
@@ -1811,7 +1883,7 @@ let DELIVS = delivMerge(delivLoad());
 // 앱 창에서 납품서를 올리면 이 창도 새로고침 없이 따라옵니다
 window.addEventListener('storage', e=>{
   if(e.key!==APP_DELIV_KEY && e.key!==APP_DELIV_DEL_KEY) return;
-  try{ DELIVS = delivMerge(DELIVS); buildMatchShipPicker(); renderMatch(); }catch(err){ console.warn('[앱 납품서] 다시 읽기 실패', err); }
+  try{ DELIVS = delivMerge(DELIVS); buildMatchShipPicker(); renderMatch(); renderBoard(); }catch(err){ console.warn('[앱 납품서] 다시 읽기 실패', err); }
 });
 
 const DELIV_PROD_CODE_RE = /^[A-Z]{2,6}[0-9A-Z]*$/;
