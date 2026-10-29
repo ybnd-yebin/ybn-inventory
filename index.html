@@ -14691,10 +14691,10 @@ const OD_CATALOG = {
          models:['에어힌지 벽장 445×738|405*698','에어힌지 벽장 495×738|455*698','에어힌지 분리장 595×1345|555*1305','에어힌지 키큰장 545×2113|505*2073'],
          hint:'AL 프레임 에어힌지 정규격 · 벽장·분리장·키큰장 또는 445 같은 장 사이즈를 치면 유리 사이즈 자동 · 납기는 화·금'},
       {type:'5T 브론즈 / 비산방지필름 정규격', pick:'키친바흐 (KB 빗각도어) 정규격', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T브론즈',
-         models:['빗면 키큰장 60211|500*2103|좌우 확인','빗면 벽장 4574|350*728','빗면 벽장 5074|400*728','빗면 플랩장 10054|900*528','빗면 플랩장 12054|1100*528'],
+         models:['KB 빗면 키큰장 60211|500*2103|좌우 확인','KB 빗면 벽장 4574|350*728','KB 빗면 벽장 5074|400*728','KB 빗면 플랩장 10054|900*528','KB 빗면 플랩장 12054|1100*528'],   // 앞에 「KB」 (사장님 2026-10-29)
          hint:'KB 빗면 정규격 · 모델 번호(4574 등)를 치면 유리 사이즈 자동 · 키큰장 60211 은 좌우가 있습니다 · 납기는 화·금'},
       {type:'5T 투명 정규격 (시그니처 글래스도어)', pick:'시그니처 (글래스도어) 정규격', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
-         models:['글래스 도어 450|441*2165','글래스 도어 500|491*2165'],
+         models:['시그니처 글래스도어 450|441*2165','시그니처 글래스도어 500|491*2165'],   // 앞에 「시그니처」 (사장님 2026-10-29)
          hint:'시그니처 글래스도어 정규격 · 450 / 500 을 치면 유리 사이즈 자동 (유리 = 장 −5 × −5)'},
       /* 투명·브론즈를 **한 장에** (사장님 2026-10-08 "한페이지에 발주서를 만들어달라고 했거든.
          그래서 비고란에 투명, 브론즈 나눠서 넣어줘야해"). 줄마다 비고에 `투명`/`브론즈`.
@@ -14733,7 +14733,7 @@ const OD_CATALOG = {
          fname:'3.2T 백사틴',
          hint:'3.2T 백사틴 비규격 · 사이즈 직접 입력 · 비고 각면/강화'},
       {type:'5T 투명 정규격 (시그니처 글래스도어)', pick:'5T 투명 정규격 (시그니처 글래스도어)', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
-         models:['글래스 도어 450|441*2165','글래스 도어 500|491*2165'],
+         models:['시그니처 글래스도어 450|441*2165','시그니처 글래스도어 500|491*2165'],   // 앞에 「시그니처」 (사장님 2026-10-29)
          hint:'시그니처 글래스도어 정규격 · 450 / 500 을 치면 유리 사이즈 자동 (유리 = 장 −5 × −5)'},
       {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'}
     ]
@@ -16639,6 +16639,20 @@ function odCompactSheet(wb, ws, o){
       const fit = px / (emOf(v) * 1.32);
       c.font = Object.assign({}, c.font || {}, { size: fit < base ? Math.max(8, Math.floor(fit * 10) / 10) : base });
     });
+  }
+
+  // ⑤' 품명(C~E)이 칸보다 길면 그 칸 글자만 줄입니다 — 「KB 빗면 키큰장 60211」 같은 모델명(2026-10-29). 박스는 odBoxNameFit 이 두 줄로 감음
+  if(!box){
+    const px = [3,4,5].reduce((s, c) => s + odColPx(ws.getColumn(c).width), 0) - 12;
+    for(let i = 0; i < o.items.length; i++){
+      const c = ws.getCell('C' + (OD_TPL_ROW0 + i)), v = String(c.value || ''); if(!v) continue;
+      const base = (c.font && c.font.size) || 11;
+      const fit = px / ([...v].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0) * 1.32);
+      if(fit >= base) continue;
+      c.style = JSON.parse(JSON.stringify(c.style || {}));          // 서식 덩어리를 나눠 쓰므로 이 칸만 떼어 냄(12-38)
+      c.alignment = Object.assign({}, c.alignment || {}, { shrinkToFit:true, wrapText:false });
+      c.font = Object.assign({}, c.font || {}, { size: Math.max(10, Math.floor(fit * 10) / 10) });
+    }
   }
 
   /* ⑥ 그림 자리 — 결재란은 표 오른쪽 끝에 붙이고, 도장은 명판 칸(I) 기준.
