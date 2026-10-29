@@ -18056,13 +18056,41 @@ function odFindNorm(t){
 function odFindItemText(it){
   return odFindNorm(((it.w&&it.h)?`${it.w}×${it.h}`:'')+' '+(it.pname||'')+' '+(it.bigo||'')+' '+(it.color||''));
 }
-function odFindItemHit(it){
+/* 숫자 칸(입고 대기 · 납기 지남 · N월 발주 · 자동 입고)을 누르면 **아래 발주 리스트를 그것만 남겨** 보여 줍니다 (사장님 2026-10-29
+   「카드 클릭해서 그 리스트를 볼 수 있게 · 새 창 만들지 말고 있는 데서 연결」). 걸린 줄은 노랗게, 그 발주는 펼쳐 두어 바로 입고 체크.
+   한 번 더 누르거나 칩의 ✕ 로 풉니다. 숫자는 카드와 같은 셈(tdyOpenOrders · odLateOrders · 이달 발주 · 이달 자동 입고). */
+var odFindState = '';
+const OD_STATE_LABEL = { open:'📦 입고 대기', late:'⏰ 납기 지남', month:'📅 이달 발주', auto:'⚡ 자동 입고(실물 확인 전)' };
+function odStatPick(k){
+  odFindState = (odFindState===k ? '' : k);
+  renderOrderList();
+  if(odFindState){ const el=document.getElementById('od-find'); if(el){ el.style.scrollMarginTop='150px'; el.scrollIntoView({ behavior:'smooth', block:'start' }); } }   // 위에 붙는 메뉴에 안 가리게
+}
+function odStateOrder(o){
+  const ym=todayStr().slice(0,7), inMon=String(o.date||'').slice(0,7)===ym;
+  switch(odFindState){
+    case 'open':  return (o.items||[]).some(it=>it.w&&it.h&&!it.received);
+    case 'late':  return !!(window._odLateIds && window._odLateIds.has(o.id));
+    case 'month': return inMon;
+    case 'auto':  return inMon && (o.items||[]).some(it=>it.received&&it.auto);
+  }
+  return true;
+}
+function odStateItem(o, it){
+  if(!o || !odFindState) return false;
+  if(odFindState==='open' || odFindState==='late') return !!(it.w&&it.h&&!it.received) && odStateOrder(o);
+  if(odFindState==='auto') return !!(it.received&&it.auto) && odStateOrder(o);
+  return false;                                   // 이달 발주는 줄을 칠하지 않음(전부라서)
+}
+function odFindItemHit(it, o){
   const q=odFindNorm(odFindQ);
-  return !!q && odFindItemText(it).includes(q);
+  return (!!q && odFindItemText(it).includes(q)) || odStateItem(o, it);
 }
 function odFindApply(){
   const q=odFindNorm(odFindQ);
+  if(odFindState==='late'){ try{ window._odLateIds=new Set(odLateOrders().map(x=>x.o.id)); }catch(e){ window._odLateIds=new Set(); } }
   const list=(orderLog||[]).filter(o=>{
+    if(odFindState && !odStateOrder(o)) return false;
     if(odFindVendor && odStmtVendor(o.vendor)!==odFindVendor) return false;
     if(!q) return true;
     const head=odFindNorm([o.vendor,o.type,o.title,o.thick,o.client,o.ref,o.bigo,o.date].join(' '));
@@ -18079,14 +18107,16 @@ function odFindRenderBar(list, q){
       const on=(odFindVendor===v);
       return `<button onclick="odFindPickVendor('${String(v).replace(/'/g,"\\'")}')" style="padding:5px 11px;border-radius:14px;font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid ${on?'var(--acc)':'var(--b2)'};background:${on?'var(--acc)':'var(--s2)'};color:${on?'#fff':'var(--tx2)'};font-weight:${on?700:500}">${_odEsc(label)}</button>`;
     };
-    chips.innerHTML=(vs.length>1 ? chip('', '전체')+vs.map(v=>chip(v,v)).join('') : '');
+    const st = odFindState ? `<button onclick="odStatPick('')" title="이 거르기 풀기" style="padding:5px 11px;border-radius:14px;font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid #d97706;background:#fff7ed;color:#b45309;font-weight:700">${OD_STATE_LABEL[odFindState]}만 ✕</button>` : '';
+    chips.innerHTML=st+(vs.length>1 ? chip('', '전체')+vs.map(v=>chip(v,v)).join('') : '');
   }
   const sum=document.getElementById('od-find-sum'); if(!sum) return;
-  if(!q && !odFindVendor){ sum.innerHTML=''; return; }
+  if(!q && !odFindVendor && !odFindState){ sum.innerHTML=''; return; }
   if(!list.length){ sum.innerHTML=''; return; }
-  // 걸린 줄 모으기 — 찾는 글자가 없으면(발주처만 고름) 그 발주처 전체를 셉니다
+  // 걸린 줄 모으기 — 찾는 글자가 없으면(발주처만 고름) 그 발주처 전체를 셉니다 · 카드로 거르면 그 카드에 걸린 줄만(이달 발주는 전부)
   const hits=[];
-  list.forEach(o=>(o.items||[]).forEach(it=>{ if(!q || odFindItemText(it).includes(q)) hits.push({o,it}); }));
+  const stLine = (o, it) => !odFindState || odFindState==='month' || odStateItem(o, it);
+  list.forEach(o=>(o.items||[]).forEach(it=>{ if((!q || odFindItemText(it).includes(q)) && stLine(o, it)) hits.push({o,it}); }));
   const tot=hits.reduce((a,x)=>a+(Number(x.it.qty)||0),0);
   hits.sort((a,b)=>String(b.o.date||'').localeCompare(String(a.o.date||'')));
   const last=hits[0];
@@ -18222,13 +18252,18 @@ function odStatsRender(){
       items.forEach(it=>{ if(it.received && it.auto){ autoN++; autoQ+=Number(it.qty)||0; } });
     }
   });
-  const cell=(label,n,unit,foot,warn)=>`<div class="od-stat${warn&&n?' warn':''}"><div class="od-stat-l">${label}</div>
+  // 누르면 아래 발주 리스트를 그것만 남겨 보여 줌(odStatPick) — 고른 카드는 테두리, 0 이면 못 누름
+  const cell=(k,label,n,unit,foot,warn)=>{
+    const on=odFindState===k, can=!!n;
+    return `<div class="od-stat${warn&&n?' warn':''}"${can?` role="button" tabindex="0" onclick="odStatPick('${k}')" onkeydown="if(event.key==='Enter')odStatPick('${k}')" title="${on?'다시 누르면 전체 보기':'아래 발주 리스트에서 이것만 보기'}"`:''}
+      style="${can?'cursor:pointer;':''}${on?'border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset;':''}"><div class="od-stat-l">${label}${can?`<span style="float:right;font-size:10px;color:${on?'var(--acc)':'var(--tx3)'}">${on?'보는 중 ✕':'보기 ›'}</span>`:''}</div>
     <div class="od-stat-n">${n?n.toLocaleString('ko-KR'):'-'}${n?`<small>${unit}</small>`:''}</div><div class="od-stat-f">${foot}</div></div>`;
+  };
   host.innerHTML =
-    cell('입고 대기', op.q, '장', op.n?`${op.n}줄 미입고`:'다 들어옴', false) +
-    cell('납기 지남', lateN, '건', lateN?`${lateQ}장 미입고`:'없음', true) +
-    cell(`${+ym.slice(5)}월 발주`, monN, '건', monN?`${monQ.toLocaleString('ko-KR')}장`:'아직 없음', false) +
-    cell('자동 입고', autoQ, '장', autoQ?`${autoN}줄 · 실물 확인 전`:'없음', true);
+    cell('open', '입고 대기', op.q, '장', op.n?`${op.n}줄 미입고`:'다 들어옴', false) +
+    cell('late', '납기 지남', lateN, '건', lateN?`${lateQ}장 미입고`:'없음', true) +
+    cell('month', `${+ym.slice(5)}월 발주`, monN, '건', monN?`${monQ.toLocaleString('ko-KR')}장`:'아직 없음', false) +
+    cell('auto', '자동 입고', autoQ, '장', autoQ?`${autoN}줄 · 실물 확인 전`:'없음', true);
 }
 
 function renderOrderList(){
@@ -18328,7 +18363,7 @@ function renderOrderList(){
         const hasSize=it.w&&it.h;
         const titleLine=hasSize?`${it.w}×${it.h}`:(it.pname||'(품명)');
         const subLine=hasSize?`${it.pname?it.pname+' · ':''}${it.bigo||''}`:(it.bigo||'');
-        const hit=odFindItemHit(it);   // 찾는 글자가 걸린 줄은 노랗게
+        const hit=odFindItemHit(it, o);   // 찾는 글자 · 고른 카드에 걸린 줄은 노랗게
         return `
         <div style="display:flex;align-items:center;gap:9px;padding:7px ${hit?'6px':'0'};border-bottom:1px solid var(--b1)${hit?';background:#fff3b0;border-radius:6px':''}">
           ${hasSize?`<button onclick="odToggleRecv('${o.id}',${i})" class="todo-check ${it.received?'done':''}" style="width:22px;height:22px;flex-shrink:0">${it.received?'✓':''}</button>`:'<span style="width:22px;flex-shrink:0;text-align:center;color:var(--tx3)">·</span>'}
@@ -18348,7 +18383,7 @@ function renderOrderList(){
       const dueD=odDueToDate(o.due, o.date);
       const late=!!(openQty && dueD && dueD<todayStr());
       const autoN=o.items.filter(x=>x.received&&x.auto).length;
-      const isOpen=editing || !!odListOpen[o.id] || (!!odFindNorm(odFindQ) && o.items.some(odFindItemHit));
+      const isOpen=editing || !!odListOpen[o.id] || o.items.some(it=>odFindItemHit(it, o));
       const q2=s=>_odEsc(s);
       const subHdr = editing
         ? `<div class="od-sum-2" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
