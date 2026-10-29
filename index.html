@@ -18470,7 +18470,8 @@ const OD_VENDOR_PRICE = {
   /* 5T 백유리 — 정규격 2,300 · 비규격 2,800 (사장님 2026-10-22). 정규격인지는 **사이즈**로 봅니다 — 발주탭 「5T 백유리 정규격」의 모델 사이즈(od5tStdSize) */
   '현성유리': { '3.2T 백사틴 정규격': 4300, '3.2T 백사틴 비규격': 5000, '5T 백유리 정규격': 2300, '5T 백유리 비규격': 2800, '보링': 1000 },
   /* 아름유리 — 사장님 표의 값(2026-10-13 「참조용」, 맞는지 미확인) → **추정**. 종류 이름은 odStmtKind 와 같아야 합니다. */
-  '아름유리': { '에어힌지 5T 투명 정규격': 2697, '에어힌지 5T 투명 비규격': 3758, 'KB 빗면 5T 브론즈 정규격': 3450, 'KB 빗면 5T 브론즈 비규격': 4150 },
+  '아름유리': { '에어힌지 5T 투명 정규격': 2697, '에어힌지 5T 투명 비규격': 3758, 'KB 빗면 5T 브론즈 정규격': 3450, 'KB 빗면 5T 브론즈 비규격': 4150,
+    '시그니처 5T 투명 정규격': 1700 },   // 시그니처 = 10월 내역서 확인 (사장님 2026-10-29)
 };
 /* 추정 단가인 발주처 — 화면·엑셀에 「추정」을 붙입니다. 마감과 맞춰 확정되면 여기서 빼십시오. */
 const OD_VENDOR_PRICE_EST = new Set(['아름유리']);
@@ -18540,7 +18541,9 @@ function odStmtKind(o,it,vendor){
   /* 아름유리 — 투명(에어힌지) · 브론즈(KB 빗면). 섞인 발주서는 줄 비고(`투명`/`브론즈`)로 가릅니다(12-34).
      시그니처 글래스도어(5T 투명 정규격)는 단가를 못 받아 빼 둡니다. */
   if(vendor==='아름유리'){
-    if(/시그니처/.test(t)) return null;
+    // 시그니처 정규격 = 1,700원/평 (사장님 2026-10-29, 10월 내역서) — 이름 또는 시그니처 정규격 사이즈
+    if(/시그니처/.test(t+' '+(it.pname||''))) return /비규격/.test(t) ? null : '시그니처 5T 투명 정규격';
+    if(!/비규격/.test(t) && odSigStdSize(it.w,it.h)) return '시그니처 5T 투명 정규격';
     const b=String(it.bigo||'');
     const col = /브론즈/.test(b) ? 'B' : /투명/.test(b) ? 'T'
               : (/브론즈/.test(t) && !/투명/.test(t)) ? 'B' : /투명/.test(t) ? 'T' : null;
@@ -18569,6 +18572,19 @@ function od5tStdSize(w,h){
     window._od5tStd=s;
   }
   return window._od5tStd.has(w+'x'+h);
+}
+/* 시그니처 글래스도어 정규격 유리 사이즈인가 — 아름 종류 「…(시그니처 글래스도어)」 모델 목록에서 읽습니다.
+   옛 발주는 종류가 그냥 「정규격」이라 이름으로는 못 가립니다(2026-10-13 발주 441×2165). */
+function odSigStdSize(w,h){
+  w=Number(w)||0; h=Number(h)||0; if(!w||!h) return false;
+  if(!window._odSigStd){
+    const s=new Set();
+    try{ Object.values(OD_CATALOG).forEach(g=>Object.values(g).forEach(list=>(list||[]).forEach(p=>{
+      if(p && /시그니처/.test([p.type,p.pick].join(' '))) odPresetModels(p).forEach(m=>{ s.add(m.w+'x'+m.h); s.add(m.h+'x'+m.w); });
+    }))); }catch(e){}
+    window._odSigStd=s;
+  }
+  return window._odSigStd.has(w+'x'+h);
 }
 function odCloseDay(vendor){ return OD_VENDOR_CLOSE_DAY[vendor] || OD_CLOSE_DAY; }
 function odStmtRange(ym, vendor){
