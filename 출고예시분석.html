@@ -1405,6 +1405,8 @@ function renderDatePicker(allShipDates){
      · 같은 열쇠에 예시 줄이 여럿이면(사이즈 표기가 안 읽히는 줄) 예시 수량만큼 차례로 나눠 줍니다.
      · 예시에 없는데 납품된 것은 「+N」 줄로 따로 붙입니다.
      · 납품서가 아직 하나도 없으면 예시 숫자만 보입니다(전부 「→0」이 되지 않게).
+     · 바스는 대조하지 않습니다 (사장님 2026-10-29) — 바스 예시는 업체 창고에서 나가는 출고이고, 납품은 업체가 재고를 보고
+       묶어서 냅니다. 같은 날 수량이 맞을 까닭이 없어, 예시 숫자만 보이고 납품서 바스 줄은 「+N」·납품 합계에서 뺍니다.
      · 합계 칸에는 안 넣습니다 — 합계는 지금처럼 고른 날(앞으로 뜰 것)만 셉니다.
    ══════════════════════════════════════════════════════════════════ */
 function boardTodayCol(allRows, ybCodes){
@@ -1415,6 +1417,7 @@ function boardTodayCol(allRows, ybCodes){
     if(d.orderDate!==day || isASOrder(d.refNo)) continue;
     const dk = d.dest==='OIDO'?'O':'G';
     for(const it of d.items){
+      if(!ybCodes.has(it.code) && /^BB/.test(it.code)) continue;   // 바스 납품 — 대조 안 함
       const k = matchKey(it.code, it.raw||it.name, dk);
       if(!act.has(k)) act.set(k,{qty:0, code:it.code, name:it.name||it.raw||it.code, dk});
       act.get(k).qty += it.qty; aTot += it.qty;
@@ -1426,6 +1429,7 @@ function boardTodayCol(allRows, ybCodes){
   for(const row of allRows){
     const e = (row.byOrder && row.byOrder[day]) || 0;
     const k = matchKey(row.code, row.name, row.oido?'O':'G');
+    if(isBas(row, ybCodes)){ if(e){ cell.set(row, {e, a:0, noCmp:true}); eTot += e; } continue; }   // 바스 — 예시만
     if(!act.has(k) && !e) continue;
     cell.set(row, {e, a:0}); eTot += e;
     if(!byKey.has(k)) byKey.set(k, []);
@@ -1436,8 +1440,7 @@ function boardTodayCol(allRows, ybCodes){
   for(const [k, v] of act){
     const rows = (byKey.get(k)||[]).filter(r=>cell.get(r).e>0);
     if(!rows.length){
-      const cat = v.dk==='O' ? 'OIDO'
-                : (!ybCodes.has(v.code) && /^BB/.test(v.code) ? 'BAS' : categoryByName(v.name, false));
+      const cat = v.dk==='O' ? 'OIDO' : categoryByName(v.name, false);
       extra.push({name:v.name, a:v.qty, oido:v.dk==='O', cat});
       continue;
     }
@@ -1447,9 +1450,16 @@ function boardTodayCol(allRows, ybCodes){
   }
   return {day, cell, extra, eTot, aTot};
 }
+// 합계 줄 — 바스(대조 안 함)는 빼고 견줍니다. 바스만 보는 분류면 예시 합만.
+function boardTodayTotal(items){
+  let e=0, a=0, eb=0;
+  for(const it of items){ const t=it.tc; if(!t) continue; if(t.noCmp) eb+=t.e; else { e+=t.e; a+=t.a; } }
+  return (!e && !a && eb) ? {e:eb, a:0, noCmp:true} : {e, a};
+}
 function boardTodayCell(tc, hasDeliv, bold){
   const b = bold ? 'font-weight:700;' : '';
   if(!tc || (!tc.e && !tc.a)) return `<td class="q z td-col">·</td>`;
+  if(tc.noCmp) return `<td class="q td-col" style="${b}color:var(--soft)" title="바스 — 업체 창고 출고라 납품서와 대조하지 않습니다">${tc.e}</td>`;
   if(!hasDeliv || tc.e===tc.a) return `<td class="q td-col" style="${b}">${tc.e}</td>`;
   if(!tc.e) return `<td class="q td-col td-plus" style="${b}">+${tc.a}</td>`;
   return `<td class="q td-col td-diff" style="${b}">${tc.e}→${tc.a}</td>`;
@@ -1545,7 +1555,7 @@ function renderBoard(){
     ${TD?`<th class="dcol td-col">${fmtShort(TD.day)} · 오늘</th>`:''}
     ${days.map(d=>`<th class="dcol">${fmtShort(d)}</th>`).join('')}
     <th class="sumh" rowspan="2">합계</th></tr>
-    <tr>${TD?`<th class="dow td-col">${!TD.aTot?'납품 아직':'납품 '+items.reduce((s,it)=>s+(it.tc?it.tc.a:0),0)}</th>`:''}${days.map(d=>`<th class="dow">${dowOf(d)}</th>`).join('')}</tr>
+    <tr>${TD?`<th class="dow td-col">${BOARD_CAT==='BAS'?'대조 안 함':!TD.aTot?'납품 아직':'납품 '+items.reduce((s,it)=>s+(it.tc?it.tc.a:0),0)}</th>`:''}${days.map(d=>`<th class="dow">${dowOf(d)}</th>`).join('')}</tr>
     </thead><tbody>`;
   let prevOido=true;
   for(const it of items){
@@ -1559,7 +1569,7 @@ function renderBoard(){
     html+=`<td class="sum">${it.sum||'-'}</td></tr>`;
   }
   html+=`<tr style="border-top:2px solid var(--ink)"><td class="pname" style="font-weight:700;text-align:right">일자 합계</td>
-    ${TD?boardTodayCell({e:items.reduce((s,it)=>s+(it.tc?it.tc.e:0),0), a:items.reduce((s,it)=>s+(it.tc?it.tc.a:0),0)}, TD.aTot>0, true):''}
+    ${TD?boardTodayCell(boardTodayTotal(items), TD.aTot>0, true):''}
     ${dayTotals.map(t=>`<td class="q" style="font-weight:700">${t}</td>`).join('')}
     <td class="sum">${grand}</td></tr>`;
   html+='</tbody></table></div>';
