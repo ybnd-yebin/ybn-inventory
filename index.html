@@ -1061,6 +1061,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     #sp-stocklist .stk-row.open + .stk-det{display:block}
     #sp-stocklist .stk-mob{display:none}
     #sp-stocklist .stk-foot{font-size:11px;color:var(--tx3);padding:8px 12px;border-top:1px solid var(--b1)}
+    .ys-card{border:1px solid var(--b1);border-radius:10px;background:var(--s1);margin:8px 0 10px;font-family:'Noto Sans KR',sans-serif}
+    .ys-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;cursor:pointer;font-size:12.5px;color:var(--tx1)}
+    .ys-sub{font-size:11px;color:var(--tx3)}
+    .ys-warn{font-size:12px;font-weight:700;color:#d97706}
+    .ys-ok{font-size:12px;color:var(--tx3)}
+    .ys-more{margin-left:auto;font-size:11px;color:var(--acc)}
+    .ys-wrap{overflow-x:auto;padding:0 12px}
+    .ys-tbl{border-collapse:collapse;min-width:520px;width:100%;font-size:12px}
+    .ys-tbl th{font-size:11px;font-weight:600;color:var(--tx2);text-align:right;padding:5px 8px;border-bottom:1px solid var(--b1);white-space:nowrap}
+    .ys-tbl td{text-align:right;padding:5px 8px;border-bottom:1px solid var(--b1);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+    .ys-tbl th:first-child,.ys-tbl td.ys-l{text-align:left}
+    .ys-tbl tr.ys-short td{color:#d97706}
+    .ys-tbl tr.ys-short td.ys-l{font-weight:700}
+    .ys-now{color:#d97706}
+    .ys-neg{font-size:10.5px;color:#f85149}
+    .ys-note{font-size:11px;color:var(--tx3);padding:6px 12px 9px;line-height:1.5}
+    @media(max-width:560px){ .ys-head{gap:6px;padding:7px 10px} .ys-more{margin-left:0} }
     #inkcut-card .ik-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--tx2);background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:7px 12px}
     #inkcut-card .ik-bar.on{border-color:#ff6b35;background:rgba(255,107,53,.06)}
     #inkcut-card .ik-bar .sep{color:var(--b2)}
@@ -1110,6 +1127,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <div class="stk-kpis" id="stock-kpis"></div>
     </div>
     <div id="inkcut-card" style="margin:0 0 10px"></div>
+    <div id="yesi-wc-card"></div>
     <div class="stk-search">
     <input class="inp" id="stock-search" placeholder="🔍 모델명 / 사이즈 (예: 6073, 595729, 595*729)..." oninput="renderStockList()">
     <div class="filter-row">
@@ -7073,7 +7091,8 @@ function stkKpiGo(f){
 function setStockFilter(f,btn){stockFilter=f;document.querySelectorAll('#sp-stocklist .f-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStockList();}
 function renderStockList(){
   try{ renderInkCut(); }catch(e){ console.warn('[1액형 전환]', e); }
-  if(typeof stkMode!=='undefined' && stkMode==='pr'){ try{ stkPrRender(); }catch(e){ console.warn('[인쇄유리]', e); } return; }
+  if(typeof stkMode!=='undefined' && stkMode==='pr'){ try{ stkPrRender(); }catch(e){ console.warn('[인쇄유리]', e); } const yh=document.getElementById('yesi-wc-card'); if(yh) yh.innerHTML=''; return; }
+  { const yh=document.getElementById('yesi-wc-card'); if(yh) yh.innerHTML=yesiCardHtml('WC'); }
   let q=(document.getElementById('stock-search')?.value||'').toLowerCase().trim();
   const qNorm = q.replace(/[×x*\s]/g,'');
   const qDigits = q.replace(/[^0-9]/g,'');
@@ -25215,6 +25234,141 @@ function etpReceivedQty(poId, size){
   etpRows().forEach(r => { if(r.t === 'in' && r.poId === poId && r.size === size) n += (Number(r.qty) || 0); });
   return n;
 }
+/* ══════════════════════════════════════════════════════════════════
+   🔮 출고예시로 본 2주 — 예시 소요 · 처음 모자라는 날 · 늦어도 발주 (사장님 2026-10-29, CLAUDE.md 12-96)
+     · 예시 목록은 출고예시분석이 걸러 남긴 것(ybn_yesi_need_v1)을 읽기만 합니다 — 거르는 규칙은 그 파일 한 곳.
+       이 PC 저장함에만 있습니다(시트로 안 감). 없으면 카드를 안 그립니다.
+     · 기간 = 다음 영업일부터 10영업일(12-36 2주 물량과 같음). 오늘 발주분은 납품서로 이미 빠지므로 안 셉니다.
+     · 유리로 바꾸는 법은 납품서 차감과 같습니다 — 에토프 etpModelNameOf·etpBomOf · 웜코튼 delivGlassOf. 비규격은 뺍니다.
+     · 안내만 합니다. 안전재고·권장발주·발주 초안 계산은 안 바뀝니다(예시는 후보 — 12-9).
+   ══════════════════════════════════════════════════════════════════ */
+const YESI_NEED_KEY = 'ybn_yesi_need_v1';
+function yesiNeedLoad(){
+  try{ const o = JSON.parse(localStorage.getItem(YESI_NEED_KEY) || 'null'); return (o && Array.isArray(o.rows)) ? o : null; }
+  catch(e){ return null; }
+}
+function yesiWindow(){ const from = _addBizDays(todayStr(), 1); return { from, to:_addBizDays(from, 9) }; }
+// color 'ETP' | 'WC' → { from, to, asof, need:{열쇠:{tot, byDay}}, fails:[{name,qty}] }
+function yesiNeedOf(color){
+  const b = yesiNeedLoad(); if(!b) return null;
+  const W = yesiWindow(), need = {}, fail = {};
+  b.rows.forEach(r => {
+    const it = { code:r.code, name:r.name, short:r.name };
+    if(etpIsNonStd(r.name) || etpColorOf(it) !== color) return;
+    let glass = [];
+    if(color === 'ETP'){
+      const model = etpModelNameOf(it), bom = etpBomOf(model);
+      if(bom && bom.glass) glass = bom.glass.map(g => ({ key:etpSizeKeyOf(model, g.w, g.h), per:Number(g.qty) || 1 }));
+    } else glass = delivGlassOf(it).map(g => ({ key:g.w + 'x' + g.h, per:g.per }));
+    Object.keys(r.byOrder || {}).forEach(d => {
+      const q = Number(r.byOrder[d]) || 0;
+      if(d < W.from || d > W.to || q <= 0) return;
+      if(!glass.length){ fail[r.name] = (fail[r.name] || 0) + q; return; }   // 조용히 넘기지 않고 드러냅니다
+      glass.forEach(g => {
+        const x = need[g.key] || (need[g.key] = { tot:0, byDay:{} });
+        x.tot += q * g.per; x.byDay[d] = (x.byDay[d] || 0) + q * g.per;
+      });
+    });
+  });
+  const asof = (b.srcs || []).map(s => s.asof).sort().pop() || b.at || '';
+  return { from:W.from, to:W.to, asof, need,
+           fails:Object.keys(fail).map(k => ({ name:k, qty:fail[k] })).sort((a, c) => c.qty - a.qty) };
+}
+/* 날마다 쌓아 내려가며 처음 모자라는 날을 찾습니다.
+   inc = [{d:납기, q}] — 납기를 모르면(빈 값) 처음부터 있는 것으로 봅니다. 기간 뒤 납기는 안 셉니다. */
+function yesiWalk(stock, inc, byDay, from, to){
+  let s = stock;
+  inc.forEach(x => { if(!x.d || x.d < from) s += x.q; });
+  let first = '', firstQ = 0, min = s;
+  if(s < 0){ first = from; firstQ = -s; }
+  const days = [...new Set(Object.keys(byDay).concat(inc.filter(x => x.d && x.d >= from && x.d <= to).map(x => x.d)))].sort();
+  days.forEach(d => {
+    inc.forEach(x => { if(x.d === d) s += x.q; });
+    s -= byDay[d] || 0;
+    if(s < min) min = s;
+    if(s < 0 && !first){ first = d; firstQ = -s; }
+  });
+  return { first, firstQ, short:Math.max(0, -min) };
+}
+function yesiRowsOf(color){
+  const N = yesiNeedOf(color); if(!N) return null;
+  const lead = (typeof OD_VENDOR_DUE !== 'undefined' && Number(OD_VENDOR_DUE[color === 'ETP' ? '현성유리' : '대원유리'])) || 0;
+  const inc = {};   // 열쇠 → [{d,q}]
+  const addInc = (k, d, q) => { if(q > 0) (inc[k] = inc[k] || []).push({ d, q }); };
+  const cur = {};
+  if(color === 'ETP'){
+    etpBuildRows().forEach(r => { cur[r.size] = r.cur; });
+    (Array.isArray(etpPOs) ? etpPOs : []).forEach(po => {
+      if(!po || po.status === 'done' || po.canceled) return;
+      const due = etpPoDue(po);
+      (po.items || []).forEach(it => addInc(it.size, due, (Number(it.qty) || 0) - etpReceivedQty(po.id, it.size)));
+    });
+  } else {
+    (typeof orderLog !== 'undefined' ? orderLog : []).forEach(o => {
+      if(odEtpClass(o).k === 'etp') return;   // 현성 에토프 완제품은 원유리가 아닙니다
+      let due = ''; try{ due = odDueToDate(o.due, o.date) || ''; }catch(e){}
+      (o.items || []).forEach(it => { if(it.w && it.h && !it.received) addInc(it.w + 'x' + it.h, due, Number(it.qty) || 0); });
+    });
+  }
+  const today = todayStr(), out = [];
+  Object.keys(N.need).forEach(k => {
+    const n = N.need[k];
+    let stock, book, hint = '';
+    if(color === 'ETP'){ book = cur[k] || 0; hint = '에토프 장부 ' + book; }
+    else {
+      const p = k.split('x'), raw = getRawQty(+p[0], +p[1]), pr = getPrintedQty(+p[0], +p[1], 'WC');
+      book = raw + Math.max(0, pr);   // 인쇄유리 장부는 출발점이 없어 마이너스가 많습니다(12-92) — 마이너스면 0
+      hint = '원유리 ' + raw + ' · 인쇄유리 ' + pr + (pr < 0 ? '(0으로 봄)' : '');
+    }
+    // 장부가 마이너스면 0 으로 보고 「예시만큼 모자라는지」만 봅니다 — 마이너스까지 더하면 장부 탓이 예시 탓처럼 보입니다
+    stock = Math.max(0, book);
+    const ii = inc[k] || [];
+    const w = yesiWalk(stock, ii, n.byDay, N.from, N.to);
+    const latest = w.first ? _addBizDays(w.first, -lead) : '';
+    out.push({ key:k, stock, book, hint, inc:ii.filter(x => !x.d || x.d <= N.to).reduce((s, x) => s + x.q, 0), need:n.tot,
+               first:w.first, short:w.short, latest, late:!!(latest && latest <= today) });
+  });
+  out.sort((a, c) => ((!!c.first) - (!!a.first)) || (a.first || '').localeCompare(c.first || '') || (c.short - a.short) || (c.need - a.need));
+  return { N, rows:out, lead };
+}
+var _yesiOpen = {};   // 이 창에서만 기억 — var: 앱을 막 열 때 그리기가 먼저 돕니다(12-57)
+function yesiToggle(color){ _yesiOpen = _yesiOpen || {}; _yesiOpen[color] = !_yesiOpen[color]; if(color === 'ETP') renderEtp(); else renderStockList(); }
+function yesiCardHtml(color){
+  let R; try{ R = yesiRowsOf(color); }catch(e){ console.warn('[예시 소요]', e); return ''; }
+  if(!R) return '';
+  const N = R.N, f = d => d ? d.slice(5).replace('-', '/') : '-';
+  const sh = R.rows.filter(r => r.first);
+  const open = !!(_yesiOpen && _yesiOpen[color]);
+  const stale = N.asof && N.asof < _addBizDays(todayStr(), -1);
+  const vendor = color === 'ETP' ? '현성' : '대원';
+  const head =
+    '<div class="ys-head" onclick="yesiToggle(\'' + color + '\')">' +
+      '<b>🔮 출고예시로 본 2주</b>' +
+      '<span class="ys-sub">' + f(N.from) + '~' + f(N.to) + ' · 기준 예시 <span' + (stale ? ' style="color:#d97706;font-weight:700"' : '') + '>' + f(N.asof) + '</span></span>' +
+      (sh.length ? '<span class="ys-warn">예시상 모자람 ' + sh.length + '사이즈</span>' : '<span class="ys-ok">예시상 모자람 없음</span>') +
+      '<span class="ys-more">' + (open ? '접기 ▴' : '자세히 ▾') + '</span>' +
+    '</div>';
+  if(!open) return '<div class="ys-card">' + head + '</div>';
+  const list = R.rows.filter(r => r.first || r.need > 0);
+  const th = '<tr><th>사이즈</th><th>' + (color === 'ETP' ? '재고' : '원유리') + '</th><th>입고 예정</th><th>2주 예시</th><th>처음 모자라는 날</th><th>모자람</th><th>늦어도 발주</th></tr>';
+  const tr = list.map(r =>
+    '<tr' + (r.first ? ' class="ys-short"' : '') + '><td class="ys-l">' + etpEsc(r.key) + '</td>' +
+    '<td' + (r.hint ? ' title="' + etpEsc(r.hint) + '"' : '') + '>' + (r.book < 0 ? '0 <span class="ys-neg">(장부 ' + r.book + ')</span>' : r.stock) + '</td>' +
+    '<td>' + (r.inc || '-') + '</td><td>' + r.need + '</td>' +
+    '<td>' + f(r.first) + '</td><td>' + (r.short || '-') + '</td>' +
+    '<td>' + (!r.first ? '-' : (r.late ? '<b class="ys-now">지금</b>' : f(r.latest))) + '</td></tr>').join('');
+  const fails = N.fails.length ? '<div class="ys-note">⚠ 유리 사이즈를 못 찾은 예시 ' + N.fails.length + '품목 — ' +
+    N.fails.slice(0, 4).map(x => etpEsc(x.name) + ' ' + x.qty).join(' · ') + (N.fails.length > 4 ? ' 외' : '') + '</div>' : '';
+  const note = '<div class="ys-note">예시는 후보입니다 — 안 오는 것·예시 없이 오는 것이 10% 남짓씩 있습니다. ' +
+    '늦어도 발주 = 처음 모자라는 날 − ' + vendor + ' 납기 ' + R.lead + '영업일' +
+    (color === 'WC' ? '(인쇄 시간은 빼지 않음). 원유리 칸 = 원유리 + 인쇄유리(마이너스면 0) — 숫자에 마우스를 올리면 나눠 보입니다' : '') +
+    '. 장부가 마이너스인 사이즈는 0 으로 보고 셉니다. 안전재고·권장발주는 이 숫자로 안 바뀝니다. 예시를 넣은 이 PC 에서만 보입니다.</div>';
+  return '<div class="ys-card">' + head +
+    (list.length ? '<div class="ys-wrap"><table class="ys-tbl"><thead>' + th + '</thead><tbody>' + tr + '</tbody></table></div>'
+                 : '<div class="ys-note">이 기간 예시에 ' + (color === 'ETP' ? '에토프' : '웜코튼') + ' 정규격이 없습니다.</div>') +
+    fails + note + '</div>';
+}
+
 function etpOpenQtyOf(size){
   if(!Array.isArray(etpPOs) || !etpPOs.length) return 0;
   let n = 0;
@@ -26277,7 +26431,7 @@ function renderEtp(){
   /* 예전 표 아래 접는 단추 줄은 없앴습니다 (사장님 2026-10-27 「관리도구 안에 있는 거 다 안 쓸 것 같아」) —
      납품서 차감·불량·발주 초안·확인 필요·실측·직원 아티팩트는 위 「⚙ 관리」 창, 오더번호 되짚기는 「AS」 창, 발주 입고는 「📥 입고등록」. */
   window._etpArtHtml = art;   // 관리 창이 씁니다
-  el.innerHTML = head + listBlock;
+  el.innerHTML = head + yesiCardHtml('ETP') + listBlock;
   if(document.getElementById('etp-mgmt-modal') && document.getElementById('etp-mgmt-modal').classList.contains('on')) etpMgmtRender();
   if(document.getElementById('etp-as-modal') && document.getElementById('etp-as-modal').classList.contains('on')) etpAsRender();
 
