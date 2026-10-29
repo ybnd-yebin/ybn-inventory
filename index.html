@@ -18477,7 +18477,18 @@ const OD_VENDOR_PRICE_EST = new Set(['아름유리']);
 /* 평(자)을 **소수 둘째 자리로 반올림하고 1 미만은 1** 로 세는 발주처 — 현성 마감 엑셀의 식
    `ROUND(가로*세로/90000,2)` 그대로입니다(9월 마감 595×139 → 0.92 → 1평). 대원은 반올림 없이 그대로. */
 const OD_PYEONG_ROUNDED = new Set(['현성유리']);
-function odPyeong(w,h,vendor){
+/* 아름유리 평 (사장님 2026-10-29 「평 인정도 해주고 평 계산도 해줘」 — 근거 = 10월 내역서)
+   · 투명 = 소수 둘째 자리·1평 미만 1평(현성과 같은 식) — 10월 20줄 모두 맞음
+   · 브론즈 = **가로는 150mm 단위로 올리고, 세로는 150mm 단위 가까운 값** 으로 잰 넓이
+     (350×1208 → 450×1200 = 6 · 400×1208 → 6 · 500×2103 → 600×2100 = 14 · 500×2261 → 600×2250 = 15 — 6줄 모두 맞음)
+     ⚠ 아름에 물어 받은 규칙이 아니라 6줄에서 맞춘 셈입니다(→ 확인대기 C22). 마감에서 어긋나면 거래처 평을 인정하고 드러냅니다(CL_PY_ACCEPT). */
+const OD_AREUM_BRONZE_STEP = 150;
+function odPyeongArum(w,h,bronze){
+  if(bronze){ const s=OD_AREUM_BRONZE_STEP; return Math.ceil(w/s)*s * Math.max(1,Math.round(h/s))*s / OD_JA_MM2; }
+  return Math.max(1, Math.round(w*h/OD_JA_MM2*100)/100);
+}
+function odPyeong(w,h,vendor,bronze){
+  if(vendor==='아름유리') return odPyeongArum(w,h,bronze);
   const ja=w*h/OD_JA_MM2;
   if(!OD_PYEONG_ROUNDED.has(vendor)) return ja;
   return Math.max(1, Math.round(ja*100)/100);
@@ -18605,8 +18616,8 @@ function odStmtRows(vendor, ym, range){
       if(!day || day<from || day>to) return;
       if(recvOnly && st!=='입고'){ rows.skipped[st]+=qty; return; }
       const w=Number(it.w)||0, h=Number(it.h)||0;
-      const ja = (w&&h) ? odPyeong(w,h,vendor) : null;
       const kind=odStmtKind(o,it,vendor);
+      const ja = (w&&h) ? odPyeong(w,h,vendor,/브론즈/.test(kind||'')) : null;
       const unit = kind ? (price[kind]||null) : null;
       // 관통보링 — 한 장에 OD_THROUGH_BORE_N 개 × 보링 단가(있는 발주처만)
       const tb = price['보링'] && (OD_THROUGH_BORE.re.test(it.pname||'') || /관통보링/.test([it.bigo, o.bigo].join(' ')));
@@ -18841,12 +18852,16 @@ function clExpPUnit(L,P,vendor){
 }
 /* 공급가를 **줄마다 반올림**하고 평을 소수 둘째 자리로 세는 발주처(마감에서만) — 아름 내역서 식 그대로 (2026-10-29) */
 const CL_LINE_ROUND = new Set(['아름유리']);
+/* 평이 앱 셈과 달라도 거래처 평을 인정하는 발주처 (사장님 2026-10-29) */
+const CL_PY_ACCEPT = new Set(['아름유리']);
 /* 줄 하나를 앱 규칙으로 다시 셉니다. flags = 거래처 엑셀과 다른 곳 */
 function clCalcLine(L,P,vendor){
   const r={flags:[]};
   if(L.kind==='기타비용'){ r.py=null; r.pUnit=null; r.unit=Number(L.unitFile)||0; }
   else{
-    r.py=CL_LINE_ROUND.has(vendor) ? Math.max(1, Math.round(L.w*L.h/OD_JA_MM2*100)/100) : odPyeong(L.w,L.h,vendor); r.pUnit=clExpPUnit(L,P,vendor);
+    r.py=odPyeong(L.w,L.h,vendor,/브론즈/.test(L.glass||'')); r.pUnit=clExpPUnit(L,P,vendor);
+    /* 거래처 평을 인정하는 발주처 — 앱 셈과 다르면 거래처 평으로 셉니다(줄에 표시) */
+    if(CL_PY_ACCEPT.has(vendor) && L.pyFile>0 && Math.abs(L.pyFile-r.py)>0.005){ r.flags.push(`거래처 평 인정 ${L.pyFile} (앱 ${Math.round(r.py*100)/100})`); r.py=L.pyFile; r.pyAccepted=true; }
     r.unit=r.pUnit==null?null:r.py*r.pUnit+(L.bore||0)*(P.bore||0);
     if(r.pUnit==null) r.flags.push('단가 없음');
     if(L.pyFile!=null && Math.abs(L.pyFile-r.py)>0.005) r.flags.push(`평 ${L.pyFile} → ${r.py}`);
