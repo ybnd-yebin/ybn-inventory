@@ -18066,6 +18066,15 @@ function odStatPick(k){
   renderOrderList();
   if(odFindState){ const el=document.getElementById('od-find'); if(el){ el.style.scrollMarginTop='150px'; el.scrollIntoView({ behavior:'smooth', block:'start' }); } }   // 위에 붙는 메뉴에 안 가리게
 }
+// 위 메뉴(발주·입고 › 입고 확인 · 미입고·지연)에서 — 누를 때마다 켭니다(카드처럼 끄지 않음)
+function odStatShow(k){ odFindState=''; odStatPick(k); }
+function odGoRecvList(){ odStatShow('open'); }
+function odGoLateList(){ odStatShow('late'); }
+function odGoAllList(){
+  odFindState=''; renderOrderList();
+  const el=document.getElementById('od-find');
+  if(el){ el.style.scrollMarginTop='150px'; el.scrollIntoView({ behavior:'smooth', block:'start' }); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),1400); }
+}
 function odStateOrder(o){
   const ym=todayStr().slice(0,7), inMon=String(o.date||'').slice(0,7)===ym;
   switch(odFindState){
@@ -32761,9 +32770,9 @@ var GNAV_MENU=[
   ]},
   { c:'발주·입고', items:[
     { t:'발주 작성', m:'order' },
-    { t:'발주 목록·수정', m:'order', el:'od-find' },
-    { t:'입고 확인', m:'home', fn:'tdyGoOrderTab' },
-    { t:'미입고·지연', m:'home', el:'tdy-ax-late' },
+    { t:'발주 목록·수정', m:'order', fn:'odGoAllList' },    // 카드·메뉴로 건 거르기를 풀고 리스트 전체로
+    { t:'입고 확인', m:'order', fn:'odGoRecvList' },       // 발주 리스트를 「입고 대기」로 거름 (2026-10-29 — 예전엔 🏠 오늘로)
+    { t:'미입고·지연', m:'order', fn:'odGoLateList' },     // 발주 리스트를 「납기 지남」으로 거름
     { t:'비규격 발주 대기', m:'order', el:'od-handoff' },
     { t:'발주분석', m:'order-analysis' },
   ]},
