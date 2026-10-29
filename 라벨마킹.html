@@ -199,7 +199,7 @@ button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-vis
 }
 /* 쪼가리에 들어가는 자동 메모 — 자리가 좁아 테두리·여백을 뺍니다 */
 .note.strip{padding:0 1px;border:none;letter-spacing:-.01em}
-.note.thin{font-weight:400}   /* 묶음 숫자(2 · 4 · L1/R1)만 보통 굵기 — 선명하게 인쇄(PDF)도 이 굵기를 읽습니다 (2026-10-23) */
+.note.thin,.note .lead{font-weight:400}   /* 묶음 숫자(2 · 4 · L1/R1)만 보통 굵기 — 선명하게 인쇄(PDF)도 이 굵기를 읽습니다 (2026-10-23) */
 /* A/S — 품명 아래 빈칸에 굵고 크게 (2026-10-07) */
 .note.ascell{font-weight:900;padding:0 2px;border:none;letter-spacing:.02em}
 /* 유리 사이즈는 세로로 — 라벨의 다른 세로 글자와 같은 방향(아래에서 위로) 입니다.
@@ -1098,15 +1098,12 @@ function layoutStripNotes(pend){
          한 줄에 하나씩이면 `2장` / `HD` / `R` 로 깔끔하게 떨어집니다.
        ⚠ 글자를 줄여 한 줄에 몰아넣지 않습니다. `2장 · 421×708 · R` 을 한 줄로 욱여넣다가
          9px 까지 작아진 적이 있습니다 (같은 날 "글씨가 너무 작아졌어. 줄바꿈으로 해줘"). */
-    /* 묶음 숫자는 **보통 굵기**라 제 줄에 따로 섭니다 (사장님 2026-10-23 「숫자는 얇게」) —
-       맨 앞 줄이 숫자 하나뿐인 나눔만 씁니다. 그런 나눔이 하나도 안 맞으면 예전처럼 다 굵게 이어 붙입니다. */
-    const allCands = splitCandidates(texts);
-    const soloCands = o.bundle ? allCands.filter(ls => ls[0] === o.bundle) : allCands;
-    const fits = cs => STRIP_FS.some(fs => {
-      cx.font = "700 " + fs + "px " + fam;
-      return cs.some(ls => ls.length*fs*STRIP_LH <= maxH && Math.max(...ls.map(l => cx.measureText(l).width)) <= maxW);
-    });
-    const cands = (soloCands.length && fits(soloCands)) ? soloCands : allCands;
+    /* 묶음 숫자는 **보통 굵기** (사장님 2026-10-23 「숫자는 얇게」) — 같은 크기라면 숫자가 제 줄에 따로 서는 나눔을 먼저 고릅니다.
+       ⚠ **숫자를 따로 세우려고 글자를 줄이지 않습니다.** 아랫줄 라벨은 높이가 한 줄(약 6mm)뿐이라,
+         `1` / `HD · L` 두 줄로 세우다 9px 까지 작아졌습니다 (사장님 2026-10-29 「L,R 나오는 사이즈들 메모가 엄청 작아짐」).
+         한 줄 `1 · HD · L` 이면 15px 그대로 들어갑니다 — 그때는 숫자만 따로 떼어 보통 굵기로 적습니다(아래). */
+    const cands = splitCandidates(texts);
+    const solo = ls => !o.bundle || ls[0] === o.bundle;
     let best = null;
     for(const fs of STRIP_FS){
       cx.font = "700 " + fs + "px " + fam;
@@ -1116,9 +1113,10 @@ function layoutStripNotes(pend){
         if(lines.length*lh > maxH) continue;
         const ws = lines.map(l => cx.measureText(l).width);
         if(Math.max(...ws) > maxW) continue;
-        const spread = Math.max(...ws) - Math.min(...ws);
-        if(!pick || lines.length > pick.lines.length ||
-           (lines.length === pick.lines.length && spread < pick.spread)) pick = {lines, spread};
+        const spread = Math.max(...ws) - Math.min(...ws), s = solo(lines);
+        if(!pick || (s && !pick.s) ||
+           (s === pick.s && (lines.length > pick.lines.length ||
+            (lines.length === pick.lines.length && spread < pick.spread)))) pick = {lines, spread, s};
       }
       if(pick){ best = {fs, lines:pick.lines, lh}; break; }
       best = {fs, lines: cands[cands.length-1], lh};   // 못 들어가면 가장 압축된 것으로
@@ -1130,10 +1128,13 @@ function layoutStripNotes(pend){
     const blockH = best.lines.length*best.lh;
     const top = Math.max(box.y0*pxH, box.y1*pxH - blockH);   // 위 경계는 넘지 않습니다
     best.lines.forEach((t,i)=>{
-      state.notes.push({id:uid(), page:+pageStr, x:box.x0,
-                        y: (top + i*best.lh + best.lh/2)/pxH,
-                        text:t, cell, align:"left", cls:(i === 0 && t === o.bundle) ? "strip thin" : "strip", fs:best.fs,
-                        auto:true, rule:"__strip__"});
+      const y = (top + i*best.lh + best.lh/2)/pxH;
+      const put = (text, x, cls) => state.notes.push({id:uid(), page:+pageStr, x, y, text, cell, align:"left",
+                                                      cls, fs:best.fs, auto:true, rule:"__strip__"});
+      if(i === 0 && o.bundle && t === o.bundle){ put(t, box.x0, "strip thin"); return; }
+      put(t, box.x0, "strip");
+      // 한 줄에 같이 설 때 — 쪽지는 하나, 앞의 숫자만 보통 굵기(makeNote · notePng 가 `lead` 를 봅니다)
+      if(i === 0 && o.bundle && t.startsWith(o.bundle + STRIP_SEP)) state.notes[state.notes.length-1].lead = o.bundle;
     });
   }
 }
@@ -1458,6 +1459,11 @@ function makeNote(n){
   el.contentEditable = n.auto ? "false" : "true";   // 자동 메모는 규칙이 만든 것이라 손대지 않습니다
   el.spellcheck = false;
   el.textContent = n.text;
+  if(n.lead && n.text.startsWith(n.lead)){         // 앞 숫자만 보통 굵기 (`1 · HD · L`)
+    el.textContent = "";
+    const s = document.createElement("span"); s.className = "lead"; s.textContent = n.lead;
+    el.append(s, n.text.slice(n.lead.length));
+  }
   if(n.auto){ el.style.cursor = "default"; return el; }
   el.addEventListener("input", ()=>{ n.text = el.textContent; saveDoc(); });
   el.addEventListener("blur", ()=>{
@@ -2237,7 +2243,13 @@ function notePng(el, Wp, Hp){
   ctx.fillStyle = cs.color;
   ctx.textBaseline = "middle";
   if("letterSpacing" in ctx && cs.letterSpacing !== "normal") ctx.letterSpacing = cs.letterSpacing;
-  el.textContent.split("\n").forEach((line, i)=>{
+  const lead = el.querySelector(".lead");
+  if(lead){                                        // 앞 숫자만 보통 굵기 — 화면과 같게
+    const lf = `${getComputedStyle(lead).fontWeight} ${fs}px ${cs.fontFamily}`, bf = ctx.font;
+    ctx.font = lf; ctx.fillText(lead.textContent, bx + pl, by + pt + lh/2);
+    const lw = ctx.measureText(lead.textContent).width;
+    ctx.font = bf; ctx.fillText(el.textContent.slice(lead.textContent.length), bx + pl + lw, by + pt + lh/2);
+  }else el.textContent.split("\n").forEach((line, i)=>{
     ctx.fillText(line, bx + pl, by + pt + lh*(i+0.5));
   });
   // toDataURL 은 바로 돌아옵니다. toBlob 은 콜백을 기다리는데, 창이 뒤에 있으면 그게 늦어집니다.
