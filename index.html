@@ -18828,25 +18828,34 @@ function clKindOf(L,P,vendor){
   if(L.pUnitFile && L.pUnitFile===P.non) return '비규격';
   return /비규격/.test(L.model)?'비규격':'정규격';
 }
-function clExpPUnit(L,P){
+function clExpPUnit(L,P,vendor){
   if(L.kind==='기타비용') return null;
+  /* 아름유리 — 투명(에어힌지) · 브론즈(KB 빗면) × 정규격/비규격. 시그니처는 단가가 없어 거래처 금액 그대로(OD_VENDOR_PRICE 에 넣으면 셈) */
+  if(vendor==='아름유리'){
+    const A=OD_VENDOR_PRICE['아름유리']||{};
+    if(/시그니처/.test(L.model)) return A['시그니처 5T 투명 '+L.kind]||null;
+    return A[(/브론즈/.test(L.glass)?'KB 빗면 5T 브론즈 ':'에어힌지 5T 투명 ')+L.kind]||null;
+  }
   if(L.glassCls==='5T백유리') return (L.kind==='정규격' ? P.w5std : P.w5)||null;
   return L.kind==='정규격' ? (P.std||null) : (P.non||null);
 }
+/* 공급가를 **줄마다 반올림**하고 평을 소수 둘째 자리로 세는 발주처(마감에서만) — 아름 내역서 식 그대로 (2026-10-29) */
+const CL_LINE_ROUND = new Set(['아름유리']);
 /* 줄 하나를 앱 규칙으로 다시 셉니다. flags = 거래처 엑셀과 다른 곳 */
 function clCalcLine(L,P,vendor){
   const r={flags:[]};
   if(L.kind==='기타비용'){ r.py=null; r.pUnit=null; r.unit=Number(L.unitFile)||0; }
   else{
-    r.py=odPyeong(L.w,L.h,vendor); r.pUnit=clExpPUnit(L,P);
+    r.py=CL_LINE_ROUND.has(vendor) ? Math.max(1, Math.round(L.w*L.h/OD_JA_MM2*100)/100) : odPyeong(L.w,L.h,vendor); r.pUnit=clExpPUnit(L,P,vendor);
     r.unit=r.pUnit==null?null:r.py*r.pUnit+(L.bore||0)*(P.bore||0);
     if(r.pUnit==null) r.flags.push('단가 없음');
     if(L.pyFile!=null && Math.abs(L.pyFile-r.py)>0.005) r.flags.push(`평 ${L.pyFile} → ${r.py}`);
     if(L.pUnitFile && r.pUnit && L.pUnitFile!==r.pUnit) r.flags.push(`평단가 ${clWon(L.pUnitFile)} → ${clWon(r.pUnit)}`);
   }
   r.settleQty=(L.st==='비규격 초과(경고)' && L.poQty!=null) ? L.poQty : L.qty;
-  r.amtCalc=r.unit==null?null:r.unit*L.qty;
-  r.amt=r.unit==null?(Number(L.amtFile)||0):r.unit*r.settleQty;
+  const rd=CL_LINE_ROUND.has(vendor) ? Math.round : (x=>x);
+  r.amtCalc=r.unit==null?null:rd(r.unit*L.qty);
+  r.amt=r.unit==null?(Number(L.amtFile)||0):rd(r.unit*r.settleQty);
   if(r.amtCalc!=null && L.amtFile!=null && Math.abs(L.amtFile-r.amtCalc)>0.5) r.flags.push(`공급가액 ${clWon(L.amtFile)} → ${clWon(r.amtCalc)}`);
   /* 거래처가 앱 계산보다 **싸게** 받은 줄은 거래처 금액으로 셉니다 (사장님 2026-10-19 — 우리에게 유리하니 확정을 막지 않음).
      비싸게 받은 줄은 예전대로 앱 계산 — 차이가 남아 확정이 막힙니다. */
@@ -18980,8 +18989,51 @@ function clParseDaewon(rows, hdr){
   if(!ym){ const cnt={}; lines.forEach(L=>{ if(L.date) cnt[L.date.slice(0,7)]=(cnt[L.date.slice(0,7)]||0)+1; }); ym=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||''; }
   return { vendor:'대원유리', ym, lines, defects:[], sums };
 }
+/* 아름유리 마감 양식 (사장님 2026-10-29 「아름 마감자료 왔네」) — `.xls`, 시트 하나, 첫 줄이 머리글.
+   선택 · 거래일(20261001) · 판번 · 품번 · 품목 · 규격(454*756) · 수량 · 단위 · 장면적 · 총면적 · 면적단가 · 가공비 · 장단가 · 공급가 · 세액 · 금액 · 미수금 · 비고 · 현장
+   · 「전기미수금」·「수금액」 줄은 규격 칸이 사이즈가 아니라 건너뜁니다. 합계 줄이 없어 **줄 공급가·세액·금액을 더해** 거래처 합계로 씁니다.
+   · 비고(「키친바흐 비규격」·「시그니처 규격」)는 **한 판번의 첫 줄에만** 적혀 옵니다 — 같은 거래일·판번 안에서 이어 씁니다.
+   · 공급가 = ROUND(수량 × 장단가) **줄마다 반올림**, 평은 소수 둘째 자리 — CL_LINE_ROUND. */
+function clFindArumHdr(rows){
+  for(let i=0;i<Math.min(10,rows.length);i++){
+    const t=rows[i].map(x=>String(x||'').replace(/\s/g,''));
+    if(t.includes('거래일') && t.includes('면적단가') && t.includes('규격')) return i;
+  }
+  return -1;
+}
+function clParseArum(rows, hdr){
+  const H=rows[hdr].map(x=>String(x||'').replace(/\s/g,''));
+  const col=n=>H.indexOf(n);
+  const cD=col('거래일'), cP=col('판번'), cG=col('품목'), cW=col('규격'), cQ=col('수량'), cA=col('장면적'), cU=col('면적단가'),
+        cE=col('장단가'), cM=col('공급가'), cV=col('세액'), cT=col('금액'), cN=col('비고'), cS=col('현장');
+  if([cD,cW,cQ,cU,cM].some(x=>x<0)) throw new Error('아름 마감 머리글(거래일·규격·수량·면적단가·공급가)을 다 못 찾았습니다');
+  const lines=[], notes={}, cnt={};
+  let sup=0, vat=0, tot=0;
+  for(let i=hdr+1;i<rows.length;i++){
+    const r=rows[i], m=String(r[cW]??'').trim().match(/^(\d+)\s*[*xX×]\s*(\d+)$/);
+    if(!m) continue;
+    const q=clNum(r[cQ]); if(!q) continue;
+    const ds=String(r[cD]??'').replace(/\D/g,''), date=ds.length===8?`${ds.slice(0,4)}-${ds.slice(4,6)}-${ds.slice(6,8)}`:'';
+    const key=date+'|'+String(cP>=0?r[cP]:'');
+    let note=String(cN>=0?r[cN]:'').trim();
+    if(note) notes[key]=note; else note=notes[key]||'';
+    const amt=clNum(r[cM]);
+    sup+=amt; vat+=cV>=0?clNum(r[cV]):0; tot+=cT>=0?clNum(r[cT]):0;
+    if(date) cnt[date.slice(0,7)]=(cnt[date.slice(0,7)]||0)+1;
+    lines.push({ row:i+1, date, model:note, thick:'', glass:String(cG>=0?r[cG]:'').trim(), w:+m[1], h:+m[2], qty:q,
+      pyFile:cA>=0&&r[cA]!==''?clNum(r[cA]):null, pUnitFile:clNum(r[cU])||null, unitFile:cE>=0?clNum(r[cE]):0, amtFile:amt,
+      note:String(cS>=0?r[cS]:'').trim() });
+  }
+  const ym=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||'';
+  return { vendor:'아름유리', ym, lines, defects:[], sums:{ '공급가액':sup, 'VAT':vat, '합계금액':tot } };
+}
 function clParseVendorXlsx(buf){
   const wb=XLSX.read(buf,{type:'array'});
+  for(const sn of wb.SheetNames){
+    const rs=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
+    const ah=clFindArumHdr(rs);
+    if(ah>=0) return clParseArum(rs, ah);
+  }
   // 대원 양식이 든 시트가 있으면 그것으로 읽습니다(시트가 여럿이고 묵은 시트가 섞여 옵니다)
   for(const sn of wb.SheetNames){
     const rs=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
