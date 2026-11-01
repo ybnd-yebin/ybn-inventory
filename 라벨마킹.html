@@ -337,7 +337,7 @@ button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-vis
 
 <div class="topbar">
   <div class="brand">라벨 마킹<span>한샘 출고라벨 형광펜 · 메모</span></div>
-  <label class="filebtn">PDF 열기<input type="file" id="file" accept="application/pdf"></label>
+  <label class="filebtn">PDF 열기<input type="file" id="file" accept="application/pdf" multiple title="여러 개를 한꺼번에 고르면 이어 붙여 엽니다"></label>
   <div class="tabs">
     <button data-tab="labels" aria-pressed="true">라벨</button>
     <button data-tab="frames" aria-pressed="false">프레임 수량</button>
@@ -618,10 +618,25 @@ function loadDoc(){
 const viewer = document.getElementById("viewer");
 
 document.getElementById("file").addEventListener("change", async e=>{
-  const f = e.target.files[0];
-  if(!f) return;
-  await openPdf(f);
+  const fs = [...e.target.files];
   e.target.value = "";
+  if(!fs.length) return;
+  if(fs.length === 1) return openPdf(fs[0]);
+  /* 여러 파일 = 한 PDF 로 이어 붙여 엽니다 (사장님 2026-11-02 「월요일은 2-3개 · 글래스도어 비규격은 따로 파일」).
+     차례는 파일 이름 차례 — 같은 파일들을 다시 열면 이름(=저장 열쇠 docKey)이 같아 체크·손메모가 이어집니다. */
+  fs.sort((a,b)=> a.name.localeCompare(b.name, "ko", {numeric:true}));
+  try{
+    const L = await loadPdfLib();
+    const out = await L.PDFDocument.create();
+    for(const f of fs){
+      const src = await L.PDFDocument.load(await f.arrayBuffer());
+      (await out.copyPages(src, src.getPageIndices())).forEach(p => out.addPage(p));
+    }
+    const name = fs.map(f => f.name.replace(/\.pdf$/i,"")).join(" + ") + ".pdf";
+    await openPdf(new File([await out.save()], name, {type:"application/pdf"}));
+  }catch(err){
+    alert("PDF 여러 개를 합치지 못했습니다 — " + err.message + "\n한 파일씩 열어 주십시오.");
+  }
 });
 
 async function openPdf(file){
