@@ -17088,7 +17088,7 @@ function odRowCuts(node){
   return cuts.sort((a,b) => a-b);
 }
 
-async function odWritePdf(o){
+async function odWritePdf(o, print){
   await odLoadJsPdf();
   const node = await odMakeCaptureNode(o);
   // 손글씨 폰트(사인)가 올라온 뒤 찍습니다 — 카톡 이미지와 같은 까닭입니다
@@ -17117,22 +17117,47 @@ async function odWritePdf(o){
     slice.width = canvas.width; slice.height = end - y;
     slice.getContext('2d').drawImage(canvas, 0, y, canvas.width, end-y, 0, 0, canvas.width, end-y);
     if(!first) pdf.addPage();
-    pdf.addImage(slice.toDataURL('image/png'), 'PNG', M, M, pw, (end-y)*mmPerPx);
+    // 인쇄용은 JPEG — PNG 그대로면 한 장이 40MB 라 인쇄 창이 늦게 뜹니다(PDF 저장은 예전 그대로 PNG)
+    if(print) pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', M, M, pw, (end-y)*mmPerPx);
+    else      pdf.addImage(slice.toDataURL('image/png'), 'PNG', M, M, pw, (end-y)*mmPerPx);
     first = false; y = end; pages++;
   }
-  pdf.save(odFileBase(o) + '.pdf');
+  if(print) odPrintPdf(pdf, odFileBase(o));
+  else pdf.save(odFileBase(o) + '.pdf');
   return pages;
 }
 
-function odRunPdf(o){
-  showToast('📕 PDF 만드는 중…');
-  odWritePdf(o)
-    .then(n => showToast('📕 PDF 로 내려받았습니다' + (n>1 ? ` (${n}장)` : '')))
+/* 🖨 바로 인쇄 (사장님 2026-11-02 「카톡 복사처럼 바로 프린트」) — PDF 와 같은 그림(같은 쪽 나누기)을
+   내려받지 않고 숨은 칸에 띄워 곧장 인쇄 창을 엽니다. 숨은 칸 인쇄를 막는 브라우저(휴대폰 등)는 새 탭으로 엽니다. */
+function odPrintPdf(pdf, name){
+  const url = URL.createObjectURL(pdf.output('blob'));
+  let f = document.getElementById('od-print-frame'); if(f) f.remove();
+  f = document.createElement('iframe');
+  f.id = 'od-print-frame'; f.title = name || '발주서';
+  f.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0';
+  f.onload = () => setTimeout(() => {
+    try{ f.contentWindow.focus(); f.contentWindow.print(); }
+    catch(e){ window.open(url, '_blank'); }
+  }, 300);
+  f.src = url;
+  document.body.appendChild(f);
+}
+
+function odRunPdf(o, print){
+  showToast(print ? '🖨 인쇄 준비 중…' : '📕 PDF 만드는 중…');
+  odWritePdf(o, print)
+    .then(n => showToast(print ? '🖨 인쇄 창을 열었습니다' + (n>1 ? ` (${n}장)` : '') : '📕 PDF 로 내려받았습니다' + (n>1 ? ` (${n}장)` : '')))
     .catch(e => {
       console.warn('[발주서] PDF 실패', e);
       const host = document.getElementById('od-capture-host'); if(host) host.innerHTML = '';
-      showToast('⚠ PDF 를 못 만들었습니다 — ' + (e.message || ''));
+      showToast('⚠ ' + (print ? '인쇄' : 'PDF') + '를 못 만들었습니다 — ' + (e.message || ''));
     });
+}
+function odPrintSaved(orderId){
+  const o = (typeof orderLog!=='undefined' ? orderLog : []).find(x => x && x.id===orderId);
+  if(!o){ showToast('발주 기록을 찾지 못했어요'); return; }
+  if(!o.items || !o.items.length){ showToast('품목이 없는 기록이에요'); return; }
+  odRunPdf(o, true);
 }
 
 function odMakePdf(){
@@ -18226,7 +18251,7 @@ async function odViewSaved(orderId){
   const id=String(o.id).replace(/'/g,"\\'");
   const b=(fn,label)=>`<button onclick="${fn}('${id}')" style="padding:8px 13px;border-radius:8px;border:1px solid var(--b2);background:var(--s2);color:var(--tx1);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${label}</button>`;
   document.getElementById('od-view-btns').innerHTML=
-    b('odReorder','↻ 다시 발주')+b('odCopySaved','📋 카톡')+b('odExcelSaved','📊 엑셀')+b('odPdfSaved','📕 PDF');
+    b('odReorder','↻ 다시 발주')+b('odCopySaved','📋 카톡')+b('odPrintSaved','🖨 인쇄')+b('odExcelSaved','📊 엑셀')+b('odPdfSaved','📕 PDF');
   body.innerHTML='<div style="padding:40px;color:#888;font-size:13px">발주서를 그리는 중…</div>';
   document.getElementById('od-view-modal').classList.add('on');
   try{
@@ -18479,6 +18504,7 @@ function renderOrderList(){
         : `<button onclick="odEditToggle('${o.id}')" class="icon-btn" title="${locked?_odEsc(locked)+' — 고칠 수 없습니다':'위 작성 칸에 불러와 고칩니다'}"${locked?' style="opacity:.45"':''}>✏️ 수정</button>
            <button onclick="odViewSaved('${o.id}')" class="icon-btn" title="이 발주서를 양식 그대로 앱 안에서 봅니다">👁 보기</button>
            <button onclick="odCopySaved('${o.id}')" class="icon-btn" title="이 발주서를 카톡용 이미지로 복사">📋 카톡</button>
+           <button onclick="odPrintSaved('${o.id}')" class="icon-btn" title="내려받지 않고 바로 인쇄 창을 엽니다">🖨 인쇄</button>
            <details class="od-more"><summary title="더보기">⋯</summary><div class="od-more-menu">
              <button onclick="odMoreClose(this);odReorder('${o.id}')">↻ 다시 발주</button>
              <button onclick="odMoreClose(this);odExcelSaved('${o.id}')">📊 엑셀</button>
