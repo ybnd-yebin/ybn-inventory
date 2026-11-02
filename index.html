@@ -18536,7 +18536,10 @@ function renderOrderList(){
           </div>
           <div class="od-acts">${acts}</div>
         </div>
-        ${isOpen?`<div style="padding:4px 14px 10px">${itemsHtml}</div>`:''}
+        ${isOpen?`<div style="padding:4px 14px 10px">${(()=>{ /* 📦 남은 줄 전부 입고 (사장님 2026-11-02 「일일이 다 체크하기 번거로워서」) — 오늘 탭 발주중과 같은 길(tdyRecvAsk → 날짜 묻고 → _odRecvItem) */
+          const w=o.items.filter(it=>it.w&&it.h&&!it.received); if(editing || w.length<2) return '';
+          const q=w.reduce((s,it)=>s+(Number(it.qty)||0),0);
+          return `<div style="display:flex;justify-content:flex-end;padding:6px 0 4px;border-bottom:1px solid var(--b1)"><button onclick="tdyRecvAsk('${o.id}',-1)" title="남은 줄을 한꺼번에 입고합니다 — 날짜를 묻습니다(기본: 오늘, 납기가 지났으면 납기)" style="padding:5px 12px;background:var(--s1);border:1px solid var(--acc3);border-radius:7px;color:var(--acc3);font-size:11.5px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">📦 남은 ${w.length}줄 ${q}장 전부 입고</button></div>`; })()}${itemsHtml}</div>`:''}
       </div>`;
     }).join('');
 
