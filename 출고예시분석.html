@@ -1632,7 +1632,7 @@ function renderBoard(){
     <span><i style="background:#e3e4e6"></i>브리즈</span>
     <span><i style="background:#fff6c9"></i>오이도 창고물</span>
     <span><i style="background:#d9e8f5"></i>바스(드림하이텍)</span>
-    ${TD&&TD.aTot?`<span><i style="background:#fff3d6"></i>오늘 6→5 = 예시→납품</span><span><i style="background:#ddeaf7"></i>오늘 +N = 예시에 없던 납품</span>`:''}
+    ${TD&&TD.aTot?`<span class="lg-td"><i style="background:#fff3d6"></i>오늘 6→5 = 예시→납품</span><span class="lg-td"><i style="background:#ddeaf7"></i>오늘 +N = 예시에 없던 납품</span>`:''}
   </div>`;
   body.innerHTML=html;
   mWire();
@@ -2954,9 +2954,19 @@ async function copyNode(nodeId, btnId, fname){
   const scrollers=[...node.querySelectorAll('.board-scroll')];
   const saved=scrollers.map(s=>({el:s, ov:s.style.overflowX, w:s.style.width, mw:s.style.maxWidth}));
   scrollers.forEach(s=>{ s.style.overflowX='visible'; s.style.width='fit-content'; s.style.maxWidth='none'; });
+  // 이미지 폭 = 표 폭 (사장님 2026-11-02 「오른쪽 여백은 무슨 의미」 — 화면 폭만큼 찍혀 오른쪽이 비었음). 범례는 그 안에서 줄바꿈.
+  // 발주 예상은 「오늘」 열을 이미지에서 빼므로 그 폭도 뺍니다.
+  const nodeW=node.style.width;
+  const vis=scrollers.filter(s=>s.offsetParent);
+  if(vis.length){
+    let w=Math.max(...vis.map(s=>s.getBoundingClientRect().width));
+    if(nodeId==='boardCapture'){ const th=vis[0].querySelector('thead th.td-col'); if(th) w-=th.getBoundingClientRect().width; }
+    node.style.width=Math.ceil(w)+'px';
+  }
+  const restoreW=()=>{ node.style.width=nodeW; };
   try{
     // 상단 안내문(board-asof)은 화면엔 두되 이미지엔 안 넣음(길어서 배경이 늘어나는 것 방지)
-    const canvas=await html2canvas(node,{scale:2,backgroundColor:'#ffffff',ignoreElements:el=>el.classList&&(el.classList.contains('board-asof')||(nodeId==='boardCapture'&&!(el.closest&&el.closest('.bm'))&&(el.classList.contains('td-col')||(el.dataset&&el.dataset.tdonly)))||el.classList.contains('bm-days')||(el.tagName==='BUTTON'&&el.parentNode&&el.parentNode.classList&&el.parentNode.classList.contains('bm-nav')))});
+    const canvas=await html2canvas(node,{scale:2,backgroundColor:'#ffffff',ignoreElements:el=>el.classList&&(el.classList.contains('board-asof')||el.classList.contains('lg-td')||(nodeId==='boardCapture'&&!(el.closest&&el.closest('.bm'))&&(el.classList.contains('td-col')||(el.dataset&&el.dataset.tdonly)))||el.classList.contains('bm-days')||(el.tagName==='BUTTON'&&el.parentNode&&el.parentNode.classList&&el.parentNode.classList.contains('bm-nav')))});
     canvas.toBlob(async blob=>{
       try{
         await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
@@ -2966,12 +2976,12 @@ async function copyNode(nodeId, btnId, fname){
         toast('복사 권한이 없어 이미지로 저장했어요');
       }
       saved.forEach(o=>{ o.el.style.overflowX=o.ov; o.el.style.width=o.w; o.el.style.maxWidth=o.mw; });
-      btn.textContent=orig; btn.disabled=false;
+      restoreW(); btn.textContent=orig; btn.disabled=false;
     },'image/png');
   }catch(e){
     console.error(e); toast('이미지 생성 실패');
     saved.forEach(o=>{ o.el.style.overflowX=o.ov; o.el.style.width=o.w; o.el.style.maxWidth=o.mw; });
-    btn.textContent=orig; btn.disabled=false;
+    restoreW(); btn.textContent=orig; btn.disabled=false;
   }
 }
 document.getElementById('copyBtn').onclick=()=>copyNode('boardCapture','copyBtn',`출고예시_${catLabel(BOARD_CAT)}`);
