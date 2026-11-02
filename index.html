@@ -447,6 +447,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <button class="main-nav-btn" onclick="showMain('glassneed')" style="display:none">🖨️ 인쇄유리소요</button>
     <button class="main-nav-btn" onclick="showMain('order-analysis')">📊 발주분석</button>
     <button class="main-nav-btn" onclick="showMain('ledger')">💰 매입매출</button>
+    <button class="main-nav-btn" onclick="showMain('closing')">📒 월 마감</button>   <!-- 거래처 월 마감 화면 (2026-11-02 — 예전엔 발주 화면 위 창) -->
     <button class="main-nav-btn" onclick="showMain('vendors')">🏢 거래처</button>
     <!-- 📋 업무판은 🗓️ 일정·업무로 합쳤습니다 (사장님 2026-10-13). 화면은 남겨 두어 되돌릴 수 있게 — 버튼만 숨김 -->
     <button class="main-nav-btn" onclick="showMain('deskboard')" style="display:none">📋 업무판</button>
@@ -1652,6 +1653,31 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 </div>
 
 <!-- ORDER ANALYSIS -->
+<!-- 📒 거래처 월 마감 화면 (2026-11-02 사장님 「화면으로 옮겨줘」) — 예전 발주 화면 위 창(cl-modal)을 경영·마감 아래 화면으로.
+     목록·한 달 대조는 clRender 가 #cl-body 에 그립니다(함수·저장 그대로). 1400px 이상에서 한 달을 열면 왼쪽에 마감 목록(cl-rail). -->
+<div class="sec-pg" id="pg-closing">
+  <style>
+    @media (min-width:1400px){ #pg-closing.sec-pg{max-width:min(1800px, calc(100vw - 48px))} }
+    .cl-ttl{font-size:16px;font-weight:800;margin:2px 0 10px}
+    .cl-rail{display:none}
+    @media (min-width:1400px){
+      .cl-wide.has-rail{display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;align-items:start}
+      .cl-wide.has-rail .cl-rail{display:block;position:sticky;top:120px;max-height:calc(100vh - 140px);overflow-y:auto;background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:6px}
+    }
+    .cl-ri{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;padding:7px 8px;border:none;border-radius:7px;background:none;font-size:12px;font-family:'Noto Sans KR',sans-serif;color:var(--tx1);cursor:pointer;text-align:left}
+    .cl-ri:hover{background:var(--s2)}
+    .cl-ri.on{background:#2563eb14;font-weight:800}
+    .cl-ri .d{font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap}
+    .cl-main{min-width:0;background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:12px 14px}
+    @media (max-width:560px){ .cl-main{padding:10px} }
+  </style>
+  <div class="cl-ttl">📒 거래처 월 마감</div>
+  <div id="cl-body"></div>
+  <input type="file" id="cl-file" accept=".xlsx,.xls" style="display:none" onchange="clUploadVendor(this)">
+  <input type="file" id="cl-dfile" accept=".xlsx,.xls" style="display:none" onchange="clUploadDefect(this)">
+  <input type="file" id="cl-cfile" accept=".xlsx,.xls" style="display:none" onchange="clUploadCompare(this)">
+</div>
+
 <div class="sec-pg" id="pg-order">
   <!-- 발주탭 리디자인 1층 (2026-10-23) — 모양만 바꿨습니다. 함수·저장 구조는 그대로입니다.
        위 숫자 칸(odStatsRender) · 참조 메모 접기(odRefSync) · 발주 기록 접기/펼치기(odListToggle) · ⋯ 더보기(od-more) -->
@@ -1916,18 +1942,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
       <button class="bd-mbtn" onclick="closeM('bd-modal')" style="background:#fff;border:1px solid #d6dae4;color:#5a6282">닫기</button>
       <button class="bd-mbtn" onclick="bdSaveForm()" style="flex:2;background:#1a1d2e;border:none;color:#fff">저장</button>
     </div>
-  </div>
-</div>
-
-<!-- 📒 거래처 월 마감 창 (2026-10-12) — 목록·한 달 대조 화면은 clRender 가 #cl-body 에 그립니다 -->
-<div class="modal-bg" id="cl-modal">
-  <div class="modal-sheet" style="max-width:1200px;margin:0 auto;max-height:92vh">
-    <button class="close-btn" onclick="closeM('cl-modal')">×</button>
-    <div class="modal-ttl">📒 거래처 월 마감</div>
-    <div id="cl-body"></div>
-    <input type="file" id="cl-file" accept=".xlsx,.xls" style="display:none" onchange="clUploadVendor(this)">
-    <input type="file" id="cl-dfile" accept=".xlsx,.xls" style="display:none" onchange="clUploadDefect(this)">
-    <input type="file" id="cl-cfile" accept=".xlsx,.xls" style="display:none" onchange="clUploadCompare(this)">
   </div>
 </div>
 
@@ -6067,6 +6081,7 @@ function showMain(id){
   if(id==='glassneed')renderGlassNeed();
   if(id==='etp')renderEtp();
   if(id==='settings')initGsUI();
+  if(id==='closing') clRender();   // 📒 거래처 월 마감 (2026-11-02)
   if(id==='bas'){ try{ BAS.open(); }catch(e){ console.warn('[바스재고]', e); } }   // 🛁 바스재고 (2026-10-20)
   if(_toSub) showSub(_toSub);
 }
@@ -14584,6 +14599,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     else if(id==='etp')renderEtp();
     else if(id==='ledger'){ if(lgGate()) renderLedger(); }   // 🔒 관리자 PIN (2026-10-20)
     else if(id==='vendors')renderVendors();
+    else if(id==='closing') clRender();   // 📒 거래처 월 마감 화면 (2026-11-02)
     else if(id==='settings')initGsUI();
     /* 🛁 바스재고 — 여기 빠져 있어 메뉴로 들어가면 안 그려지고, 시트 받기가 끝나야(약 10초) 그려졌습니다 (2026-10-27 사장님 「10초쯤 걸린다」) */
     else if(id==='bas'){ try{ BAS.open(); }catch(e){ console.warn('[바스재고]', e); } }
@@ -19459,8 +19475,13 @@ function clIncoming(c){
 const clOpenCarry=c=>(c.carry||[]).filter(x=>!x.done).length;
 
 /* ── 화면 ── */
-function clOpen(){ clView=null; clRender(); document.getElementById('cl-modal').classList.add('on'); }
-function clGo(id){ clView=id; clTab='lines'; clFilter=null; clRender(); const s=document.querySelector('#cl-modal .modal-sheet'); if(s) s.scrollTop=0; }
+function clOpen(){   // 📒 화면으로 (2026-11-02 — 예전엔 발주 화면 위 창)
+  clView=null;
+  const b=document.querySelector(".main-nav-btn[onclick*=\"showMain('closing')\"]");
+  if(typeof curMain!=='undefined' && curMain==='closing') clRender(); else if(b) b.click(); else showMain('closing');
+  window.scrollTo(0,0);
+}
+function clGo(id){ clView=id; clTab='lines'; clFilter=null; clRender(); window.scrollTo(0,0); }
 function clBtn(){
   const b=document.getElementById('cl-btn'); if(!b) return;
   const list=Object.values(closings).sort((a,b)=>b.ym.localeCompare(a.ym));
@@ -19472,7 +19493,14 @@ function clBtn(){
 function clRender(){
   clBtn();
   const host=document.getElementById('cl-body'); if(!host) return;
-  host.innerHTML = clView && closings[clView] ? clDetailHtml(closings[clView]) : clListHtml();
+  const det = clView && closings[clView];
+  host.innerHTML = `<div class="cl-wide${det?' has-rail':''}">${det?`<aside class="cl-rail">${clRailHtml()}</aside>`:''}<div class="cl-main">${det ? clDetailHtml(closings[clView]) : clListHtml()}</div></div>`;
+}
+function clRailHtml(){   // 넓은 화면(1400px 이상)에서 한 달을 열었을 때 왼쪽 마감 목록 — 줄을 누르면 그 달로 (2026-11-02)
+  const list=Object.values(closings).sort((a,b)=>b.ym.localeCompare(a.ym)||a.vendor.localeCompare(b.vendor,'ko'));
+  return `<button class="cl-ri" onclick="clView=null;clRender()" style="color:var(--tx3)">‹ 전체 목록</button>`+list.map(c=>{
+    const ok=c.status==='확정', dif=c.diff==null?'-':(c.diff===0?'0원':(c.diff>0?'+':'')+clWon(c.diff));
+    return `<button class="cl-ri${c.id===clView?' on':''}" onclick="clGo('${clEsc(c.id)}')"><span>${+c.ym.slice(5,7)}월 ${clEsc(c.vendor)}</span><span class="d" style="color:${ok?'#16a34a':(c.diff===0?'var(--tx2)':'#dc2626')}">${ok?'확정':dif}</span></button>`; }).join('');
 }
 function clListHtml(){
   const list=Object.values(closings).sort((a,b)=>b.ym.localeCompare(a.ym)||a.vendor.localeCompare(b.vendor,'ko'));
@@ -33103,7 +33131,7 @@ var GNAV_MENU=[
   ]},
   { c:'경영·마감', items:[
     { t:'매입매출', m:'ledger' },
-    { t:'거래처 월 마감', m:'order', fn:'clOpen' },
+    { t:'거래처 월 마감', m:'closing' },   // 자기 화면 (2026-11-02 — 예전엔 발주 화면 + 창)
     { t:'마감 명세서', m:'order', fn:'odStmtOpen' },
     { t:'자료 내보내기·백업', m:'settings' },
   ]},
