@@ -190,6 +190,28 @@
   .legend span{display:inline-flex;align-items:center;gap:5px}
   .legend i{width:13px;height:13px;border-radius:3px;display:inline-block;border:1px solid #ddd}
   .board-asof{font-size:12px;color:var(--soft);margin:4px 0 12px}
+  table.board tr.tot-row td{border-bottom:2px solid var(--ink);background:#fffbe6}
+  /* 휴대폰 — 하루씩 보기 (boardMobileHtml) */
+  .bm{display:none}
+  .bm-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 8px}
+  .bm-nav b{font-size:17px;font-variant-numeric:tabular-nums}
+  .bm-nav button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 16px;font-size:15px;cursor:pointer}
+  .bm-nav button:disabled{opacity:.3;cursor:default}
+  .bm-days{display:flex;gap:5px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px}
+  .bm-days .dchip{flex:0 0 auto;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--soft);font-variant-numeric:tabular-nums}
+  .bm-days .dchip.on{background:var(--warn);color:#fff;border-color:var(--warn)}
+  .bm-days .dchip.weekend{color:#bbb}
+  .bm-days .dchip.on.weekend{color:#fff}
+  .bm-empty{padding:24px 0;text-align:center;color:var(--soft);font-size:13px}
+  table.board.bm-t{width:100%}
+  table.board.bm-t td.pname,table.board.bm-t th.pname{text-align:left;position:static;font-size:13px;white-space:normal;word-break:break-all;min-width:0;max-width:none}
+  table.board.bm-t td.q,table.board.bm-t th.dcol{width:84px;font-size:15px}
+  table.board.bm-t .td-col{border-right:1px solid #e4e0d4}
+  @media(max-width:560px){
+    #panel-board .filterbar{display:none}
+    #boardBody .bm{display:block}
+    #boardBody .board-asof,#boardBody .board-scroll,#boardBody .bd-desk{display:none}
+  }
   /* ── 예시 vs 실물 대조 ──────────────────────────────
      색은 딱 둘만 쓴다. 빨강=헛스윙, 주황=미예고.
      나머지(일치·조기발주·수량차이·사이즈변경)는 전부 무채색.
@@ -1509,8 +1531,11 @@ function renderBoard(){
 
   const days = [...SELECTED_DAYS].sort();
   const TD = boardTodayCol(allRows, ybCodes);   // 맨 앞 「오늘」 열 — 예시 → 납품
+  const mHtml = boardMobileHtml(allRows, ybCodes, TD, allOrderDates.filter(d=>d>isoToday()));   // 휴대폰 하루씩
+  const mWire = ()=>body.querySelectorAll("[data-md]").forEach(b=>b.onclick=()=>{ BOARD_MDAY=b.dataset.md; renderBoard(); });
   if(days.length===0 && !TD){
-    body.innerHTML=emptyMsg('오더예상일을 골라주세요','위에서 보고 싶은 오더예상일을 클릭하면 표가 떠요.');
+    body.innerHTML=mHtml+'<div class="bd-desk">'+emptyMsg('오더예상일을 골라주세요','위에서 보고 싶은 오더예상일을 클릭하면 표가 떠요.')+'</div>';
+    mWire();
     return;
   }
 
@@ -1533,8 +1558,9 @@ function renderBoard(){
     items.push({name:x.name, qs:days.map(()=>0), sum:0, fc:finishColor(x.name), oido:x.oido, bas:x.cat==='BAS', tc:{e:0,a:x.a}});
   }
   if(items.length===0){
-    body.innerHTML=emptyMsg(`고른 오더예상일에 ${catLabel(BOARD_CAT)} 물량이 없어요`,
-      `선택한 날(${days.map(fmtShort).join(', ')})에 오더가 떠야 하는 ${catLabel(BOARD_CAT)} 물량이 없어요. 다른 날이나 필터를 골라보세요.`);
+    body.innerHTML=mHtml+'<div class="bd-desk">'+emptyMsg(`고른 오더예상일에 ${catLabel(BOARD_CAT)} 물량이 없어요`,
+      `선택한 날(${days.map(fmtShort).join(', ')})에 오더가 떠야 하는 ${catLabel(BOARD_CAT)} 물량이 없어요. 다른 날이나 필터를 골라보세요.`)+'</div>';
+    mWire();
     return;
   }
   // 정렬: 오이도 먼저 → 마감색끼리 모이게(아보카도/쉐이드→에토프→브리즈→색없음) → 같은 그룹 내 이름 오름차순
@@ -1557,6 +1583,11 @@ function renderBoard(){
     <th class="sumh" rowspan="2">합계</th></tr>
     <tr>${TD?`<th class="dow td-col">${BOARD_CAT==='BAS'?'대조 안 함':!TD.aTot?'납품 아직':'납품 '+items.reduce((s,it)=>s+(it.tc?it.tc.a:0),0)}</th>`:''}${days.map(d=>`<th class="dow">${dowOf(d)}</th>`).join('')}</tr>
     </thead><tbody>`;
+  // 합계는 맨 위 (사장님 2026-11-02 「합계는 아래보다 위쪽이 낫다」)
+  html+=`<tr class="tot-row"><td class="pname" style="font-weight:700;text-align:right">일자 합계</td>
+    ${TD?boardTodayCell(boardTodayTotal(items), TD.aTot>0, true):''}
+    ${dayTotals.map(t=>`<td class="q" style="font-weight:700">${t}</td>`).join('')}
+    <td class="sum">${grand}</td></tr>`;
   let prevOido=true;
   for(const it of items){
     const sep = (prevOido && !it.oido)?' sep':''; prevOido=it.oido;
@@ -1568,11 +1599,8 @@ function renderBoard(){
     for(const q of it.qs) html+=`<td class="q${q===0?' z':''}">${q===0?'·':q}</td>`;
     html+=`<td class="sum">${it.sum||'-'}</td></tr>`;
   }
-  html+=`<tr style="border-top:2px solid var(--ink)"><td class="pname" style="font-weight:700;text-align:right">일자 합계</td>
-    ${TD?boardTodayCell(boardTodayTotal(items), TD.aTot>0, true):''}
-    ${dayTotals.map(t=>`<td class="q" style="font-weight:700">${t}</td>`).join('')}
-    <td class="sum">${grand}</td></tr>`;
   html+='</tbody></table></div>';
+  html = mHtml + html;
   html+=`<div class="legend">
     <span><i style="background:#dff0d8"></i>아보카도·쉐이드</span>
     <span><i style="background:#fbe4d8"></i>에토프·로즈그레이</span>
@@ -1582,6 +1610,61 @@ function renderBoard(){
     ${TD&&TD.aTot?`<span><i style="background:#fff3d6"></i>오늘 6→5 = 예시→납품</span><span><i style="background:#ddeaf7"></i>오늘 +N = 예시에 없던 납품</span>`:''}
   </div>`;
   body.innerHTML=html;
+  mWire();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   휴대폰(560px 이하) — 하루씩 보기 (사장님 2026-11-02, 현장 요청 「예시 표가 폰으로 보기 어렵다」)
+     · 날짜 칩을 여럿 고르는 대신 하루만: ◀ 날짜 ▶ + 날짜 줄(오늘 · 앞으로 뜰 오더발행일 전부).
+     · 숫자는 PC 표와 같은 자료(byOrder · 「오늘」 열 boardTodayCol) — 새 계산 없음. 합계는 맨 위.
+     · 고른 날은 이 창에서만 기억(BOARD_MDAY). PC 표·날짜 칩 고른 것과 따로입니다.
+   ══════════════════════════════════════════════════════════════════ */
+var BOARD_MDAY = null;
+function boardMobileHtml(allRows, ybCodes, TD, futureDays){
+  const mdays = (TD?[TD.day]:[]).concat(futureDays);
+  if(!mdays.length) return '';
+  if(!mdays.includes(BOARD_MDAY)) BOARD_MDAY = mdays[0];
+  const d = BOARD_MDAY, i = mdays.indexOf(d), isT = !!TD && d===TD.day;
+  const its = [];
+  for(const row of allRows){
+    const cat = category(row, ybCodes);
+    if(BOARD_CAT!=='ALL' && cat!==BOARD_CAT) continue;
+    const base = {name:row.name, fc:finishColor(row.name), oido:!!row.oido, bas:cat==='BAS'};
+    if(isT){ const tc = TD.cell.get(row); if(tc && (tc.e||tc.a)) its.push({...base, tc}); }
+    else { const q = (row.byOrder&&row.byOrder[d])||0; if(q) its.push({...base, q}); }
+  }
+  if(isT) for(const x of TD.extra){
+    if(BOARD_CAT!=='ALL' && x.cat!==BOARD_CAT) continue;
+    its.push({name:x.name, fc:finishColor(x.name), oido:x.oido, bas:x.cat==='BAS', tc:{e:0,a:x.a}});
+  }
+  const colorOrder={'fc-green':1,'fc-apricot':2,'fc-gray':3,'':9};
+  its.sort((a,b)=>{
+    if(a.oido!==b.oido) return b.oido-a.oido;
+    const ca=(a.fc&&a.fc.cls)||'', cb=(b.fc&&b.fc.cls)||'';
+    if((colorOrder[ca]||9)!==(colorOrder[cb]||9)) return (colorOrder[ca]||9)-(colorOrder[cb]||9);
+    return a.name.localeCompare(b.name,'ko');
+  });
+  const lab = x => `${fmtShort(x)}(${dowOf(x)})${TD&&x===TD.day?' 오늘':''}`;
+  let h = `<div class="bm"><div class="bm-nav">
+      <button ${i>0?`data-md="${mdays[i-1]}"`:'disabled'}>◀</button>
+      <b>${lab(d)}</b>
+      <button ${i<mdays.length-1?`data-md="${mdays[i+1]}"`:'disabled'}>▶</button></div>
+    <div class="bm-days">${mdays.map(x=>`<button class="dchip${x===d?' on':''}${isWeekend(x)?' weekend':''}" data-md="${x}">${fmtShort(x)}${TD&&x===TD.day?' 오늘':''}</button>`).join('')}</div>`;
+  if(!its.length) return h + `<div class="bm-empty">이 날 ${catLabel(BOARD_CAT)} 물량이 없어요.</div></div>`;
+  const head = isT ? (BOARD_CAT==='BAS'?'대조 안 함':!TD.aTot?'예시 · 납품 아직':'예시→납품') : '수량';
+  const tot = isT ? boardTodayCell(boardTodayTotal(its), TD.aTot>0, true)
+                  : `<td class="q" style="font-weight:700">${its.reduce((s,x)=>s+x.q,0)}</td>`;
+  h += `<table class="board bm-t"><thead><tr><th class="pname">제품 ${its.length}줄</th><th class="dcol">${head}</th></tr></thead><tbody>
+    <tr class="tot-row"><td class="pname" style="font-weight:700">합계</td>${tot}</tr>`;
+  let prevOido = true;
+  for(const it of its){
+    const sep = (prevOido && !it.oido)?' sep':''; prevOido = it.oido;
+    const cls = [it.oido?'oido':'', it.bas?'bas':'', it.fc?it.fc.cls:'', sep.trim()].filter(Boolean).join(' ');
+    const badge = (it.oido ? ' <span class="oido-tag">오이도</span>' : '') + (it.bas ? ' <span class="badge-bas">바스</span>' : '');
+    h += `<tr class="${cls}"><td class="pname">${esc(it.name)}${badge}</td>`
+       + (isT ? boardTodayCell(it.tc, TD.aTot>0) : `<td class="q">${it.q}</td>`) + `</tr>`;
+  }
+  return h + `</tbody></table></div>`;
 }
 
 // ── EARLY WARNING ──────────────────────────
