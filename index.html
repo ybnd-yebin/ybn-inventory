@@ -22236,13 +22236,17 @@ function sellCloseSecHtml(ym){
   const md=d=>`${+d.slice(5,7)}/${+d.slice(8,10)}`;
   const list=SELL_CLOSE_GROUPS.map(g=>{ const rg=sellCloseRange(g.k, ym), rows=sellCloseRows(g, ym);
     return { g, rg, rows, qty:rows.reduce((s,r)=>s+r.qty,0), amt:rows.reduce((s,r)=>s+(r.amt||0),0), none:rows.filter(r=>r.price==null).length, own:!!sellCloseOwn(g.k, ym) }; });
-  const tot=list.reduce((s,x)=>s+x.amt,0), totQ=list.reduce((s,x)=>s+x.qty,0), totN=list.reduce((s,x)=>s+x.none,0);
+  /* 체크한 매출처만 합계 (사장님 2026-11-02 「바스 빼고 전체 금액 볼 때도」) — 기본은 셋 다 체크, 이 창에서만 기억(lgDash.scOff) */
+  const off=(lgDash.scOff||(lgDash.scOff={})), on=list.filter(x=>!off[x.g.k]);
+  const tot=on.reduce((s,x)=>s+x.amt,0), totQ=on.reduce((s,x)=>s+x.qty,0), totN=on.reduce((s,x)=>s+x.none,0);
+  const shortNm=x=>x.g.name.replace(/^한샘\s*·\s*/,'').replace(/\s*\(.*\)\s*$/,'');
+  const totLbl= on.length===list.length ? '세 곳 합계' : on.length ? on.map(shortNm).join(' · ')+' 합계' : '고른 곳 없음';
   const open=!!lgDash.sclose, om=(lgDash.scv||(lgDash.scv={}));
   const C='var(--scc)';   // 칸 너비는 아래 <style> 의 --scc (휴대폰은 장수 칸을 뺌)
   const num=(x,c)=>`<span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:${x?c:'var(--tx3)'}">${x?won(x):'-'}</span>`;
   let body='';
   if(open){
-    const rowsHtml=list.map(x=>{ const key=x.g.k, o=!!om[key];
+    const rowsHtml=list.map(x=>{ const key=x.g.k, o=!!om[key], ck=!off[key];
       let det='';
       if(o){
         const by={}; x.rows.forEach(r=>{ const id=r.delivNo||r.refNo||'-'; const e=by[id]||(by[id]={ id, ref:r.refNo, rday:r.rday, day:r.day, as:r.as, q:0, a:0, n:0 }); e.q+=r.qty; e.a+=r.amt||0; if(r.price==null) e.n++; });
@@ -22254,8 +22258,8 @@ function sellCloseSecHtml(ym){
               <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700;color:${e.n?'var(--acc2)':'#15803d'}">${e.n&&!e.a?'단가 없음':won(e.a)+(e.n?' *':'')}</span></div>`).join('') || '<div style="font-size:11.5px;color:var(--tx3);padding:4px 0">이 기간 납품서가 없습니다.</div>')
           + (x.none?`<div style="font-size:10.5px;color:var(--acc2);padding-top:4px">* 단가 없는 줄 ${x.none}개는 금액에서 빠져 있습니다 — 아래 📋 한샘 단가표에서 채우면 들어갑니다.</div>`:'')+`</div>`;
       }
-      return `<div class="lgd-vrow" onclick="lgDashToggle('scv','${key}')" style="display:grid;grid-template-columns:${C};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)">
-        <span style="min-width:0"><b style="font-size:12.5px">${x.g.name}</b><span style="display:block;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--tx3)">${md(x.rg.from)} ~ ${md(x.rg.to)}</span></span>
+      return `<div class="lgd-vrow" onclick="lgDashToggle('scv','${key}')" style="display:grid;grid-template-columns:${C};gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--b1)${ck?'':';opacity:.45'}">
+        <span style="min-width:0;display:flex;gap:7px;align-items:flex-start"><input type="checkbox" ${ck?'checked':''} onclick="event.stopPropagation()" onchange="sellCloseCheck('${key}',this.checked)" title="체크한 매출처만 합계에 넣습니다" style="margin-top:2px;flex:none;cursor:pointer"><span style="min-width:0"><b style="font-size:12.5px">${x.g.name}</b><span style="display:block;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--tx3)">${md(x.rg.from)} ~ ${md(x.rg.to)}</span></span></span>
         <span class="sc-dt" onclick="event.stopPropagation()">
           <input type="date" value="${x.rg.from}" onchange="sellCloseSetStart('${key}','${ym}',this.value)" title="시작일 — 바꾸면 전달 마감일이 그 전날로 바뀝니다" style="border:1px solid ${sellCloseOwn(key, sellYmShift(ym,-1))?'var(--acc)':'var(--b2)'}">
           <span style="color:var(--tx3)">~</span>
@@ -22275,7 +22279,7 @@ function sellCloseSecHtml(ym){
         <span>매출처 · 기간</span><span>시작일 ~ 마감일</span><span class="sc-q" style="text-align:right">장수</span><span style="text-align:right">📤 매출(공급가)</span><span></span></div>
       ${rowsHtml}
       <div style="display:grid;grid-template-columns:${C};gap:8px;align-items:center;padding:8px 12px;border-top:2px solid var(--b2);background:var(--s1)">
-        <b style="font-size:12.5px">합계</b><span></span><span class="sc-q" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${totQ||'-'}</span>${num(tot,'#15803d')}<span></span></div>
+        <b style="font-size:12.5px">합계${on.length<list.length?`<span style="display:block;font-size:10.5px;font-weight:600;color:var(--tx3)">${on.length?on.map(shortNm).join(' · '):'고른 곳 없음'}</span>`:''}</b><span></span><span class="sc-q" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx2)">${totQ||'-'}</span>${num(tot,'#15803d')}<span></span></div>
       <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--b1);background:var(--s2)">
         <span style="font-size:10.5px;color:var(--tx3);flex:1;min-width:200px">납품요청일 기준 · 마감일 기본은 말일 · 시작일을 바꾸면 전달 마감일이 따라 바뀝니다 · 손으로 적은 매출은 안 들어갑니다</span>
         <button class="lgd-nb" onclick="lgDash.sccfg=!lgDash.sccfg;renderLgSummary()" style="${lgDash.sccfg?'':'border-style:dashed'}">⚙ 달마다 마감일</button>
@@ -22286,10 +22290,11 @@ function sellCloseSecHtml(ym){
   return `<div class="lgd-sec${open?' open':''}">
     <div class="lgd-head" onclick="lgDashToggle('sclose')" style="grid-template-columns:minmax(0,1fr) auto 18px">
       <span class="h">📑 ${mm}월 매출 마감<small>거래명세서 대조용 · 그레이박스 · 오이도 · 바스 따로 · 납품요청일 기준${totN?` · <b style="color:var(--acc2)">단가 없음 ${totN}줄</b>`:''}</small></span>
-      <span><span class="k" style="display:block">세 곳 합계</span><span class="v" style="display:block;color:#15803d">${tot?won(tot)+'원':'-'}</span></span>
+      <span><span class="k" style="display:block">${totLbl}</span><span class="v" style="display:block;color:#15803d">${tot?won(tot)+'원':'-'}</span></span>
       <span class="ar">▾</span></div>
     ${body}</div>`;
 }
+function sellCloseCheck(k, v){ const off=(lgDash.scOff||(lgDash.scOff={})); if(v) delete off[k]; else off[k]=true; renderLgSummary(); }   // 매출 마감 체크 — 보기만, 저장 안 함
 function sellCloseExcel(ym){
   if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 — 잠시 후 다시'); return; }
   const wb=XLSX.utils.book_new(), sum=[['매출처','기간','마감일','장수','금액(공급가)','단가 없음']];
