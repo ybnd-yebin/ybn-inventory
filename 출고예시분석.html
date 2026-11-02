@@ -395,7 +395,8 @@
       <button class="chip" data-cat="ETC">그 외</button>
       <button class="chip" data-cat="OIDO">오이도</button>
       <button class="chip" data-cat="BAS">바스</button>
-      <button class="btn" id="copyBtn" style="margin-left:auto;padding:7px 14px">📋 이미지로 복사</button>
+      <button class="chip" id="shortBtn" style="margin-left:auto" title="제품 이름을 짧게 / 원래대로">이름 간략</button>
+      <button class="btn" id="copyBtn" style="padding:7px 14px">📋 이미지로 복사</button>
     </div>
     <div id="boardCapture"><div id="boardBody"></div></div>
   </section>
@@ -805,6 +806,30 @@ function finishColor(name){
   if(/PG\/RG/i.test(n)) return {cls:'fc-apricot', label:'로즈그레이'};
   if(/\bBRZ\b/.test(n)) return {cls:'fc-gray', label:'브리즈'};
   return null;
+}
+/* 발주 예상 표의 간략한 이름 (사장님 2026-11-02 시범 — 「500 아보카도 …」 · 「700 웜코튼 …」 · 비규격 「(비) 사이즈」)
+   보이기만 바꿉니다 — 묶기·대조·저장은 원래 이름 그대로. 마우스를 올리면 원래 이름. 표 위 「이름 간략/원래」로 되돌림. */
+const SHORT_COLORS=[
+  [/^PG\/Avocado\b\s*/i,'아보카도'], [/^PG\/RG\b\s*/i,'로즈그레이'], [/^PG\/(OW|Off\s*(White|WH)|White|WH)\b\s*/i,'화이트'],
+  [/^Grace\s+ETP\b\s*/i,'에토프'], [/^Grace\s+W\/?\s*Cott?on\b\s*/i,'웜코튼'], [/^Grace\s+(Sahara|Saha)\b\s*/i,'사하라'],
+  [/^Grace\s+Midnight\b\s*/i,'미드나잇'], [/^Grace\s+Forest\b\s*/i,'포레스트'], [/^Grace\s+White\b\s*/i,'화이트'],
+  [/^Veil\s+BRZ\b\s*/i,'브리즈'], [/^Veil\s+Shade\b\s*/i,'쉐이드'], [/^Veil\s+PT\/BK\b\s*/i,'PT/BK'], [/^Veil\s*\/\s*RW\b\s*/i,'RW'],
+];
+let BOARD_SHORT = true;
+function shortName(name){
+  const n=String(name||'').trim();
+  if(!BOARD_SHORT) return n;
+  const m=n.match(/^(?:\(P\)\s*)?Euro\s*(500|700)\s+(.*)$/i);
+  if(!m) return n;
+  let rest=m[2], col='';
+  for(const [re,ko] of SHORT_COLORS){ if(re.test(rest)){ col=ko; rest=rest.replace(re,''); break; } }
+  rest=rest.replace(/^CH\s+/i,'');
+  const ns=rest.match(/^(.*?)\s*비규격\s*\(\s*(\d+)\*\d+\*(\d+)(?:\*\d+)?\s*([LR])?/i);
+  if(ns){
+    const code=ns[1].replace(/^(HD|OB)\s+/i,'$1 ').trim();
+    rest=`(비) ${ns[2]}×${ns[3]}${ns[4]?' '+ns[4].toUpperCase():''}${code?' · '+code:''}`;
+  } else rest=rest.replace(/\s+M$/,'');
+  return [m[1], col, rest].filter(Boolean).join(' ');
 }
 const DOW=['일','월','화','수','목','금','토'];
 function dowOf(iso){ return DOW[new Date(iso+'T00:00:00').getDay()]; }
@@ -1594,7 +1619,7 @@ function renderBoard(){
     const cls = [it.oido?'oido':'', it.bas?'bas':'', it.fc?it.fc.cls:'', sep.trim()].filter(Boolean).join(' ');
     const badge = (it.oido ? ' <span class="oido-tag">오이도</span>' : '')
                 + (it.bas  ? ' <span class="badge-bas">바스</span>' : '');
-    html+=`<tr class="${cls}"><td class="pname">${esc(it.name)}${badge}</td>`;
+    html+=`<tr class="${cls}"${it.sum?'':' data-tdonly="1"'}><td class="pname" title="${esc(it.name)}">${esc(shortName(it.name))}${badge}</td>`;
     if(TD) html+=boardTodayCell(it.tc, TD.aTot>0);
     for(const q of it.qs) html+=`<td class="q${q===0?' z':''}">${q===0?'·':q}</td>`;
     html+=`<td class="sum">${it.sum||'-'}</td></tr>`;
@@ -1623,7 +1648,7 @@ var BOARD_MDAY = null;
 function boardMobileHtml(allRows, ybCodes, TD, futureDays){
   const mdays = (TD?[TD.day]:[]).concat(futureDays);
   if(!mdays.length) return '';
-  if(!mdays.includes(BOARD_MDAY)) BOARD_MDAY = mdays[0];
+  if(!mdays.includes(BOARD_MDAY)) BOARD_MDAY = futureDays[0] || mdays[0];   // 기본은 다음 날 — 오늘은 보기만(보내는 이미지엔 필요 없음)
   const d = BOARD_MDAY, i = mdays.indexOf(d), isT = !!TD && d===TD.day;
   const its = [];
   for(const row of allRows){
@@ -1661,7 +1686,7 @@ function boardMobileHtml(allRows, ybCodes, TD, futureDays){
     const sep = (prevOido && !it.oido)?' sep':''; prevOido = it.oido;
     const cls = [it.oido?'oido':'', it.bas?'bas':'', it.fc?it.fc.cls:'', sep.trim()].filter(Boolean).join(' ');
     const badge = (it.oido ? ' <span class="oido-tag">오이도</span>' : '') + (it.bas ? ' <span class="badge-bas">바스</span>' : '');
-    h += `<tr class="${cls}"><td class="pname">${esc(it.name)}${badge}</td>`
+    h += `<tr class="${cls}"><td class="pname" title="${esc(it.name)}">${esc(shortName(it.name))}${badge}</td>`
        + (isT ? boardTodayCell(it.tc, TD.aTot>0) : `<td class="q">${it.q}</td>`) + `</tr>`;
   }
   return h + `</tbody></table></div>`;
@@ -2908,8 +2933,8 @@ drop.addEventListener('drop',e=>ingest(e.dataTransfer.files));
 document.getElementById('warnHorizon').onchange=renderWarn;
 document.getElementById('warnGroup').onchange=renderWarn;
 document.getElementById('hitGroup').onchange=renderHit;
-document.querySelectorAll('#catChips .chip').forEach(c=>c.onclick=()=>{
-  document.querySelectorAll('#catChips .chip').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('#catChips .chip[data-cat]').forEach(c=>c.onclick=()=>{
+  document.querySelectorAll('#catChips .chip[data-cat]').forEach(x=>x.classList.remove('active'));
   c.classList.add('active'); BOARD_CAT=c.dataset.cat; renderBoard();
 });
 document.querySelectorAll('#monthRangeChips .chip').forEach(c=>c.onclick=()=>{
@@ -2931,7 +2956,7 @@ async function copyNode(nodeId, btnId, fname){
   scrollers.forEach(s=>{ s.style.overflowX='visible'; s.style.width='fit-content'; s.style.maxWidth='none'; });
   try{
     // 상단 안내문(board-asof)은 화면엔 두되 이미지엔 안 넣음(길어서 배경이 늘어나는 것 방지)
-    const canvas=await html2canvas(node,{scale:2,backgroundColor:'#ffffff',ignoreElements:el=>el.classList&&el.classList.contains('board-asof')});
+    const canvas=await html2canvas(node,{scale:2,backgroundColor:'#ffffff',ignoreElements:el=>el.classList&&(el.classList.contains('board-asof')||(nodeId==='boardCapture'&&!(el.closest&&el.closest('.bm'))&&(el.classList.contains('td-col')||(el.dataset&&el.dataset.tdonly)))||el.classList.contains('bm-days')||(el.tagName==='BUTTON'&&el.parentNode&&el.parentNode.classList&&el.parentNode.classList.contains('bm-nav')))});
     canvas.toBlob(async blob=>{
       try{
         await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
@@ -2950,6 +2975,7 @@ async function copyNode(nodeId, btnId, fname){
   }
 }
 document.getElementById('copyBtn').onclick=()=>copyNode('boardCapture','copyBtn',`출고예시_${catLabel(BOARD_CAT)}`);
+document.getElementById('shortBtn').onclick=e=>{ BOARD_SHORT=!BOARD_SHORT; e.target.textContent=BOARD_SHORT?'이름 간략':'이름 원래'; renderBoard(); };
 
 // ── 벤더 중복 현황 ────────────────────────────────
 function renderVendorStats(){
