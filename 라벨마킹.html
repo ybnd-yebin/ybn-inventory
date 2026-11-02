@@ -100,6 +100,7 @@ button:disabled{color:var(--ink-3);cursor:default;border-color:var(--rule-2)}
 button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
 .filebtn{display:inline-block}
 .filebtn input{display:none}
+.packopt{font-size:12px;color:var(--ink-2);display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap}
 .primary{background:var(--ink);color:#fff;border-color:var(--ink)}
 .primary:hover{background:#000;border-color:#000}
 
@@ -338,6 +339,7 @@ button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-vis
 <div class="topbar">
   <div class="brand">라벨 마킹<span>한샘 출고라벨 형광펜 · 메모</span></div>
   <label class="filebtn">PDF 열기<input type="file" id="file" accept="application/pdf" multiple title="여러 개를 한꺼번에 고르면 이어 붙여 엽니다"></label>
+  <label class="packopt" title="PDF 여러 개를 열 때, 파일마다 끝에 1~3칸만 찬 장들을 4칸씩 모아 한 장으로 합칩니다. 라벨은 크기·모양 그대로 옮깁니다."><input type="checkbox" id="optPack"> 덜 찬 장 합치기</label>
   <div class="tabs">
     <button data-tab="labels" aria-pressed="true">라벨</button>
     <button data-tab="frames" aria-pressed="false">프레임 수량</button>
@@ -627,17 +629,145 @@ document.getElementById("file").addEventListener("change", async e=>{
   fs.sort((a,b)=> a.name.localeCompare(b.name, "ko", {numeric:true}));
   try{
     const L = await loadPdfLib();
+    const bufs = await Promise.all(fs.map(f => f.arrayBuffer()));
+    const name = fs.map(f => f.name.replace(/\.pdf$/i,"")).join(" + ");
+    if(packOn()){
+      const r = await packPartialPages(L, bufs).catch(err => ({fail: err.message}));
+      if(r && r.bytes){
+        await openPdf(new File([r.bytes], name + " (합침).pdf", {type:"application/pdf"}));
+        packToast(`덜 찬 장 ${r.from}장을 ${r.to}장으로 합쳤습니다 — 라벨 ${r.labels}장 그대로`);
+        return;
+      }
+      if(r && r.fail) alert("덜 찬 장을 합치지 않고 그냥 이어 붙여 엽니다 — " + r.fail);
+    }
     const out = await L.PDFDocument.create();
-    for(const f of fs){
-      const src = await L.PDFDocument.load(await f.arrayBuffer());
+    for(const b of bufs){
+      const src = await L.PDFDocument.load(b);
       (await out.copyPages(src, src.getPageIndices())).forEach(p => out.addPage(p));
     }
-    const name = fs.map(f => f.name.replace(/\.pdf$/i,"")).join(" + ") + ".pdf";
-    await openPdf(new File([await out.save()], name, {type:"application/pdf"}));
+    await openPdf(new File([await out.save()], name + ".pdf", {type:"application/pdf"}));
   }catch(err){
     alert("PDF 여러 개를 합치지 못했습니다 — " + err.message + "\n한 파일씩 열어 주십시오.");
   }
 });
+
+/* ---------- 덜 찬 장 합치기 (사장님 2026-11-02) ----------
+   한 장 = 라벨 4칸(왼위·오위·왼아래·오아래 차례로 찹니다). 파일마다 끝장이 1~3칸만 차면, 그런 장들의 라벨을 모아 4칸씩 새 장에 채웁니다.
+   라벨은 잘라 붙이지 않고 그 칸 그대로(크기·위치 그대로) 옆 칸 자리로 옮기기만 합니다.
+   칸 자리는 한샘 라벨 PDF(841×595, 2026-11-02 실측)에서 잰 값입니다 — 오른칸 = 왼칸 +423.55pt · 아래칸 = 위칸 −269.35pt.
+   잉크 범위: 왼칸 x 12~405 · 오른칸 435~829 · 위칸 y 302~550 · 아래칸 33~281 (PDF 좌표, 아래가 0). 칸 사이 빈 틈 안에서 자릅니다.
+   ⚠ 양식이 다르면(크기·회전·칸 밖 글자) 합치지 않습니다. 합친 뒤 칸마다 글자를 다시 읽어 앞뒤가 한 글자라도 다르면 합치지 않습니다. */
+const PACK = { W:841, H:595, DX:423.55, DY:269.35, X0:0, X1:418, Y0:291.5, Y1:561 };
+const PACK_KEY = "label-mark-pack-v1";
+function packOn(){ const el = document.getElementById("optPack"); return !!(el && el.checked); }
+(function(){
+  const el = document.getElementById("optPack"); if(!el) return;
+  try{ el.checked = localStorage.getItem(PACK_KEY) !== "0"; }catch(e){ el.checked = true; }
+  el.addEventListener("change", ()=>{ try{ localStorage.setItem(PACK_KEY, el.checked ? "1" : "0"); }catch(e){} });
+})();
+/* 칸 c(0 왼 · 1 오)·r(0 위 · 1 아래)의 자르는 네모 — PDF 좌표 */
+function packRect(c, r){
+  return { left: PACK.X0 + c*PACK.DX, right: PACK.X1 + c*PACK.DX, bottom: PACK.Y0 - r*PACK.DY, top: PACK.Y1 - r*PACK.DY };
+}
+/* 한 장의 칸별 글자 — {"c-r": "글자들"} · 칸 밖 글자가 있으면 null */
+async function packCellsOf(page){
+  const vp = page.getViewport({scale:1});
+  if(Math.round(vp.width) !== PACK.W || Math.round(vp.height) !== PACK.H || (page.rotate||0) % 360) return null;
+  const tc = await page.getTextContent();
+  const cells = {};
+  for(const it of tc.items){
+    if(!it.str.trim()) continue;
+    const x = it.transform[4], y = it.transform[5];
+    let hit = null;
+    for(const c of [0,1]) for(const r of [0,1]){
+      const q = packRect(c, r);
+      if(x >= q.left && x <= q.right && y >= q.bottom && y <= q.top) hit = c + "-" + r;
+    }
+    if(!hit) return null;
+    (cells[hit] = cells[hit] || []).push({ s: it.str, x: x - (+hit[0])*PACK.DX, y: y + (+hit[2])*PACK.DY });
+  }
+  return cells;
+}
+async function packPartialPages(L, bufs){
+  const ORDER = ["0-0","1-0","0-1","1-1"];
+  /* 한 장의 라벨은 한 덩어리로 옮깁니다 — 칸 하나만 잘라 옮기면 잘린 칸의 글자가 PDF 안에 숨은 채 따라와
+     앱이 라벨을 두 번 읽습니다(2026-11-02 시험에서 잡힘). 덩어리 모양은 찬 차례 그대로 셋뿐입니다:
+     1칸 = 왼위 → 어느 칸으로든 · 2칸 = 윗줄 → 윗줄·아랫줄 · 3칸 = 왼위·오위·왼아래 → 제자리(빈 오아래에 1칸짜리) */
+  const full = [], groups = [];     // full: [파일, 쪽] · groups: {f, p, n, cells}
+  for(let f=0; f<bufs.length; f++){
+    const pdf = await pdfjsLib.getDocument({data: bufs[f].slice(0)}).promise;
+    for(let p=1; p<=pdf.numPages; p++){
+      const cells = await packCellsOf(await pdf.getPage(p));
+      if(!cells) throw new Error(`${f+1}번째 파일 ${p}쪽 양식이 달라 칸을 못 가립니다`);
+      const used = ORDER.filter(k => cells[k]);
+      if(used.length === 4 || !used.length){ full.push([f, p-1]); continue; }
+      if(used.join() !== ORDER.slice(0, used.length).join())
+        throw new Error(`${f+1}번째 파일 ${p}쪽 라벨이 앞칸부터 차 있지 않습니다`);
+      groups.push({f, p:p-1, n:used.length, cells});
+    }
+  }
+  const g1 = groups.filter(g => g.n===1), g2 = groups.filter(g => g.n===2), g3 = groups.filter(g => g.n===3);
+  const plan = [];                  // 새 장마다 [{g, dc, dr}]
+  for(const g of g3){ const pg = [{g, dc:0, dr:0}]; if(g1.length) pg.push({g:g1.shift(), dc:1, dr:1}); plan.push(pg); }
+  while(g2.length){
+    const pg = [{g:g2.shift(), dc:0, dr:0}];
+    if(g2.length) pg.push({g:g2.shift(), dc:0, dr:1});
+    else [[0,1],[1,1]].forEach(([dc,dr]) => { if(g1.length) pg.push({g:g1.shift(), dc, dr}); });
+    plan.push(pg);
+  }
+  while(g1.length){
+    const pg = [];
+    [[0,0],[1,0],[0,1],[1,1]].forEach(([dc,dr]) => { if(g1.length) pg.push({g:g1.shift(), dc, dr}); });
+    plan.push(pg);
+  }
+  if(plan.length >= groups.length) return null;   // 줄어드는 장이 없으면 그냥 이어 붙임
+  const srcs = await Promise.all(bufs.map(b => L.PDFDocument.load(b)));
+  const out = await L.PDFDocument.create();
+  for(const [f, p] of full){ const [pg] = await out.copyPages(srcs[f], [p]); out.addPage(pg); }
+  const expect = [];
+  for(const items of plan){
+    const pg = out.addPage([PACK.W, PACK.H]);
+    const here = [];
+    for(const {g, dc, dr} of items){
+      const tl = packRect(0, 0);
+      const box = { left: tl.left, top: tl.top,
+                    right: packRect(g.n >= 2 ? 1 : 0, 0).right,
+                    bottom: packRect(0, g.n === 3 ? 1 : 0).bottom };
+      const emb = await out.embedPage(srcs[g.f].getPage(g.p), box);
+      pg.drawPage(emb, { x: box.left + dc*PACK.DX, y: box.bottom - dr*PACK.DY });
+      ORDER.slice(0, g.n).forEach(k => here.push({ cell: (+k[0]+dc) + "-" + (+k[2]+dr), items: g.cells[k] }));
+    }
+    here.sort((a,b) => ORDER.indexOf(a.cell) - ORDER.indexOf(b.cell)).forEach(x => expect.push({ cell: plan.indexOf(items) + ":" + x.cell, items: x.items }));
+  }
+  const to = plan.length, partialPages = groups.length;
+  const labels = groups.reduce((s,g) => s + g.n, 0);
+  const bytes = await out.save();
+  /* 다시 읽어 맞춰 봅니다 — 덜 찬 장 자리(뒤쪽)의 칸 글자가 옮기기 전과 같아야 합니다 */
+  const chk = await pdfjsLib.getDocument({data: bytes.slice(0)}).promise;
+  if(chk.numPages !== full.length + to) throw new Error("합친 장 수가 맞지 않습니다");
+  const got = [];
+  for(let p=full.length+1; p<=chk.numPages; p++){
+    const cells = await packCellsOf(await chk.getPage(p));
+    if(!cells) throw new Error("합친 장에서 칸 밖 글자가 보입니다");
+    ORDER.filter(k => cells[k]).forEach(k => got.push({ cell: (p - full.length - 1) + ":" + k, items: cells[k] }));
+  }
+  if(!packSame(got, expect)) throw new Error("합친 장의 글자가 옮기기 전과 다릅니다");
+  return { bytes, from: partialPages, to, labels };
+}
+/* 칸 차례·글자·자리(0.5pt 안)가 모두 같은지 */
+function packSame(a, b){
+  if(a.length !== b.length) return false;
+  return a.every((c, i) => c.cell === b[i].cell && c.items.length === b[i].items.length &&
+    c.items.every((t, j) => { const u = b[i].items[j]; return t.s === u.s && Math.abs(t.x-u.x) < 0.5 && Math.abs(t.y-u.y) < 0.5; }));
+}
+function packToast(msg){
+  const d = document.createElement("div");
+  d.textContent = msg;
+  d.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:95;background:#222;color:#fff;" +
+    "font-size:13px;padding:9px 16px;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.25);pointer-events:none;max-width:90vw";
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 5000);
+}
 
 async function openPdf(file){
   const busy = showBusy("PDF 읽는 중…");
@@ -769,6 +899,10 @@ async function clipRects(page, base){
     if(f === OPS.save) stack.push(ctm.slice());
     else if(f === OPS.restore) ctm = stack.pop() || ctm;
     else if(f === OPS.transform) ctm = mul(ctm, a);
+    /* 묶음 그림(Form XObject) — 「덜 찬 장 합치기」가 옮긴 라벨이 이 꼴입니다. 안쪽 좌표는 묶음의 옮김(matrix)을 거쳐야 쪽 좌표가 됩니다.
+       한샘 원본 PDF 에는 없습니다(2026-11-02 아홉 파일 확인). */
+    else if(f === OPS.paintFormXObjectBegin){ stack.push(ctm.slice()); if(a && a[0]) ctm = mul(ctm, a[0]); }
+    else if(f === OPS.paintFormXObjectEnd) ctm = stack.pop() || ctm;
     else if(f === OPS.constructPath) last = a[2];          // [minX, maxX, minY, maxY]
     else if(f === OPS.clip && last){
       const [x0,x1,y0,y1] = last;
