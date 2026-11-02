@@ -18156,7 +18156,12 @@ function odFindInput(v){
   clearTimeout(_odFindT);
   _odFindT = setTimeout(()=>{ odFindQ = String(v||''); renderOrderList(); }, 200);
 }
-function odFindPickVendor(v){ odFindVendor = (odFindVendor===v ? '' : v); renderOrderList(); }
+function odFindPickVendor(v){ odFindVendor = (odFindVendor===v ? '' : v); odFindKinds = []; renderOrderList(); }   // 발주처를 바꾸면 종류 고른 것은 풀림
+/* 발주 종류 거르기 (사장님 2026-11-02 「업체별에서 발주 종류별로 · 2종류 3종류 같이도」) — 발주처를 고르면 그 발주처 종류가 체크칸으로 나옵니다.
+   하나도 안 고르면 전부, 고른 것이 있으면 그것들만. 보기만 — 이 창에서만 기억, 저장 안 함. 열쇠 = 발주 기록의 종류 글자(odKindKey) */
+var odFindKinds = [];
+function odKindKey(o){ return String(o.type||o.thick||o.title||'').replace(/\s+/g,' ').trim() || '(종류 없음)'; }
+function odFindToggleKind(k){ const i=odFindKinds.indexOf(k); if(i>=0) odFindKinds.splice(i,1); else odFindKinds.push(k); renderOrderList(); }
 // 찾는 글자 다듬기 — 띄어쓰기 없애고, 595*729 · 595x729 · 595X729 를 595×729 로
 function odFindNorm(t){
   return String(t||'').toLowerCase().replace(/\s+/g,'').replace(/(\d)[*x×](\d)/g,'$1×$2');
@@ -18209,6 +18214,7 @@ function odFindApply(){
   const list=(orderLog||[]).filter(o=>{
     if(odFindState && !odStateOrder(o)) return false;
     if(odFindVendor && odStmtVendor(o.vendor)!==odFindVendor) return false;
+    if(odFindVendor && odFindKinds.length && !odFindKinds.includes(odKindKey(o))) return false;
     if(!q) return true;
     const head=odFindNorm([o.vendor,o.type,o.title,o.thick,o.client,o.ref,o.bigo,o.date].join(' '));
     return head.includes(q) || (o.items||[]).some(it=>odFindItemText(it).includes(q));
@@ -18225,7 +18231,19 @@ function odFindRenderBar(list, q){
       return `<button onclick="odFindPickVendor('${String(v).replace(/'/g,"\\'")}')" style="padding:5px 11px;border-radius:14px;font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid ${on?'var(--acc)':'var(--b2)'};background:${on?'var(--acc)':'var(--s2)'};color:${on?'#fff':'var(--tx2)'};font-weight:${on?700:500}">${_odEsc(label)}</button>`;
     };
     const st = odFindState ? `<button onclick="odStatPick('')" title="이 거르기 풀기" style="padding:5px 11px;border-radius:14px;font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid #d97706;background:#fff7ed;color:#b45309;font-weight:700">${OD_STATE_LABEL[odFindState]}만 ✕</button>` : '';
-    chips.innerHTML=st+(vs.length>1 ? chip('', '전체')+vs.map(v=>chip(v,v)).join('') : '');
+    let kh='';
+    if(odFindVendor){   // 고른 발주처의 종류 — 발주 많은 차례
+      const cnt={}; (orderLog||[]).forEach(o=>{ if(odStmtVendor(o.vendor)!==odFindVendor) return; const k=odKindKey(o); cnt[k]=(cnt[k]||0)+1; });
+      odFindKinds=odFindKinds.filter(k=>cnt[k]);   // 지워진 종류는 뺌
+      const ks=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]||a.localeCompare(b,'ko'));
+      if(ks.length>1) kh=`<div style="flex-basis:100%;display:flex;flex-wrap:wrap;gap:5px 6px;align-items:center;padding:6px 0 0 2px;font-size:11.5px">
+        <span style="color:var(--tx3);font-size:10.5px;margin-right:2px">종류</span>`
+        + ks.map(k=>{ const on=odFindKinds.includes(k);
+            return `<label style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px 3px 6px;border-radius:12px;cursor:pointer;border:1px solid ${on?'var(--acc)':'var(--b2)'};background:${on?'rgba(9,105,218,.08)':'var(--s1)'};color:${on?'var(--acc)':'var(--tx2)'};font-weight:${on?700:500};white-space:nowrap">
+              <input type="checkbox" ${on?'checked':''} onchange="odFindToggleKind(this.dataset.k)" data-k="${_odEsc(k)}" style="margin:0;cursor:pointer">${_odEsc(k)} <span style="color:var(--tx3);font-weight:400">${cnt[k]}</span></label>`; }).join('')
+        + (odFindKinds.length?`<button onclick="odFindKinds=[];renderOrderList()" style="padding:3px 8px;border:none;background:none;color:var(--tx3);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">✕ 종류 풀기</button>`:'')+`</div>`;
+    }
+    chips.innerHTML=st+(vs.length>1 ? chip('', '전체')+vs.map(v=>chip(v,v)).join('') : '')+kh;
   }
   const sum=document.getElementById('od-find-sum'); if(!sum) return;
   if(!q && !odFindVendor && !odFindState){ sum.innerHTML=''; return; }
