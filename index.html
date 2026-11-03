@@ -2381,6 +2381,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .bas-fold>summary,#pg-bas .bas-fbtn{list-style:none;cursor:pointer;font-size:12px;color:var(--sub);padding:4px 11px;border:1px dashed var(--line);border-radius:7px;white-space:nowrap;background:none;font-weight:600}
 #pg-bas .bas-fold>summary::-webkit-details-marker{display:none}
 #pg-bas .bas-fold[open]>summary,#pg-bas .bas-fbtn.on{border-style:solid;color:var(--txt)}
+#pg-bas tr.st-disc>td{opacity:.55}
 #pg-bas .bas-fold-body{margin:6px 0 8px;padding:9px 13px;background:var(--panel2);border-radius:8px}
 #pg-bas .bas-fold-body .hint{margin:0}
 /* 발주 현황 거르기 꼬리표 (3단계) */
@@ -2705,7 +2706,14 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div class="bas-ph">
       <div><h2>실사값 입력</h2>
         <div class="sub">이 날짜의 실제 재고를 넣으면, 그 뒤 입고·출고로 추정을 이어갑니다. 칸을 고치면 바로 저장됩니다.</div></div>
-      <div class="bas-tools"><label for="bas-countDate">실사 날짜</label><input type="date" id="bas-countDate"></div>
+      <div class="bas-tools"><button class="bas-fbtn" id="bas-fb-gjBox" onclick="BAS.toggleSub('gjBox')">📋 건재 재고내역 붙여넣기</button>
+        <label for="bas-countDate">실사 날짜</label><input type="date" id="bas-countDate"></div>
+    </div>
+    <!-- 한샘 「건재 재고내역」 표 붙여넣기 (사장님 2026-11-03) — 실재고 = 재고 − 지방출고 · 단종은 체크 -->
+    <div id="bas-gjBox" hidden style="margin:0 0 12px">
+      <div class="mini" style="margin-bottom:6px">엑셀 표를 통째로 복사해 붙이십시오. <b>실재고 = 재고 − 지방출고</b> 로 위 「실사 날짜」에 넣습니다. 단종 품목은 체크하면 재고 표 맨 아래로 내려가고 경고·발주 시점에서 빠집니다.</div>
+      <textarea id="bas-gjText" rows="5" style="width:100%;font-size:12px" placeholder="밴더코드 · 벤더명 · 코드 · 제품명 · 지방출고 · 재고" oninput="BAS.gjPreview()"></textarea>
+      <div class="tbl-wrap" id="bas-gjPrev" style="margin-top:8px"></div>
     </div>
     <div class="tbl-wrap" id="bas-countTbl"></div>
   </div>
@@ -30502,7 +30510,7 @@ const SEED_NAMES={"BB1000108":"EURO5 베일화이트 하부장 새틴WH 도어 3
    묶음(SECS)마다 고친 때(_at)를 적어 두고, 시트에서 받을 때 **묶음마다 나중에 고친 쪽**이 이깁니다.
    예시 스냅샷(snaps)은 이 기기에만 둡니다 — 동기화에 안 실립니다. */
 const LS='ybn-bas-v1', LS_OLD='bas-vmi-v2';
-const SECS=['srm','counts','delivs','pos','close','returns','prices','names','slipSkip','poClose'];
+const SECS=['srm','counts','delivs','pos','close','returns','prices','names','slipSkip','poClose','disc'];
 const SEED_PRICES={}, SEED_DELIVS=[], SEED_COUNTS={};   // 숫자는 이어받는 자료에 들어 있습니다(공개 저장소 — 코드에 안 적음)
 function _norm(s){
   s=s||{};
@@ -30514,7 +30522,8 @@ function _norm(s){
     // 잔량 종료 (2026-10-26 6단계) {오더번호|코드: {on, day, reason, qty, filled, rest, at, by, undoneAt}}
     // 납품 기록·발주 수량은 안 건드리는 「업무상 끝냄」 표시. 취소는 지우지 않고 on:false — 지우면 다른 기기의 옛 종료가 되살아납니다
     poClose:s.poClose||{},
-    srm:s.srm||{},        // 출고일 -> {asof, rows[]} · 창고에서 실제로 나간 물량
+    disc:s.disc||{},      // 단종 {코드: {on, at}} — 재고 표 맨 아래·경고·발주 시점에서 뺌 (2026-11-03). 지우지 않고 on:false
+    srm:s.srm||{},       // 출고일 -> {asof, rows[]} · 창고에서 실제로 나간 물량
     close:s.close||{},    // 마감월 -> {at, rows{코드:{...}}} · 한샘이 보내온 마감내역 원본
     counts:Object.assign({},SEED_COUNTS,s.counts||{}),   // 실사날짜 -> {코드:수량}
     _at:Object.assign({},s._at||{}),   // 묶음 -> 마지막으로 고친 때
@@ -31421,12 +31430,19 @@ function outRange(after){
 }
 
 /* 재고 표에 오르는 품목 — 현황 요약 칸도 같은 줄을 셉니다(두 곳이 다른 숫자를 말하지 않게) */
-function stockRows(){
-  return allCodes().map(c=>({c,s:stockOf(c)}))
+function stockRows(withDisc){
+  return allCodes().filter(c=>withDisc||!isDisc(c)).map(c=>({c,s:stockOf(c)}))
     .filter(x=>x.s.base||x.s.inn||x.s.out||x.s.planOut||x.s.soon);
+}
+/* 단종 — 지우지 않고 표시만. 재고 표 맨 아래로 · 등급 칩·경고·발주 시점에서 뺍니다 */
+function isDisc(c){ const x=(ST.disc||{})[c]; return !!(x&&x.on); }
+function setDisc(c,on){
+  ST.disc=ST.disc||{}; ST.disc[c]={on:!!on, at:new Date().toISOString()};
+  save(); refresh(); toast(`${nameOf(c)} ${on?'단종 표시':'단종 풀기'}`);
 }
 function renderStock(){
   const rows=stockRows();
+  const discRows=allCodes().filter(isDisc).map(c=>({c,s:stockOf(c)}));
   rows.sort((a,b)=>{
     if(a.s.rank!==b.s.rank) return a.s.rank-b.s.rank;      // 급한 것 먼저
     // 같은 등급 안에서는 '먼저 바닥나는 것' 먼저. 속도를 모르는 품목은 뒤로 보낸다.
@@ -31438,7 +31454,7 @@ function renderStock(){
   });
   const w=$b('stockTbl');
   if(!w) return;
-  if(!rows.length){ w.innerHTML='<div class="empty">아직 입·출고 자료가 없습니다.</div>'; return; }
+  if(!rows.length&&!discRows.length){ w.innerHTML='<div class="empty">아직 입·출고 자료가 없습니다.</div>'; return; }
 
   const n=[0,0,0,0]; rows.forEach(x=>n[x.s.rank]++);
   const sum=$b('stockSum');
@@ -31446,7 +31462,8 @@ function renderStock(){
       (n[0]?`<span class="chip b">모자람 ${n[0]}종</span> `:'')
     + (n[1]?`<span class="chip b">급함 ${n[1]}종</span> `:'')
     + (n[2]?`<span class="chip w">주의 ${n[2]}종</span> `:'')
-    + (n[3]?`<span class="chip g">여유 ${n[3]}종</span>`:'');   // 「모두 N종」은 제목 옆 칸(stockCnt)으로
+    + (n[3]?`<span class="chip g">여유 ${n[3]}종</span>`:'')
+    + (discRows.length?` <span class="chip n">단종 ${discRows.length}종</span>`:'');   // 「모두 N종」은 제목 옆 칸(stockCnt)으로
 
   var _tc=$b("thCrit"); if(_tc) _tc.textContent=DAYS_CRIT;
   var _tl=$b("thLow"); if(_tl) _tl.textContent=DAYS_LOW;
@@ -31455,6 +31472,7 @@ function renderStock(){
   const cnt=$b('stockCnt'); if(cnt) cnt.textContent=`${rows.length}종`;
   // 식(＋ － ＝)은 카드 머리에 한 번 적고, 표는 숫자 칸만 (사장님 시안 2026-10-26). 상태 칩 = 위 요약 칩과 같은 등급
   const ST_LAB=['모자람','급함','주의','여유'], ST_CHIP=['b','b','w','g'];
+  const allRows=rows.concat(discRows.map(x=>Object.assign({disc:true},x)));   // 단종은 맨 아래
   w.innerHTML=`<table><thead><tr>
     <th>제품</th>
     <th class="num" style="width:110px">월말 실사</th>
@@ -31467,8 +31485,8 @@ function renderStock(){
     <th class="c-x" style="width:150px">예정</th>
     <th class="stt" style="width:64px">상태</th>
     </tr></thead><tbody>`+
-    rows.map(({c,s})=>{
-      const col=s.rank<=1?'var(--bad)':s.rank===2?'var(--warn)':'var(--good)';
+    allRows.map(({c,s,disc})=>{
+      const col=disc?'var(--sub)':s.rank<=1?'var(--bad)':s.rank===2?'var(--warn)':'var(--good)';
       const lastIn=lastInSince(c, s.baseDate);
       const rng=outRange(s.baseDate);
       // 기준: 실사가 있으면 그 날짜, 없으면 마지막 입고로 잡은 하한
@@ -31504,11 +31522,11 @@ function renderStock(){
           +` <span class="mini">(${s.burn.from}→${s.burn.to} 사이 ${-s.burn.used}장 늘었습니다)</span></span>`);
       }
       /* 예상 재고 밑에는 「바닥 예상」 한 줄만 (사장님 2026-10-27 「줄바꿈이 엄청 일어나」). 나머지 곁가지(side)는 줄을 눌러 펼친 칸 「소진·예정」으로 — 1700px 이상은 제 칸(xCells) */
-      const eta=(s.eta && s.daysLeft!=null && s.daysLeft<=180) ? `${s.eta.slice(5).replace('-','/')} 바닥` : '';
+      const eta=(!disc && s.eta && s.daysLeft!=null && s.daysLeft<=180) ? `${s.eta.slice(5).replace('-','/')} 바닥` : '';
       const nm=nmSplit(nameOf(c));
       const cf=`${s.anchor==='실사'?'실사 '+s.base:s.anchor==='입고'?'실사 없음 ≥'+s.base:'실사 없음'} + 입고 ${s.inn||0} − 출고 ${s.out||0}`;
       // 칸 이름·꼬리표 — 휴대폰에서 표 대신 카드로 (2026-10-26 5단계, CSS 만으로)
-      return `<tr class="st-row" onclick="BAS.stToggle('${c}')" title="눌러서 미납 발주·최근 납품·소진·예정 보기">
+      return `<tr class="st-row${disc?' st-disc':''}" onclick="BAS.stToggle('${c}')" title="눌러서 미납 발주·최근 납품·소진·예정 보기">
         <td class="c-nm"><span class="tg">${stOpen[c]?'▾':'▸'}</span><b class="nm1">${nm[0]}</b><div class="mini">${nm[1]?nm[1]+' · ':''}${c}</div></td>
         <td class="num c-n" data-l="월말 실사">${baseCell}</td>
         <td class="num c-n" data-l="그 뒤 입고">${inCell}</td>
@@ -31517,7 +31535,7 @@ function renderStock(){
           ${eta?`<div class="mini sd">${eta}</div>`:''}</td>
         <td class="c-f mini">${cf}</td>
         ${xCells(c,s,lp)}
-        <td class="stt c-st"><span class="chip ${ST_CHIP[s.rank]}">${ST_LAB[s.rank]}</span></td>
+        <td class="stt c-st">${disc?'<span class="chip n">단종</span>':`<span class="chip ${ST_CHIP[s.rank]}">${ST_LAB[s.rank]}</span>`}</td>
       </tr>`+(stOpen[c]?`<tr class="st-more"><td colspan="11">${stMoreHtml(c,s,side)}</td></tr>`:'');
     }).join('')+`</tbody></table>`;
 }
@@ -31561,14 +31579,70 @@ function renderCounts(){
   const saved=ST.counts[date]||{};
   $b('countTbl').innerHTML=`<table><thead><tr>
     <th>제품</th><th class="num">현재 추정</th>
-    <th class="num">${date} 실사값</th></tr></thead><tbody>`+
+    <th class="num">${date} 실사값</th><th style="width:56px">단종</th></tr></thead><tbody>`+
     allCodes().map(c=>{
       const s=stockOf(c);
-      return `<tr><td>${nameOf(c)}<div class="mini">${c}</div></td>
+      return `<tr${isDisc(c)?' class="st-disc"':''}><td>${nameOf(c)}<div class="mini">${c}</div></td>
         <td class="num" style="color:var(--sub)">${s.stock}</td>
         <td class="num"><input type="number" value="${saved[c]!=null?saved[c]:''}" placeholder="—"
-          style="width:92px;padding:5px 7px" onchange="BAS.setCount('${date}','${c}',this.value)"></td></tr>`;
+          style="width:92px;padding:5px 7px" onchange="BAS.setCount('${date}','${c}',this.value)"></td>
+        <td><input type="checkbox" ${isDisc(c)?'checked':''} onchange="BAS.setDisc('${c}',this.checked)" title="단종 — 재고 표 맨 아래·경고에서 뺌"></td></tr>`;
     }).join('')+`</tbody></table>`;
+}
+/* 한샘 「건재 재고내역」 붙여넣기 (사장님 2026-11-03) — 줄: 밴더코드 벤더명 코드 제품명 지방출고 재고
+   실재고 = 재고 − 지방출고. 코드는 BB… 뿐 아니라 SFY·SJM 같은 바스 품목도 있습니다(확인대기 C7) */
+function gjParse(t){
+  const out=[], bad=[];
+  String(t||'').split(/\r?\n/).forEach(line=>{
+    const L=line.trim(); if(!L) return;
+    const m=L.match(/(?:^|\s)([A-Z]{2,4}\d{6,8})\s+(.+?)\s+(-?\d+)\s+(-?\d+)\s*$/);
+    if(!m){ if(/[A-Z]{2,4}\d{6,8}/.test(L)) bad.push(L); return; }
+    const far=Number(m[3])||0, stock=Number(m[4])||0;
+    out.push({code:m[1], name:m[2].trim(), far, stock, real:stock-far});
+  });
+  return {rows:out, bad};
+}
+let _gjDisc={};   // 미리보기에서 고른 단종 (넣기 전) — 기본은 지금 단종 표시
+function gjPreview(){
+  const host=$b('gjPrev'); if(!host) return;
+  const {rows,bad}=gjParse(($b('gjText')||{}).value);
+  if(!rows.length){ host.innerHTML=bad.length?`<div class="mini" style="color:var(--bad)">못 읽은 줄 ${bad.length}</div>`:''; return; }
+  const date=($b('countDate')||{}).value||'';
+  rows.forEach(r=>{ if(_gjDisc[r.code]==null) _gjDisc[r.code]=isDisc(r.code); });
+  const saved=ST.counts[date]||{};
+  host.innerHTML=`<table><thead><tr><th>제품</th><th class="num">재고</th><th class="num">지방출고</th><th class="num">실재고</th>
+    <th class="num">지금 추정</th><th class="num">${date} 이미 넣은 값</th><th>단종</th></tr></thead><tbody>`
+    + rows.map(r=>{
+        const known=allCodes().includes(r.code), s=stockOf(r.code), pv=saved[r.code];
+        return `<tr><td>${r.name}<div class="mini">${r.code}${known?'':' · <span style="color:var(--warn)">처음 보는 코드</span>'}</div></td>
+          <td class="num">${r.stock}</td><td class="num">${r.far||'-'}</td><td class="num"><b>${r.real}</b></td>
+          <td class="num" style="color:var(--sub)">${known&&s.anchor!=='none'?s.stock:'-'}</td>
+          <td class="num" style="color:var(--sub)">${pv!=null?pv:'-'}</td>
+          <td><input type="checkbox" ${_gjDisc[r.code]?'checked':''} onchange="BAS.gjDisc('${r.code}',this.checked)"></td></tr>`;
+      }).join('')
+    + `</tbody></table>`
+    + (bad.length?`<div class="mini" style="color:var(--bad);margin-top:4px">못 읽은 줄 ${bad.length} — 넣지 않습니다</div>`:'')
+    + `<div style="display:flex;justify-content:flex-end;margin-top:8px"><button onclick="BAS.gjApply()" style="padding:8px 18px">${date} 실사로 ${rows.length}품목 넣기</button></div>`;
+}
+function gjDisc(c,on){ _gjDisc[c]=!!on; }
+function gjApply(){
+  const {rows}=gjParse(($b('gjText')||{}).value);
+  const date=($b('countDate')||{}).value;
+  if(!rows.length||!date) return;
+  const had=Object.keys(ST.counts[date]||{}).length;
+  if(had && !confirm(`${date} 실사값이 이미 ${had}품목 있습니다. 붙인 품목은 새 값으로 바꿉니다. 넣을까요?`)) return;
+  ST.counts[date]=ST.counts[date]||{};
+  const now=new Date().toISOString(); ST.disc=ST.disc||{};
+  rows.forEach(r=>{
+    ST.counts[date][r.code]=r.real;
+    if(!ST.names[r.code]) ST.names[r.code]=r.name;
+    const want=!!_gjDisc[r.code];
+    if(want!==isDisc(r.code)) ST.disc[r.code]={on:want, at:now};
+  });
+  save(); refresh();
+  $b('gjText').value=''; _gjDisc={}; gjPreview(); toggleSub('gjBox',false);
+  const dn=rows.filter(r=>isDisc(r.code)).length;
+  toast(`${date} 실사 ${rows.length}품목 넣음${dn?` · 단종 ${dn}`:''}`);
 }
 function setCount(date,code,v){
   if(!date) return;
@@ -31691,7 +31765,7 @@ function orderRhythm(code){
 /* 발주 시점 한눈에 — 품목을 하나씩 고르지 않고 전부 한 표에서 본다. */
 function renderOrderTable(){
   const host=$b('rhythmTbl'); if(!host) return;
-  const rows=allCodes().map(c=>({c, r:orderRhythm(c), rp:reorderPoint(c), cur:currentAccum(c)}))
+  const rows=allCodes().filter(c=>!isDisc(c)).map(c=>({c, r:orderRhythm(c), rp:reorderPoint(c), cur:currentAccum(c)}))
                        .filter(x=>x.r);
   if(!rows.length){
     host.innerHTML='<div class="empty">납품 기록이 없어 발주 시점을 잡을 수 없습니다.</div>';
@@ -33111,7 +33185,7 @@ $b('dShip').value=TODAY;
 $b('closeMonth').value=ym(TODAY);
 
 function open(){ try{ refresh(); }catch(e){ console.error('[바스재고]', e); toast('⚠ 바스 화면을 그리다 멈췄습니다'); } }
-return {open, goTab, goCard, toggleSub, setPoFilter, poClose, poCloseOrder, poCloseUndo, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, toggleRet, stToggle, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
+return {setDisc, gjPreview, gjDisc, gjApply, open, goTab, goCard, toggleSub, setPoFilter, poClose, poCloseOrder, poCloseUndo, forSync, mergeFromSheet, importOld, importOldFile, state:()=>ST, srmDelManual, srmDelDay, setCount, delSnap, setDelivRef, delDelivAt, toggleOrder, poSetDate, poShip, poDel, setReturn, toggleRet, stToggle, setPrice, srmShiftMonth, slipAdd, slipAddAll, slipSkip, slipSkipAllChk, slipUnskip, slipToggle, slipRows};
 })();
 </script>
 <!-- ══ 🧭 대분류·소분류 메뉴 (1차 UI 개편 2026-10-23) — CLAUDE.md 12-67 ══
