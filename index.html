@@ -14749,13 +14749,13 @@ const OD_CATALOG = {
          hint:'한샘바스에 들어가는 백사틴 · 비고 각면/강화'},
       /* 줄 비고 「각면/강화」 — 제목은 「3.2T 백사틴」 그대로, 품목 줄 비고 칸에만 (사장님 2026-10-21 「매번 지워지고 새로 넣게」).
          공통 비고는 기억하지 않으므로(noBigoMemo) 넘겨받기·종류 고르기 때마다 비어 있었습니다. lineBigo 는 종류에 붙어 있어 늘 들어갑니다. */
-      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'', noBigoMemo:true, lineBigo:'각면/강화', pname:'',        modelMode:true,
+      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'3.2T 백사틴 정규격', bigo:'', noBigoMemo:true, lineBigo:'각면/강화', pname:'',        modelMode:true,
          fname:'3.2T 백사틴', grp:'유로700', ord:1, pick:'3.2T 백사틴 정규격',
          hint:'유로700에 들어가는 3.2T 백사틴 정규격 · 품명에 모델명 입력하면 사이즈 자동 · 줄 비고 각면/강화'},
       /* 대원유리에서 **제일 많이 쓰는 종류**라 기본으로 골라 둡니다 (사장님 2026-09-22
          "그걸 제일 많이 쓰는데 매번 클릭하려니 귀찮아서"). 목록 차례는 그대로 두고
          고르는 값만 여기로 옵니다 — `def:true` 한 줄이면 다른 발주처에도 똑같이 됩니다. */
-      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'', noBigoMemo:true, lineBigo:'각면/강화', pname:'비규격',  sizeMode:true, def:true,
+      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴 비규격', bigo:'', noBigoMemo:true, lineBigo:'각면/강화', pname:'비규격',  sizeMode:true, def:true,
          fname:'3.2T 백사틴', grp:'유로700', ord:2, pick:'3.2T 백사틴 비규격',
          hint:'3.2T 백사틴 비규격 · 줄 비고 각면/강화'}
     ],
@@ -18674,7 +18674,11 @@ const OD_VENDOR_CLOSE_DAY = { '현성유리': 31 };
 /* 정규격·비규격 단가를 **줄 수량**으로 가르는 발주처 (대원 — 2026-10-01 사장님 확정).
    여기 없는 발주처는 **발주 종류**(정규격 발주인지 비규격 발주인지)로 가릅니다 —
    현성은 「일단 정규격 비규격으로 나눠봐야」 (사장님 2026-10-01). */
-const OD_KIND_BY_QTY = new Set(['대원유리']);
+/* 2026-11-04 대원도 수량 상관없이 **정규격 발주인지 비규격 발주인지**로 나눈다고 합니다(사장님) — 비웠습니다.
+   되돌리려면 '대원유리' 를 다시 넣으십시오(12-24 예전 규칙: 줄 10장 이상 = 정규격 단가). */
+const OD_KIND_BY_QTY = new Set([]);
+/* 색(웜코튼·사하라·팬톤)으로 늘 비규격 단가를 매기지 않는 발주처 — 대원은 발주 종류만 봅니다 */
+const OD_NO_COLOR_NONSTD = new Set(['대원유리']);
 /* **직접 입고 체크한 것만** 마감에 넣는 발주처 (사장님 2026-10-01 — 현성은 시작 단계라
    "발주낸걸 전부 마감하기보다 입고된것만"). 미입고·자동(앱이 찍은 입고)은 빼고 장수만 화면에 적습니다.
    자리 잡으면 여기서 빼면 대원처럼 돌아갑니다. */
@@ -18730,7 +18734,7 @@ function odStmtKind(o,it,vendor){
   if(/5\s*T\s*백유리/.test(t)) return od5tStdSize(it.w, it.h) ? '5T 백유리 정규격' : '5T 백유리 비규격';
   if(!/사틴|샤틴/.test(t)) return null;
   if(/바스/.test(t) || /바스/.test(it.pname||'')) return null;
-  const colorNonStd = !OD_KIND_BY_QTY.has(vendor) && OD_NONSTD_COLOR_RE.test([it.color, it.bigo, o.bigo, o.title, it.pname].join(' '));
+  const colorNonStd = !OD_KIND_BY_QTY.has(vendor) && !OD_NO_COLOR_NONSTD.has(vendor) && OD_NONSTD_COLOR_RE.test([it.color, it.bigo, o.bigo, o.title, it.pname].join(' '));
   const std = OD_KIND_BY_QTY.has(vendor)
     ? (Number(it.qty)||0) >= OD_STD_MIN_QTY                                        // 대원: 줄 수량
     : !colorNonStd && /정규격/.test(t) && !/비규격/.test(t) && !/비규격/.test(it.pname||'');   // 그 밖: 발주 종류(웜코튼·사하라·팬톤은 늘 비규격)
