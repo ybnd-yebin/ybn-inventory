@@ -18160,7 +18160,42 @@ function odFindPickVendor(v){ odFindVendor = (odFindVendor===v ? '' : v); odFind
 /* 발주 종류 거르기 (사장님 2026-11-02 「업체별에서 발주 종류별로 · 2종류 3종류 같이도」) — 발주처를 고르면 그 발주처 종류가 체크칸으로 나옵니다.
    하나도 안 고르면 전부, 고른 것이 있으면 그것들만. 보기만 — 이 창에서만 기억, 저장 안 함. 열쇠 = 발주 기록의 종류 글자(odKindKey) */
 var odFindKinds = [];
-function odKindKey(o){ return String(o.type||o.thick||o.title||'').replace(/\s+/g,' ').trim() || '(종류 없음)'; }
+/* 2026-11-03 묶기 (사장님 「띄어쓰기 하나로도 정리가 다 달라져서」) — 종류 글자 그대로 쓰니 현성만 15가지였습니다
+   (3.2백사틴 · 3.2T 백사틴 · 3.2T 백사틴  에토프 · 5T백유리 · 5T 백유리 …). 이제 **품목 + 정규격/비규격** 으로 묶습니다.
+   품목 = 저장 이름과 같은 odKindName(띄어쓰기·괄호·규격 글자 뺌, 「3.2백사틴」 → 3.2T). 규격 = 종류·제목 글자 → 불러온 발주서 파일 이름
+   → 줄 사이즈(유로700 모델 유리 · 5T 정규격 모델이면 정규격). 보기만 — 발주 기록은 안 고칩니다. */
+function odKindKey(o){
+  let n=''; try{ n=odKindName(o); }catch(e){}
+  n=String(n||o.type||o.thick||o.title||'').replace(/\s+/g,'');
+  if((o.type||'')==='일반' || (o.cat && o.cat!=='유리')) return n||'(종류 없음)';
+  const t=[o.type,o.title].join(' '), f=String(o.srcSheet||'');
+  /* 유리 이름 — 옛 불러온 발주서는 종류가 「비규격」·「백샤틴(정규격)」뿐이라, 파일 이름·줄 품명까지 같이 봅니다. 색(에토프 등)은 안 가릅니다 */
+  const its=(o.items||[]).map(it=>[it.pname,it.bigo].join(' ')).join(' ');
+  const glassOf=s=>{ s=String(s||'').replace(/\s+/g,''); if(!s) return '';
+    const pre=/시그니처/.test(s)?'시그니처 ':/키친바흐|KB|에어힌지/i.test(s)?'KB ':'';
+    return /사틴|샤틴/.test(s)?'3.2T 백사틴' : /백유리/.test(s)?'5T 백유리' : /은경/.test(s)?'3T 은경' : /브론즈경/.test(s)?'3T 브론즈경'
+         : (/투명/.test(s)&&/브론즈/.test(s))?pre+'5T 투명·브론즈' : /브론즈/.test(s)?pre+'5T 브론즈' : /투명/.test(s)?pre+'5T 투명' : ''; };
+  // 파일 이름은 맨 나중 — 한 파일에 여러 시트가 든 것(「…사틴….xlsx (제일유리 5T유리장식장)」)은 다른 유리 이름이 섞여 있습니다
+  const g = glassOf([t,o.thick,its].join(' ')) || glassOf(f);
+  if(g) n=g;
+  if(!n) return '(종류 없음)';
+  // 파일 이름 뒤 괄호 = 그 파일 안 시트 이름 — 시트 이름의 규격이 먼저입니다(「…정규격(비규격대응).xlsx (제일유리 비규격(5T유리장식장))」)
+  const fm=f.match(/\.(?:xlsx?|pdf)\s*\((.*)\)\s*$/i), fs=fm?fm[1]:'', ff=fm?f.slice(0,fm.index):f;
+  const spOf=s=>/비규격/.test(s)?'비규격':/정규격/.test(s)?'정규격':'';
+  let sp = spOf(t) || spOf(fs) || (/정규격/.test(ff)?'정규격':spOf(ff)) || spOf(its);
+  if(!sp && /백사틴|백유리/.test(n)){
+    const its=(o.items||[]).filter(it=>+it.w && +it.h);
+    if(its.length){
+      const isStd=it=>{ const w=+it.w, h=+it.h;
+        if(/백유리/.test(n)) return od5tStdSize(w,h);
+        return typeof SIZE_TO_MODELS!=='undefined' && !!(SIZE_TO_MODELS[w+'x'+h]||SIZE_TO_MODELS[h+'x'+w]); };
+      const k=its.filter(isStd).length;
+      sp = k===its.length ? '정규격' : k===0 ? '비규격' : '정·비규격';
+    }
+  }
+  if(!sp){ try{ sp=odFileSpec(o); }catch(e){} }   // 그 밖의 유리 — 저장 이름과 같은 셈(줄 품명이 모델명이면 정규격)
+  return sp ? n+' '+sp : n;
+}
 function odFindToggleKind(k){ const i=odFindKinds.indexOf(k); if(i>=0) odFindKinds.splice(i,1); else odFindKinds.push(k); renderOrderList(); }
 // 찾는 글자 다듬기 — 띄어쓰기 없애고, 595*729 · 595x729 · 595X729 를 595×729 로
 function odFindNorm(t){
