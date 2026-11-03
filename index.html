@@ -18552,7 +18552,9 @@ function renderOrderList(){
             ${hasSize&&it.received?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:var(--acc3)">📦 입고일</span><input type="date" value="${it.recvDate||''}" onchange="odSetRecvDate('${o.id}',${i},this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif"></div>`:''}
           </div>
           ${hasSize&&!it.received&&(Number(it.qty)||0)>1&&!editing?`<button onclick="odSplitRecv('${o.id}',${i})" title="일부만 들어왔을 때 — 들어온 장수만 입고하고 나머지는 대기 줄로 남깁니다" style="flex-shrink:0;padding:3px 8px;background:var(--s1);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">나눠 입고</button>`:''}
-          <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc3)">${it.qty}</div>
+          ${(()=>{ const df=odRecvDiff(it);
+            return df ? `<div style="text-align:right;line-height:1.15" title="발주 ${it.qty}장 · 실입고 ${odRecvQty(it)}장"><div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc3)">${odRecvQty(it)}</div><div style="font-size:10px;color:var(--tx3);white-space:nowrap">발주 ${it.qty} <b style="font-family:'JetBrains Mono',monospace;color:${df<0?'var(--acc4)':'var(--acc)'}">${odDiffTxt(df)}</b></div></div>`
+                      : `<div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc3)">${it.qty}</div>`; })()}
         </div>`;
       }).join('');
       /* 1층 리디자인 (2026-10-23) — 접힌 줄에 요약, 누르면 품목. 수정 중·찾는 글자가 걸린 발주는 펼친 채로. */
@@ -18570,7 +18572,7 @@ function renderOrderList(){
              ${o.client?`<span>· ${q2(o.client)}</span>`:''}
            </div>`
         : `<div class="od-sum-2">발주 ${q2(o.date)}${o.due?` · 납기 <span style="${late?'color:var(--acc2);font-weight:700':''}">${q2(o.due)}${late?' 지남':''}</span>`:''}${o.client?' · '+q2(o.client):''}
-             · ${o.items.length}줄 <b style="font-family:'JetBrains Mono',monospace;color:var(--tx2)">${qtyTot}</b>장${openQty&&openQty!==qtyTot?` · 미입고 <b style="font-family:'JetBrains Mono',monospace">${openQty}</b>장`:''}</div>`;
+             · ${o.items.length}줄 <b style="font-family:'JetBrains Mono',monospace;color:var(--tx2)">${qtyTot}</b>장${openQty&&openQty!==qtyTot?` · 미입고 <b style="font-family:'JetBrains Mono',monospace">${openQty}</b>장`:''}${(()=>{ const d=o.items.reduce((s,it)=>s+odRecvDiff(it),0); return d?` · 실입고 차이 <b style="font-family:'JetBrains Mono',monospace;color:${d<0?'var(--acc4)':'var(--acc)'}">${odDiffTxt(d)}</b>`:''; })()}</div>`;
       const locked=odClosedLock(o);
       const tags = (editing ? `<span class="status-tag" style="background:rgba(9,105,218,.12);color:var(--acc)">✏️ 위 칸에서 수정 중</span>` : '')
         + (locked ? `<span class="status-tag" title="${_odEsc(locked)} — 고치거나 지우려면 📒 거래처 월 마감에서 확정을 먼저 푸십시오" style="background:var(--s3);color:var(--tx2)">🔒 마감</span>` : '')
@@ -20703,12 +20705,12 @@ function odEtpPoOf(o){
 function odEtpAvail(o, it){
   const po=odEtpPoOf(o); if(!po) return {po:null, avail:0};
   const size=odEtpSize(it);
-  const mine=(o.items||[]).filter(x=>x!==it && x.received && odEtpSize(x)===size).reduce((s,x)=>s+(Number(x.qty)||0),0);
+  const mine=(o.items||[]).filter(x=>x!==it && x.received && odEtpSize(x)===size).reduce((s,x)=>s+odRecvQty(x),0);
   return {po, avail:Math.max(0, etpReceivedQty(po.id, size)-mine)};
 }
 function _odRecvEtp(o, it, day, opt){
   opt=opt||{};
-  const size=odEtpSize(it), q=Number(it.qty)||0;
+  const size=odEtpSize(it), q=odRecvQty(it);
   const {po, avail}=odEtpAvail(o, it);
   it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=day; it.auto=false;
   if(po && avail>=q){ it.eventId=null; it.recvBy='etp-tab'; }          // 에토프 탭에서 이미 넣음 — 표시만
@@ -20729,6 +20731,11 @@ function _odUnrecvEtp(it){
   if(String(it.eventId||'').indexOf('etpr_')===0){ etpDeleted[it.eventId]=new Date().toISOString(); etpCommit(); return 'row'; }
   return it.recvBy==='etp-tab' ? 'tab' : '';
 }
+/* 실입고 수량 (사장님 2026-11-04 「입고수량이 다를 수도 있거든 … 차이 -3 혹은 +2」)
+   it.qty = 발주 수량 그대로 · it.rq = 실제로 들어온 장수(발주와 다를 때만 둠). 재고에는 실입고가 들어갑니다. */
+function odRecvQty(it){ return (it && it.rq!=null && it.rq!=='') ? (Number(it.rq)||0) : (Number(it&&it.qty)||0); }
+function odRecvDiff(it){ return (it && it.received && it.rq!=null && it.rq!=='') ? (Number(it.rq)||0)-(Number(it.qty)||0) : 0; }
+function odDiffTxt(d){ return d>0 ? '+'+d : String(d); }
 
 /* 한 줄 입고 — 그 날짜로 원유리 입고 이벤트를 넣고 표시합니다. 발주 리스트(오늘)와 오늘 화면 「발주중」 탭(고른 날짜)이 같이 씁니다.
    현성 에토프 발주는 원유리가 아니라 에토프 장부로(C11 — _odRecvEtp). */
@@ -20736,7 +20743,7 @@ function _odRecvItem(o, it, day){
   const as=odEtpResolve(o);
   if(as==null) return false;                                    // 확인 대상인데 고르지 않으심 — 입고하지 않습니다
   if(as==='etp'){ _odRecvEtp(o, it, day); return true; }
-  const ev=addStockEvent(`${it.w}x${it.h}`,{at:`${day}T00:00:00.000Z`,type:'in',qty:it.qty,note:`발주입고 ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`,source:'order'});
+  const ev=addStockEvent(`${it.w}x${it.h}`,{at:`${day}T00:00:00.000Z`,type:'in',qty:odRecvQty(it),note:`발주입고 ${o.vendor}${o.thick?'('+o.thick+')':o.type?'('+o.type+')':''}`,source:'order'});
   odTagEvent(ev, o, it);   // C9 — 발주·품목 번호
   it.received=true; it.recvAt=new Date().toISOString(); it.recvDate=day; it.eventId=ev.id; it.auto=false;
   o.updatedAt=new Date().toISOString();
@@ -20747,7 +20754,8 @@ function odToggleRecv(orderId, idx){
   const o=orderLog.find(x=>x.id===orderId); if(!o)return;
   const it=o.items[idx]; if(!it)return;
   if(!it.received){
-    // 입고 처리 → 체크한 날짜(오늘)로 원유리 입고 이벤트
+    // 입고 처리 → 날짜·실입고 수량을 묻는 창으로 (2026-11-04 — 실입고가 발주와 다를 수 있음)
+    if(typeof tdyRecvAsk==='function'){ tdyRecvAsk(orderId, idx); return; }
     const today=todayStr();
     if(!_odRecvItem(o, it, today)){ showToast('입고하지 않았습니다'); return; }
     saveAll();
@@ -20756,13 +20764,13 @@ function odToggleRecv(orderId, idx){
     // 입고 취소 → 이벤트 제거
     const etpO=String(it.eventId||'').indexOf('etpr_')===0 || it.recvBy==='etp-tab' || it.recvBy==='order-etp';   // 어디로 들어갔는지로 봅니다(지금 분류가 아니라)
     { const lock=(typeof odClosedLock==='function')?odClosedLock(o):null;
-      if(lock && !confirm(`🔒 ${lock}인 발주입니다.\n입고를 풀면 ${etpO?'에토프':'원유리'} 재고에서 ${it.qty}장이 빠집니다(확정된 마감 금액은 그대로). 풀까요?`)) return; }
+      if(lock && !confirm(`🔒 ${lock}인 발주입니다.\n입고를 풀면 ${etpO?'에토프':'원유리'} 재고에서 ${odRecvQty(it)}장이 빠집니다(확정된 마감 금액은 그대로). 풀까요?`)) return; }
     let etpUn='';
     if(etpO && (String(it.eventId||'').indexOf('etpr_')===0 || it.recvBy==='etp-tab')) etpUn=_odUnrecvEtp(it);   // C11 — 에토프 장부 쪽
     else if(it.eventId){ odEvDelMark([it.eventId]); removeStockEventsByIds([it.eventId]); }   // C9 — 지운 표시를 남겨 다른 기기에서 되살아나지 않게
     if(etpUn==='tab') setTimeout(()=>showToast('에토프 탭에서 넣은 입고는 그대로입니다 — 재고를 빼려면 🟠 에토프재고 탭에서 되돌리십시오'), 1600);
     const wasAuto=!!it.auto;
-    it.received=false; it.recvAt=null; it.recvDate=null; it.eventId=null; it.auto=false;
+    it.received=false; it.recvAt=null; it.recvDate=null; it.eventId=null; it.auto=false; delete it.rq;
     if(etpO) delete it.recvBy;
     it.recvHeld=true;   // 손으로 되돌린 것 — 자동이 다시 잡지 않습니다(납품서 shipHeld와 같은 뜻)
     if(wasAuto) console.log('[발주 자동입고] 되돌림 — 자동 대상에서 제외:', it.w+'x'+it.h);
@@ -29729,13 +29737,32 @@ function tdyRecvAsk(orderId, idx){
     <div class="modal-ttl">📦 언제로 입고 잡을까요?</div>
     <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">${etpEsc(odStmtVendor(o.vendor)||o.vendor||'')} · 발주 ${md(o.date||td)} — ${wait.length===1?`${wait[0].it.w}×${wait[0].it.h} `:`${wait.length}줄 `}${q}장</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pick(td,'오늘')}${due && due<=td && due!==td ? pick(due,'납기') : ''}</div>
-    <input type="date" id="tdy-recv-date" class="inp" value="${def}" max="${td}" style="margin:0 0 6px;padding:8px 10px;font-size:13px">
-    <div style="font-size:10.5px;color:var(--tx3);margin-bottom:12px">원유리 재고에 이 날짜로 들어갑니다. 잘못 잡으면 발주 리스트에서 날짜를 고치거나 입고를 취소할 수 있습니다.</div>
+    <input type="date" id="tdy-recv-date" class="inp" value="${def}" max="${td}" style="margin:0 0 10px;padding:8px 10px;font-size:13px">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 44px 128px 40px;gap:6px;align-items:center;font-size:10.5px;color:var(--tx3);padding:0 2px 4px;border-bottom:1px solid var(--b1)">
+      <span>사이즈</span><span style="text-align:right">발주</span><span style="text-align:center">실입고</span><span style="text-align:right">차이</span></div>
+    <div style="max-height:46vh;overflow:auto;margin-bottom:8px">${wait.map(x=>{ const q0=Number(x.it.qty)||0;
+      const sb=(d,t)=>`<button type="button" onclick="tdyRqStep(${x.i},${d})" style="width:30px;height:30px;padding:0;border:1px solid var(--b2);border-radius:7px;background:var(--s2);font-size:12px;cursor:pointer">${t}</button>`;
+      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) 44px 128px 40px;gap:6px;align-items:center;padding:6px 2px;border-bottom:1px dashed var(--b1)">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.it.w}×${x.it.h}</span>
+        <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--tx2)">${q0}</span>
+        <span style="display:flex;gap:4px;justify-content:center">${sb(-1,'▼')}<input id="tdy-rq-${x.i}" data-q="${q0}" type="number" inputmode="numeric" min="0" value="${q0}" oninput="tdyRqShow(${x.i})" style="width:50px;padding:5px 2px;text-align:center;font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:var(--tx1)">${sb(1,'▲')}</span>
+        <span id="tdy-rqd-${x.i}" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:800;color:var(--tx3)">-</span></div>`; }).join('')}</div>
+    <div style="font-size:10.5px;color:var(--tx3);margin-bottom:12px">실입고 장수가 재고에 이 날짜로 들어갑니다. 0 으로 두면 그 줄은 입고하지 않고 대기로 남깁니다. 잘못 잡으면 발주 리스트에서 날짜를 고치거나 입고를 취소할 수 있습니다.</div>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('tdy-recv-modal').classList.remove('on')" style="flex:1;padding:11px;border:1px solid var(--b2);border-radius:10px;background:var(--s1);font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">취소</button>
       <button onclick="tdyRecvDo('${etpEsc(orderId)}',${idx})" style="flex:2;padding:11px;border:none;border-radius:10px;background:var(--acc);color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif">이 날짜로 입고</button>
     </div></div>`;
   m.classList.add('on');
+}
+function tdyRqShow(i){
+  const el=document.getElementById('tdy-rq-'+i), lab=document.getElementById('tdy-rqd-'+i); if(!el||!lab) return;
+  const n=parseInt(el.value,10), d=(n>=0?n:0)-(Number(el.dataset.q)||0);
+  lab.textContent = d ? odDiffTxt(d) : '-';
+  lab.style.color = d<0 ? 'var(--acc4)' : d>0 ? 'var(--acc)' : 'var(--tx3)';
+}
+function tdyRqStep(i, d){
+  const el=document.getElementById('tdy-rq-'+i); if(!el) return;
+  el.value=Math.max(0,(parseInt(el.value,10)||0)+d); tdyRqShow(i);
 }
 function tdyRecvDo(orderId, idx){
   const o=orderLog.find(x=>x.id===orderId); if(!o) return;
@@ -29744,14 +29771,25 @@ function tdyRecvDo(orderId, idx){
   if(day>td){ showToast('오늘 이후 날짜로는 입고를 잡지 않습니다'); return; }
   const wait=(o.items||[]).map((it,i)=>({it,i})).filter(x=>x.it.w && x.it.h && !x.it.received && (idx<0 || x.i===idx));
   if(wait.length && odEtpResolve(o)==null){ showToast('입고하지 않았습니다'); return; }   // C11 — 확인 대상은 한 번만 여쭙니다
-  wait.forEach(x=>_odRecvItem(o, x.it, day));
+  // 실입고 수량 — 발주와 같으면 rq 를 두지 않습니다(예전 기록과 같은 꼴). 0 이면 그 줄은 입고하지 않습니다.
+  const got=[];
+  for(const x of wait){
+    const el=document.getElementById('tdy-rq-'+x.i);
+    const n=el ? parseInt(el.value,10) : (Number(x.it.qty)||0);
+    if(!(n>=0)){ showToast(`${x.it.w}×${x.it.h} 실입고 장수를 넣어 주십시오`); return; }
+    if(n===0) continue;
+    got.push({x, n});
+  }
+  if(!got.length){ showToast('실입고가 모두 0 입니다 — 입고하지 않았습니다'); return; }
+  got.forEach(({x,n})=>{ if(n!==(Number(x.it.qty)||0)) x.it.rq=n; else delete x.it.rq;
+    if(!_odRecvItem(o, x.it, day)) delete x.it.rq; });
   saveAll(); saveOrderLog();
   try{ renderOrderList(); }catch(e){}
   if(typeof renderDash==='function') try{ renderDash(); }catch(e){}
   if(typeof autoSync==='function') autoSync();
   document.getElementById('tdy-recv-modal').classList.remove('on');
-  const q=wait.reduce((s,x)=>s+(Number(x.it.qty)||0),0);
-  showToast(`📦 ${wait.length}줄 ${q}장 입고 (${+day.slice(5,7)}/${+day.slice(8,10)})`);
+  const q=got.reduce((s,g)=>s+g.n,0), dq=got.reduce((s,g)=>s+g.n-(Number(g.x.it.qty)||0),0);
+  showToast(`📦 ${got.length}줄 ${q}장 입고 (${+day.slice(5,7)}/${+day.slice(8,10)})${dq?' · 발주보다 '+odDiffTxt(dq):''}${got.length<wait.length?' · '+(wait.length-got.length)+'줄은 대기':''}`);
   try{ renderToday(); }catch(e){ try{ bdRender(); }catch(e2){} }
 }
 function todayOrdersCard(){
