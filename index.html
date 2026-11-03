@@ -30546,6 +30546,10 @@ function load(){
   return _norm(null);
 }
 let ST=load();
+/* 단종 씨앗 (사장님 2026-11-03 「주황색으로 한건 단종」 — 10월 건재 재고내역). 이 기기에 단종 기록이 아예 없을 때만 넣고,
+   고친 때(_at)는 안 찍습니다 — 그래서 다른 기기에서 손으로 풀거나 바꾼 단종이 늘 이깁니다 */
+const SEED_DISC=['SFY062044','SFY062060','SJM061001'];
+if(!Object.keys(ST.disc||{}).length && !ST._at.disc){ ST.disc={}; SEED_DISC.forEach(c=>ST.disc[c]={on:true, at:'', seed:1}); }
 const _secCache={};
 function _secSig(k){ try{ return JSON.stringify(ST[k]); }catch(e){ return ''; } }
 function _primeCache(){ SECS.forEach(k=>_secCache[k]=_secSig(k)); }
