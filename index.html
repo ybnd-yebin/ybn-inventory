@@ -23991,11 +23991,16 @@ async function handleDelivPdf(ev){
       const shipD=_addBizDays(reqD,2);
       // 묘비 해제: id가 납품번호로 고정되면서, 예전에 지운 납품서를 일부러 다시 올려도
       // 삭제 목록에 걸려 바로 사라지게 된다. 다시 올린 것은 되살리려는 뜻이므로 풀어준다.
-      if(delivDeleted['dv_'+parsed.delivNo]) delete delivDeleted['dv_'+parsed.delivNo];
+      /* ⚠ 2026-11-05 — 묘비를 이 기기에서만 지우면 시트·다른 기기의 묘비가 병합 때 되돌아와
+         다시 올린 납품서가 곧바로 사라졌습니다(「올려도 계속 날아감」). 묘비는 그대로 두고
+         **새 id(dv_번호_r…)** 로 넣습니다. 같은 납품번호는 dedupeDelivLog 가 하나로 묶고,
+         재고 차감은 납품번호로 막으므로 두 번 빠지지 않습니다. */
+      let _dvId='dv_'+parsed.delivNo;
+      if(delivDeleted[_dvId]) _dvId += '_r'+Date.now().toString(36);
       delivLog.push({
         // id를 납품번호로 고정한다. 예전엔 올릴 때마다 무작위라 구글시트 병합(id 기준)이
         // 지운 사본을 되살렸고, 같은 납품서가 몇 벌씩 쌓였다. 번호가 같으면 같은 칸에 맞물린다.
-        id:'dv_'+parsed.delivNo,
+        id:_dvId,
         source:'pdf', delivNo:parsed.delivNo, refNo:parsed.refNo, dest:parsed.dest,
         delivReqDate:reqD, orderDate:orderD, shipDate:shipD, deducted:false,
         items:finalItems, uploadedAt:new Date().toISOString(), by:getActor()||'',
