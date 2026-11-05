@@ -2388,6 +2388,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .bas-fold>summary::-webkit-details-marker{display:none}
 #pg-bas .bas-fold[open]>summary,#pg-bas .bas-fbtn.on{border-style:solid;color:var(--txt)}
 #pg-bas tr.st-disc>td{opacity:.55}
+/* 첫 화면 넣는 칸 둘 — 넓으면 나란히, 좁으면 위아래 (2026-11-05) */
+#pg-bas .bas-entry{display:grid;grid-template-columns:1fr;gap:0 14px;align-items:start}
+@media(min-width:1000px){ #pg-bas .bas-entry{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
+#pg-bas .bas-entry .card{margin-bottom:14px}
+#pg-bas .bas-entry .dropzone{padding:22px 14px}
 #pg-bas .bas-fold-body{margin:6px 0 8px;padding:9px 13px;background:var(--panel2);border-radius:8px}
 #pg-bas .bas-fold-body .hint{margin:0}
 /* 발주 현황 거르기 꼬리표 (3단계) */
@@ -2555,10 +2560,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <h1>🛁 바스 <span class="sub">드림하이텍</span></h1>
   <div class="tabs">
     <!-- 탭 넷 = 업무 차례 (2026-10-26 개편 1단계). 예전 「창고 출고 · 실사·입고예정 · 예시 입력」 은 「재고 기록」 한 탭으로, 입고 예정은 현황으로 -->
-    <div class="tab active" data-p="now">한눈에</div>
-    <div class="tab" data-p="deliv">발주·납품</div>
-    <div class="tab" data-p="record">재고 기록</div>
-    <div class="tab" data-p="close">월 마감</div>
+    <!-- 탭 둘 (사장님 2026-11-05 「발주 들어왔을 때 넣는 용으로 더 많이 들어감」): 첫 화면 = 발주·납품, 다음 = 재고.
+         재고 기록·월 마감은 재고 탭 아래 작은 단추로 들어가는 쪽(data-up — 들어가 있는 동안 「재고」 꼬리표가 켜짐) -->
+    <div class="tab active" data-p="deliv">발주·납품</div>
+    <div class="tab" data-p="now">재고</div>
+    <div class="tab" data-p="record" data-up="now" style="display:none">재고 기록</div>
+    <div class="tab" data-p="close" data-up="now" style="display:none">월 마감</div>
     <div class="tab" data-p="hit" style="display:none">예시 적중률</div>
   </div>
   <div class="bas-side-note">
@@ -2569,24 +2576,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <div class="bas-main">
 
 <!-- 현황 -->
-<section class="page active" id="bas-page-now">
-  <div id="bas-migrate"></div>
+<section class="page" id="bas-page-now">
   <!-- 요약 3칸 (2026-10-26 개편 2단계) — 숫자는 아래 표·카드가 쓰는 판정 그대로: 미납 = poWithRemain · 부족 = stockOf 등급 · 출고 자료 = srmCoverage -->
   <div class="bas-tiles" id="bas-nowTiles"></div>
   <!-- 「한눈에」 (사장님 2026-10-27 개편 1단계): 넓은 PC 는 두 단 — 왼쪽 재고 표 | 오른쪽 보낼 것·빠진 자료. 좁으면 한 단(오른쪽 칸이 먼저). 칸 아이디는 그대로 -->
-  <div class="bas-now2">
-  <aside class="bas-now-side">
-  <div id="bas-srmCov"></div>
-  <div class="card" id="bas-nowOpenCard">
-    <div class="bas-ph">
-      <div><h2>미납 발주 <span class="bas-cnt" id="bas-poOpenCount"></span></h2>
-        <div class="sub">납품이 필요한 발주입니다. 보낸 날·수량을 고치고 [납품함]을 누르십시오.</div></div>
-      <button class="bas-link" onclick="BAS.goTab('deliv')">전체 발주 보기 →</button>
-    </div>
-    <div id="bas-poOpen"></div>
-  </div>
-  </aside>
+  <!-- 미납 발주는 「발주·납품」 탭(첫 화면)에서 봅니다 — 여기서는 뺐습니다 (2026-11-05). renderNow 는 칸이 없으면 지나감 -->
   <div class="bas-now-main">
+  <div id="bas-srmCov"></div>
   <div class="card" id="bas-nowStockCard">
     <div class="bas-ph">
       <div><h2>지금 창고 재고 <span class="bas-cnt" id="bas-stockCnt"></span></h2>
@@ -2644,44 +2640,18 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
     </div>
   </details>
+  <div class="bas-subrow" style="margin-top:4px">가끔
+    <button class="bas-fbtn" onclick="BAS.goTab('record')">📋 월말 실사 · 창고 출고 자료</button>
+    <button class="bas-fbtn" onclick="BAS.goTab('close')">🧾 월 마감</button>
+  </div>
   </div><!-- /bas-now-main -->
-  </div><!-- /bas-now2 -->
 </section>
 
 <!-- 재고 기록 — 재고 계산에 들어가는 자료를 넣는 곳 (2026-10-26 개편 1단계: 예전 창고 출고 · 실사·입고예정 · 예시 입력 세 탭을 모음) -->
 <section class="page" id="bas-page-record">
   <!-- 재고 기록 (2026-10-26 개편 4단계) — 자주: ① 창고 출고 엑셀 · ② 월말 실사 / 가끔: 손으로 넣기 · 출고예시 · 관리는 접어 둠. 칸 아이디는 예전 그대로 -->
-  <div class="bas-grp"><span class="bas-step">1</span>창고 출고 (SRM) <span class="mini">창고에서 실제로 나간 물량 — 재고에서 빠집니다</span></div>
-  <div class="card">
-    <div class="bas-ph">
-      <div><h2>판매오더 리스트 넣기</h2>
-        <div class="sub">한샘 밴더시스템의 「판매오더 리스트」 엑셀. 여러 개를 한꺼번에 넣어도 되고, 같은 출고일은 새것으로 갈아끼워 부풀지 않습니다.</div></div>
-      <div class="bas-tools"><label for="bas-srmAsof">조회한 날짜</label><input type="date" id="bas-srmAsof"></div>
-    </div>
-    <div class="dropzone" id="bas-dzSrm">
-      <div class="big">SRM 엑셀 놓기 / 클릭 (여러 개 가능)</div>
-      <div class="mini" id="bas-srmInfo">아직 없음</div>
-    </div>
-    <input type="file" id="bas-fileSrm" accept=".xlsx,.xls,.xlsm,.csv" multiple hidden>
-    <div class="bas-actions">
-      <span class="mini grow">조회한 날짜까지의 출고일은 <b>확정</b>, 그 뒤는 <b>예정</b>으로 봅니다.</span>
-      <button class="bas-fbtn" id="bas-fb-srmManCard" onclick="BAS.toggleSub('srmManCard')">✏️ 손으로 넣기</button>
-    </div>
-    <div class="bas-fold-body" id="bas-srmManCard" hidden>
-      <div class="hint" style="margin-bottom:8px">몇 건 안 될 때 — 제품칸에 <b>모델명 일부</b>(예: 매그놀리아)나 <b>코드</b>(BB1000240). 같은 날 같은 제품을 또 넣으면 수량이 <b>합쳐집니다</b>.</div>
-      <div class="row">
-        <div><label class="fld">출고일</label><input type="date" id="bas-sOutDate"></div>
-        <div><label class="fld">제품 (모델명 또는 코드)</label>
-          <input id="bas-sCode" list="bas-sCodeList" placeholder="예: 매그놀리아 · BB1000240" style="width:290px;max-width:100%" autocomplete="off">
-          <datalist id="bas-sCodeList"></datalist></div>
-        <div><label class="fld">수량</label><input type="number" id="bas-sQty" min="1" style="width:85px"></div>
-        <button class="primary" id="bas-btnSrmAdd">추가</button>
-      </div>
-      <div id="bas-sCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
-      <div id="bas-srmManual" style="margin-top:8px;overflow-x:auto"></div>
-    </div>
-  </div>
-
+  <div class="bas-subrow" style="margin:0 2px 6px"><button class="bas-link" onclick="BAS.goTab('now')">← 재고로</button></div>
+  <div class="bas-grp"><span class="bas-step">1</span>창고 출고 (SRM) <span class="mini">판매오더 엑셀은 「발주·납품」 탭 맨 위에서 넣습니다 — 여기는 올린 것 보기</span></div>
   <div class="card">
     <div class="bas-ph">
       <div><h2>올린 출고 자료 <span class="bas-cnt" id="bas-srmCount"></span></h2></div>
@@ -2802,33 +2772,64 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 </section>
 
 <!-- 납품 기록 -->
-<section class="page" id="bas-page-deliv">
-  <!-- 발주·납품 (2026-10-26 개편 3·4단계) — 기본 흐름: 발주 등록 → 미납 확인 → [납품함]. 나머지 넣는 길은 아래 「보조」 단추 뒤에 접어 둡니다.
-       카드·칸 아이디는 예전 그대로라 넣는 일(poAdd·poShip·addDeliv·pasteAdd·slipAdd)은 하나도 안 바뀝니다 -->
-  <div id="bas-slipBar"></div>
-
-  <div class="card" id="bas-posCard">
-    <div class="bas-ph">
-      <div><h2>발주 현황 <span class="bas-cnt" id="bas-poCount"></span></h2>
-        <div class="sub">물건을 보냈으면 그 줄에서 보낸 날·수량을 고치고 [납품함]. 오더번호가 그 발주에 저절로 붙습니다.</div></div>
-      <div class="bas-head-tools"><div class="bas-flt" id="bas-poFlt"></div>
-        <button class="primary" id="bas-fb-poAddCard" onclick="BAS.toggleSub('poAddCard')">＋ 발주 등록</button></div>
-    </div>
-    <div class="bas-fold-body" id="bas-poAddCard" hidden style="padding:16px 18px;margin-bottom:14px">
-      <div style="font-weight:800;font-size:14.5px;margin-bottom:2px">발주 등록</div>
-      <div class="hint" style="margin-bottom:10px">SRM <b>P/O 구매오더상세</b> 표를 그대로 복사해 붙여넣고 <b>오더번호·발주일자</b>만 채우십시오. 아직 납품 안 한 발주도 넣어 두면 미납이 보입니다.</div>
+<section class="page active" id="bas-page-deliv">
+  <!-- 발주·납품 = 첫 화면 (사장님 2026-11-05): 맨 위 넣는 칸 둘(바스 오더 · 판매오더 엑셀) → 발주 현황(납품 체크) → 보조.
+       칸 아이디는 예전 그대로라 넣는 일(poAdd·poShip·SRM 넣기·addDeliv·pasteAdd·slipAdd)은 하나도 안 바뀝니다 -->
+  <div id="bas-migrate"></div>
+  <div class="bas-entry">
+    <div class="card" id="bas-poAddCard">
+      <div class="bas-ph"><div><h2>📥 바스 오더 넣기</h2>
+        <div class="sub">SRM <b>P/O 구매오더상세</b> 표를 복사해 붙이고 <b>오더번호·발주일자</b>만 채우십시오.</div></div></div>
       <div class="row">
-        <div><label class="fld">오더번호 <span style="color:var(--bad)">＊꼭 입력</span></label>
+        <div><label class="fld">오더번호 <span style="color:var(--bad)">＊</span></label>
           <input id="bas-poOrd" placeholder="예: 5100653156" style="width:150px" autocomplete="off"></div>
         <div><label class="fld">발주일자 <span style="color:var(--bad)">＊</span></label><input type="date" id="bas-poDate"></div>
       </div>
       <textarea id="bas-poBox" rows="4" placeholder="P/O 표를 여기에 붙여넣기…&#10;1  00010  BB1000173  거울 여닫이장 450*800 도어 (448*798)  1000  5001  50  EA  51,062  2,553,100  20260825"
-        style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel)"></textarea>
+        style="width:100%;box-sizing:border-box;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel2)"></textarea>
       <div id="bas-poPreview" style="margin-top:8px"></div>
       <div class="bas-actions" style="margin-top:10px">
         <span class="hint grow" id="bas-poInfo" style="margin:0"></span>
         <button class="primary" id="bas-btnPoAdd">발주 넣기</button>
       </div>
+    </div>
+    <div class="card" id="bas-srmCard">
+      <div class="bas-ph">
+        <div><h2>📤 판매오더 엑셀 넣기</h2>
+          <div class="sub">한샘 밴더시스템 「판매오더 리스트」 엑셀(창고 출고). 여러 개 한꺼번에 · 같은 출고일은 새것으로 갈아끼웁니다.</div></div>
+      </div>
+      <div class="dropzone" id="bas-dzSrm">
+        <div class="big">엑셀 놓기 / 클릭 (여러 개 가능)</div>
+        <div class="mini" id="bas-srmInfo">아직 없음</div>
+      </div>
+      <input type="file" id="bas-fileSrm" accept=".xlsx,.xls,.xlsm,.csv" multiple hidden>
+      <div class="bas-actions">
+        <span class="bas-tools grow"><label for="bas-srmAsof">조회한 날짜</label><input type="date" id="bas-srmAsof"></span>
+        <button class="bas-fbtn" id="bas-fb-srmManCard" onclick="BAS.toggleSub('srmManCard')">✏️ 손으로 넣기</button>
+      </div>
+      <div class="mini" style="margin-top:6px">조회한 날짜까지의 출고일은 <b>확정</b>, 그 뒤는 <b>예정</b>으로 봅니다. 올린 것은 재고 탭 아래 「월말 실사 · 창고 출고 자료」에서 봅니다.</div>
+      <div class="bas-fold-body" id="bas-srmManCard" hidden>
+        <div class="hint" style="margin-bottom:8px">몇 건 안 될 때 — 제품칸에 <b>모델명 일부</b>(예: 매그놀리아)나 <b>코드</b>(BB1000240). 같은 날 같은 제품을 또 넣으면 수량이 <b>합쳐집니다</b>.</div>
+        <div class="row">
+          <div><label class="fld">출고일</label><input type="date" id="bas-sOutDate"></div>
+          <div><label class="fld">제품 (모델명 또는 코드)</label>
+            <input id="bas-sCode" list="bas-sCodeList" placeholder="예: 매그놀리아 · BB1000240" style="width:290px;max-width:100%" autocomplete="off">
+            <datalist id="bas-sCodeList"></datalist></div>
+          <div><label class="fld">수량</label><input type="number" id="bas-sQty" min="1" style="width:85px"></div>
+          <button class="primary" id="bas-btnSrmAdd">추가</button>
+        </div>
+        <div id="bas-sCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
+        <div id="bas-srmManual" style="margin-top:8px;overflow-x:auto"></div>
+      </div>
+    </div>
+  </div>
+  <div id="bas-slipBar"></div>
+
+  <div class="card" id="bas-posCard">
+    <div class="bas-ph">
+      <div><h2>바스 오더 · 납품 체크 <span class="bas-cnt" id="bas-poCount"></span></h2>
+        <div class="sub">물건을 보냈으면 그 줄에서 보낸 날·수량을 고치고 [납품함]. 오더번호가 그 발주에 저절로 붙습니다.</div></div>
+      <div class="bas-head-tools"><div class="bas-flt" id="bas-poFlt"></div></div>
     </div>
     <div class="tbl-wrap" id="bas-poTbl"></div>
     <div class="mini" style="margin-top:8px">미납 잔량은 발주일이 이른 것부터 채웁니다(선입선출). 오더번호가 붙은 납품은 그 발주에 바로 붙습니다.</div>
@@ -2916,6 +2917,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 
 <!-- 월 마감 -->
 <section class="page" id="bas-page-close">
+  <div class="bas-subrow" style="margin:0 2px 6px"><button class="bas-link" onclick="BAS.goTab('now')">← 재고로</button></div>
   <!-- 월 마감 (2026-10-26 개편 4단계) — 주 일: 마감 월 고르기 → 마감표 확인·복사 → 한샘 마감내역 대조. 단가 관리는 부가. 칸 아이디는 예전 그대로 -->
   <div class="card">
     <div class="bas-ph">
@@ -32066,7 +32068,7 @@ function renderNowTiles(open){
   const q=open.reduce((a,r)=>a+r.remain,0), late=open.filter(r=>r.due&&r.due<TODAY).length;
   const t1=tile(late?'bad':'', '미납 발주',
     open.length?`${open.length}건<small>${q}장</small>`:'-',
-    late?tag('b',`납기 지남 ${late}건`):open.length?'납기 안 지남':'미납 없음', `BAS.goCard('nowOpenCard')`);
+    late?tag('b',`납기 지남 ${late}건`):open.length?'납기 안 지남':'미납 없음', `BAS.goTab('deliv')`);
   // ② 창고 재고 — 재고 표 칩과 같은 등급: 0 모자람 · 1 급함(빨강) · 2 주의(주황) · 3 여유
   const n=[0,0,0,0]; stockRows().forEach(x=>n[x.s.rank]++);
   const red=n[0]+n[1];
@@ -32629,7 +32631,7 @@ function poWithRemain(){
     dels.forEach((d,i)=>{
       if(!d.ref) return;
       const hit=list.find(p=>p.ord===d.ref);
-      if(hit){ hit.filled+=(d.qty||0); used.add(i); }
+      if(hit){ hit.filled+=(d.qty||0); used.add(i); if(d.ship&&(!hit.lastShip||d.ship>hit.lastShip)) hit.lastShip=d.ship; }   // lastShip = 보이기만(언제 납품했나, 2026-11-05)
     });
     // 2) 나머지는 '발주일 이후에 나간 것'만, 이른 발주부터 채운다
     dels.forEach((d,i)=>{
@@ -32644,7 +32646,7 @@ function poWithRemain(){
         if(cl && d.ship && d.ship > cl.day) continue;
         const need=Math.max(0,(p.qty||0)-p.filled);
         if(need<=0) continue;
-        const use=Math.min(need,q); p.filled+=use; q-=use;
+        const use=Math.min(need,q); p.filled+=use; q-=use; if(d.ship&&(!p.lastShip||d.ship>p.lastShip)) p.lastShip=d.ship;
       }
     });
   });
@@ -32762,7 +32764,7 @@ function toggleSub(id, force){
   if(open && id!=='poAddCard') el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 /* 발주 현황 거르기 — 보이기만 거릅니다(미납 계산 poWithRemain 그대로). 기본 = 미납 */
-let _poFlt='open';
+let _poFlt=null;   // 처음 = 미납이 있으면 미납, 없으면 전체(언제 납품했는지 보이게, 2026-11-05)
 function setPoFilter(f){ _poFlt=f; renderPos(); }
 function renderPos(){
   const host=$b('poTbl'); if(!host) return;
@@ -32771,13 +32773,14 @@ function renderPos(){
   const opens=all.filter(isOpenPo), closedN=all.filter(r=>r.closed).length;
   const openN=opens.length, openQ=opens.reduce((a,r)=>a+r.remain,0);
   if(cnt) cnt.textContent = all.length ? `${all.length}건 · 미납 ${openN}건 ${openQ}장` : '';
+  if(_poFlt==null) _poFlt=openN?'open':'all';
   const flt=$b('poFlt');
   if(flt){
     // 미납(미납·일부 납품) · 잔량 종료 · 납품완료 · 전체 — 보이기만 거릅니다
     const F=[['open','미납',openN],['closed','잔량 종료',closedN],['done','납품완료',all.filter(r=>r.remain<=0).length],['all','전체',all.length]];
     flt.innerHTML=all.length?F.filter(([k,,n])=>k!=='closed'||n||_poFlt==='closed').map(([k,t,n])=>`<button class="${_poFlt===k?'on':''}" onclick="BAS.setPoFilter('${k}')">${t} ${n}</button>`).join(''):'';
   }
-  if(!all.length){ host.innerHTML='<div class="empty">아직 넣은 발주가 없습니다. 위 「＋ 발주 등록」에서 P/O 표를 붙여넣어 주세요.</div>'; return; }
+  if(!all.length){ host.innerHTML='<div class="empty">아직 넣은 발주가 없습니다. 위 「📥 바스 오더 넣기」에 P/O 표를 붙여넣어 주세요.</div>'; return; }
   const rows=all.filter(r=>_poFlt==='all'||(_poFlt==='open'?isOpenPo(r):_poFlt==='closed'?!!r.closed:r.remain<=0));
   if(!rows.length){ host.innerHTML=`<div class="empty">${_poFlt==='open'?'미납 발주가 없습니다. 들어온 발주는 모두 납품됐습니다.':_poFlt==='closed'?'잔량 종료한 발주가 없습니다.':'납품을 마친 발주가 아직 없습니다.'}</div>`; return; }
   // 같은 오더에 남은 품목이 둘 이상이면 「오더 남은 것 모두 종료」 단추를 붙입니다
@@ -32792,7 +32795,8 @@ function renderPos(){
       const ps=poStatus(r), done=ps.k==='done', closed=ps.k==='closed';
       const chip=`<span class="chip ${ps.c}">${ps.t}</span>`;
       let ship;
-      if(done) ship='<span class="mini">—</span>';
+      const md=s=>s?s.slice(5).replace('-','/'):'';
+      if(done) ship=r.lastShip?`<span class="mini"><b style="color:var(--good)">${md(r.lastShip)}</b> 납품</span>`:'<span class="mini">—</span>';
       else if(closed) ship=`<div class="mini bas-closed-note"><b>${r.closed.day} 종료</b> · 잔량 ${r.remain}장<br>${String(r.closed.reason||'').replace(/[<>&"]/g,'')}${r.closed.by?` · ${String(r.closed.by).replace(/[<>&"]/g,'')}`:''}</div>
              <div class="bas-shipx"><button class="bas-lnk" onclick="BAS.poCloseUndo('${r.ord}','${r.code}')">종료 취소</button></div>`;
       else ship=`<input type="date" id="bas-pod-${r.ord}-${r.code}" value="${TODAY}" title="창고에 들어간 날"
@@ -32812,7 +32816,7 @@ function renderPos(){
         <td class="c-nm" style="white-space:normal;min-width:140px">${nameOf(r.code)}<div class="mini">${r.code}</div></td>
         <td class="num c-n" data-l="발주">${r.qty}</td>
         <td class="num c-n" data-l="발주 시점 재고" style="white-space:normal;min-width:84px">${atOrderCell(r.code, r.odate)}</td>
-        <td class="num c-n" data-l="납품">${r.filled||'·'}</td>
+        <td class="num c-n" data-l="납품">${r.filled||'·'}${r.lastShip&&!done?`<div class="mini">${md(r.lastShip)}</div>`:''}</td>
         <td class="num c-n" data-l="${closed?'종료 잔량':'미납'}" style="font-weight:700;color:${done||closed?'var(--sub)':'var(--bad)'}">${r.remain||'·'}</td>
         <td class="c-n" data-l="납기">${r.due||'<span class="mini">—</span>'}</td>
         <td class="c-ship" style="white-space:nowrap">${ship}</td>
@@ -33317,8 +33321,10 @@ _root().querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
   _root().querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   _root().querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   t.classList.add('active');
+  if(t.dataset.up){ const u=_root().querySelector(`.tab[data-p="${t.dataset.up}"]`); if(u) u.classList.add('active'); }   // 재고 기록·월 마감 = 재고 탭 안쪽
   $b('page-'+t.dataset.p).classList.add('active');
   refresh();
+  try{ const m=_root().querySelector('.bas-main'); if(m&&m.getBoundingClientRect().top<0) m.scrollIntoView({block:'start'}); }catch(e){}
 });
 setupDrop('dzDream','fileDream','dream','dreamInfo');
 setupDrop('dzYbnd','fileYbnd','ybnd','ybndInfo');
