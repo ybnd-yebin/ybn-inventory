@@ -19315,12 +19315,50 @@ function clParseArum(rows, hdr){
   const ym=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||'';
   return { vendor:'아름유리', ym, lines, defects:[], sums:{ '공급가액':sup, 'VAT':vat, '합계금액':tot } };
 }
+/* 승일포장 마감 양식 (사장님 2026-11-05 「10월 와이비앤디마감내역」) — 박스는 평이 아니라 **개당 단가**.
+   머리글: 매출일자 · 거래처 · 품명(기타매출) · 장 · 폭 · 고 · 매출수량 · 매출단가 · 매출금액. 날짜 「26.09.30」, 「소계」·「총계」 줄은 검산만.
+   줄은 사이즈(w·h)를 비워 「기타비용」으로 셉니다 — 금액 = 거래처 단가 × 수량(clCalcLine 그대로). 박스 크기는 비고(note)에.
+   품명 끝의 「V」·「v」(승일 표시)는 떼고, 대조는 박스 인쇄명 열쇠(odBoxNameKey)로 합니다(clAutoMatch). 공급가 = 총계(부가세 별도). */
+function clFindSeungilHdr(rows){
+  for(let i=0;i<Math.min(10,rows.length);i++){
+    const t=rows[i].map(x=>String(x||'').replace(/\s/g,''));
+    if(t.includes('매출일자') && t.includes('매출수량') && t.includes('매출금액')) return i;
+  }
+  return -1;
+}
+function clParseSeungil(rows, hdr){
+  const H=rows[hdr].map(x=>String(x||'').replace(/\s/g,''));
+  const col=re=>H.findIndex(v=>re.test(v));
+  const cD=col(/^매출일자$/), cN=col(/^품명/), cL=col(/^장$/), cW=col(/^폭$/), cH=col(/^고$/), cQ=col(/^매출수량$/), cU=col(/^매출단가$/), cM=col(/^매출금액$/);
+  if([cD,cN,cQ,cM].some(x=>x<0)) throw new Error('승일포장 마감 머리글(매출일자·품명·매출수량·매출금액)을 다 못 찾았습니다');
+  const lines=[], cnt={}; let sup=0, total=null;
+  for(let i=hdr+1;i<rows.length;i++){
+    const r=rows[i], nm=String(r[cN]??'').trim();
+    if(/^총계$/.test(nm.replace(/\s/g,''))){ total=clNum(r[cM]); continue; }
+    if(/^소계$/.test(nm.replace(/\s/g,''))) continue;
+    const q=clNum(r[cQ]); if(!nm || !q) continue;
+    const m=String(r[cD]??'').trim().match(/^(\d{2,4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+    const date=m?`${m[1].length===2?'20'+m[1]:m[1]}-${('0'+m[2]).slice(-2)}-${('0'+m[3]).slice(-2)}`:clXlDate(r[cD]);
+    if(date) cnt[date.slice(0,7)]=(cnt[date.slice(0,7)]||0)+1;
+    const amt=clNum(r[cM]); sup+=amt;
+    const sz=[cL,cW,cH].map(c=>c>=0?clNum(r[c]):0).filter(Boolean);
+    lines.push({ row:i+1, date, model:nm.replace(/\s+[Vv]\s*$/,'').replace(/\s{2,}/g,' ').trim(), thick:'', glass:'박스', box:true,
+      w:0, h:0, qty:q, pyFile:null, pUnitFile:null, unitFile:cU>=0?clNum(r[cU]):(q?amt/q:0), amtFile:amt,
+      note: sz.length?'박스 '+sz.join('×'):'' });
+  }
+  if(total!=null && Math.abs(total-sup)>0.5) console.warn('[승일 마감] 총계와 줄 합이 다릅니다', total, sup);
+  const ym=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]||b.localeCompare(a))[0]||'';
+  const S=total!=null?total:sup;
+  return { vendor:'승일포장', ym, lines, defects:[], sums:{ '공급가액':S, 'VAT':Math.floor(S*0.1), '합계금액':S+Math.floor(S*0.1) } };
+}
 function clParseVendorXlsx(buf){
   const wb=XLSX.read(buf,{type:'array'});
   for(const sn of wb.SheetNames){
     const rs=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
     const ah=clFindArumHdr(rs);
     if(ah>=0) return clParseArum(rs, ah);
+    const sh=clFindSeungilHdr(rs);
+    if(sh>=0) return clParseSeungil(rs, sh);
   }
   // 대원 양식이 든 시트가 있으면 그것으로 읽습니다(시트가 여럿이고 묵은 시트가 섞여 옵니다)
   for(const sn of wb.SheetNames){
@@ -19420,7 +19458,28 @@ function clOrderPool(c){
   Object.values(pool).forEach(a=>a.sort((x,y)=>x.date.localeCompare(y.date)));
   return pool;
 }
+/* 박스 줄(승일포장) — 인쇄명 열쇠로 발주 기록과 맞춥니다. 다른 달 마감이 가져간 수량은 뺍니다(clOrderPool 과 같은 셈) */
+function clBoxPool(c){
+  try{ odEnsureUids(); }catch(e){}
+  const byId=new Map((orderLog||[]).map(o=>[o && o.id, o])), used={};
+  Object.values(closings).forEach(o=>{
+    if(o.id===c.id || o.vendor!==c.vendor) return;
+    (o.lines||[]).forEach(L=>(L.po||[]).forEach(p=>{ if(p.oid!=null){ const k=clPoItemKey(p, byId); used[k]=(used[k]||0)+p.qty; } }));
+  });
+  const pool={};
+  (orderLog||[]).forEach(o=>{
+    if(odStmtVendor(o.vendor)!==c.vendor || !odIsBoxOrder(o)) return;
+    (o.items||[]).forEach((it,i)=>{
+      const k=odBoxNameKey(it.pname), q=Number(it.qty)||0; if(!k||!q) return;
+      const left=q-(used[it.uid]||0); if(left<=0) return;
+      (pool[k]=pool[k]||[]).push({ oid:o.id, i, uid:it.uid, date:o.date||'', file:o.srcSheet||o.title||o.type||'', left });
+    });
+  });
+  Object.values(pool).forEach(a=>a.sort((x,y)=>x.date.localeCompare(y.date)));
+  return pool;
+}
 function clAutoStatus(L){
+  if(L.box) return L.poQty==null ? '발주서 미확인' : L.poQty>=L.qty ? '일치' : '발주서 미확인';
   if(L.kind==='기타비용') return '발주서 미확인';
   const std=L.kind==='정규격';
   if(L.poQty==null) return std?'정규격 입고정산(발주서 없음)':'발주서 미확인';
@@ -19428,13 +19487,22 @@ function clAutoStatus(L){
   return std?'정규격 초과 인정':'비규격 초과(경고)';
 }
 function clAutoMatch(c){
-  const pool=clOrderPool(c);
+  const pool=clOrderPool(c), bpool=c.lines.some(L=>L.box)?clBoxPool(c):{};
   const order=c.lines.map((L,k)=>k).sort((a,b)=>String(c.lines[a].date).localeCompare(String(c.lines[b].date))||a-b);
   order.forEach(k=>{
     const L=c.lines[k];
     if(L.poManual) return;                         // 9월처럼 손으로 맞춘 줄은 그대로
     L.po=[]; L.poQty=null; L.diff=null; L.as=false;
-    if(L.w && L.h && L.date){
+    if(L.box && L.date){
+      let need=L.qty;
+      (bpool[odBoxNameKey(L.model)]||[]).forEach(e=>{
+        if(need<=0 || e.left<=0 || e.date>L.date) return;
+        const take=Math.min(need,e.left); e.left-=take; need-=take;
+        L.po.push({ oid:e.oid, i:e.i, uid:e.uid, date:e.date, file:e.file, qty:take });
+      });
+      if(L.po.length){ L.poQty=L.po.reduce((s,p)=>s+p.qty,0); L.diff=L.qty-L.poQty; }
+    }
+    else if(L.w && L.h && L.date){
       let need=L.qty;
       (pool[L.glassCls+'|'+L.w+'|'+L.h]||[]).forEach(e=>{
         if(need<=0 || e.left<=0 || e.date>L.date) return;
