@@ -4631,14 +4631,20 @@ function cadRealViewBox(svg, key){
 /* TH 는 세로로 아주 길고(키큰장) 힌지 칸이 다섯이라, 다른 코드와 같은 넓이로 그리면
    치수 숫자(1080·432.5·482.5·380)가 칸보다 커서 서로 겹쳐 안 읽혔습니다
    (사장님 2026-11-05 「도면 크기 키워서 다 보이게」). 그래서 TH 만 크게 그립니다. */
-const CAD_DOOR_SCALE = { M: 0.8, TH: 1.6 };
+const CAD_DOOR_SCALE = { M: 0.8, TH: 1.76 };   // TH 1.6 → 1.76 (사장님 2026-11-05 「10% 더」) — 이것이 TH 의 **최소** 크기
+/* 장에 빈자리가 있으면 도면을 더 키우는 코드 (사장님 2026-11-05
+   「혼자 한 페이지를 먹고 있을 땐 도면으로 가득 채워도」). 위 배율이 최소이고,
+   cadPageSVG 가 **이미 비어 있는 자리(slack) 안에서만** 키우므로 박스 아래선을 넘지 않습니다.
+   오른쪽 글자·꺾쇠가 내용 박스(201.25)를 넘지 않게 가로로도 막습니다. 끄려면 Set 을 비우십시오. */
+const CAD_DOOR_GROW = new Set(['TH']);
+const CAD_DOOR_GROW_MAX = 3;   // 최소 크기의 몇 배까지
 function cadDoorSize(b){
   const f=(typeof libDoorFilled==='function')?libDoorFilled(b.rep):null;
   const svg=(f&&f.svg)?f.svg:doorSVG(b.rep);
   // 캐시 키에 sig를 넣는다 — 힌지 칸을 다시 그린 도면은 사이즈마다 그림이 달라 범위도 달라진다
   const vb=cadRealViewBox(svg, (b.code||'')+'|'+(b.type||'')+'|'+(f?'lib':'fb')+'|'+((f&&f.sig)||''));
   const ratio=vb.w/vb.h || 1;                        // 가로÷세로
-  const sc=CAD_DOOR_SCALE[b.code]||1;                // 코드별 크기 조정(가로·세로 같은 비율)
+  const sc=(CAD_DOOR_SCALE[b.code]||1)*(b._grow||1); // 코드별 크기 조정 × 빈자리 키움(cadPageSVG)
   let h=Math.sqrt(CAD_DOOR.AREA_MM2/ratio)*sc, w=h*ratio;   // 넓이를 일정하게(코드별 배율 적용)
   if(w>CAD_DOOR.MAX_W*sc){ h*=CAD_DOOR.MAX_W*sc/w; w=CAD_DOOR.MAX_W*sc; }
   if(h>CAD_DOOR.MAX_H*sc){ w*=CAD_DOOR.MAX_H*sc/h; h=CAD_DOOR.MAX_H*sc; }
@@ -5262,6 +5268,42 @@ const CAD_BLOCK_X = 31;
    ※ 쪽 나누기(cadSplitToPages)와 렌더(cadPageSVG)가 **같은 값**을 봐야 한다.
      예전에 두 곳에 7을 따로 적어 두어 어긋나면 내용이 박스 아래선을 넘는다. */
 const CAD_BLOCK_GAP = 5;
+/* 장에 남는 높이를 CAD_DOOR_GROW 코드의 도면에 나눠 줍니다(b._grow 배율).
+   높이: 남는 자리(AREA − 다른 것 다 더한 높이)를 그 블록들이 똑같이 나눠 갖습니다.
+   가로: 도면 오른쪽 글자(치수줄·줄머리)와 색 꺾쇠가 내용 박스(201.25) 안에 남을 만큼만.
+   ⚠ 높이 셈은 바로 아래 cadPageSVG 의 total 과 같은 식입니다 — 한쪽만 고치면 아래선을 넘습니다. */
+function cadGrowDoors(pageBlocks, AREA, lh, GAP){
+  pageBlocks.forEach(b=>{ b._grow=1; });
+  const grow=pageBlocks.filter(b=>b.hasDrawing && CAD_DOOR_GROW.has(b.code));
+  if(!grow.length) return;
+  let total=0, cb0=pageBlocks[0].banner;
+  pageBlocks.forEach((b,i)=>{
+    if(i>0 && b.banner!==cb0){ total+=2+CAD_BANNER_H; cb0=b.banner; }
+    total += Math.max(b.hasDrawing?cadDoorSpan(b,lh):0, cadTextH(b.rowsSlice||b.rows, lh)) + GAP;
+  });
+  const slack=Math.max(0, AREA-total-1);              // 1mm 는 여유로 남김
+  if(slack<=0) return;
+  const share=slack/grow.length;
+  grow.forEach(b=>{
+    const d=cadDoorSize(b);
+    const rows=(b.rowsSlice||b.rows).filter(r=>r.k!=='code');
+    const textH=cadTextH(rows, lh);
+    const span0=cadDoorSpan(b,lh);
+    // 블록 높이 = max(도면, 글자) — 글자가 더 길면 도면은 그 높이까지 공짜로 자랄 수 있음
+    const gH=(Math.max(span0,textH)-span0+share+d.h)/d.h;
+    // 오른쪽에 필요한 폭(cadBlockSVG 와 같은 어림): 치수줄 + 줄머리 + 꺾쇠 틈 + 색이름 칩
+    const rowW=r=>String(r.text||'').length*5.6*0.55 + (r.nb?CAD_NOBORE_W:0);
+    const maxRowW=rows.filter(r=>r.k==='frame'||r.k==='glass').reduce((m,r)=>Math.max(m,rowW(r)),0);
+    const labW=t=>[...String(t||'')].reduce((w,ch)=>w+(/[가-힣]/.test(ch)?1:0.58),0)*5.0;
+    const labMax=rows.reduce((x,r)=>Math.max(x, r.lab?labW(r.lab):0),0);
+    const colW=rows.filter(r=>r.k==='color').reduce((m,r)=>Math.max(m,[...String(r.text||'')].reduce((w,ch)=>w+(/[가-힣]/.test(ch)?6:3.3),0)),0);
+    const titleW=String((rows.find(r=>r.k==='title')||{}).text||b.code||'').length*7.5*0.6;
+    const needR=Math.max(titleW, 4+(labMax?labMax+2.5:0)+maxRowW+CAD_BRACKET_GAP+2.6+colW+6);
+    const maxDoorW=201.25-3-needR-13-CAD_BLOCK_X;
+    const gW=maxDoorW/d.w;
+    b._grow=Math.max(1, Math.min(gH, gW, CAD_DOOR_GROW_MAX));
+  });
+}
 function cadPageSVG(header, banner, pageBlocks){
   const base=cadSheetSVG(header, banner);   // 상단 띠 = 첫 블록 타입(banner.text)
   /* 여유가 있는 장은 조금 내려 앉힌다 (사용자 요청 2026-09-07)
@@ -5269,6 +5311,7 @@ function cadPageSVG(header, banner, pageBlocks){
      남는 높이의 절반만큼 내리되 CENTER_MAX(mm)까지만 — 한두 블록뿐인 장이
      페이지 한가운데까지 떠내려가지 않게 한다. */
   const AREA=206.35, lh=6.6, GAP=CAD_BLOCK_GAP, CENTER_MAX=18;
+  cadGrowDoors(pageBlocks, AREA, lh, GAP);   // 빈자리만큼 TH 도면 키우기 (아래 total 은 키운 뒤 값)
   let total=0, cb0 = pageBlocks[0] ? pageBlocks[0].banner : '';
   pageBlocks.forEach((b,i)=>{
     if(i>0 && b.banner!==cb0){ total+=2+CAD_BANNER_H; cb0=b.banner; }
