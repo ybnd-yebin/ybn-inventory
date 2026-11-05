@@ -430,7 +430,7 @@
   <div class="tabs">
     <button class="tab active" data-tab="deliv" onclick="switchTab('deliv')">📄 납품서 처리</button>
     <button class="tab" data-tab="glass" onclick="switchTab('glass')">🧊 유리발주</button>
-    <button class="tab" data-tab="frame" onclick="switchTab('frame')">🔧 프레임(조립1)</button>
+    <button class="tab" data-tab="frame" style="display:none" onclick="switchTab('frame')">🔧 프레임(조립1)</button>
     <button class="tab" data-tab="subdoor" onclick="switchTab('subdoor');subdoorFillDates()">🚪 수납도어</button>
     <button class="tab" data-tab="quick" onclick="switchTab('quick')">⚡ 빠른 계산기</button>
     <button class="tab" data-tab="settings" onclick="switchTab('settings')">⚙️ 설정</button>
@@ -826,6 +826,27 @@ const DOOR_LIB = {
   },
   {
    "codes": [
+    "WTA"
+   ],
+   "series": "OB",
+   "w": 605.0,
+   "h": 1130.0,
+   "ratio": 1.868,
+   "dims": [
+    "110",
+    "X",
+    "485",
+    "X",
+    "110"
+   ],
+   "notes": [
+    "사장님 보링도 DXF(2026-11-05) 「40 Euro700 Grace 3종 OB - WTA 보링도」 실측 — 힌지 4개 110 / C / 485 / C / 110 (위아래 대칭, 가운데 485 고정)",
+    "원본 표: WTA 45134·60134 → B 1345 · C 320 / WTA 45147·60147 → B 1473 · C 384 · 심재 9t MDF(허니컴 아님) · 후면 ø3×5 사전보링 · 전면기준 우 도면"
+   ],
+   "svg": "<svg viewBox=\"0 0 605 1130\" xmlns=\"http://www.w3.org/2000/svg\" preserveAspectRatio=\"xMidYMid meet\"><g fill=\"none\" stroke-width=\"3\" stroke-linecap=\"round\"><path d=\"M462.29 1118.29L462.29 19.29\" stroke=\"#000000\"/><path d=\"M417.29 1103.79L417.29 33.79\" stroke=\"#000000\"/><path d=\"M17.29 19.29L17.29 1118.29\" stroke=\"#000000\"/><path d=\"M61.79 32.79L61.79 1103.79\" stroke=\"#000000\"/><path d=\"M461.79 18.79L17.79 18.79\" stroke=\"#000000\"/><path d=\"M17.79 18.79A0.5 0.5 0 0 0 17.29 19.29\" stroke=\"#000000\"/><path d=\"M413.01 128.79L462.29 128.79\" stroke=\"#000000\"/><path d=\"M413.01 1008.79L462.29 1008.79\" stroke=\"#000000\"/><path d=\"M440.29 981.52L440.29 1036.06\" stroke=\"#000000\"/><path d=\"M440.29 156.06L440.29 101.52\" stroke=\"#000000\"/><path d=\"M462.29 19.29A0.5 0.5 0 0 0 461.79 18.79\" stroke=\"#000000\"/><path d=\"M431.29 102.29L431.29 110.29\" stroke=\"#000000\"/><path d=\"M435.29 106.29L427.29 106.29\" stroke=\"#000000\"/><path d=\"M431.29 147.29L431.29 155.29\" stroke=\"#000000\"/><path d=\"M435.29 151.29L427.29 151.29\" stroke=\"#000000\"/><path d=\"M431.29 982.29L431.29 990.29\" stroke=\"#000000\"/><path d=\"M435.29 986.29L427.29 986.29\" stroke=\"#000000\"/><path d=\"M431.29 1027.29L431.29 1035.29\" stroke=\"#000000\"/><path d=\"M435.29 1031.29L427.29 1031.29\" stroke=\"#000000\"/><path d=\"M459.79 33.79L459.79 18.79\" stroke=\"#000000\"/><path d=\"M462.29 20.19L17.29 20.19\" stroke=\"#000000\"/><path d=\"M462.29 33.79L17.29 33.79\" stroke=\"#000000\"/><path d=\"M19.79 18.79L19.79 33.79\" stroke=\"#000000\"/><path d=\"M459.79 1103.79L459.79 1118.79\" stroke=\"#000000\"/><path d=\"M19.79 1118.79L19.79 1103.79\" stroke=\"#000000\"/><path d=\"M461.79 1118.79L17.79 1118.79\" stroke=\"#000000\"/><path d=\"M462.29 1117.39L17.29 1117.39\" stroke=\"#000000\"/><path d=\"M462.29 1103.79L17.29 1103.79\" stroke=\"#000000\"/><path d=\"M17.29 1118.29A0.5 0.5 0 0 0 17.79 1118.79\" stroke=\"#000000\"/><path d=\"M461.79 1118.79A0.5 0.5 0 0 0 462.29 1118.29\" stroke=\"#000000\"/><path d=\"M413.01 326.29L462.29 326.29\" stroke=\"#000000\"/><path d=\"M440.29 299.02L440.29 353.56\" stroke=\"#000000\"/><path d=\"M431.29 299.79L431.29 307.79\" stroke=\"#000000\"/><path d=\"M435.29 303.79L427.29 303.79\" stroke=\"#000000\"/><path d=\"M431.29 344.79L431.29 352.79\" stroke=\"#000000\"/><path d=\"M435.29 348.79L427.29 348.79\" stroke=\"#000000\"/><path d=\"M413.01 811.29L462.29 811.29\" stroke=\"#000000\"/><path d=\"M440.29 784.02L440.29 838.56\" stroke=\"#000000\"/><path d=\"M431.29 784.79L431.29 792.79\" stroke=\"#000000\"/><path d=\"M435.29 788.79L427.29 788.79\" stroke=\"#000000\"/><path d=\"M431.29 829.79L431.29 837.79\" stroke=\"#000000\"/><path d=\"M435.29 833.79L427.29 833.79\" stroke=\"#000000\"/><path d=\"M108.29 932.79L122.29 932.79\" stroke=\"#000000\"/><path d=\"M115.29 939.79L115.29 925.79\" stroke=\"#000000\"/><path d=\"M371.29 932.79L357.29 932.79\" stroke=\"#000000\"/><path d=\"M364.29 939.79L364.29 925.79\" stroke=\"#000000\"/><path d=\"M108.29 572.79L122.29 572.79\" stroke=\"#000000\"/><path d=\"M115.29 579.79L115.29 565.79\" stroke=\"#000000\"/><path d=\"M371.29 572.79L357.29 572.79\" stroke=\"#000000\"/><path d=\"M364.29 579.79L364.29 565.79\" stroke=\"#000000\"/><path d=\"M108.29 212.79L122.29 212.79\" stroke=\"#000000\"/><path d=\"M115.29 219.79L115.29 205.79\" stroke=\"#000000\"/><path d=\"M371.29 212.79L357.29 212.79\" stroke=\"#000000\"/><path d=\"M364.29 219.79L364.29 205.79\" stroke=\"#000000\"/><path d=\"M462.29 18.79L593.11 18.79\" stroke=\"#000000\"/><path d=\"M462.29 128.79L593.11 128.79\" stroke=\"#000000\"/><path d=\"M462.29 326.29L593.11 326.29\" stroke=\"#000000\"/><path d=\"M462.29 811.29L593.11 811.29\" stroke=\"#000000\"/><path d=\"M462.29 1008.79L593.11 1008.79\" stroke=\"#000000\"/><path d=\"M462.29 1118.79L593.11 1118.79\" stroke=\"#000000\"/><path d=\"M588.11 18.79L588.11 128.79\" stroke=\"#000000\"/><path d=\"M588.11 128.79L588.11 326.29\" stroke=\"#000000\"/><path d=\"M588.11 326.29L588.11 811.29\" stroke=\"#000000\"/><path d=\"M588.11 811.29L588.11 1008.79\" stroke=\"#000000\"/><path d=\"M588.11 1008.79L588.11 1118.79\" stroke=\"#000000\"/><circle cx=\"440.29\" cy=\"128.79\" r=\"17.5\" stroke=\"#000000\"/><circle cx=\"440.29\" cy=\"1008.79\" r=\"17.5\" stroke=\"#000000\"/><circle cx=\"431.29\" cy=\"106.29\" r=\"1.6\" stroke=\"#000000\"/><circle cx=\"431.29\" cy=\"151.29\" r=\"1.6\" stroke=\"#000000\"/><circle cx=\"431.29\" cy=\"986.29\" r=\"1.6\" stroke=\"#000000\"/><circle cx=\"431.29\" cy=\"1031.29\" r=\"1.6\" stroke=\"#000000\"/><circle cx=\"440.29\" cy=\"326.29\" r=\"17.5\" stroke=\"#000000\"/><circle cx=\"431.29\" cy=\"303.79\" r=\"1.6\" stroke=\"#000000\"/><circle cx=\"431.29\" cy=\"348.79\" r=\"1.6\" stroke=\"#000000\"/><circle cx=\"440.29\" cy=\"811.29\" r=\"17.5\" stroke=\"#000000\"/><circle cx=\"431.29\" cy=\"788.79\" r=\"1.6\" stroke=\"#000000\"/><circle cx=\"431.29\" cy=\"833.79\" r=\"1.6\" stroke=\"#000000\"/><circle cx=\"115.29\" cy=\"932.79\" r=\"1.5\" stroke=\"#000000\"/><circle cx=\"364.29\" cy=\"932.79\" r=\"1.5\" stroke=\"#000000\"/><circle cx=\"115.29\" cy=\"572.79\" r=\"1.5\" stroke=\"#000000\"/><circle cx=\"364.29\" cy=\"572.79\" r=\"1.5\" stroke=\"#000000\"/><circle cx=\"115.29\" cy=\"212.79\" r=\"1.5\" stroke=\"#000000\"/><circle cx=\"364.29\" cy=\"212.79\" r=\"1.5\" stroke=\"#000000\"/></g><g font-family=\"Gulim,굴림,sans-serif\"><text x=\"578\" y=\"86.79\" font-size=\"38\" text-anchor=\"middle\" fill=\"#000000\">110</text><text x=\"578\" y=\"240.54\" font-size=\"38\" text-anchor=\"middle\" fill=\"#000000\">X</text><text x=\"578\" y=\"581.79\" font-size=\"38\" text-anchor=\"middle\" fill=\"#000000\">485</text><text x=\"578\" y=\"923.04\" font-size=\"38\" text-anchor=\"middle\" fill=\"#000000\">X</text><text x=\"578\" y=\"1076.79\" font-size=\"38\" text-anchor=\"middle\" fill=\"#000000\">110</text></g></svg>"
+  },
+  {
+   "codes": [
     "WTARG"
    ],
    "series": "OB",
@@ -1031,6 +1052,7 @@ function libDoorXValue(r, c){
   if(!c) return null;
   if(r.code==='BHBU' && c.bhbu) return c.bhbu.conv;   // 하부변환값 (도면 하부 X · 사용자 확인)
   if(r.code==='WTAP' && c.wtap) return c.wtap.conv;   // 변환값 (110/X/485/320/110)
+  if(r.code==='WTA' && c.fh!=='' && c.fh>705) return (c.fh-705)/2;   // WTA 110 / X / 485 / X / 110 — 보링도 DXF(2026-11-05) · 1345→320 · 1473→384
   if(r.code==='WHBT' && c.whbt) return c.whbt.conv;   // 상부변환값 (X/…/110) · 구간 밖이면 c.whbt가 null → 원본 유지
   return null;   // 그 외는 아직 미확정 → 치환하지 않음(원본 유지)
 }
@@ -4631,12 +4653,12 @@ function cadRealViewBox(svg, key){
 /* TH 는 세로로 아주 길고(키큰장) 힌지 칸이 다섯이라, 다른 코드와 같은 넓이로 그리면
    치수 숫자(1080·432.5·482.5·380)가 칸보다 커서 서로 겹쳐 안 읽혔습니다
    (사장님 2026-11-05 「도면 크기 키워서 다 보이게」). 그래서 TH 만 크게 그립니다. */
-const CAD_DOOR_SCALE = { M: 0.8, TH: 1.76 };   // TH 1.6 → 1.76 (사장님 2026-11-05 「10% 더」) — 이것이 TH 의 **최소** 크기
+const CAD_DOOR_SCALE = { M: 0.8, TH: 1.76, BDI1R: 1.8, WTA: 2.0 };   // TH 1.6 → 1.76 (사장님 2026-11-05 「10% 더」) — 이것이 TH 의 **최소** 크기
 /* 장에 빈자리가 있으면 도면을 더 키우는 코드 (사장님 2026-11-05
    「혼자 한 페이지를 먹고 있을 땐 도면으로 가득 채워도」). 위 배율이 최소이고,
    cadPageSVG 가 **이미 비어 있는 자리(slack) 안에서만** 키우므로 박스 아래선을 넘지 않습니다.
    오른쪽 글자·꺾쇠가 내용 박스(201.25)를 넘지 않게 가로로도 막습니다. 끄려면 Set 을 비우십시오. */
-const CAD_DOOR_GROW = new Set(['TH']);
+const CAD_DOOR_GROW = new Set(['TH','BDI1R','WTA']);
 const CAD_DOOR_GROW_MAX = 3;   // 최소 크기의 몇 배까지
 function cadDoorSize(b){
   const f=(typeof libDoorFilled==='function')?libDoorFilled(b.rep):null;
