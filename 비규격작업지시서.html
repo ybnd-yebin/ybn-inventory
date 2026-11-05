@@ -1026,7 +1026,10 @@ function cadDrawKey(r){
   const vr = (sp && typeof SPLIT_VARY!=='undefined') ? SPLIT_VARY[sp] : null;
   /* 무보링은 **보링을 걷어낸 그림**이 따로 나가므로 덩어리를 가릅니다 (2026-10-06).
      안 가르면 보링 도면 하나에 무보링 줄이 같이 실립니다. */
-  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '') + (isNoBore(r) ? '|NB' : '');
+  /* 도면 안 숫자를 앱이 채우는 코드(X — BHBU·WTAP·WHBT·WTA·WT)는 **그 숫자가 다르면 그림이 다릅니다** (2026-11-05).
+     안 가르면 덩어리 첫 줄의 값 하나로 그려져, WT 1345(320)와 1473(384)이 320 도면 하나에 같이 실렸습니다. */
+  const xv = (typeof libDoorXValue==='function') ? libDoorXValue(r) : null;
+  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '') + (xv!=null ? '|X'+xv : '') + (isNoBore(r) ? '|NB' : '');
 }
 /* 색 차례 — COLOR_CHIP 에 적힌 순서를 그대로 씁니다 (사장님 2026-09-16
    "같은 계열끼리인데 색이 다르면 색순으로 나열").
@@ -1053,6 +1056,7 @@ function libDoorXValue(r, c){
   if(r.code==='BHBU' && c.bhbu) return c.bhbu.conv;   // 하부변환값 (도면 하부 X · 사용자 확인)
   if(r.code==='WTAP' && c.wtap) return c.wtap.conv;   // 변환값 (110/X/485/320/110)
   if(r.code==='WTA' && c.fh!=='' && c.fh>705) return (c.fh-705)/2;   // WTA 110 / X / 485 / X / 110 — 보링도 DXF(2026-11-05) · 1345→320 · 1473→384
+  if(r.code==='WT' && c.fh===1473) return 384;   // WT 도면은 320 이 글자로 박혀 있음 → 1473 만 384 로 바꿔 씀(12-2). 1253~1472 는 원본 320 그대로 · 1473 초과는 확인대기 B3
   if(r.code==='WHBT' && c.whbt) return c.whbt.conv;   // 상부변환값 (X/…/110) · 구간 밖이면 c.whbt가 null → 원본 유지
   return null;   // 그 외는 아직 미확정 → 치환하지 않음(원본 유지)
 }
@@ -1818,7 +1822,7 @@ function libDoorFilledBase(r){
   if(xVal!=null){
     // 앱이 계산한 변환치수는 빨간 글씨로 — 캐드 원본 고정치수와 구분되게(PDF 2쪽 "200 빨간색으로")
     doc.querySelectorAll('text').forEach(t=>{
-      if(t.textContent.trim()==='X'){ t.textContent=String(xVal); t.setAttribute('fill','#d00000'); n++; }
+      if(t.textContent.trim()==='X' || (r.code==='WT' && t.textContent.trim()==='320')){ t.textContent=String(xVal); t.setAttribute('fill','#d00000'); n++; }
     });
   }
   /* 도어 한가운데 글자 — `RULES` 의 `centerTxt` (BAD → `MDF`).
