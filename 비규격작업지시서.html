@@ -1886,7 +1886,7 @@ const RULES={
   WTA:{handle:'both',lr:true,note:'후면 사전보링 / 손잡이 민짜 / MDF / 좌우 확인'},
   WTAP:{handle:'both',lr:true,note:'민자 손잡이 / 보링위치 확인 / 허니컴 / 사전보링 없음'},
   W2U:{handle:'both'},W2HBT:{handle:'both',lr:true},
-  TH:{handle:'both',longdoor:true,hinge:'110',note:'롱도어 / 유리 사이즈 도면 확인 / 110도 힌지'},
+  TH:{handle:'both',lr:true,longdoor:true,hinge:'110',note:'롱도어 / 유리 사이즈 도면 확인 / 110도 힌지'},
   TCP1D:{handle:'both',longdoor:true,hinge:'155',lr:true,note:'롱도어 / 유리 사이즈 도면 확인 / 155도 힌지'},
   TAP1D:{handle:'both',longdoor:true,lr:true,note:'원도어 / 유리 사이즈 도면 확인'},
 };
@@ -4337,9 +4337,10 @@ function cadSheetSVG(header, banner){
    여기 코드를 더하면 그 코드도 좌우로 갈립니다.
      WHBT — 2026-09-04 · B — 2026-09-09(사용자: "B(HD)는 좌우 구분 있어")
      BHBU — 2026-09-30(사장님: "BHBU L/R 구분이 안되어있음")
+     TH — 2026-11-05(사장님: "th 좌우 구분해줘야함") · RULES 에도 lr:true
    ⚠ RULES 에 `lr:true` 인 코드가 더 있습니다(BC1A·BC1B·WTA·WTAP·BNDB2N·TCP1D·TAP1D 등).
      한꺼번에 켜면 표기가 크게 바뀌므로, 사장님이 짚어 주신 코드만 하나씩 넣습니다. */
-const LR_SPLIT_CODES = new Set(['WHBT','B','BHBU']);
+const LR_SPLIT_CODES = new Set(['WHBT','B','BHBU','TH']);
 // 완성치수(프레임) 글자 — 합적(마이다)이면 분할 세로를 붙여 적는다. 작업지시서·프레임탭이 같이 쓴다.
 function frameTextOf(c){
   if(c.frameSegs){
@@ -4627,7 +4628,10 @@ function cadRealViewBox(svg, key){
 /* 코드별 도면 크기 조정 — 1이 기본, 0.8이면 가로·세로 20% 작게.
    M은 기본 도면이라 크게 안 보여도 된다(사용자 요청 2026-09-07).
    다른 코드도 여기에 한 줄 더하면 그 코드만 커지거나 작아진다. */
-const CAD_DOOR_SCALE = { M: 0.8 };
+/* TH 는 세로로 아주 길고(키큰장) 힌지 칸이 다섯이라, 다른 코드와 같은 넓이로 그리면
+   치수 숫자(1080·432.5·482.5·380)가 칸보다 커서 서로 겹쳐 안 읽혔습니다
+   (사장님 2026-11-05 「도면 크기 키워서 다 보이게」). 그래서 TH 만 크게 그립니다. */
+const CAD_DOOR_SCALE = { M: 0.8, TH: 1.6 };
 function cadDoorSize(b){
   const f=(typeof libDoorFilled==='function')?libDoorFilled(b.rep):null;
   const svg=(f&&f.svg)?f.svg:doorSVG(b.rep);
