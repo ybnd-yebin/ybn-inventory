@@ -15346,6 +15346,16 @@ function odPresetModelOptions(p){
    짐작·꼬리표 없이 이름 그대로. 최근에 쓴 것이 위로, 옆에 마지막 발주일·수량만 적습니다.
    목록은 발주 기록(orderLog)에서 그때그때 모으므로 따로 저장하지 않습니다 — 동기화도 발주 기록을 따라갑니다. */
 function odIsBoxOrder(o){ return !!o && (/승일포장/.test(o.vendor||'') || /박스/.test(o.title||'')); }
+/* 박스 발주서 규격 칸 넣기/빼기 (사장님 2026-11-05 「규격은 거의 넣을 일이 없을 것 같아 … 선택할 수 있게」) — 12-99.
+   끄면(기본) 발주서의 품명·규격이 한 칸(인쇄명)이 됩니다. 옛 발주(boxSpec 없음)는 규격 글자가 있으면 규격 칸을 둡니다. */
+var odBoxSpec=false;
+function odBoxShowSpec(o){
+  if(!o) return false;
+  if(o.boxSpec===true) return true;
+  if(o.boxSpec===false) return false;
+  return (o.items||[]).some(it=>it && String(it.spec||'').trim());
+}
+function odBoxSpecSet(on){ odBoxSpec=!!on; renderOdLines(); }
 /* 같은 박스인데 표기만 다른 이름은 한 줄로 (2026-10-13)
    「Euro 700 Grace CH M 3573(공용) M」(7/29) · 「EURO700 GRACE CH M 3573」(9/14) → 한 묶음, 보이는 이름은 **가장 최근 발주 표기**.
    묶는 열쇠만 다듬습니다 — 대소문자 · 띄어쓰기 · 「(공용)」 · 끝의 「 M」. ⚠ 이름을 지어내거나 꼬리표를 붙이지 않습니다
@@ -15664,17 +15674,22 @@ function renderOdLines(){
   const qtyIn = i => num(i,'qty','수량',`onkeydown="odQtyTab(event,${i})"`);
   const boxMode=!!(p&&p.boxName);
   if(boxMode) odBoxListFill();
-  const kind = boxMode ? 'b' : qtyOnly ? 'q' : modelMode ? 'm' : 's';
+  const kind = boxMode ? (odBoxSpec ? 'b' : 'bn') : qtyOnly ? 'q' : modelMode ? 'm' : 's';   // bn = 박스 규격 칸 없음(12-99)
   /* 머리글은 **아래 칸과 똑같이 한 칸씩** 둡니다 (사장님 2026-10-08 "위에 목록이랑 밑에 칸이랑 글씨를 맞춰").
      예전에는 「가로 × 세로」를 세 칸에 걸친 한 덩어리로 써서, 머리의 가로·세로가 아래 칸 한가운데가 아니라 × 쪽으로 몰렸습니다. */
   const head = { s:'<span>#</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
                  m:'<span>#</span><span class="h-model">모델명</span><span>가로</span><span class="h-x">×</span><span>세로</span><span>수량</span><span class="h-bigo">비고</span><span>월평균</span><span></span>',
                  q:'<span>#</span><span>품명</span><span>수량</span><span></span>',
-                 b:'<span>#</span><span>인쇄명</span><span>규격</span><span>수량</span><span class="h-bigo">비고</span><span></span>' }[kind];
+                 b:'<span>#</span><span>인쇄명</span><span>규격</span><span>수량</span><span class="h-bigo">비고</span><span></span>',
+                 bn:'<span>#</span><span>인쇄명</span><span>수량</span><span class="h-bigo">비고</span><span></span>' }[kind];
+  const boxSpecTgl = boxMode ? `<label style="display:flex;justify-content:flex-end;align-items:center;gap:4px;font-size:11px;color:var(--tx3);margin:0 2px 4px;cursor:pointer"><input type="checkbox" ${odBoxSpec?'checked':''} onchange="odBoxSpecSet(this.checked)" style="margin:0">발주서에 규격 칸 넣기</label>` : '';
   const rows = odLines.map((ln,i)=>{
     if(kind==='q') return `<div class="od-row od-q">${no(i)}
         <input value="${_odEsc(ln.pname||'')}" placeholder="품명 (예: 매직블럭, 테이프)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="${cell};text-align:left;padding-left:8px">
         ${qtyIn(i)}${del(i)}</div>`;
+    if(kind==='bn') return `<div class="od-row od-bn">${no(i)}
+        <input list="od-box-list" value="${_odEsc(ln.pname||'')}" placeholder="인쇄명 (글자 일부를 치면 지난 발주 이름이 뜹니다)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="${cell};text-align:left;padding-left:8px">
+        ${qtyIn(i)}${bigo(ln,i)}${del(i)}</div>`;
     if(kind==='b') return `<div class="od-row od-b">${no(i)}
         <input list="od-box-list" value="${_odEsc(ln.pname||'')}" placeholder="인쇄명 (글자 일부를 치면 지난 발주 이름이 뜹니다)" oninput="odLines[${i}].pname=this.value;odUpdateCount()" class="inp" style="${cell};text-align:left;padding-left:8px">
         <input value="${_odEsc(ln.spec||'')}" placeholder="규격 (예: 680×930)" oninput="odLines[${i}].spec=this.value" class="inp" style="${cell}">
@@ -15684,9 +15699,9 @@ function renderOdLines(){
         ${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}${stdNote(ln,i)}</div>`;
     return `<div class="od-row od-s">${no(i)}${sizeIns(i)}${qtyIn(i)}${bigo(ln,i)}${mini(ln,i)}${del(i)}${stdNote(ln,i)}</div>`;
   }).join('');
-  host.innerHTML = `<div class="od-tbl">
+  host.innerHTML = boxSpecTgl + `<div class="od-tbl">
       <div class="od-row od-head od-${kind}">${head}</div>${rows}
-      <div class="od-row od-foot od-${kind}"><span></span><span class="od-foot-lbl" style="grid-column:span ${kind==='q'?1:kind==='b'?2:kind==='m'?4:3};text-align:left;padding-left:4px">합계</span><b id="od-sum" style="text-align:center;font-family:'JetBrains Mono',monospace">0</b><span></span></div>
+      <div class="od-row od-foot od-${kind}"><span></span><span class="od-foot-lbl" style="grid-column:span ${kind==='q'||kind==='bn'?1:kind==='b'?2:kind==='m'?4:3};text-align:left;padding-left:4px">합계</span><b id="od-sum" style="text-align:center;font-family:'JetBrains Mono',monospace">0</b><span></span></div>
     </div>`;
   odUpdateCount();
 }
@@ -15702,6 +15717,7 @@ function odRowCss(){
   .od-row.od-m{grid-template-columns:22px minmax(110px,1.2fr) minmax(48px,80px) 12px minmax(48px,80px) 56px minmax(80px,1fr) 64px 24px}
   .od-row.od-q{grid-template-columns:22px 1fr 64px 24px}
   .od-row.od-b{grid-template-columns:22px minmax(150px,1.6fr) minmax(80px,.6fr) 64px minmax(90px,1fr) 24px}
+  .od-row.od-bn{grid-template-columns:22px minmax(180px,2fr) 64px minmax(90px,1fr) 24px}
   .od-head{background:var(--s2);font-size:10.5px;color:var(--tx3);font-weight:700;padding-top:6px;padding-bottom:6px}
   .od-head span{text-align:center}
   /* 머리글 칸 사이 옅은 세로줄 — 어느 칸의 머리인지 보이게. × 칸 양옆은 가로·세로를 한 묶음으로 보이게 뺍니다 */
@@ -15722,6 +15738,7 @@ function odRowCss(){
     .od-head.od-m .h-model{display:none}
     .od-foot.od-m .od-foot-lbl{grid-column:span 3 !important}
     .od-row.od-b{grid-template-columns:20px 1fr 74px 52px 22px}
+    .od-row.od-bn{grid-template-columns:20px 1fr 52px 22px}
     .od-row .od-bigo{grid-column:2 / -1;order:9}
     .od-head .h-bigo{display:none}
   }`;
@@ -15842,6 +15859,7 @@ function odCollect(){
   const client=(document.getElementById('od-client').value||'').trim();
   const ref=((document.getElementById('od-ref')||{}).value||'').trim();   // 「참조 :」 메모
   const mgr=(((document.getElementById('od-mgr')||{}).value||'').trim().replace(/^__add$/,'')) || odMgrGet();   // 결재 담당
+  const boxOn=!!(p&&p.boxName), specOn=boxOn && odBoxSpec;   // 박스: 규격 칸을 끄면 규격 글자를 안 남깁니다(12-99)
   const items=odLines.filter(odLineValid).map(l=>({
     w:parseInt(l.w)||0, h:parseInt(l.h)||0, qty:parseInt(l.qty)||0,
     // 품명이 비면 고르신 종류의 기본값을 씁니다(대원유리 = 비규격).
@@ -15849,10 +15867,10 @@ function odCollect(){
     /* 비고 — **그 줄에 따로 적은 것이 우선**, 비어 있으면 위쪽 공통 비고 (사장님 2026-10-07
        "개별적으로 한줄쓰게되면 그칸은 개별적으로 적은게 우선") */
     pname:((l.pname||p.pname||'')+'').trim(), color:((l.color||'')+'').trim(), req:((l.req||'')+'').trim(),
-    ...(String(l.spec||'').trim() ? { spec:String(l.spec).trim() } : {}),   // 박스 규격 글자 — 원유리 재고와 안 섞이게 w·h 에 안 넣음(2026-10-20)
+    ...((!boxOn || specOn) && String(l.spec||'').trim() ? { spec:String(l.spec).trim() } : {}),   // 박스 규격 글자 — 원유리 재고와 안 섞이게 w·h 에 안 넣음(2026-10-20)
     bigo:((l.bigo||'')+'').trim() || bigo || (p.lineBigo||'')   // lineBigo — 줄에만 들어가는 기본 비고(제목 옆엔 안 찍힘, 2026-10-14)
   }));
-  return {vendor, cat, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, ref, mgr, items};
+  return {vendor, cat, type:p.type, thick:p.thick||'', title:p.title, date, due, bigo, client, ref, mgr, ...(boxOn ? { boxSpec:specOn } : {}), items};
 }
 
 // ── 발주서 행렬(AOA) 생성 — 양식 구조 그대로 ──
@@ -16953,7 +16971,7 @@ function odFillSheet(ws, o){
   }
 
   // 박스도 유리와 같은 칸 모양(품명 C~E · 규격 F~I) — 사장님 2026-10-20 「유리 엑셀 양식에 맞춰서」. 예전 한 칸 합치기(odBoxWideName)는 안 씁니다
-  if(odIsBoxOrder(o)) odBoxNameFit(ws, rows, o);
+  if(odIsBoxOrder(o)){ if(odBoxShowSpec(o)) odBoxNameFit(ws, rows, o); else odBoxWideName(ws, rows, o); }   // 규격 칸 없으면 인쇄명이 C~I 한 칸(12-99)
   odSplitClientCol(ws, rows, o);
   try{ odFitBigo(ws, rows, o); }catch(e){ console.warn('[발주서] 비고 맞추기', e); }
 
@@ -16999,6 +17017,7 @@ function odBoxWideName(ws, rows, o){
     c.border = Object.assign({}, keep || {}, right && right.right ? { right:right.right } : {});
     if(r === head){ c.value = '인   쇄   명'; continue; }
     const v = String(c.value || '');
+    c.style = JSON.parse(JSON.stringify(c.style || {}));          // 서식 덩어리를 나눠 쓰므로 이 칸만 떼어 냄(12-38)
     c.alignment = Object.assign({}, c.alignment || {}, { shrinkToFit:true });
     if(v){
       const em = [...v].reduce((s, ch) => s + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 1 : 0.6), 0);
@@ -17353,7 +17372,7 @@ function odSaveOrder(){
   const order={
     id:'od_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
     vendor:o.vendor, type:o.type, thick:o.thick||'', title:o.title,
-    date:o.date, due:o.due, client:o.client, bigo:o.bigo||'', ref:o.ref||'', mgr:o.mgr||'',
+    date:o.date, due:o.due, client:o.client, bigo:o.bigo||'', ref:o.ref||'', mgr:o.mgr||'', ...(o.boxSpec!==undefined ? { boxSpec:o.boxSpec } : {}),
     createdAt:new Date().toISOString(),
     by:getActor()||'',
     items:o.items.map(it=>({...it, uid:odNewUid(), received:false, recvAt:null, eventId:null}))
@@ -18424,6 +18443,7 @@ function odReorder(orderId){
     if(ti>=0){ document.getElementById('od-type').value=String(ti); odTypeChanged(); typeOk=true; }
   }
   // 줄 비고는 공통 비고와 다를 때만 줄에 남깁니다(같으면 공통 비고 칸이 채워 줍니다)
+  odBoxSpec=odBoxShowSpec(o);
   odLines=(o.items||[]).map(it=>({w:it.w||'', h:it.h||'', qty:it.qty||1, pname:it.pname||'', color:it.color||'', spec:it.spec||'',
                                   bigo:(it.bigo && it.bigo!==o.bigo)?it.bigo:''}));
   if(!odLines.length) odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}];
@@ -21114,6 +21134,7 @@ function odEditLoad(orderId){
   const set=(id,val)=>{ const e=document.getElementById(id); if(e) e.value=val||''; };
   set('od-date', o.date); set('od-bigo', o.bigo); set('od-client', o.client); set('od-ref', o.ref); odMgrRender(o.mgr||OD_MGR_OWNER);
   const du=document.getElementById('od-due'); if(du){ du.value=o.due||''; delete du.dataset.auto; }
+  odBoxSpec=odBoxShowSpec(o);
   odLines=(o.items||[]).map((it,i)=>({it,i})).filter(x=>!x.it.received).map(({it,i})=>({
     _src:i, w:it.w||'', h:it.h||'', qty:it.qty||1, pname:it.pname||'', color:it.color||'', req:it.req||'', spec:it.spec||'',
     bigo:(it.bigo && it.bigo!==o.bigo)?it.bigo:''
@@ -21146,6 +21167,7 @@ function odEditUi(){
     ${warn.map(w=>`<div style="margin-top:4px;color:var(--acc2)">⚠ ${w}</div>`).join('')}`;
 }
 function odEditResetForm(){
+  odBoxSpec=false;
   odLines=[{w:'',h:'',qty:1,pname:'',bigo:''}];
   const du=document.getElementById('od-due'); if(du){ du.value=''; du.dataset.auto='1'; }
   const d=document.getElementById('od-date'); if(d) d.value=todayStr();
@@ -21201,7 +21223,7 @@ function odSaveEdit(){
   const keepType=keepVendor && tsel===odEditOrig.typeVal;
   if(!keepVendor) o.vendor=c.vendor;
   if(!keepType){ o.type=c.type; o.thick=c.thick||''; o.title=c.title; }
-  o.date=c.date; o.due=c.due; o.client=c.client; o.bigo=c.bigo||''; o.ref=c.ref||''; o.mgr=c.mgr||o.mgr||'';
+  o.date=c.date; o.due=c.due; o.client=c.client; o.bigo=c.bigo||''; o.ref=c.ref||''; o.mgr=c.mgr||o.mgr||''; if(c.boxSpec!==undefined) o.boxSpec=c.boxSpec;
   o.items=items;
   o.updatedAt=new Date().toISOString();
   saveOrderLog();
