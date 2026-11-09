@@ -2810,7 +2810,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <div class="card" id="bas-yesiCard">
     <div class="bas-ph">
       <div><h2>🔮 출고예시 넣기 <span class="bas-cnt" id="bas-yesiLast"></span></h2>
-        <div class="sub">드림하이텍 예시표(필수) + 와이비앤디 예시표(중복 빼기용)를 같은 때 뽑아 넣으십시오. 출고예시분석에 넣으셨으면 「예시분석에서 불러오기」만 누르시면 됩니다.</div></div>
+        <div class="sub">드림하이텍 예시표만 넣으시면 됩니다. 드림 표에 같이 실린 와이비 제품(유로700·500·글래스 등)은 이름으로 뺍니다. 출고예시분석에 넣으셨으면 「예시분석에서 불러오기」만 누르시면 됩니다.</div></div>
       <div class="bas-tools">
         <label for="bas-snapDate">뽑은 날짜</label><input type="date" id="bas-snapDate">
         <button class="quiet" id="bas-btnBridgePull">예시분석에서 불러오기</button>
@@ -2823,7 +2823,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
           <div class="mini" id="bas-dreamInfo">아직 없음</div></div>
       </div>
       <div style="flex:1;min-width:200px">
-        <label class="fld">② 와이비앤디 예시표 <span class="mini">(중복 빼기용 · 같은 때 뽑은 것)</span></label>
+        <label class="fld">② 와이비앤디 예시표 <span class="mini">(안 넣어도 됩니다 — 넣으면 와이비 제품을 이름 대신 이 표로 뺌)</span></label>
         <div class="dropzone" id="bas-dzYbnd"><div class="big">와이비 예시표 놓기 / 클릭</div>
           <div class="mini" id="bas-ybndInfo">아직 없음</div></div>
       </div>
@@ -30981,26 +30981,34 @@ async function handleFile(file,which,infoId){
     $b(infoId).textContent='읽기 실패: '+err.message;
   }
 }
+/* 드림 예시표에는 와이비 제품도 같이 실려 옵니다. 와이비 예시표를 넣으면 그 줄로 빼고(예전 그대로),
+   없으면 제품군 이름으로 뺍니다 (사장님 2026-11-09 「드림만 넣게」) — 출고예시분석 YB_FAMILY_RE 와 같은 목록 + AL45.
+   ⚠ 바스 품명은 「EURO5 베일화이트 …」 — Euro700·Euro500 세 자리까지 맞아야 와이비로 봅니다(12-36). */
+const BAS_YB_FAMILY_RE=/Euro\s*[57]00|AL45|글래스|유리장식|장식장|키큰장|AL\s*도어|AL프레임|에어힌지|\bKB\b|빗각|빗면|채널\s*도어|B\/I|빌트인/i;
 function basRows(){
   if(!PEND.dream)return null;
-  const ykeys=new Set((PEND.ybnd?PEND.ybnd.rows:[]).map(r=>r.code+'||'+r.name));
-  return PEND.dream.rows.filter(r=>!ykeys.has(r.code+'||'+r.name));
+  if(PEND.ybnd){
+    const ykeys=new Set(PEND.ybnd.rows.map(r=>r.code+'||'+r.name));
+    return PEND.dream.rows.filter(r=>!ykeys.has(r.code+'||'+r.name));
+  }
+  return PEND.dream.rows.filter(r=>!BAS_YB_FAMILY_RE.test(r.name||''));
 }
 function previewSnap(){
   const b=basRows();
   const el=$b('snapPreview');
   if(!b){el.textContent='드림 예시표를 넣어주세요';return;}
   const base=$b('snapDate').value||TODAY;
-  const todayQty=b.reduce((a,r)=>a+(r.daily[base]||0),0);
-  const excluded=PEND.ybnd?PEND.dream.rows.length-b.length:0;
-  el.textContent=`바스 ${b.length}품목`+
-    (PEND.ybnd?` (중복 ${excluded}개 제외)`:' · 와이비 미첨부 → 중복 제거 안 됨')+
-    ` · ${base} 확정 ${todayQty}장`;
+  const tot=b.reduce((a,r)=>a+Object.values(r.daily||{}).reduce((x,y)=>x+y,0),0);
+  const excluded=PEND.dream.rows.length-b.length;
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  el.innerHTML=`바스 <b>${b.length}품목 · ${tot}장</b> · 와이비 제품 ${excluded}줄 뺌 `+
+    `<span class="mini">(${PEND.ybnd?'와이비 예시표로':'제품 이름으로'})</span>`+
+    `<details style="margin-top:4px"><summary class="mini" style="cursor:pointer">바스로 읽은 품목 보기 — 와이비 제품이 섞였는지 확인</summary>`+
+    `<div class="mini" style="max-height:180px;overflow:auto;line-height:1.6">${b.map(r=>`${esc(r.code)} · ${esc(r.name)}`).join('<br>')}</div></details>`;
 }
 function saveSnap(){
   const b=basRows();
   if(!b){toast('드림 예시표를 먼저 넣어주세요');return;}
-  if(!PEND.ybnd && !confirm('와이비앤디 예시표가 없습니다. 중복이 제거되지 않아 소요량이 부풀 수 있습니다. 그래도 저장할까요?'))return;
   const base=$b('snapDate').value||TODAY;
   ST.snaps=ST.snaps.filter(s=>s.date!==base);
   const rows=b.map(r=>({code:r.code,name:r.name,state:r.state,daily:r.daily}));
