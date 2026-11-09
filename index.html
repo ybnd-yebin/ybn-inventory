@@ -10999,6 +10999,7 @@ function metaForSync(){
   try{ if(lgLock && lgLock.h) put('lgLock', lgLock); }catch(e){}
   /* ✏️ 발주 종류 목록 — 사장님이 고친 이름·앞 이름·차례(2026-10-22). 발주처마다 나중에 고친 쪽이 이김 */
   try{ if(odTypeCfg && Object.keys(odTypeCfg).length) put('odTypeCfg', odTypeCfg); }catch(e){}
+  try{ if(odModelFix && Object.keys(odModelFix).length) put('odModelFix', odModelFix); }catch(e){}
   /* 📑 매출 마감일 — 달·매출처마다 직접 고친 날(2026-10-26). 열쇠마다 나중에 고친 쪽이 이김 */
   try{ if(sellClose && Object.keys(sellClose).length) put('sellClose', sellClose); }catch(e){}
   /* 📋 한샘 단가표 (2026-10-21) — 합의서·SRM 줄·지운 표시(`hsForSync`). hsPrice 는 뒤쪽 let 이라 try 로 감쌉니다 */
@@ -11193,6 +11194,7 @@ function applyMergedFromSheet(data){
   if(data.hsPrice!==undefined){ try{ if(hsMergeFromSheet(data.hsPrice)){ renderHsPrice(); try{ renderLgSummary(); }catch(e){} try{ renderLedgerByVendor(); }catch(e){} } }catch(e){ console.warn('[한샘 단가] 받기 실패', e); } }
   try{ window._hsNeedPush = hsSheetBehind(data.hsPrice); }catch(e){}
   if(data.odTypeCfg!==undefined){ try{ odTypeCfgMerge(data.odTypeCfg); }catch(e){ console.warn('[발주 종류 목록] 받기 실패', e); } }
+  if(data.odModelFix!==undefined){ try{ odModelFixMerge(data.odModelFix); }catch(e){ console.warn('[정규격 모델 사이즈] 받기 실패', e); } }
   if(data.sellClose!==undefined){ try{ if(sellCloseMerge(data.sellClose)) renderLgSummary(); }catch(e){ console.warn('[매출 마감일] 받기 실패', e); } }
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
@@ -15372,10 +15374,46 @@ function odModelSizeTry(i, val){
   showToast(`${w}×${h} 모델이 ${opts.length}가지입니다 — ${opts.slice(0,4).join(' · ')}${opts.length>4?' …':''}. 사이즈만 채웠습니다.`);
 }
 /* 종류에 딸린 모델 목록 — `'모델명|가로*세로|줄 비고'` (2026-10-13, 5T 투명·브론즈·백유리 정규격) */
+/* ── 정규격 모델 유리 사이즈 확인 (사장님 2026-11-09) ──
+   KB 빗면 비규격 유리 세로 감산이 −10 → −11 로 바뀌었는데(비규격 SUBDOOR_CALC.KB), 정규격 모델 사이즈는 아직 −10 기준입니다.
+   「정규격 발주할 때 확인하라는 안내만 · 확인해서 체크하면 그 값으로 기본 설정」 →
+   · OD_MODEL_CHECK 에 걸리는 모델을 고르면 줄 아래 주황 안내 + 「✓ 이 사이즈로 기본 저장」.
+   · 누르면 odModelFix[모델명] = {w,h,at,by} — 그 뒤로 그 모델을 고르면 이 값이 나오고 안내는 사라집니다.
+   · 저장 `ybn-od-modelfix-v1` · 시트 `metaForSync` 의 `odModelFix` — 모델마다 나중에 정한 쪽이 이김. */
+var OD_MODEL_CHECK = { re:/^KB 빗면/, note:'세로 −10 기준 사이즈입니다. 비규격은 11/9 부터 −11 — 실물·도면으로 확인하시고 맞는 값으로 고친 뒤 눌러 주십시오' };
+var LS_OD_MODELFIX='ybn-od-modelfix-v1';
+var odModelFix=(function(){ try{ return JSON.parse(localStorage.getItem(LS_OD_MODELFIX))||{}; }catch(e){ return {}; } })();
+function odModelFixSave(sync){ try{ localStorage.setItem(LS_OD_MODELFIX, JSON.stringify(odModelFix)); }catch(e){} if(sync!==false && typeof autoSync==='function') autoSync(); }
+function odModelFixMerge(x){
+  if(!x || typeof x!=='object') return false;
+  if(!odModelFix || typeof odModelFix!=='object') odModelFix={};
+  let ch=false;
+  Object.keys(x).forEach(k=>{ const a=x[k], b=odModelFix[k]; if(a && String(a.at||'')>String((b&&b.at)||'')){ odModelFix[k]=a; ch=true; } });
+  if(ch){ odModelFixSave(false); try{ if(typeof renderOdLines==='function' && document.getElementById('od-lines')) renderOdLines(); }catch(e){} }
+  return ch;
+}
+function odModelCheckNote(ln, i){
+  const nm=String((ln&&ln.pname)||'').trim();
+  if(!nm || !OD_MODEL_CHECK.re.test(nm)) return '';
+  const pm=odPresetModels((curPreset()||{}).p).find(x=>x.name===nm); if(!pm) return '';
+  const fx=odModelFix&&odModelFix[nm];
+  if(fx) return `<span style="color:var(--tx3)">✓ 확인한 사이즈 ${fx.w}×${fx.h} (${_odEsc(odShortDate(String(fx.at).slice(0,10)))}${fx.by?' · '+_odEsc(fx.by):''})</span>`;
+  return `⚠ ${_odEsc(OD_MODEL_CHECK.note)} <button type="button" onclick="odModelFixSet(${i})" style="margin-left:4px;padding:3px 10px;border:1px solid #ea6c00;border-radius:12px;background:#fff;color:#c2410c;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">✓ ${ln.w||'?'}×${ln.h||'?'} 로 기본 저장</button>`;
+}
+function odModelFixSet(i){
+  const ln=odLines[i]; if(!ln) return;
+  const nm=String(ln.pname||'').trim(), w=+ln.w, h=+ln.h;
+  if(!nm || !w || !h){ showToast('가로·세로를 먼저 넣어 주십시오'); return; }
+  if(!confirm(`「${nm}」 유리 사이즈를 ${w}×${h} 로 기본 저장할까요?\n다음부터 이 모델을 고르면 이 값이 나옵니다(모든 기기).`)) return;
+  odModelFix[nm]={ w, h, at:new Date().toISOString(), by:(typeof getActor==='function'&&getActor())||'' };
+  odModelFixSave(); renderOdLines(); showToast(`✓ ${nm} = ${w}×${h} 로 저장했습니다`);
+}
 function odPresetModels(p){
   return ((p && p.models) || []).map(s => {
     const [name, sz, bigo] = String(s).split('|');
     const [w, h] = String(sz||'').split('*').map(x => parseInt(x) || 0);
+    const fx = (typeof odModelFix!=='undefined' && odModelFix) ? odModelFix[(name||'').trim()] : null;   // 확인해 저장한 사이즈가 있으면 그것
+    if(fx && fx.w && fx.h) return { name:(name||'').trim(), w:+fx.w, h:+fx.h, bigo:(bigo||'').trim(), fixed:true };
     return { name:(name||'').trim(), w, h, bigo:(bigo||'').trim() };
   }).filter(x => x.name && x.w && x.h);
 }
@@ -15600,7 +15638,8 @@ function odStdSizeHit(w, h, p){
   }))); }catch(e){}
   return names.length ? { models:names, stock:[], hasStock:false } : null;
 }
-function odStdNote(ln){
+function odStdNote(ln, i){
+  { let mc=''; try{ mc=odModelCheckNote(ln, i); }catch(e){} if(mc) return mc; }
   const {p}=curPreset();
   const hit=odStdSizeHit(ln.w, ln.h, p);
   if(!hit) return '';
@@ -15609,7 +15648,7 @@ function odStdNote(ln){
 }
 function odLineSized(i){
   const ln = odLines[i];
-  { const n=document.getElementById('od-std-' + i); if(n && ln){ try{ n.innerHTML=odStdNote(ln); }catch(e){ n.innerHTML=''; } } }
+  { const n=document.getElementById('od-std-' + i); if(n && ln){ try{ n.innerHTML=odStdNote(ln, i); }catch(e){ n.innerHTML=''; } } }
   const box = document.getElementById('od-badge-' + i);
   if(!ln || !box) return;
   try{ box.innerHTML = (typeof odUseMini === 'function') ? odUseMini(ln) : ''; }
@@ -15708,7 +15747,7 @@ function renderOdLines(){
   const del = i => `<button onclick="odDelLine(${i})" class="icon-btn del" style="font-size:14px;padding:2px" title="이 줄 지우기">✕</button>`;
   const bigo = (ln, i) => `<input type="text" value="${_odEsc(ln.bigo||'')}" placeholder="${bigoPh ? '공통: '+bigoPh : '비고'}" oninput="odLines[${i}].bigo=this.value" class="inp od-bigo" style="margin:0;padding:6px 8px;font-size:12px;min-width:0">`;
   const mini = (ln, i) => `<span id="od-badge-${i}" class="od-mini">${odUseMini(ln)}</span>`;
-  const stdNote = (ln, i) => { let s=''; try{ s=odStdNote(ln); }catch(e){} return `<span id="od-std-${i}" class="od-std">${s}</span>`; };   // 정규격 사이즈 알림(odStdSizeHit)
+  const stdNote = (ln, i) => { let s=''; try{ s=odStdNote(ln, i); }catch(e){} return `<span id="od-std-${i}" class="od-std">${s}</span>`; };   // 정규격 사이즈 알림(odStdSizeHit)
   const sizeIns = i => num(i,'w','가로',`onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})"`)
                      + `<span style="color:var(--tx3);text-align:center">×</span>`
                      + num(i,'h','세로',`onchange="odLineSized(${i})" onkeydown="odTabFlow(event,${i})"`);
