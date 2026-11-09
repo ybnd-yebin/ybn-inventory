@@ -827,18 +827,19 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
        일일 작업 브리핑이 화면 아래로 밀려 있었습니다.
        전체 초기화는 거의 안 누르는 것이라 맨 아래로 내렸습니다. -->
   <input type="file" id="deliv-pdf-input" accept="application/pdf" multiple style="display:none" onchange="handleDelivPdf(event)">
-  <div style="display:flex;gap:7px;margin-bottom:6px">
-    <button onclick="document.getElementById('deliv-pdf-input').click()" style="flex:1;padding:11px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">
+  <!-- 2026-11-09 사장님 「검색창이 한 줄을 다 차지해 거슬림」 → 올리기 · 날짜별 삭제 · 검색을 한 줄로. 좁으면 검색이 다음 줄로 내려갑니다(flex-wrap) -->
+  <div style="display:flex;gap:7px;margin-bottom:6px;flex-wrap:wrap;align-items:stretch">
+    <button onclick="document.getElementById('deliv-pdf-input').click()" style="flex:none;padding:11px 16px;white-space:nowrap;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:12.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer">
       📄 납품서 PDF 올리기 <span style="font-weight:400;opacity:.8">(여러 장)</span>
     </button>
     <button onclick="openDelivDateDelete()" style="flex:none;padding:11px 13px;background:none;border:1px solid var(--b2);border-radius:8px;color:var(--acc2);font-size:11.5px;font-weight:600;font-family:'Noto Sans KR',sans-serif;cursor:pointer;white-space:nowrap">
       📅 날짜별 삭제
     </button>
+    <input id="deliv-search" type="text" oninput="delivSearchKey=this.value.trim();renderDelivery()" placeholder="🔍 납품번호 · 참조문서번호 · 오더번호 · 제품 검색" style="flex:1 1 240px;min-width:0;box-sizing:border-box;padding:10px;font-size:12px;border:1px solid var(--b2);border-radius:8px;background:var(--s2);color:var(--tx1);margin:0;font-family:'Noto Sans KR',sans-serif">
   </div>
   <div id="deliv-upload-status" style="font-size:11px;color:var(--tx2);margin-bottom:10px;min-height:14px"></div>
   <div id="deliv-datedel-modal"></div>
 
-  <input id="deliv-search" type="text" oninput="delivSearchKey=this.value.trim();renderDelivery()" placeholder="🔍 납품번호 · 참조문서번호 · 오더번호 · 제품 검색" style="width:100%;box-sizing:border-box;padding:10px;font-size:12px;border:1px solid var(--b2);border-radius:8px;background:var(--s2);color:var(--tx1);margin-bottom:12px;font-family:'Noto Sans KR',sans-serif">
 
   <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,var(--s2),var(--s1))">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
