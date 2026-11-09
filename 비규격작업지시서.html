@@ -356,7 +356,11 @@
     /* 높이 여유 — 브라우저가 실제로 쓰는 인쇄 높이는 297mm보다 조금 작을 수 있습니다
        (프린터·드라이버마다 다릅니다). 아슬아슬하게 넘치면 꼬리가 다음 장으로 가서
        **빈 장**이 생깁니다. 292mm 면 5mm 여유이고, 297 대비 98.3% 라 눈으로는 표가 안 납니다. */
-    .cad-page{margin:0!important;box-shadow:none!important;width:210mm;height:292mm;overflow:hidden;
+    /* ⚠ 인쇄 창에서 여백을 「최소」·「기본값」 등으로 고르면 종이에 담을 높이가 292mm보다 작아져,
+       장 꼬리(배부·쪽수)가 다음 장으로 넘어가 **장이 두 배**로 나왔습니다(사장님 2026-11-10).
+       그래서 높이를 **그 종이에 남은 높이(100vh)−1mm 와 292mm 가운데 작은 쪽**으로 둡니다.
+       여백 없음이면 예전 그대로 292mm, 여백이 있으면 그만큼 줄어듭니다(크롬 PDF 실측: 여백 0·4·10·20mm 모두 3장 → 3장). */
+    .cad-page{margin:0!important;box-shadow:none!important;width:210mm;height:min(292mm, calc(100vh - 1mm));overflow:hidden;
       break-inside:avoid;page-break-inside:avoid}
     /* 맨 뒤에서 장을 끊지 않습니다 — 마지막 장 뒤에 빈 장이 붙는 것을 막습니다. */
     .cad-page:last-child{break-after:avoid;page-break-after:avoid}
@@ -365,7 +369,7 @@
        마지막 장만 예외로 빼도(:last-child) 장 사이마다 빈 장이 남았습니다(2026-09-10 실측: 2장 → 3장).
        둘째 장부터 '앞에서' 끊으면 끊는 횟수가 장수보다 하나 적어 빈 장이 안 생깁니다. */
     .cad-page + .cad-page{break-before:page;page-break-before:always}
-    .cad-page>svg{height:292mm!important;width:auto!important;max-width:210mm;display:block;margin:0 auto}
+    .cad-page>svg{height:min(292mm, calc(100vh - 1mm))!important;width:auto!important;max-width:210mm;display:block;margin:0 auto}
     /* 메모는 글자만 찍습니다 — 점선 테두리와 단추는 화면에서만 봅니다 */
     .cad-memo{border:none!important;background:transparent!important}
     .cad-memo-text{padding:0 2px!important}
