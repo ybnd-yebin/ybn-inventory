@@ -2389,7 +2389,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .bas-fold[open]>summary,#pg-bas .bas-fbtn.on{border-style:solid;color:var(--txt)}
 #pg-bas tr.st-disc>td{opacity:.55}
 /* 첫 화면 넣는 칸 둘 — 넓으면 나란히, 좁으면 위아래 (2026-11-05) */
-#pg-bas .bas-entry{display:grid;grid-template-columns:1fr;gap:0 14px;align-items:start}
+#pg-bas .bas-entry{display:grid;grid-template-columns:minmax(0,1fr);gap:0 14px;align-items:start}
 @media(min-width:1000px){ #pg-bas .bas-entry{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
 #pg-bas .bas-entry .card{margin-bottom:14px}
 #pg-bas .bas-entry .dropzone{padding:22px 14px}
@@ -2651,19 +2651,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <section class="page" id="bas-page-record">
   <!-- 재고 기록 (2026-10-26 개편 4단계) — 자주: ① 창고 출고 엑셀 · ② 월말 실사 / 가끔: 손으로 넣기 · 출고예시 · 관리는 접어 둠. 칸 아이디는 예전 그대로 -->
   <div class="bas-subrow" style="margin:0 2px 6px"><button class="bas-link" onclick="BAS.goTab('now')">← 재고로</button></div>
-  <div class="bas-grp"><span class="bas-step">1</span>창고 출고 (SRM) <span class="mini">판매오더 엑셀은 「발주·납품」 탭 맨 위에서 넣습니다 — 여기는 올린 것 보기</span></div>
-  <div class="card">
-    <div class="bas-ph">
-      <div><h2>올린 출고 자료 <span class="bas-cnt" id="bas-srmCount"></span></h2></div>
-      <div class="bas-tools">
-        <button class="quiet" id="bas-btnSrmExport">CSV 내보내기</button>
-        <button class="quiet dng" id="bas-btnSrmClear">전체 지우기</button>
-      </div>
-    </div>
-    <div id="bas-srmKpi" class="grid-stats" style="margin-bottom:12px"></div>
-    <div id="bas-srmWarn"></div>
-    <div class="tbl-wrap" id="bas-srmDayTbl"></div>
-  </div>
+  <div class="bas-grp"><span class="bas-step">1</span>창고 출고 (SRM) <span class="mini">판매오더 엑셀 넣기·날짜별 표는 「발주·납품」 탭 맨 위 — 여기는 모델 × 일자</span></div>
+  <!-- 「올린 출고 자료」 날짜별 표는 발주·납품 탭 「📤 판매오더 엑셀 넣기」 칸 안으로 옮겼습니다 (사장님 2026-11-09) -->
 
   <div class="card">
     <div class="bas-ph">
@@ -2807,7 +2796,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
         <span class="bas-tools grow"><label for="bas-srmAsof">조회한 날짜</label><input type="date" id="bas-srmAsof"></span>
         <button class="bas-fbtn" id="bas-fb-srmManCard" onclick="BAS.toggleSub('srmManCard')">✏️ 손으로 넣기</button>
       </div>
-      <div class="mini" style="margin-top:6px">조회한 날짜까지의 출고일은 <b>확정</b>, 그 뒤는 <b>예정</b>으로 봅니다. 올린 것은 재고 탭 아래 「월말 실사 · 창고 출고 자료」에서 봅니다.</div>
+      <div class="mini" style="margin-top:6px">조회한 날짜까지의 출고일은 <b>확정</b>, 그 뒤는 <b>예정</b>으로 봅니다. 올린 것은 아래 날짜별 표에 쌓입니다.</div>
       <div class="bas-fold-body" id="bas-srmManCard" hidden>
         <div class="hint" style="margin-bottom:8px">몇 건 안 될 때 — 제품칸에 <b>모델명 일부</b>(예: 매그놀리아)나 <b>코드</b>(BB1000240). 같은 날 같은 제품을 또 넣으면 수량이 <b>합쳐집니다</b>.</div>
         <div class="row">
@@ -2821,6 +2810,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
         <div id="bas-sCodeHint" class="muted" style="margin-top:7px;min-height:16px"></div>
         <div id="bas-srmManual" style="margin-top:8px;overflow-x:auto"></div>
       </div>
+      <!-- 올린 출고 자료 — 날짜마다 몇 개 넣었는지 (사장님 2026-11-09 「일일표 다시 볼 수 있게」) · 칸 아이디는 예전 그대로(renderSrm) -->
+      <div class="bas-ph" style="margin-top:14px">
+        <div><h2 style="font-size:15px">올린 출고 자료 <span class="bas-cnt" id="bas-srmCount"></span></h2></div>
+        <div class="bas-tools">
+          <button class="quiet" id="bas-btnSrmExport">CSV 내보내기</button>
+          <button class="quiet dng" id="bas-btnSrmClear">전체 지우기</button>
+        </div>
+      </div>
+      <div id="bas-srmKpi" class="grid-stats" style="margin-bottom:10px"></div>
+      <div id="bas-srmWarn"></div>
+      <div class="tbl-wrap" id="bas-srmDayTbl" style="max-height:340px;overflow-y:auto"></div>
     </div>
   </div>
   <div id="bas-slipBar"></div>
