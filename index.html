@@ -20389,13 +20389,17 @@ function bdFillForm(c){
   const inp=(id,label,val,type='text',ph='')=>`<label class="bd-l">${label}<input class="bd-in" id="bdf-${id}" type="${type}" value="${val}" placeholder="${ph}"></label>`;
   const area=(id,label,val,ph='')=>`<label class="bd-l">${label}<textarea class="bd-in" id="bdf-${id}" rows="3" placeholder="${ph}">${val}</textarea></label>`;
   const k=bdEditKind;
-  const tm=(lab)=>inp('dueTime',`⏰ ${lab} <small class="bd-muted">(시간이 딱 정해진 일만 — 적으면 빨갛게 보입니다)</small>`,v('dueTime'),'text','예: 17시 전 · 오후 2시');
+  // 2026-11-09 사장님 「모든 탭 반응형 — 다 너무 작아서 답답」 → 모든 종류 창을 PC 에서 넓게(.bd-sheetwide) · 칸을 세 개씩(.bd-3)
+  const tm=()=>inp('dueTime','⏰ 정해진 시간 <small class="bd-muted">(있을 때만 · 빨갛게)</small>',v('dueTime'),'text','예: 17시 전 · 오후 2시');
+  const own=()=>inp('owner','담당자',v('owner'));
+  const ref=()=>`<div class="bd-2">${inp('orderNo','오더번호',v('orderNo'),'text','예: 5400162852')}${inp('site','현장명',v('site'))}</div>`;
   let f=inp('title', k==='order'?'제목 (비우면 거래처·품목으로)':k==='as'?'제목 (비우면 AS오더번호·품명으로)':'제목', v('title'));
-  if(k==='progress') f+=inp('summary','한 줄 요약',v('summary'))+area('body','본문',v('body'))+inp('nextStep','다음 단계 (한 줄)',v('nextStep'))+`<div class="bd-2">${inp('date','목표일',v('date'),'date')}${tm('정해진 시간')}</div>`;
-  if(k==='order')    f+=`<div class="bd-2">${inp('vendor','거래처',v('vendor'))}${inp('qty','수량',v('qty'))}</div>`+inp('item','품목',v('item'))
-                       +`<div class="bd-2">${inp('orderDate','발주일',v('orderDate'),'date')}${inp('arriveDate','입고 예정일',v('arriveDate'),'date')}</div>`+area('body','메모',v('body'));
-  if(k==='todo')     f+=`<div class="bd-2">${inp('date','마감일',v('date'),'date')}${tm('정해진 시간')}</div>`+area('body','메모',v('body'));
-  if(k==='event')    f+=`<div class="bd-2">${inp('date','날짜',v('date'),'date')}${tm('정해진 시간')}</div>`+area('body','메모 (장소 등)',v('body'));
+  if(k==='progress') f+=`<div class="bd-2">${inp('summary','한 줄 요약',v('summary'))}${inp('nextStep','다음 단계 (한 줄)',v('nextStep'))}</div>`+area('body','본문',v('body'))
+                       +`<div class="bd-3">${inp('date','목표일',v('date'),'date')}${tm()}${own()}</div>`+ref();
+  if(k==='order')    f+=`<div class="bd-3">${inp('vendor','거래처',v('vendor'))}${inp('item','품목',v('item'))}${inp('qty','수량',v('qty'))}</div>`
+                       +`<div class="bd-3">${inp('orderDate','발주일',v('orderDate'),'date')}${inp('arriveDate','입고 예정일',v('arriveDate'),'date')}${own()}</div>`+area('body','메모',v('body'))+ref();
+  if(k==='todo')     f+=`<div class="bd-3">${inp('date','마감일',v('date'),'date')}${tm()}${own()}</div>`+area('body','메모',v('body'))+ref();
+  if(k==='event')    f+=`<div class="bd-2">${inp('date','날짜',v('date'),'date')}${tm()}</div>`+area('body','메모 (장소 등)',v('body'));
   if(k==='as'){
     const stg=c.stage==='doing'?'doing':'todo';
     // 제목 줄 = 제목 칸 + 📷 사진 단추 (사장님 2026-11-09 「사진 스샷 원본을 맨 위 제목 옆에」) · PC 는 세 칸씩(.bd-3)
@@ -20410,14 +20414,12 @@ function bdFillForm(c){
       +area('body','메모 (부분 입고 등)',v('body'),'예: 상부만 입고')
       +`<div class="bd-3"><label class="bd-l">상태<select class="bd-in" id="bdf-stage"><option value="todo"${stg==='todo'?' selected':''}>해야 할 일</option><option value="doing"${stg==='doing'?' selected':''}>하는 중</option></select></label>${inp('owner','담당자',v('owner'))}</div>`;
   }
-  if(k!=='event'&&k!=='as') f+=`<div class="bd-2">${inp('orderNo','오더번호',v('orderNo'),'text','예: 5400162852')}${inp('site','현장명',v('site'))}</div>`;
-  if(k!=='event'&&k!=='as') f+=inp('owner','담당자',v('owner'));
   if(bdEditId)       f+=inp('dateNote','날짜를 바꾼다면 — 까닭 (기록에 남습니다)','', 'text','예: 현장 요청으로 하루 당김');
   f+=`<label class="bd-l bd-row"><input type="checkbox" id="bdf-me"${c.visibility==='me'?' checked':''}> 나만 보기 <small class="bd-muted">(켜면 작성자 본인에게만 보입니다)</small></label>`;
   document.getElementById('bd-form').innerHTML=kindSel+f;
   document.getElementById('bd-modal-ttl').textContent=bdEditId?'카드 고치기':'새로 넣기';
   document.getElementById('bd-del').style.display=bdEditId?'':'none';
-  { const sh=document.querySelector('#bd-modal .modal-sheet'); if(sh) sh.classList.toggle('bd-sheetwide', k==='as'); }
+  { const sh=document.querySelector('#bd-modal .modal-sheet'); if(sh) sh.classList.add('bd-sheetwide'); }
   document.getElementById('bd-modal').classList.add('on');
   if(k==='as'){ if(!bdPicState || bdPicState.card!==(bdEditId||'')) bdPicState={ card:bdEditId||'', keep:(c.photos||[]).slice(), add:[] }; bdPicRender(); }
   setTimeout(()=>{ const t=document.getElementById('bdf-title'); if(t&&!bdEditId) t.focus(); },50);
