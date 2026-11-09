@@ -374,6 +374,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-plan .bd-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;align-items:start;margin-bottom:18px}
 #pg-plan .bd-card{border:1px solid;border-radius:12px;padding:14px 14px;cursor:pointer;transition:outline-color .3s;outline:3px solid transparent}
 #pg-plan .bd-card.flash{outline-color:#2563eb}
+#pg-plan .bd-card.bd-isdone{opacity:.62}
+#pg-plan .bd-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+#pg-plan .bd-stg{display:inline-flex;align-items:center;min-height:30px;padding:0 11px;border:1.5px solid;border-radius:15px;background:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap}
+#pg-plan span.bd-stg{cursor:default}
+#pg-plan .bd-time{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border-radius:15px;background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;font-size:13px;font-weight:800;white-space:nowrap}
+#pg-plan .bd-photos{display:flex;flex-wrap:wrap;gap:6px}
+#pg-plan .bd-photos img{width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid #dde0e8;cursor:zoom-in}
+#bd-modal .bd-pics{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+#bd-modal .bd-pic{position:relative}
+#bd-modal .bd-pic img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #dde0e8}
+#bd-modal .bd-pic button{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:none;background:#1a1d2e;color:#fff;cursor:pointer;font-size:13px;line-height:24px;padding:0}
 #pg-plan .bd-ch{display:flex;align-items:flex-start;gap:10px}
 #pg-plan .bd-chk{width:24px;height:24px;margin:1px 0 0;flex:none;cursor:pointer;accent-color:#1a1d2e}
 #pg-plan .bd-ct{font-size:16px;font-weight:700;line-height:1.4;word-break:keep-all}
@@ -20067,13 +20078,48 @@ async function clUploadCompare(inp){
    ══════════════════════════════════════════════════════════ */
 const LS_BOARD='ybn-board-v1';
 const BD_KIND={
-  progress:{ label:'진행중', dot:'#16a34a', bg:'#ecfdf3', line:'#bbe5c8' },
+  progress:{ label:'진행중', dot:'#eab308', bg:'#fffbe6', line:'#f0e0a0' },   // 2026-11-09 하는 중 = 노랑 (예전 초록)
   order:   { label:'발주중', dot:'#ea6c00', bg:'#fff4e8', line:'#f6cfa6' },
-  todo:    { label:'할일',   dot:'#d4a106', bg:'#fffbe6', line:'#f0e0a0' },
+  todo:    { label:'할일',   dot:'#2563eb', bg:'#eff6ff', line:'#bfdbfe' },   // 2026-11-09 해야 할 일 = 파랑 (예전 노랑)
+  as:      { label:'1회사고AS', dot:'#2563eb', bg:'#ffffff', line:'#dde0e8' },
   event:   { label:'일정',   dot:'#9aa0b8', bg:'#f4f5f8', line:'#dde0e8' },
 };
 const BD_DONE={ label:'완료', bg:'#f4f5f8', line:'#dde0e8' };
-const BD_TABS=['progress','order','todo','done'];
+const BD_TABS=['progress','order','todo','as','done'];
+/* ── 상태 색 (사장님 2026-11-09) ── 해야 할 일 파랑 · 하는 중 노랑 · 완료 회색(흐리게) · 시간 정해짐 빨강(상태와 따로)
+   할일·진행중 카드는 종류(kind)가 곧 상태라 칩을 누르면 할일 → 진행중 → 완료 → 할일 로 탭을 옮겨 갑니다.
+   1회사고AS 카드는 종류는 그대로 두고 stage('todo'|'doing') 로 셉니다. 발주중·일반 일정은 칩이 없습니다. */
+const BD_STAGE={
+  todo: { label:'해야 할 일', c:'#2563eb', bg:'#eff6ff', line:'#bfdbfe' },
+  doing:{ label:'하는 중',   c:'#eab308', bg:'#fffbe6', line:'#f0e0a0' },
+  done: { label:'완료',      c:'#9aa0b8', bg:'#f4f5f8', line:'#dde0e8' },
+};
+const BD_RED='#dc2626';
+function bdStage(c){
+  if(c.status==='done') return 'done';
+  if(c.kind==='as') return c.stage==='doing'?'doing':'todo';
+  if(c.kind==='progress') return 'doing';
+  if(c.kind==='todo') return 'todo';
+  return '';
+}
+/* 시간이 정해진 일 — 할일·진행중·일정은 「정해진 시간」 칸, AS 는 확정 입고일이 있으면 */
+function bdTimed(c){ return !!(c && (String(c.dueTime||'').trim() || (c.kind==='as' && c.arriveDate))); }
+function bdTimeLab(c){
+  if(c.kind==='as') return c.arriveDate ? `입고 ${bdMd(c.arriveDate)}(${bdDow(c.arriveDate)})${c.arriveTime?' '+c.arriveTime:''}` : '';
+  const d=bdDateOf(c); return `${d?bdMd(d)+' ':''}${c.dueTime||''}`.trim();
+}
+function bdCycle(id){
+  if(!bdCanEdit()){ showToast("보기 전용입니다 — 입력자만 고칠 수 있습니다"); return; }
+  const c=boardCards.find(x=>x.id===id); if(!c) return;
+  const st=bdStage(c); if(!st) return;
+  const now=new Date().toISOString();
+  if(st==='todo'){ if(c.kind==='as') c.stage='doing'; else c.kind='progress'; }
+  else if(st==='doing'){ c.status='done'; c.completedAt=now; }
+  else { c.status='open'; c.completedAt=''; if(c.kind==='as') c.stage='todo'; else c.kind='todo'; }
+  c.updatedAt=now; c.updatedBy=getActor()||'';
+  bdSave(); bdRender();
+  showToast(`→ ${BD_STAGE[bdStage(c)].label}`+(bdStage(c)==='done'?' · 완료 탭으로 옮겼습니다':''));
+}
 /* 공휴일 이름 — 화면 표시용. 쉬는 날인지는 늘 `KR_HOLIDAYS` 가 정합니다(여기 없으면 「공휴일」로 적음) */
 const BD_HOLIDAY_NAME={
   '2026-01-01':'신정','2026-02-16':'설날','2026-02-17':'설날','2026-02-18':'설날',
@@ -20099,7 +20145,10 @@ function bdSave(quiet){
   if(!quiet) bdSyncSoon();
 }
 /* 달력에 놓을 날짜 — 발주는 입고 예정일, 나머지는 대표 날짜 */
-function bdDateOf(c){ return c.kind==='order' ? (c.arriveDate||c.date||'') : (c.date||''); }
+function bdDateOf(c){
+  if(c.kind==='as') return c.arriveDate||c.replyDate||c.recvDate||'';   // AS = 확정 입고일 → 없으면 답한 납기 → 접수일
+  return c.kind==='order' ? (c.arriveDate||c.date||'') : (c.date||'');
+}
 function bdVisible(c){
   if(!c || c.deleted) return false;
   if(c.visibility==='me' && (c.createdBy||'')!==(getActor()||'')) return false;
@@ -20122,6 +20171,7 @@ function bdRender(){
   const host=document.getElementById('bd-host'); if(!host) return;
   host.innerHTML=`<div class="bd-top"><div class="bd-cal">${bdCalHtml()}</div><div class="bd-day">${bdDayHtml()}</div></div>
     <div class="bd-board">${bdBoardHtml()}</div>`;
+  try{ bdPhotoFill(host); }catch(e){}
 }
 function bdCalHtml(){
   const y=bdYear, m=bdMonth, first=new Date(y,m,1), start=first.getDay(), days=new Date(y,m+1,0).getDate();
@@ -20133,7 +20183,7 @@ function bdCalHtml(){
   for(let d=1; d<=days; d++){
     const ds=_ymdLocal(new Date(y,m,d)), dow=(start+d-1)%7, hol=bdHolidayName(ds);
     const items=(byDay[ds]||[]).sort(bdSort);
-    const dots=items.slice(0,3).map(c=>`<i style="background:${BD_KIND[c.kind].dot}"></i>`).join('')+(items.length>3?`<b>+${items.length-3}</b>`:'');
+    const dots=items.slice(0,3).map(c=>`<i style="background:${bdTimed(c)?BD_RED:(BD_KIND[c.kind]||BD_KIND.event).dot}"></i>`).join('')+(items.length>3?`<b>+${items.length-3}</b>`:'');
     const red=hol||dow===0, blue=!hol&&dow===6;
     const brs=(typeof breaksOn==='function')?breaksOn(ds):[];   // 휴무·출장 (업무판에서 옮겨 옴)
     const brHtml=brs.slice(0,2).map(b=>`<span class="bd-brk${b.self?' self':''}">${(BREAK_KIND[breakKindOf(b)]||{}).ico||''}${bdEsc(b.name)}</span>`).join('')+(brs.length>2?`<span class="bd-brk">+${brs.length-2}</span>`:'');
@@ -20148,16 +20198,17 @@ function bdCalHtml(){
       <button class="bd-btn bd-ghost" onclick="bdToday()">오늘</button></div>
     <div class="bd-week">${['일','월','화','수','목','금','토'].map((w,i)=>`<span style="${i===0?'color:#dc2626':i===6?'color:#2563eb':''}">${w}</span>`).join('')}</div>
     <div class="bd-grid">${cells}</div>
-    <div class="bd-legend">${['progress','order','todo','event'].map(k=>`<span><i style="background:${BD_KIND[k].dot}"></i>${k==='todo'?'할일·마감':k==='order'?'발주·입고':k==='event'?'일반 일정':'진행중'}</span>`).join('')}</div>`;
+    <div class="bd-legend">${[['#2563eb','해야 할 일'],['#eab308','하는 중'],['#ea6c00','발주·입고'],[BD_RED,'시간 정해짐 · AS 입고'],['#9aa0b8','일반 일정']].map(x=>`<span><i style="background:${x[0]}"></i>${x[1]}</span>`).join('')}</div>`;
 }
 function bdDayHtml(){
   const ds=bdSel, hol=bdHolidayName(ds);
   const items=bdCardsAll().filter(c=>bdDateOf(c)===ds).sort(bdSort);
   const row=c=>{
-    const k=BD_KIND[c.kind], done=c.status==='done';
-    return `<button class="bd-dayitem" onclick="bdJump('${c.id}')" style="${done?'opacity:.55':''}">
-      <i style="background:${k.dot}"></i><span class="bd-dit">${bdEsc(c.title)}${done?' <small>(완료)</small>':''}</span>
-      <small>${c.kind==='order'?'입고 예정':k.label}</small></button>`;
+    const k=BD_KIND[c.kind]||BD_KIND.event, done=c.status==='done', tm=bdTimed(c);
+    const tl=c.kind==='as'?(c.arriveTime||''):(c.dueTime||'');
+    return `<button class="bd-dayitem" onclick="bdJump('${c.id}')" style="${done?'opacity:.55':''}${tm&&!done?';border-color:#fecaca':''}">
+      <i style="background:${tm?BD_RED:k.dot}"></i><span class="bd-dit">${bdEsc(c.title)}${tl?` <b style="color:${BD_RED};font-size:13px">⏰ ${bdEsc(tl)}</b>`:''}${done?' <small>(완료)</small>':''}</span>
+      <small>${c.kind==='order'?'입고 예정':c.kind==='as'?'AS 입고':k.label}</small></button>`;
   };
   const brs=(typeof breaksOn==='function')?breaksOn(ds):[];
   const brRows=brs.map(b=>{ const k=breakKindOf(b);
@@ -20196,27 +20247,40 @@ function bdBoardHtml(){
   return tabs+body;
 }
 function bdCardHtml(c){
-  const open=bdOpenSet.has(c.id), done=c.status==='done';
-  const st=done?BD_DONE:BD_KIND[c.kind], over=bdOverdue(c), d=bdDateOf(c);
+  const open=bdOpenSet.has(c.id), done=c.status==='done', isAS=c.kind==='as';
+  const sg=bdStage(c), sgc=sg?BD_STAGE[sg]:null;
+  const st=done?BD_DONE:(sgc||BD_KIND[c.kind]||BD_KIND.event), over=bdOverdue(c), d=bdDateOf(c);
   const dateLab = c.kind==='order' ? '입고 예정' : c.kind==='todo' ? '마감' : '목표일';
-  const sub=[ d?`${dateLab} ${bdMd(d)}(${bdDow(d)})`:'', done?`완료 ${bdMd(_ymdLocal(new Date(c.completedAt)))}`:(over?'<b style="color:#dc2626">날짜 지남</b>':''),
-    c.kind==='order'&&c.vendor?bdEsc(c.vendor):'', c.orderNo?`#${bdEsc(c.orderNo)}`:'', c.site?bdEsc(c.site):'' ].filter(Boolean).join(' · ');
-  const check = c.kind==='todo' ? `<input type="checkbox" class="bd-chk"${done?' checked':''}${bdCanEdit()?'':' disabled'} onclick="event.stopPropagation();bdDone('${c.id}',this.checked)" aria-label="완료">` : '';
+  const timed=bdTimed(c), tLab=timed?bdTimeLab(c):'';
+  const sub=[ isAS ? (c.replyDate?`답한 납기 ${bdMd(c.replyDate)}`:'') : (d&&!timed?`${dateLab} ${bdMd(d)}(${bdDow(d)})`:''),
+    done?`완료 ${bdMd(_ymdLocal(new Date(c.completedAt)))}`:(over?'<b style="color:#dc2626">날짜 지남</b>':''),
+    c.kind==='order'&&c.vendor?bdEsc(c.vendor):'', isAS&&c.requester?bdEsc(c.requester):'', c.orderNo?`#${bdEsc(c.orderNo)}`:'', c.site?bdEsc(c.site):'' ].filter(Boolean).join(' · ');
+  // 상태 칩 — 누를 때마다 해야 할 일 → 하는 중 → 완료 (보기 전용이면 글자만)
+  const chip = sgc ? (bdCanEdit()
+      ? `<button class="bd-stg" style="color:${sg==='done'?'#5a6282':sgc.c};border-color:${sgc.c}" onclick="event.stopPropagation();bdCycle('${c.id}')" title="누르면 다음 상태로">${sgc.label} ›</button>`
+      : `<span class="bd-stg" style="color:${sg==='done'?'#5a6282':sgc.c};border-color:${sgc.c}">${sgc.label}</span>`) : '';
+  const timeChip = timed ? `<span class="bd-time">⏰ ${bdEsc(tLab)}</span>` : '';
   const field=(l,v)=>v?`<div class="bd-f"><span>${l}</span><div>${bdEsc(v).replace(/\n/g,'<br>')}</div></div>`:'';
+  const asFields = isAS ? field('접수일',bdMd(c.recvDate))+field('요청자',c.requester)+field('AS오더번호',c.orderNo)+field('현장 주소',c.addr)
+      +field('품목코드',c.itemCode)+field('품명',c.item)+field('수량',c.qty)+field('답한 납기',bdMd(c.replyDate))
+      +field('확정 입고',c.arriveDate?`${bdMd(c.arriveDate)}(${bdDow(c.arriveDate)})${c.arriveTime?' '+c.arriveTime:''}`:'')+field('메모',c.body)
+      +((c.photos||[]).length?`<div class="bd-f"><span>사진</span><div class="bd-photos" data-ids="${bdEsc((c.photos||[]).join(','))}">불러오는 중…</div></div>`:'') : '';
   const log=(c.dateLog||[]).length?`<div class="bd-f"><span>날짜 바뀐 기록</span><div>${c.dateLog.map(x=>`<div class="bd-log">${bdMd(x.from)||'(없음)'} → <b>${bdMd(x.to)||'(없음)'}</b>${x.note?` — ${bdEsc(x.note)}`:''} <small>${bdEsc(x.by||'')} ${bdMd(_ymdLocal(new Date(x.at)))}</small></div>`).join('')}</div></div>`:'';
   const detail=open?`<div class="bd-detail">
-      ${field('요약',c.summary)}${field('내용',c.body)}${c.kind==='progress'?field('다음 단계',c.nextStep):''}
+      ${isAS?asFields:`${field('요약',c.summary)}${field('내용',c.body)}${c.kind==='progress'?field('다음 단계',c.nextStep):''}
       ${c.kind==='order'?field('거래처',c.vendor)+field('품목',c.item)+field('수량',c.qty)+field('발주일',bdMd(c.orderDate))+field('입고 예정일',bdMd(c.arriveDate)):''}
-      ${field('오더번호',c.orderNo)}${field('현장명',c.site)}${field('담당자',c.owner)}${log}
+      ${field('정해진 시간',c.dueTime)}${field('오더번호',c.orderNo)}${field('현장명',c.site)}`}${field('담당자',c.owner)}${log}
       <div class="bd-meta">${c.visibility==='me'?'🔒 나만 보기 · ':''}작성 ${bdEsc(c.createdBy||'')} · 고침 ${bdEsc(c.updatedBy||'')} ${bdMd(_ymdLocal(new Date(c.updatedAt)))}</div>
       <div class="bd-actions"${bdCanEdit()?'':' style="display:none"'}>
         ${done?`<button class="bd-btn bd-ghost" onclick="event.stopPropagation();bdDone('${c.id}',false)">되돌리기 (${BD_KIND[c.kind].label})</button>`
           :`<button class="bd-btn bd-ghost" onclick="event.stopPropagation();bdEdit('${c.id}')">수정</button>
             ${c.kind==='order'?`<button class="bd-btn bd-primary" onclick="event.stopPropagation();bdDone('${c.id}',true)">입고 완료</button>`
-              :c.kind==='progress'?`<button class="bd-btn bd-primary" onclick="event.stopPropagation();bdDone('${c.id}',true)">완료</button>`:''}`}
+              :(c.kind==='progress'||isAS)?`<button class="bd-btn bd-primary" onclick="event.stopPropagation();bdDone('${c.id}',true)">완료</button>`:''}`}
       </div></div>`:'';
-  return `<div class="bd-card${open?' open':''}" id="bdc-${c.id}" style="background:${st.bg};border-color:${over?'#dc2626':st.line};${over?'border-width:2px':''}" onclick="bdToggle('${c.id}')">
-      <div class="bd-ch">${check}<div style="flex:1;min-width:0"><div class="bd-ct">${bdEsc(c.title)}</div><div class="bd-cs">${sub||'<span class="bd-muted">날짜 없음</span>'}</div></div>
+  const stripe = done ? '#c4c8d4' : (sgc?sgc.c:(BD_KIND[c.kind]||BD_KIND.event).dot);
+  return `<div class="bd-card${open?' open':''}${done?' bd-isdone':''}" id="bdc-${c.id}" style="background:${st.bg};border-color:${over?'#dc2626':st.line};${over?'border-width:2px;':''}border-left:6px solid ${stripe}" onclick="bdToggle('${c.id}')">
+      ${chip||timeChip?`<div class="bd-chips">${chip}${timeChip}</div>`:''}
+      <div class="bd-ch"><div style="flex:1;min-width:0"><div class="bd-ct">${bdEsc(c.title)}</div><div class="bd-cs">${sub||(timed?'':'<span class="bd-muted">날짜 없음</span>')}</div></div>
         ${c.visibility==='me'?'<span title="나만 보기">🔒</span>':''}<span class="bd-arrow">${open?'▴':'▾'}</span></div>${detail}</div>`;
 }
 
@@ -20243,33 +20307,107 @@ function bdDone(id, done){
 
 /* ── 추가·수정 창 ── */
 function bdNew(kind, date){
-  bdEditId=null; bdEditKind=kind||'event';
+  bdEditId=null; bdEditKind=kind||'event'; bdPicState=null;
+  if(bdEditKind==='as'){ bdFillForm({ kind:'as', recvDate:todayStr(), stage:'todo', visibility:'all' }); return; }
   bdFillForm({ kind:bdEditKind, date:date||'', arriveDate:bdEditKind==='order'?(date||''):'', orderDate:bdEditKind==='order'?todayStr():'', visibility:'all' });
 }
 function bdEdit(id){
   const c=boardCards.find(x=>x.id===id); if(!c) return;
-  bdEditId=id; bdEditKind=c.kind; bdFillForm(c);
+  bdEditId=id; bdEditKind=c.kind; bdPicState=null; bdFillForm(c);
 }
+/* ── 1회사고AS 사진 (사장님 2026-11-09 「카톡 스샷 원본 확인용」) ──
+   사진은 커서 시트로 못 보냅니다 → **이 기기의 IndexedDB(`ybn-photos`)** 에만 둡니다. 카드에는 사진 번호(photos)만 적혀 시트로 갑니다.
+   다른 기기에서는 「사진은 넣은 기기에만 있습니다」로 보입니다. 긴 쪽 1600px · JPEG 0.82 로 줄여 담습니다. */
+var bdPicState=null;   // { card, keep:[번호], add:[{id, blob, url}] }
+var _bdPhotoDb=null;
+function bdPhotoDb(){
+  if(_bdPhotoDb) return _bdPhotoDb;
+  _bdPhotoDb=new Promise((res,rej)=>{ try{ const r=indexedDB.open('ybn-photos',1);
+    r.onupgradeneeded=()=>r.result.createObjectStore('p'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }catch(e){ rej(e); } });
+  return _bdPhotoDb;
+}
+function bdPhotoTx(mode, fn){ return bdPhotoDb().then(db=>new Promise((res,rej)=>{ const tx=db.transaction('p',mode); const q=fn(tx.objectStore('p')); tx.oncomplete=()=>res(q&&q.result); tx.onerror=()=>rej(tx.error); })); }
+function bdPhotoPut(id, blob){ return bdPhotoTx('readwrite', s=>s.put(blob,id)).then(()=>{ try{ bdPhotoFill(document.getElementById('bd-host')); }catch(e){} }).catch(e=>{ console.warn('[AS 사진] 저장 실패',e); showToast('⚠ 사진 저장 실패'); }); }
+function bdPhotoGet(id){ return bdPhotoTx('readonly', s=>s.get(id)).catch(()=>null); }
+function bdPhotoDel(id){ return bdPhotoTx('readwrite', s=>s.delete(id)).catch(()=>{}); }
+function bdPhotoShrink(file){
+  return new Promise(res=>{ const url=URL.createObjectURL(file), img=new Image();
+    img.onload=()=>{ const M=1600, s=Math.min(1, M/Math.max(img.width,img.height));
+      const cv=document.createElement('canvas'); cv.width=Math.round(img.width*s); cv.height=Math.round(img.height*s);
+      cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height); URL.revokeObjectURL(url);
+      cv.toBlob(b=>res(b||file),'image/jpeg',0.82); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); res(null); };
+    img.src=url; });
+}
+async function bdPicAdd(files){
+  if(!bdPicState) return;
+  for(const f of Array.from(files||[])){
+    if(!/^image\//.test(f.type||'')) continue;
+    const b=await bdPhotoShrink(f); if(!b) continue;
+    bdPicState.add.push({ id:'ph_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), blob:b, url:URL.createObjectURL(b) });
+  }
+  bdPicRender();
+}
+function bdPicDrop(kind, i){ if(!bdPicState) return; (kind==='keep'?bdPicState.keep:bdPicState.add).splice(i,1); bdPicRender(); }
+function bdPicRender(){
+  const host=document.getElementById('bdf-pics'); if(!host||!bdPicState) return;
+  host.innerHTML=bdPicState.keep.map((id,i)=>`<div class="bd-pic"><img data-pid="${bdEsc(id)}" alt="사진"><button type="button" onclick="bdPicDrop('keep',${i})" aria-label="빼기">×</button></div>`).join('')
+    +bdPicState.add.map((p,i)=>`<div class="bd-pic"><img src="${p.url}" alt="새 사진"><button type="button" onclick="bdPicDrop('add',${i})" aria-label="빼기">×</button></div>`).join('');
+  host.querySelectorAll('img[data-pid]').forEach(im=>bdPhotoGet(im.dataset.pid).then(b=>{ if(b) im.src=URL.createObjectURL(b); else { im.alt='다른 기기 사진'; im.style.background='#f4f5f8'; } }));
+}
+function bdPhotoFill(root){
+  (root||document).querySelectorAll('.bd-photos[data-ids]').forEach(box=>{
+    const ids=box.dataset.ids.split(',').filter(Boolean); if(box.dataset.done===box.dataset.ids) return; box.dataset.done=box.dataset.ids;
+    Promise.all(ids.map(bdPhotoGet)).then(bs=>{
+      const have=bs.filter(Boolean);
+      box.innerHTML=have.map(b=>{ const u=URL.createObjectURL(b); return `<img src="${u}" alt="AS 사진" onclick="event.stopPropagation();window.open('${u}','_blank')">`; }).join('')
+        +(have.length<ids.length?`<span class="bd-muted" style="font-size:13px">사진 ${ids.length-have.length}장은 넣은 기기에만 있습니다</span>`:'');
+    });
+  });
+}
+/* 창이 열려 있고 AS 칸이면 Ctrl+V 로 카톡 스샷을 바로 붙입니다 */
+document.addEventListener('paste', e=>{
+  const m=document.getElementById('bd-modal'); if(!m||!m.classList.contains('on')||!bdPicState||!document.getElementById('bdf-pics')) return;
+  const fs=Array.from((e.clipboardData&&e.clipboardData.files)||[]).filter(f=>/^image\//.test(f.type));
+  if(fs.length){ e.preventDefault(); bdPicAdd(fs); }
+});
 function bdFillForm(c){
   if(!bdCanEdit()){ showToast("보기 전용입니다 — 입력자만 고칠 수 있습니다"); return; }
   const v=k=>bdEsc(c[k]||'');
-  const kindSel=`<div class="bd-kinds">${['progress','order','todo','event'].map(k=>`<button type="button" class="bd-kbtn${bdEditKind===k?' on':''}" style="${bdEditKind===k?`background:${BD_KIND[k].bg};border-color:${BD_KIND[k].dot}`:''}" onclick="bdSwitchKind('${k}')">${k==='event'?'일반 일정':BD_KIND[k].label}</button>`).join('')}</div>`;
+  const kindSel=`<div class="bd-kinds">${['todo','progress','order','as','event'].map(k=>`<button type="button" class="bd-kbtn${bdEditKind===k?' on':''}" style="${bdEditKind===k?`background:${k==='as'?'#eff6ff':BD_KIND[k].bg};border-color:${BD_KIND[k].dot}`:''}" onclick="bdSwitchKind('${k}')">${k==='event'?'일반 일정':k==='todo'?'해야 할 일':k==='progress'?'하는 중':BD_KIND[k].label}</button>`).join('')}</div>`;
   const inp=(id,label,val,type='text',ph='')=>`<label class="bd-l">${label}<input class="bd-in" id="bdf-${id}" type="${type}" value="${val}" placeholder="${ph}"></label>`;
   const area=(id,label,val,ph='')=>`<label class="bd-l">${label}<textarea class="bd-in" id="bdf-${id}" rows="3" placeholder="${ph}">${val}</textarea></label>`;
   const k=bdEditKind;
-  let f=inp('title', k==='order'?'제목 (비우면 거래처·품목으로)':'제목', v('title'));
-  if(k==='progress') f+=inp('summary','한 줄 요약',v('summary'))+area('body','본문',v('body'))+inp('nextStep','다음 단계 (한 줄)',v('nextStep'))+inp('date','목표일',v('date'),'date');
+  const tm=(lab)=>inp('dueTime',`⏰ ${lab} <small class="bd-muted">(시간이 딱 정해진 일만 — 적으면 빨갛게 보입니다)</small>`,v('dueTime'),'text','예: 17시 전 · 오후 2시');
+  let f=inp('title', k==='order'?'제목 (비우면 거래처·품목으로)':k==='as'?'제목 (비우면 AS오더번호·품명으로)':'제목', v('title'));
+  if(k==='progress') f+=inp('summary','한 줄 요약',v('summary'))+area('body','본문',v('body'))+inp('nextStep','다음 단계 (한 줄)',v('nextStep'))+`<div class="bd-2">${inp('date','목표일',v('date'),'date')}${tm('정해진 시간')}</div>`;
   if(k==='order')    f+=`<div class="bd-2">${inp('vendor','거래처',v('vendor'))}${inp('qty','수량',v('qty'))}</div>`+inp('item','품목',v('item'))
                        +`<div class="bd-2">${inp('orderDate','발주일',v('orderDate'),'date')}${inp('arriveDate','입고 예정일',v('arriveDate'),'date')}</div>`+area('body','메모',v('body'));
-  if(k==='todo')     f+=inp('date','마감일',v('date'),'date')+area('body','메모',v('body'));
-  if(k==='event')    f+=inp('date','날짜',v('date'),'date')+area('body','메모 (시간·장소)',v('body'));
-  if(k!=='event')    f+=`<div class="bd-2">${inp('orderNo','오더번호',v('orderNo'),'text','예: 5400162852')}${inp('site','현장명',v('site'))}</div>`+inp('owner','담당자',v('owner'));
+  if(k==='todo')     f+=`<div class="bd-2">${inp('date','마감일',v('date'),'date')}${tm('정해진 시간')}</div>`+area('body','메모',v('body'));
+  if(k==='event')    f+=`<div class="bd-2">${inp('date','날짜',v('date'),'date')}${tm('정해진 시간')}</div>`+area('body','메모 (장소 등)',v('body'));
+  if(k==='as'){
+    const stg=c.stage==='doing'?'doing':'todo';
+    f+=`<div class="bd-2">${inp('recvDate','접수일',v('recvDate'),'date')}${inp('requester','요청자 (한샘 담당자)',v('requester'))}</div>`
+      +`<div class="bd-2">${inp('orderNo','AS오더번호',v('orderNo'),'text','예: 0130603446')}${inp('itemCode','품목코드',v('itemCode'))}</div>`
+      +inp('addr','현장 주소',v('addr'))
+      +`<div class="bd-2">${inp('item','품명',v('item'),'text','예: Euro700 Grace 웜코튼')}${inp('qty','수량',v('qty'))}</div>`
+      +inp('replyDate','우리가 답한 납기일',v('replyDate'),'date')
+      +`<div class="bd-2">${inp('arriveDate','확정 입고일 <small class="bd-muted">(넣으면 달력에 빨갛게)</small>',v('arriveDate'),'date')}${inp('arriveTime','확정 입고 시간',v('arriveTime'),'text','예: 17시 전')}</div>`
+      +area('body','메모 (부분 입고 등)',v('body'),'예: 상부만 입고')
+      +`<label class="bd-l">상태<select class="bd-in" id="bdf-stage"><option value="todo"${stg==='todo'?' selected':''}>해야 할 일</option><option value="doing"${stg==='doing'?' selected':''}>하는 중</option></select></label>`
+      +`<div class="bd-l">사진 (카톡 스샷 원본) <small class="bd-muted">— 고르거나 이 창에서 Ctrl+V. 사진은 넣은 기기에만 저장됩니다</small>
+          <input type="file" accept="image/*" multiple class="bd-in" onchange="bdPicAdd(this.files);this.value=''">
+          <div class="bd-pics" id="bdf-pics"></div></div>`;
+  }
+  if(k!=='event'&&k!=='as') f+=`<div class="bd-2">${inp('orderNo','오더번호',v('orderNo'),'text','예: 5400162852')}${inp('site','현장명',v('site'))}</div>`;
+  if(k!=='event')    f+=inp('owner','담당자',v('owner'));
   if(bdEditId)       f+=inp('dateNote','날짜를 바꾼다면 — 까닭 (기록에 남습니다)','', 'text','예: 현장 요청으로 하루 당김');
   f+=`<label class="bd-l bd-row"><input type="checkbox" id="bdf-me"${c.visibility==='me'?' checked':''}> 나만 보기 <small class="bd-muted">(켜면 작성자 본인에게만 보입니다)</small></label>`;
   document.getElementById('bd-form').innerHTML=kindSel+f;
   document.getElementById('bd-modal-ttl').textContent=bdEditId?'카드 고치기':'새로 넣기';
   document.getElementById('bd-del').style.display=bdEditId?'':'none';
   document.getElementById('bd-modal').classList.add('on');
+  if(k==='as'){ if(!bdPicState || bdPicState.card!==(bdEditId||'')) bdPicState={ card:bdEditId||'', keep:(c.photos||[]).slice(), add:[] }; bdPicRender(); }
   setTimeout(()=>{ const t=document.getElementById('bdf-title'); if(t&&!bdEditId) t.focus(); },50);
 }
 /* 종류를 바꿔도 이미 적은 값은 들고 갑니다 */
@@ -20282,7 +20420,8 @@ function bdSwitchKind(k){
 function bdReadForm(){
   const g=id=>{ const el=document.getElementById('bdf-'+id); return el?el.value.trim():undefined; };
   const o={};
-  ['title','summary','body','nextStep','date','vendor','item','qty','orderDate','arriveDate','orderNo','site','owner'].forEach(k=>{ const x=g(k); if(x!==undefined) o[k]=x; });
+  ['title','summary','body','nextStep','date','vendor','item','qty','orderDate','arriveDate','orderNo','site','owner',
+   'dueTime','recvDate','requester','addr','itemCode','replyDate','arriveTime','stage'].forEach(k=>{ const x=g(k); if(x!==undefined) o[k]=x; });
   const me=document.getElementById('bdf-me'); if(me) o.visibility=me.checked?'me':'all';
   return o;
 }
@@ -20291,8 +20430,17 @@ function bdSaveForm(){
   const f=bdReadForm(), k=bdEditKind, now=new Date().toISOString(), by=getActor()||'';
   const note=(document.getElementById('bdf-dateNote')||{}).value||'';
   if(k==='order' && !f.title) f.title=[f.vendor,f.item].filter(Boolean).join(' ');
+  if(k==='as' && !f.title) f.title=['AS', f.orderNo, f.item].filter(Boolean).join(' ');
   if(!f.title){ showToast('제목을 적어 주십시오'); return; }
   if(k==='order') f.date=f.arriveDate||'';
+  if(k!=='as') delete f.stage;
+  if(k==='as' && bdPicState){   // 사진 — 이 기기 저장함(IndexedDB)에만. 카드에는 번호만 적혀 시트로 갑니다
+    bdPicState.add.forEach(p=>bdPhotoPut(p.id, p.blob));
+    const gone=((bdEditId&&(boardCards.find(x=>x.id===bdEditId)||{}).photos)||[]).filter(id=>!bdPicState.keep.includes(id));
+    gone.forEach(id=>bdPhotoDel(id));
+    f.photos=bdPicState.keep.concat(bdPicState.add.map(p=>p.id));
+    bdPicState=null;
+  }
   let c;
   if(bdEditId){
     c=boardCards.find(x=>x.id===bdEditId); if(!c) return;
@@ -30099,7 +30247,7 @@ function odLateOrders(){
 function tdyTodoDue(){
   const td=todayStr();
   const list=(function(){ try{ return bdCardsAll(); }catch(e){ return []; } })()
-    .filter(c=>(c.kind==='todo'||c.kind==='progress') && c.status!=='done')
+    .filter(c=>(c.kind==='todo'||c.kind==='progress'||c.kind==='as') && c.status!=='done')
     .map(c=>({ c, d:bdDateOf(c) })).filter(x=>x.d && x.d<=td)
     .sort((a,b)=>a.d.localeCompare(b.d));
   return { list, n:list.length, over:list.filter(x=>x.d<td).length };
