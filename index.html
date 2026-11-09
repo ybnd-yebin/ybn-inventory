@@ -406,6 +406,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #bd-modal .bd-row input{width:22px;height:22px}
 #bd-modal .bd-in{display:block;width:100%;box-sizing:border-box;margin-top:5px;min-height:44px;padding:10px 12px;font-size:15px;border:1px solid #d6dae4;border-radius:9px;background:#fff;color:#1a1d2e;font-family:'Noto Sans KR',sans-serif}
 #bd-modal .bd-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#bd-modal .modal-sheet.bd-sheetwide{max-width:min(980px,96vw)!important}
+#bd-modal .bd-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+#bd-modal .bd-ttlrow{display:flex;gap:10px;align-items:flex-end}
+#bd-modal .bd-ttlrow>label.bd-l{flex:1;min-width:0}
+#bd-modal .bd-picbtn{flex:none;display:inline-flex;align-items:center;min-height:44px;margin-bottom:12px;padding:0 14px;border:1px solid #2563eb;border-radius:9px;background:#eff6ff;color:#2563eb;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+#bd-modal .bd-picbtn input{display:none}
+#bd-modal .bd-pics:empty{display:none}
+#bd-modal .bd-pics{margin:-4px 0 6px}
+#bd-modal .bd-pichint{font-size:12px;margin:-6px 0 12px}
+@media (max-width:900px){ #bd-modal .bd-3{grid-template-columns:1fr 1fr} }
 #bd-modal .bd-mbtn{flex:1;min-height:48px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
 @media (max-width:760px){
   #pg-plan{padding:12px 12px 90px}
@@ -418,6 +428,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   #pg-plan .bd-dots i{width:7px;height:7px}
   #pg-plan .bd-cards{grid-template-columns:1fr}
   #bd-modal .bd-2{grid-template-columns:1fr}
+  #bd-modal .bd-3{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -20387,25 +20398,26 @@ function bdFillForm(c){
   if(k==='event')    f+=`<div class="bd-2">${inp('date','날짜',v('date'),'date')}${tm('정해진 시간')}</div>`+area('body','메모 (장소 등)',v('body'));
   if(k==='as'){
     const stg=c.stage==='doing'?'doing':'todo';
-    f+=`<div class="bd-2">${inp('recvDate','접수일',v('recvDate'),'date')}${inp('requester','요청자 (한샘 담당자)',v('requester'))}</div>`
-      +`<div class="bd-2">${inp('orderNo','AS오더번호',v('orderNo'),'text','예: 0130603446')}${inp('itemCode','품목코드',v('itemCode'))}</div>`
+    // 제목 줄 = 제목 칸 + 📷 사진 단추 (사장님 2026-11-09 「사진 스샷 원본을 맨 위 제목 옆에」) · PC 는 세 칸씩(.bd-3)
+    f=`<div class="bd-ttlrow">${inp('title','제목 (비우면 AS오더번호·품명으로)',v('title'))}
+        <label class="bd-picbtn" title="카톡 스샷 원본 — 고르거나 이 창에서 Ctrl+V">📷 사진 넣기<input type="file" accept="image/*" multiple onchange="bdPicAdd(this.files);this.value=''"></label></div>
+      <div class="bd-pics" id="bdf-pics"></div>
+      <div class="bd-muted bd-pichint">사진은 고르거나 이 창에서 Ctrl+V · 넣은 기기에만 저장됩니다</div>`
+      +`<div class="bd-3">${inp('recvDate','접수일',v('recvDate'),'date')}${inp('requester','요청자 (한샘 담당자)',v('requester'))}${inp('orderNo','AS오더번호',v('orderNo'),'text','예: 0130603446')}</div>`
+      +`<div class="bd-3">${inp('itemCode','품목코드',v('itemCode'))}${inp('item','품명',v('item'),'text','예: Euro700 Grace 웜코튼')}${inp('qty','수량',v('qty'))}</div>`
       +inp('addr','현장 주소',v('addr'))
-      +`<div class="bd-2">${inp('item','품명',v('item'),'text','예: Euro700 Grace 웜코튼')}${inp('qty','수량',v('qty'))}</div>`
-      +inp('replyDate','우리가 답한 납기일',v('replyDate'),'date')
-      +`<div class="bd-2">${inp('arriveDate','확정 입고일 <small class="bd-muted">(넣으면 달력에 빨갛게)</small>',v('arriveDate'),'date')}${inp('arriveTime','확정 입고 시간',v('arriveTime'),'text','예: 17시 전')}</div>`
+      +`<div class="bd-3">${inp('replyDate','우리가 답한 납기일',v('replyDate'),'date')}${inp('arriveDate','확정 입고일 <small class="bd-muted">(달력에 빨갛게)</small>',v('arriveDate'),'date')}${inp('arriveTime','확정 입고 시간',v('arriveTime'),'text','예: 17시 전')}</div>`
       +area('body','메모 (부분 입고 등)',v('body'),'예: 상부만 입고')
-      +`<label class="bd-l">상태<select class="bd-in" id="bdf-stage"><option value="todo"${stg==='todo'?' selected':''}>해야 할 일</option><option value="doing"${stg==='doing'?' selected':''}>하는 중</option></select></label>`
-      +`<div class="bd-l">사진 (카톡 스샷 원본) <small class="bd-muted">— 고르거나 이 창에서 Ctrl+V. 사진은 넣은 기기에만 저장됩니다</small>
-          <input type="file" accept="image/*" multiple class="bd-in" onchange="bdPicAdd(this.files);this.value=''">
-          <div class="bd-pics" id="bdf-pics"></div></div>`;
+      +`<div class="bd-3"><label class="bd-l">상태<select class="bd-in" id="bdf-stage"><option value="todo"${stg==='todo'?' selected':''}>해야 할 일</option><option value="doing"${stg==='doing'?' selected':''}>하는 중</option></select></label>${inp('owner','담당자',v('owner'))}</div>`;
   }
   if(k!=='event'&&k!=='as') f+=`<div class="bd-2">${inp('orderNo','오더번호',v('orderNo'),'text','예: 5400162852')}${inp('site','현장명',v('site'))}</div>`;
-  if(k!=='event')    f+=inp('owner','담당자',v('owner'));
+  if(k!=='event'&&k!=='as') f+=inp('owner','담당자',v('owner'));
   if(bdEditId)       f+=inp('dateNote','날짜를 바꾼다면 — 까닭 (기록에 남습니다)','', 'text','예: 현장 요청으로 하루 당김');
   f+=`<label class="bd-l bd-row"><input type="checkbox" id="bdf-me"${c.visibility==='me'?' checked':''}> 나만 보기 <small class="bd-muted">(켜면 작성자 본인에게만 보입니다)</small></label>`;
   document.getElementById('bd-form').innerHTML=kindSel+f;
   document.getElementById('bd-modal-ttl').textContent=bdEditId?'카드 고치기':'새로 넣기';
   document.getElementById('bd-del').style.display=bdEditId?'':'none';
+  { const sh=document.querySelector('#bd-modal .modal-sheet'); if(sh) sh.classList.toggle('bd-sheetwide', k==='as'); }
   document.getElementById('bd-modal').classList.add('on');
   if(k==='as'){ if(!bdPicState || bdPicState.card!==(bdEditId||'')) bdPicState={ card:bdEditId||'', keep:(c.photos||[]).slice(), add:[] }; bdPicRender(); }
   setTimeout(()=>{ const t=document.getElementById('bdf-title'); if(t&&!bdEditId) t.focus(); },50);
