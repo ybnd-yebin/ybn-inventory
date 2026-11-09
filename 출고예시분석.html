@@ -560,13 +560,14 @@
   <section class="panel" id="panel-snap">
     <div class="drop" id="drop">
       <strong>출고예시 엑셀 파일을 끌어다 놓기</strong>
-      <span>또는 클릭해서 선택 · 여러 파일 한꺼번에 가능 (파일명 시각 = 조회일)</span>
+      <span>또는 클릭해서 선택 · 여러 파일 한꺼번에 가능 · 파일 이름은 그대로 두셔도 됩니다(날짜·와이비/오이도는 파일 안에서 읽음)</span>
+      <span>드림(바스) 예시는 여기 말고 앱 🛁 바스재고에 넣어 주세요</span>
       <input type="file" id="file" accept=".xlsx,.xls" multiple style="display:none">
     </div>
     <div class="row">
-      <label class="tag">조회일 직접 지정(파일명에 시각 없을 때)</label>
+      <label class="tag">조회일 직접 지정(파일 첫 날짜와 다를 때만)</label>
       <input type="text" id="manualDate" placeholder="2026-06-25" style="width:140px">
-      <span class="tag">— 보통은 비워두면 파일명에서 자동으로 읽어요</span>
+      <span class="tag">— 보통은 비워두면 파일 첫 날짜 칸에서 자동으로 읽어요</span>
     </div>
     <div class="note" style="margin-top:18px">
       <strong>저장 방식</strong> · 모든 스냅샷은 이 컴퓨터(브라우저)에 쌓여요. 매일 한 번씩 넣으면
@@ -979,7 +980,8 @@ function asofFromFilename(fn){
 //   ⚠ 벤더 칸(엑셀 col9)으로 출처를 가리면 안 된다. 2026-09-04 예시에서
 //     세 파일(와이비·오이도·드림)이 모두 벤더를 「주식회사 와이비앤디」로 적어 보냈다.
 //     그래서 벤더 기준 판정은 조용히 전부 'YBND'가 되고, 드림 중복 제거와
-//     바스 판정이 통째로 죽는다. 출처는 반드시 파일명(filenameSrc)으로 정한다.
+//     바스 판정이 통째로 죽는다. 출처는 벤더 칸 하나로 정하지 않는다.
+//   → 2026-11-09부터 ingest() 가 srcFromSheet(바스 코드·벤더 드림·글래스도어 몇 줄) → 파일명 차례로 정한다.
 function parseSheet(aoa, asofISO, isOido, src){
   const dateRow = aoa[1]||[];
   const dateCols = [];
@@ -1030,6 +1032,43 @@ function parseSheet(aoa, asofISO, isOido, src){
   return rows;
 }
 
+/* ── 파일 내용으로 날짜·출처 읽기 (사장님 2026-11-09 「파일 이름 안 바꿔도 되게」) ──
+   날짜 = 둘째 줄 첫 날짜 칸('11.03' 글자). 일이 두 자리일 때만 믿습니다 — '7.1'(7/10 잘림)은 안 믿고 null.
+   연도는 오늘과 가장 가까운 해(12월 → 1월 넘김). */
+function asofFromSheet(aoa){
+  const lab = String(((aoa[1]||[])[COL.dateStart])??'').trim();
+  const m = lab.match(/^(\d{1,2})\.(\d{2})$/);
+  if(!m) return null;
+  const mm=+m[1], dd=+m[2];
+  if(mm<1||mm>12||dd<1||dd>31) return null;
+  const today = isoToday(), y0 = +today.slice(0,4);
+  let best=null, bestGap=1e9;
+  for(const y of [y0-1,y0,y0+1]){
+    const iso=`${y}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+    const d=new Date(iso); if(isNaN(d) || d.toISOString().slice(0,10)!==iso) continue;  // 2/31 거르기(날짜만 → UTC 그대로)
+    const g=Math.abs(daysBetween(today, iso)); if(g<bestGap){ bestGap=g; best=iso; }
+  }
+  return best;
+}
+/* 출처 = 내용으로. 'DREAM' | 'OIDO' | 'YBND' | null(내용으로 못 가림)
+   · 드림: 벤더 칸에 드림하이텍이 있거나 바스 코드(BB…)가 있음
+     (2026-09-04 처럼 드림 파일이 벤더를 와이비로 적어 보내도 바스 코드로 잡힘)
+   · 오이도: 줄이 몇 개(≤6) 뿐이고 모두 글래스 도어
+   · 그 밖에 줄이 있으면 와이비 */
+function srcFromSheet(aoa){
+  let n=0, glass=0, dream=false;
+  for(let r=DATA_ROW_START;r<aoa.length;r++){
+    const ar=aoa[r]||[];
+    const code=String(ar[COL.code]??'').trim(), name=String(ar[COL.name]??'').trim();
+    if(!name || name==='명' || code==='코드') continue;
+    n++;
+    if(/글래스\s*도어/.test(name)) glass++;
+    if(vendorOf(String(ar[COL.vendor]??''))==='DREAM' || /^BB/i.test(code)) dream=true;
+  }
+  if(dream) return 'DREAM';
+  if(n>0 && n<=6 && glass===n) return 'OIDO';
+  return n>0 ? 'YBND' : null;
+}
 function filenameIsOido(fn){ return /오이도/.test(fn||''); }
 // 파일 출처 — 오이도 / 드림(바스) / 와이비(그레이박스·한샘). 같은 날 세 파일을 구분하는 키.
 function filenameSrc(fn){
@@ -1043,6 +1082,7 @@ function filenameSrc(fn){
 function ingest(files){
   const manual = document.getElementById('manualDate').value.trim();
   let added=0, updated=0;
+  const skipped=[], notes=[];
   let pending = files.length;
   if(pending===0) return;
   Array.from(files).forEach(file=>{
@@ -1052,11 +1092,21 @@ function ingest(files){
         const wb = XLSX.read(new Uint8Array(e.target.result),{type:'array'});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const aoa = XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+        // 출처: 내용이 먼저, 내용으로 못 가리면 파일 이름. 드림은 파일 이름에만 있어도 드림.
+        const fnSrc = filenameSrc(file.name), cSrc = srcFromSheet(aoa);
+        const src = (cSrc==='DREAM' || fnSrc==='DREAM') ? 'DREAM' : (cSrc || fnSrc);
+        if(src==='DREAM') skipped.push(file.name);   // 바스는 앱 🛁 바스재고로 (2026-11-09) — 담지 않음
+        else {
+        if(cSrc && fnSrc!=='YBND' && cSrc!==fnSrc)
+          notes.push(`${file.name}: 파일 이름은 ${SRC_LABEL[fnSrc]}인데 내용은 ${SRC_LABEL[cSrc]} → 내용대로 넣음`);
+        // 날짜: 손으로 넣은 날 → 파일 첫 날짜 칸 → 파일 이름 → 오늘
         const fnInfo = asofFromFilename(file.name);
-        const asofISO = manual || (fnInfo?fnInfo.iso:isoToday());
-        const loadedAt = fnInfo?`${asofISO} ${fnInfo.ts}`:`${asofISO} 00:00:00`;
-        const isOido = filenameIsOido(file.name);
-        const src = filenameSrc(file.name);
+        const sheetISO = asofFromSheet(aoa);
+        const asofISO = manual || sheetISO || (fnInfo?fnInfo.iso:isoToday());
+        if(!manual && sheetISO && fnInfo && fnInfo.iso!==sheetISO)
+          notes.push(`${file.name}: 파일 이름 날짜 ${fnInfo.iso} 대신 첫 날짜 칸 ${sheetISO}`);
+        const loadedAt = (fnInfo && fnInfo.iso===asofISO)?`${asofISO} ${fnInfo.ts}`:`${asofISO} 00:00:00`;
+        const isOido = src==='OIDO';
         const rows = parseSheet(aoa, asofISO, isOido, src);
         // 같은 조회일이라도 출처(오이도/드림/와이비)가 다르면 다른 스냅샷이다.
         //  예전엔 asof+loadedAt만 봐서, 파일명에 시각이 없으면 세 파일이 같은 키가 되어
@@ -1065,12 +1115,19 @@ function ingest(files){
         const snap = {asof:asofISO, loadedAt, fname:file.name, oido:isOido, src, rows};
         if(existIdx>=0){ SNAPS[existIdx]=snap; updated++; }
         else { SNAPS.push(snap); added++; }
+        }
       }catch(err){ console.error(err); toast('읽기 실패: '+file.name); }
       if(--pending===0){
-        SNAPS.sort((a,b)=>a.loadedAt<b.loadedAt?-1:1);
-        save(SNAPS);
-        renderAll();
-        toast(`스냅샷 ${added}개 추가${updated?`, ${updated}개 갱신`:''}`);
+        if(added||updated){
+          SNAPS.sort((a,b)=>a.loadedAt<b.loadedAt?-1:1);
+          save(SNAPS);
+          renderAll();
+        }
+        notes.forEach(t=>console.warn('[예시 넣기] '+t));
+        let msg = `스냅샷 ${added}개 추가${updated?`, ${updated}개 갱신`:''}`;
+        if(skipped.length) msg += ` · 드림(바스) ${skipped.length}개는 넣지 않았습니다 — 앱 🛁 바스재고에 넣어 주세요`;
+        if(notes.length) msg += ` · ${notes.join(' / ')}`;
+        toast(msg, (skipped.length||notes.length)?7000:2200);
       }
     };
     reader.readAsArrayBuffer(file);
@@ -1893,7 +1950,7 @@ function renderDataStats(){
 // ── helpers ──────────────────────────
 function emptyMsg(t,s){ return `<div class="empty"><strong>${esc(t)}</strong>${esc(s)}</div>`; }
 function esc(s){ return (s||'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200); }
+function toast(m,ms){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),ms||2200); }
 function renderAll(){
   document.getElementById('metaInfo').textContent=`스냅샷 ${SNAPS.length}개`;
   renderHit();   // sets MEASURED_CONV first
