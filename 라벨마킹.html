@@ -1403,12 +1403,16 @@ function applyAsCellNotes(pend){
 const SUBDOOR_GLASS = [
   {re:/에어힌지|AL프레임/,           name:"에어힌지",    dw:-46,  dh:-44},
   {re:/빗각|빗면/,                   name:"빗면 프레임", dw:-100, dh:-14},
-  {re:/글래스도어/,                  name:"글래스도어",  dw:-9,   dh:-5 },
+  // 「글래스 채널도어」·「글래스 행잉 채널도어 (18T용)」처럼 띄어 쓰고 사이에 말이 낍니다 (2026-11-10)
+  {re:/글래스\s*(?:행잉\s*)?(?:채널\s*)?도어/, name:"글래스도어", dw:-9, dh:-5 },
   {re:/유리장식|장식장|키큰장|벽장/,  name:"유리장식장",  dw:-29,  dh:-28}
 ];
 function glassTextOf(str){
   if(/Euro\d{3}/.test(str)) return null;                 // 유로 계열은 위 까닭으로 제외
-  const m = str.match(/비규격\((\d+)\*\d+\*(\d+)\*\d+/);
+  /* 시그니처는 「비규격」 글자 없이 `(비) 글래스 채널도어 450_연장(450*22*2358*0 X)` 로만 옵니다 (사장님 2026-11-10,
+     CLAUDE.md 4-1·12-6 과 같은 함정). `(비)` 가 앞에 있으면 괄호 안 네 토막(가로·두께·세로·두께)의 1·3번째를 읽습니다. */
+  const m = str.match(/비규격\((\d+)\*\d+\*(\d+)\*\d+/)
+         || (/\(\s*비\s*\)/.test(str) ?str.match(/\((\d+)\*\d+\*(\d+)\*\d+/) : null);
   if(!m) return null;                                    // 정규격은 적지 않습니다
   const g = SUBDOOR_GLASS.find(x => x.re.test(str));
   if(!g) return "유리?";                                 // 계통을 못 가리면 드러냅니다
