@@ -451,7 +451,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <!-- 비규격 작업지시서 — 이 앱 안의 탭이 아니라 같은 주소의 다른 페이지다(새 창).
          상대경로라 홈페이지에서도, 바탕화면에서도 그대로 열린다.
          같은 출처(ybnd-yebin.github.io)이므로 두 페이지가 브라우저 저장함을 나눠 쓴다. -->
-    <a class="main-nav-btn ext" href="비규격작업지시서.html" target="_blank" rel="noopener"
+    <a class="main-nav-btn ext" href="비규격작업지시서.html" target="_blank" rel="opener"
        title="새 창에서 열립니다 — 납품서를 올리면 비규격 도어의 프레임·유리 치수와 작업지시서가 나옵니다">🔲 비규격 작업지시서<span class="ext-mark">↗</span></a>
     <!-- 라벨마킹 — 비규격 작업지시서와 같은 방식(새 창, 상대경로) (2026-10-02).
          앱 탭으로 합치지 않은 까닭: 라벨은 A4 가로·여백 0, 앱은 A4 세로·여백 10mm 라
@@ -15061,7 +15061,29 @@ function odHandoffClear(){
   odHandoffBanner();
 }
 // 다른 창(비규격)에서 담으면 새로고침 없이 바로 뜹니다
-window.addEventListener('storage', e=>{ if(e.key===LS_OD_HANDOFF) odHandoffBanner(); });
+window.addEventListener('storage', e=>{ if(e.key===LS_OD_HANDOFF){ odHandoffBanner(); odHandoffAutoGo(); } });
+/* 비규격 → 발주 동선 줄이기 (사장님 2026-11-10 「탭넘기기 누르고 다시 발주탭을 눌러야」).
+   ① 비규격에서 보내면 이 창이 **알아서 발주탭으로** — 사장님이 이 창을 보고 계실 때·발주를 고치는 중이면 안 넘어갑니다.
+   ② 비규격의 「앱 발주탭 열기」가 이 창을 이름(`ybn-app`)으로 찾아 `#order` 를 붙입니다 — 주소 끝만 바뀌어 새로 안 읽힙니다. */
+try{ if(!window.name || window.name.indexOf('ybn')<0) window.name='ybn-app'; }catch(e){}
+function odGoOrderTab(){
+  if(typeof curMain!=='undefined' && curMain==='order') return;
+  const b=[...document.querySelectorAll('.main-nav-btn')].find(x=>(x.getAttribute('onclick')||'').indexOf("showMain('order')")>=0);
+  if(b) b.click(); else showMain('order');
+}
+function odHandoffAutoGo(){
+  if(!odHandoffRead()) return;
+  if(odEditing) return;                                                       // 발주 고치는 중
+  if(document.visibilityState==='visible' && document.hasFocus()) return;     // 이 창을 보고 계심
+  odGoOrderTab();
+}
+function odHashGo(){
+  if(location.hash!=='#order') return;
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}   // 다음에도 hashchange 가 나게 지움
+  odGoOrderTab();
+}
+window.addEventListener('hashchange', odHashGo);
+window.addEventListener('load', ()=>setTimeout(odHashGo, 300));
 
 function renderOrderPage(){
   odHandoffBanner();
@@ -33854,7 +33876,7 @@ var GNAV=(function(){
   }
   function go(c,i){
     var it=GNAV_MENU[c]&&GNAV_MENU[c].items[i]; if(!it) return;
-    if(it.href){ window.open(it.href,'_blank','noopener'); return; }
+    if(it.href){ window.open(it.href,'_blank'); return;   /* noopener 빼둠 — 비규격의 「앱 발주탭 열기」가 이 창을 찾도록 (같은 주소의 우리 페이지) */ }
     cur={c:c,i:i};
     /* ⚠ 이미 그 화면이면 옛 단추를 **다시 누르지 않습니다**(운영 반영 전 점검 2026-10-23).
        발주 화면은 다시 그릴 때(renderOrderPage → odCatChanged) 고른 발주처·종류·공통 비고가 기본값으로 돌아갑니다 — 옛 앱에서 탭을 다시 눌러도 같은 일.

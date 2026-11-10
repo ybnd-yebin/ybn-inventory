@@ -6336,7 +6336,18 @@ function subdoorHandoffSend(){
   catch(e){ say('저장 공간이 부족해 보내지 못했습니다.', true); return; }
   say('✓ 앱 발주탭으로 보냈습니다 — ' + order.map(g => `${esc(g.color)} ${g.qty}장 → ${esc(g.route.vendor)}`).join(' · ')
       + (skipped ? ` <span style="color:#6b7280">(시그니처 등 ${skipped}장은 발주처가 안 정해져 안 보냈습니다)</span>` : '')
-      + '. 앱 창에서 <b>📋 발주</b> 탭을 여시면 띠가 떠 있습니다.');
+      + '.' + ' <button type="button" onclick="odOpenAppOrder()" style="margin-left:6px;padding:4px 10px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">앱 발주탭 열기 →</button>');
+}
+
+/* 「앱 발주탭 열기」 — 열려 있는 앱 창(이름 ybn-app, 앱이 스스로 붙임)을 찾아 주소 끝에 #order 만 붙입니다.
+   주소가 같고 끝(#)만 바뀌므로 앱이 새로 안 읽히고 발주탭으로 넘어갑니다(앱 odHashGo). 앱 창이 없으면 새로 엽니다. (2026-11-10) */
+function odOpenAppOrder(){
+  let base = '';
+  try{ if(window.opener && !window.opener.closed && window.opener.location.href.indexOf('비규격')<0 && typeof window.opener.odGoOrderTab==='function')
+         base = window.opener.location.href.split('#')[0]; }catch(e){}
+  if(!base) base = new URL('index.html', location.href).href;
+  const w = window.open(base + '#order', 'ybn-app');
+  try{ if(w) w.focus(); }catch(e){}
 }
 
 function odHandoffSend(){
@@ -6366,7 +6377,7 @@ function odHandoffSend(){
   try{ localStorage.setItem(LS_OD_HANDOFF, JSON.stringify(pack)); }
   catch(e){ say('저장 공간이 부족해 보내지 못했습니다.', true); return; }
   const sum=groups.map(g=>`${g.color} ${g.qty}장`).join(' · ');
-  say(`✓ 앱 발주탭으로 보냈습니다 — ${sum}. 앱 창에서 <b>📋 발주</b> 탭을 여시면 띠가 떠 있습니다.`);
+  say(`✓ 앱 발주탭으로 보냈습니다 — ${sum}.` + ' <button type="button" onclick="odOpenAppOrder()" style="margin-left:6px;padding:4px 10px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">앱 발주탭 열기 →</button>');
 }
 
 /* ════════════════════════════════════════════════
