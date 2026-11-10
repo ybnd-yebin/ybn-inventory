@@ -1062,6 +1062,7 @@ function libDoorXValue(r, c){
   if(r.code==='WTA' && c.fh!=='' && c.fh>705) return (c.fh-705)/2;   // WTA 110 / X / 485 / X / 110 — 보링도 DXF(2026-11-05) · 1345→320 · 1473→384
   if(r.code==='WT' && c.fh===1473) return 384;   // WT 도면은 320 이 글자로 박혀 있음 → 1473 만 384 로 바꿔 씀(12-2). 1253~1472 는 원본 320 그대로 · 1473 초과는 확인대기 B3
   if(r.code==='WHBT' && c.whbt) return c.whbt.conv;   // 상부변환값 (X/…/110) · 구간 밖이면 c.whbt가 null → 원본 유지
+  if(r.code==='W2HBT' && c.w2hbt && c.w2hbt.conv>0) return c.w2hbt.conv;   // 위 변환값 (위→아래 X / 512 / 110) — 덩어리 가르기용(M 도면과 안 섞이게 · 2026-11-10)
   return null;   // 그 외는 아직 미확정 → 치환하지 않음(원본 유지)
 }
 /* ── 힌지 치수칸 다시 그리기 (임시 · 2026-09-03) ─────────────────────────────
@@ -1070,10 +1071,11 @@ function libDoorXValue(r, c){
        오른쪽 힌지 표시·치수칸만 계산된 체인대로 다시 그린다.
    ※ 여기서 그린 칸은 **캐드 원본이 아니라 앱이 그린 것**이다.
    되돌리기: 3힌지용 캐드 도면을 받아 라이브러리에 넣고, 이 Set에서 코드를 빼면 끝. */
-const CAD_HINGE_REDRAW = new Set(['WHBT']);
+const CAD_HINGE_REDRAW = new Set(['WHBT','W2HBT']);   // W2HBT: M 도면 몸통 + 힌지 칸만 위 변환 / 512 / 110 (사장님 2026-11-10 「도면도 바뀌어야함」)
 // 코드별 힌지 체인 — 위→아래 구간값 + 그중 앱이 계산한 변환값의 자리(varIdx)
 function hingeChainOf(r, c){
   if(r.code==='WHBT' && c && c.whbt) return {segs:c.whbt.segs, varIdx:0};
+  if(r.code==='W2HBT' && c && c.w2hbt && c.w2hbt.conv>0) return {segs:[c.w2hbt.conv,512,110], varIdx:0};   // 위→아래
   return null;   // 체인을 모르면 다시 그리지 않는다(원본 유지)
 }
 // 요소 하나의 대략 범위 — M/L 좌표·원·글자만 본다(호(A)는 짧은 모깎기라 무시해도 무방)
