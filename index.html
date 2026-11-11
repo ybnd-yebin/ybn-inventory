@@ -15867,6 +15867,12 @@ function odUseMini(ln){
     u.src==='hist' ? '과거 분석값' : `최근 6개월 ${u.total}장${u.solid?'':' · 표본 적음'}${u.src==='bom'?' · BOM 기준':''}`,
     (b.WC||0)>0 ? `웜코튼 월 ${r(a.WC)}장` : '', (b.ETP||0)>0 ? `에토프 월 ${r(a.ETP)}장` : '',
     (b.etc||0)>0 ? `그 밖 월 ${r(a.etc)}장 (베일 등 유리 아님)` : ''].filter(Boolean).join(' · ');
+  /* 웜/에 로 나눠 보입니다 (사장님 2026-11-12 「웜코튼이야 에토프야?」) — 예전 숫자는 둘을 더한 것이었습니다.
+     색을 못 가린 값(과거 분석값 등)만 예전처럼 「월 N」. */
+  const cs=[];
+  if((b.WC||0)>0)  cs.push(`<span style="color:var(--wc)">웜 <b>${r(a.WC)}</b></span>`);
+  if((b.ETP||0)>0) cs.push(`<span style="color:var(--etp)">에 <b>${r(a.ETP)}</b></span>`);
+  if(cs.length) return span(`<span style="display:inline-flex;flex-direction:column;line-height:1.25">${cs.join('')}</span>`, tip);
   return span(`월 <b style="color:var(--acc)">${u.avg}</b>`, tip);
 }
 
