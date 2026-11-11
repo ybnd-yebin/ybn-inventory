@@ -465,6 +465,10 @@ const MOKDAE1_RE= "/\\b(?:BLD1R|BLD1UA|BRWTI)\\b/";
 const MOKDAE2_RE= "/\\bBLD2R\\b/";
 const HINGE115  = "/\\b(?:BC1A|BC1B)\\b/";
 const HINGE155  = "/\\bTCPID\\b/";
+// 사전펀치 모델 (사장님 2026-11-11) — 품목표(ybn-data.js MODELS·MODEL_BOM)의 비고에 「사전펀치」가 적힌 코드 전부.
+// 코드마다 모든 사이즈에 적혀 있어 코드로 잡습니다. BADMIL 만 HD 뿐 — OB BADMIL 은 「후면 사전보링」이라 뺍니다.
+// WHMH 는 「사전펀치 다름」 · WF 10037·BNDB2N·BNDC2N(HD)·BADMIL 은 「후면사전펀치」로 적혀 있습니다(라벨에는 짧게 「사전펀치」).
+const PUNCH_RE  = "/\\b(?:BNDB2N|BNDC2N|TND2|WF|WFED|WFMD|WFUP|WHFM|WHM|WHMH|WHBT|WLDL|WRMB|WRMBS|WTA)\\b|\\bHD\\s+BADMIL\\b/";
 const AS_RE   = "/(?<!\\d)54\\d{8}(?!\\d)/";   // A/S 참조문서번호는 54로 시작합니다
 const LR_RE   = "/(?<=[\\s*])[LR](?=\\)|\\s*$)/";   // 품명 끝의 L / R
 
@@ -480,6 +484,8 @@ const DEFAULT_RULES = [
   {id:"r4b",on:true,  name:"목대 2개 (BLD2R)",          contains:"", target:MOKDAE2_RE, except:"", color:"#fff02e", style:"none", note:"목대2"},
   {id:"r4c",on:true,  name:"115도 힌지 (BC1A/BC1B)",    contains:"", target:HINGE115,   except:"", color:"#fff02e", style:"none", note:"115°"},
   {id:"r4d",on:true,  name:"155도 힌지 (TCPID)",        contains:"", target:HINGE155,   except:"", color:"#fff02e", style:"none", note:"155°"},
+  // 품목표는 유로700(OB·HD) 것만 있어 Euro700 줄만 봅니다 — 유로500(CH)은 사전펀치인지 아직 모릅니다(→ 확인대기.md)
+  {id:"r4e",on:true,  name:"사전펀치 모델 (Euro700)",   contains:"Euro700", target:PUNCH_RE,   except:"", color:"#fff02e", style:"none", note:"사전펀치"},
   // HD 는 빨간 동그라미로 한 번 더 강조합니다 (사장님 2026-10-02 "HD 겉으로 동그라미").
   // 09-22 에는 「붙는 쪽은 형광펜만」 이라 꺼 두었는데, 이번에 되살리셨습니다.
   // 이미 저장된 규칙에는 loadRules() 의 RULE_MIGRATE 가 한 번만 켜 줍니다.
@@ -506,6 +512,10 @@ const RULE_MIGRATE = [
   ["r4a", "mokdae1-brwti-1019",   {name:"목대 1개 (BLD1R/BLD1UA/BRWTI)", target:MOKDAE1_RE}],
   ["r1",  "no73-gongyong-1022",   {name:"모델명 (공용 73 제외)", except:NO73}],   // (공용) 만 빼기 (2026-10-22)
   ["r1",  "al45-model-1023",      {target:MODEL_RE}],                             // AL45 연장P 모델명도 칠하기 (2026-10-23)
+];
+// 새 기본 규칙을 저장된 규칙에 끼워 넣을 칸 — [규칙 id, 표식]. loadRules() 가 한 번만 넣습니다.
+const RULE_ADD = [
+  ["r4e", "punch-1111"],   // 사전펀치 모델 (2026-11-11)
 ];
 
 const state = {
@@ -545,6 +555,24 @@ function loadRules(){
         const r = rs.find(x=>x.id===id);
         if(r && !(r.mig||[]).includes(tag)){ Object.assign(r, patch); r.mig = [...(r.mig||[]), tag]; }
       }
+      /* 새로 생긴 기본 규칙은 저장된 규칙에도 **한 번만** 끼워 넣습니다 (2026-11-11 사전펀치).
+         한 번 넣은 표식을 따로 남겨, 사장님이 그 규칙을 지우시면 다시 안 살아납니다. */
+      let added = [];
+      try{ added = JSON.parse(localStorage.getItem("label-mark-rules-added-v1")||"[]"); }catch(e){}
+      for(const [id, tag] of RULE_ADD){
+        if(added.includes(tag)) continue;
+        if(!rs.some(x=>x.id===id)){
+          const d = DEFAULT_RULES.find(x=>x.id===id);
+          if(d){
+            const di = DEFAULT_RULES.indexOf(d);
+            const prev = DEFAULT_RULES.slice(0, di).map(x=>x.id);
+            let at = -1; rs.forEach((x,i)=>{ if(prev.includes(x.id)) at = i; });
+            rs.splice(at+1, 0, JSON.parse(JSON.stringify(d)));
+          }
+        }
+        added.push(tag);
+      }
+      try{ localStorage.setItem("label-mark-rules-added-v1", JSON.stringify(added)); localStorage.setItem("label-mark-rules-v10", JSON.stringify(rs)); }catch(e){}
       return rs;
     }
   }catch(e){}
