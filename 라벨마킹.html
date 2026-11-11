@@ -485,7 +485,7 @@ const DEFAULT_RULES = [
   {id:"r4c",on:true,  name:"115도 힌지 (BC1A/BC1B)",    contains:"", target:HINGE115,   except:"", color:"#fff02e", style:"none", note:"115°"},
   {id:"r4d",on:true,  name:"155도 힌지 (TCPID)",        contains:"", target:HINGE155,   except:"", color:"#fff02e", style:"none", note:"155°"},
   // 품목표는 유로700(OB·HD) 것만 있어 Euro700 줄만 봅니다 — 유로500(CH)은 사전펀치인지 아직 모릅니다(→ 확인대기.md)
-  {id:"r4e",on:true,  name:"사전펀치 모델 (Euro700)",   contains:"Euro700", target:PUNCH_RE,   except:"", color:"#fff02e", style:"none", note:"사전펀치"},
+  {id:"r4e",on:true,  name:"사전펀치 모델 (Euro700·500)", contains:"Euro", target:PUNCH_RE,   except:"", color:"#fff02e", style:"none", note:"사전펀치"},
   // HD 는 빨간 동그라미로 한 번 더 강조합니다 (사장님 2026-10-02 "HD 겉으로 동그라미").
   // 09-22 에는 「붙는 쪽은 형광펜만」 이라 꺼 두었는데, 이번에 되살리셨습니다.
   // 이미 저장된 규칙에는 loadRules() 의 RULE_MIGRATE 가 한 번만 켜 줍니다.
@@ -512,6 +512,7 @@ const RULE_MIGRATE = [
   ["r4a", "mokdae1-brwti-1019",   {name:"목대 1개 (BLD1R/BLD1UA/BRWTI)", target:MOKDAE1_RE}],
   ["r1",  "no73-gongyong-1022",   {name:"모델명 (공용 73 제외)", except:NO73}],   // (공용) 만 빼기 (2026-10-22)
   ["r1",  "al45-model-1023",      {target:MODEL_RE}],                             // AL45 연장P 모델명도 칠하기 (2026-10-23)
+  ["r4e", "punch-e500-1111",      {name:"사전펀치 모델 (Euro700·500)", contains:"Euro"}],   // 유로500 도 사전펀치 (2026-11-11)
 ];
 // 새 기본 규칙을 저장된 규칙에 끼워 넣을 칸 — [규칙 id, 표식]. loadRules() 가 한 번만 넣습니다.
 const RULE_ADD = [
