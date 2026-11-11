@@ -1112,7 +1112,8 @@ function ingest(files){
         //  예전엔 asof+loadedAt만 봐서, 파일명에 시각이 없으면 세 파일이 같은 키가 되어
         //  서로 덮어써 하나만 남았다. 이제 출처(src)로도 구분한다.
         const existIdx = SNAPS.findIndex(s=>s.asof===asofISO && (s.src||filenameSrc(s.fname))===src);
-        const snap = {asof:asofISO, loadedAt, fname:file.name, oido:isOido, src, rows};
+        // addedAt = 실제로 파일을 넣은 때(화면 표시용). 차례·대조는 예전처럼 loadedAt 을 씁니다.
+        const snap = {asof:asofISO, loadedAt, addedAt:new Date().toISOString(), fname:file.name, oido:isOido, src, rows};
         if(existIdx>=0){ SNAPS[existIdx]=snap; updated++; }
         else { SNAPS.push(snap); added++; }
         }
@@ -1910,6 +1911,16 @@ function renderHit(){
 function convLine(b,label,conv){ return conv[b]!=null?`<strong>${label} ${(conv[b]*100).toFixed(0)}%</strong>`:`${label} —`; }
 
 // ── snapshot log ──────────────────────────
+// 표시: 조회일 + 넣은 시각. 넣은 날이 조회일과 다르면 「(넣은 때 M/D HH:MM)」.
+// 넣은 때가 없는 옛 스냅샷은 조회일만(예전 00:00:00 은 지어낸 시각이라 안 씀).
+function snapWhen(s){
+  const asof=s.asof||String(s.loadedAt||'').slice(0,10);
+  if(!s.addedAt) return asof;
+  const d=new Date(s.addedAt); if(isNaN(d)) return asof;
+  const p=n=>String(n).padStart(2,'0');
+  const day=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`, hm=`${p(d.getHours())}:${p(d.getMinutes())}`;
+  return day===asof ? `${asof} ${hm}` : `${asof} (넣은 때 ${d.getMonth()+1}/${d.getDate()} ${hm})`;
+}
 function renderSnapLog(){
   const el=document.getElementById('snapLog');
   if(SNAPS.length===0){ el.innerHTML=''; return; }
@@ -1919,7 +1930,7 @@ function renderSnapLog(){
     const oido=s.rows.filter(r=>r.oido).length;
     const srcLbl={OIDO:'오이도',DREAM:'드림',YBND:'와이비'}[s.src||filenameSrc(s.fname)]||'와이비';
     html+=`<details class="snap"><summary>
-      <span>${esc(s.loadedAt)} <span class="tag">· ${srcLbl} · ${s.rows.length}행 (오이도 ${oido})</span></span>
+      <span>${esc(snapWhen(s))} <span class="tag">· ${srcLbl} · ${s.rows.length}행 (오이도 ${oido})</span></span>
       <button class="delbtn" data-del="${i}">삭제</button>
     </summary>
     <div style="padding:0 0 12px;font-size:12px;color:var(--soft)">${esc(s.fname||'')}</div>
