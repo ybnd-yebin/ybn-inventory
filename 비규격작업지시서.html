@@ -2807,6 +2807,14 @@ function ybnDelivDates(log){
 /* 앱의 납품서 한 건 → 이 화면이 쓰는 행(ROWS) 으로.
    ★ 이 파일이 PDF 를 직접 읽을 때 만드는 행과 같은 모양이어야 합니다.
      한쪽만 다르면 계산이 어긋납니다. parseDelivText 아래쪽과 같은 차례로 짭니다. */
+/* 앱이 저장한 사이즈보다 **품명의 온전한 X형**(가로X두께X세로X두께)을 먼저 씁니다 (2026-11-13).
+   앱이 잘린 별표형 `(950*0*4` 를 먼저 읽어 `950×4` 로 저장한 AS 가 있었습니다 — 프레임 945×0.
+   X형은 칸 너비에 안 잘리므로(delivSizeLR 머리말) 있으면 그것이 맞습니다. */
+function ybnItemSize(it){
+  const nm = String((it && it.name) || '');
+  if(/[1-9]\d*X\d+X[1-9]\d*X\d+/i.test(nm)){ const s = delivSizeLR(nm).size; if(s) return s; }
+  return it ? it.size : '';
+}
 function ybnDocToRows(d){
   const rows = [], skipped = [], oldMissing = [], asMissing = [];
   const reqD = d.delivReqDate || '';
@@ -2856,7 +2864,7 @@ function ybnDocToRows(d){
 
     const code = codeFromShort(it.short) || codeFromShort(it.name);
     const type = /\bHD\b/.test(nameAll) ? 'HD' : (/\bCH\b/.test(nameAll) ? 'CH' : 'OB');
-    const { w, h } = parseSizeWH(it.size);
+    const { w, h } = parseSizeWH(ybnItemSize(it));
     // 구형 정규격은 사이즈표에서 치수를 얻으므로 규격이 비어도 알릴 일이 아닙니다
     if((!w || !h) && !oldStd){ skipped.push((it.short || it.name || it.code)); }
     const rule = (typeof RULES !== 'undefined' && RULES[code]) ? RULES[code] : {};
@@ -3543,6 +3551,10 @@ function ybnFixOldRows(){
       const nm = (r.name || '') + ' ' + (r.short || '');
       const q = nm.match(/(\d+)\s*[X*]\s*(\d+)\s*[X*]\s*(\d+)\s*[X*]\s*(\d+)/i);
       if(q && +q[2] !== 0 && +r.h === +q[2] && +r.w === +q[1]){ r.h = +q[3]; n++; }
+      /* 잘린 별표형(`(950*0*4`)으로 세로가 앞자리만 저장된 행 (2026-11-13 · AS WF 945×0).
+         품명의 온전한 X형 세로가 저장된 세로로 **시작할 때만** 고칩니다 — 손으로 고친 값은 그대로. */
+      const x = nm.match(/(\d+)X(\d+)X(\d+)X(\d+)/i);
+      if(x && +r.w === +x[1] && String(x[3]) !== String(r.h) && String(x[3]).startsWith(String(r.h))){ r.h = +x[3]; n++; }
     }
     if(!r || !r.fromApp) return;
     const nameAll = (r.name || '') + ' ' + (r.short || '');
@@ -3925,7 +3937,7 @@ async function handleFiles(files){
         bigN+=it.qty;
         const code=codeFromShort(it.short)|| codeFromShort(it.name);
         const type=/\bHD\b/.test((it.short||'')+(it.name||''))?'HD':(/\bCH\b/.test((it.short||'')+(it.name||''))?'CH':'OB');
-        const {w,h}=parseSizeWH(it.size);
+        const {w,h}=parseSizeWH(ybnItemSize(it));
         const rule=RULES[code]||{};
         const ser=seriesOf(nameAll);
         // 색상: 카탈로그값 우선(한글화), 없으면 제품명에서 추출
