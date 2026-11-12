@@ -1782,7 +1782,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
         <!-- 칸 모양 목록(odTypePickRender) — 「ㅣ」를 한 줄로 맞추려고 직접 그립니다. 값은 숨긴 <select> 에 -->
         <div id="od-type-wrap" style="position:relative">
           <select class="sel" id="od-type" onchange="odTypeChanged()" style="display:none"></select>
-          <button type="button" class="sel" id="od-type-btn" onclick="odTypePickToggle()"></button>
+          <div style="display:flex;gap:6px;align-items:stretch"><div id="od-spec-seg" style="display:none"></div><button type="button" class="sel" id="od-type-btn" onclick="odTypePickToggle()" style="flex:1;min-width:0"></button></div>
           <div id="od-type-list" style="display:none"></div>
         </div>
       </div>
@@ -15174,10 +15174,20 @@ function odTypePickRender(){
   if(!sel || !btn || !box) return;
   const vendor=document.getElementById('od-vendor').value, presets=curCatVendors()[vendor]||[];
   const list=odTypeView(vendor, presets), gw=odTypeGw(list), cur=String(sel.value);
+  /* 정규격/비규격 먼저 (사장님 2026-11-12 「옵션1 선택하고 두번째에서 종류」) — 목록에 둘 다 있을 때만 단추 둘.
+     고르면 목록이 그 규격만(규격 글자가 없는 종류 — 은경 등 — 는 늘 보임). 고른 값은 목록이 열려 있는 동안만, 닫히면 지금 종류의 규격으로 돌아감. */
+  const specOf=x=>odTypeSplit(x.name).c, curX=list.find(y=>String(y.i)===cur)||list[0];
+  const hasBoth=list.some(x=>specOf(x)==='정규격') && list.some(x=>specOf(x)==='비규격');
+  const seg=document.getElementById('od-spec-seg');
+  if(!hasBoth) odSpecFilter='';
+  const curSpec=curX?specOf(curX):'', act=odSpecFilter||curSpec;
+  if(seg){ seg.style.display=hasBoth?'flex':'none';
+    seg.innerHTML=hasBoth?['정규격','비규격'].map(k=>`<button type="button" class="od-seg${act===k?' on':''}" onclick="odSpecPick('${k}')">${k}</button>`).join(''):''; }
+  const shown=odSpecFilter?list.filter(x=>{ const c=specOf(x); return !c || c===odSpecFilter; }):list;
   const sp=list.map(x=>odTypeSplit(x.name)), bw=odTypeMeasure(sp.map(s=>s.b)), hasC=sp.some(s=>s.c);
   const cols=(gw ? `${gw}px 16px ` : `0 0 `) + (hasC ? `minmax(0,${bw}px) 16px minmax(0,1fr)` : `minmax(0,1fr) 0 0`);
   box.style.setProperty('--od-tp-cols', cols); btn.style.setProperty('--od-tp-cols', cols);
-  box.innerHTML=list.map(x=>`<div class="od-tp-row${String(x.i)===cur?' on':''}" onclick="odTypePick(${x.i})">${odTypeRowHtml(x,gw)}</div>`).join('')
+  box.innerHTML=shown.map(x=>`<div class="od-tp-row${String(x.i)===cur?' on':''}" onclick="odTypePick(${x.i})">${odTypeRowHtml(x,gw)}</div>`).join('')
     + `<div class="od-tp-edit" onclick="odTypePickClose();odTypeEditOpen()">✏️ 목록 고치기 (이름 · 앞 이름 · 차례)</div>`;
   const x=list.find(y=>String(y.i)===cur) || list[0];
   btn.innerHTML = x ? `<span class="od-tp-row" style="flex:1;min-width:0">${odTypeRowHtml(x,gw)}</span><span style="color:var(--tx3);font-size:11px">▾</span>` : '';
@@ -15196,8 +15206,17 @@ function odTypePickCss(){
   #od-type-list .od-tp-row:hover{background:var(--s2)}
   #od-type-list .od-tp-row.on{background:var(--acc);color:#fff}
   #od-type-list .od-tp-row.on .od-tp-bar{color:#fff}
+  #od-spec-seg{border:1px solid var(--b2);border-radius:8px;overflow:hidden;flex:0 0 auto}
+  .od-seg{border:none;background:var(--s1);color:var(--tx2);padding:0 12px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  .od-seg+.od-seg{border-left:1px solid var(--b2)}
+  .od-seg.on{background:var(--acc);color:#fff;font-weight:700}
   .od-tp-edit{padding:7px 10px;border-top:1px dashed var(--b2);font-size:11.5px;color:var(--acc);cursor:pointer;text-align:right}`;
   document.head.appendChild(s);
+}
+var odSpecFilter='';
+function odSpecPick(k){
+  odSpecFilter=k; odTypePickRender();
+  const box=document.getElementById('od-type-list'); if(box && box.style.display==='none'){ box.style.display='block'; setTimeout(()=>document.addEventListener('click', odTypePickOutside), 0); }
 }
 function odTypePickToggle(){
   const box=document.getElementById('od-type-list'); if(!box) return;
@@ -15206,7 +15225,8 @@ function odTypePickToggle(){
   else odTypePickClose();
 }
 function odTypePickOutside(e){ if(e.target.closest && e.target.closest('#od-type-wrap')) return; odTypePickClose(); }
-function odTypePickClose(){ const box=document.getElementById('od-type-list'); if(box) box.style.display='none'; document.removeEventListener('click', odTypePickOutside); }
+function odTypePickClose(){ const box=document.getElementById('od-type-list'); if(box) box.style.display='none'; document.removeEventListener('click', odTypePickOutside);
+  if(odSpecFilter){ odSpecFilter=''; odTypePickRender(); } }
 function odTypePick(i){ const sel=document.getElementById('od-type'); sel.value=String(i); odTypePickClose(); odTypeChanged(); }
 
 /* ✏️ 목록 고치기 창 — 줄마다 ↑↓ · 앞 이름 · 보이는 이름. 오른쪽 아래 작은 저장 단추(화면 취향 7번) */
