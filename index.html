@@ -14886,10 +14886,10 @@ const OD_CATALOG = {
       {type:'5T 투명', grp:'기타', ord:6, pick:'5T 투명 비규격', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
       /* 케비넥스 — 대원 5T 브론즈와 같은 꼴(제목 5T 브론즈 · 비고 휠/강화), 투명도 같은 꼴 (사장님 2026-11-12) */
       {type:'5T 브론즈 정규격 (케비넥스)', grp:'케비넥스', ord:4, pick:'5T 브론즈 정규격', thick:'5T 브론즈', title:'5T 브론즈', bigo:'휠/강화', pname:'', modelMode:true,
-         fname:'5T브론즈', models:OD_CABX_GLASS_MODELS,
+         fname:'5T브론즈', models:OD_CABX_GLASS_MODELS, kinds:['빗각','스탠다드'],
          hint:'케비넥스 정규격 · 모델명(W1536 등)을 치고 목록에서 빗각/스탠다드를 고르면 유리 사이즈 자동 (빗각 −64×−12 · 스탠다드 −24×−24) · 비고 휠/강화'},
       {type:'5T 투명 정규격 (케비넥스)', grp:'케비넥스', ord:5, pick:'5T 투명 정규격', thick:'5T 투명', title:'5T 투명', bigo:'휠/강화', pname:'', modelMode:true,
-         fname:'5T투명', models:OD_CABX_GLASS_MODELS,
+         fname:'5T투명', models:OD_CABX_GLASS_MODELS, kinds:['빗각','스탠다드'],
          hint:'케비넥스 정규격 · 모델명(W1536 등)을 치고 목록에서 빗각/스탠다드를 고르면 유리 사이즈 자동 (빗각 −64×−12 · 스탠다드 −24×−24) · 비고 휠/강화'}
     ]
   },
@@ -15388,7 +15388,7 @@ function odModelSizeTry(i, val){
   if(!s || odFindModel(s)) return;
   /* 종류에 딸린 목록이 있으면 그 안에서만 찾습니다 — 번호(4574)·장 사이즈(445)·유리 사이즈(350728) 아무거나.
      하나로 좁혀질 때만 채우고, 여럿이면 후보를 알려 드립니다(벽장 445·495 처럼 갈릴 때 혼동 없게). */
-  const pm = odPresetModels((curPreset()||{}).p);
+  const pm = odPresetModelsK((curPreset()||{}).p);
   if(pm.length){
     const q = s.replace(/[\s*xX×]/g, '');
     const hits = pm.filter(x => x.name.replace(/[\s×]/g, '').includes(q) || ('' + x.w + x.h) === q);
@@ -15472,8 +15472,18 @@ function odPresetModels(p){
     return { name:(name||'').trim(), w, h, bigo:(bigo||'').trim() };
   }).filter(x => x.name && x.w && x.h);
 }
+/* 모델 갈래 먼저 고르기 (사장님 2026-11-12 「케비넥스는 빗각인지 스탠다드인지 먼저 골라 놓고 모델명」) — 종류에 `kinds:[…]`.
+   고르면 모델 목록·번호 찾기(odFindModel)가 그 갈래만 봅니다 → 「W1536」만 쳐도 바로 채워짐. 안 고르면 예전처럼 전부.
+   고른 것은 이 창에서만(odModelKind). 정규격 사이즈 알림 등 다른 곳의 odPresetModels 는 그대로 전부를 봅니다. */
+var odModelKind='';
+function odPresetModelsK(p){
+  const all=odPresetModels(p);
+  if(!(p && p.kinds && p.kinds.length) || !odModelKind || p.kinds.indexOf(odModelKind)<0) return all;
+  return all.filter(x => (' '+x.name+' ').indexOf(' '+odModelKind+' ')>=0);
+}
+function odModelKindSet(k){ odModelKind = (odModelKind===k ? '' : k); renderOdLines(); }
 function odPresetModelOptions(p){
-  return odPresetModels(p).map(x =>
+  return odPresetModelsK(p).map(x =>
     `<option value="${_odEsc(x.name)}">${x.w}×${x.h} · ${x.w}${x.h}${x.bigo ? ' · '+_odEsc(x.bigo) : ''}</option>`).join('');
 }
 /* 박스 인쇄명 목록 — **지난 박스 발주에 적힌 이름만** (사장님 2026-10-13 "이미 발주한거에서 끌어오면돼").
@@ -15518,7 +15528,7 @@ function odBoxListFill(){
 // 합쳐진 이름('… (L+R)')도 원래 모델로 되짚습니다.
 function odFindModel(val){
   const s=String(val||'').trim();
-  const pm = odPresetModels((curPreset()||{}).p);
+  const pm = odPresetModelsK((curPreset()||{}).p);
   if(pm.length){                                   // 이 종류는 제 목록만 봅니다
     let hit = pm.find(x => x.name === s);
     // 앞 수식어(「유리장식장 60222」)를 빼고 번호만 쳐도 — 끝 말이 같은 것이 하나뿐일 때만
@@ -15753,7 +15763,12 @@ function renderOdLines(){
   // 프리셋 사이즈 빠른추가 버튼
   const psHost=document.getElementById('od-preset-sizes');
   if(psHost){
-    if(p && Array.isArray(p.sizes) && p.sizes.length){
+    if(p && Array.isArray(p.kinds) && p.kinds.length){
+      const on = p.kinds.indexOf(odModelKind)>=0;
+      psHost.innerHTML='<span style="font-size:11px;color:'+(on?'var(--tx3)':'var(--acc3,#c2410c)')+';margin-right:6px">'+(on?'갈래':'먼저 고르세요 →')+'</span>'+
+        p.kinds.map(k=>`<button onclick="odModelKindSet('${k}')" class="f-btn${odModelKind===k?' on':''}" style="margin:2px 4px 2px 0;padding:4px 14px;${odModelKind===k?'background:var(--acc);color:#fff;border-color:var(--acc)':''}">${k}</button>`).join('')
+        + (on ? `<span style="font-size:10.5px;color:var(--tx3);margin-left:6px">${odModelKind} 모델만 · 번호(W1536)만 쳐도 됩니다</span>` : '');
+    } else if(p && Array.isArray(p.sizes) && p.sizes.length){
       psHost.innerHTML='<span style="font-size:10px;color:var(--tx3);margin-right:4px">자주 쓰는 사이즈:</span>'+
         /* `'571*2089|60222'` 처럼 모델명을 붙일 수 있습니다 — 단추에 함께 적고, 누르면 그 줄 품명에 들어갑니다 (2026-10-08) */
         p.sizes.map(sz=>{ const [s, model] = String(sz).split('|');
@@ -15767,7 +15782,7 @@ function renderOdLines(){
   if(modelMode){
     const dl=document.getElementById('od-model-list');
     /* 종류에 제 모델 목록(`models`)이 있으면 그것만 — 유로700 목록과 섞이면 4574 같은 번호가 엉뚱한 모델로 갑니다 */
-    const key = (p && p.models) ? 'p:' + p.type : 'MODELS';
+    const key = (p && p.models) ? 'p:' + p.type + '|' + (p.kinds ? odModelKind : '') : 'MODELS';
     if(dl && dl.dataset.filled !== key){
       dl.innerHTML = (p && p.models) ? odPresetModelOptions(p) : odModelOptions();
       dl.dataset.filled = key;
