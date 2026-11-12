@@ -14785,12 +14785,12 @@ try{ if(odEnsureUids()) _put('ybn-order-v1', orderLog); }catch(e){ console.warn(
    도어 폭 12/15/18" = 302/378/454 · 높이 30/36/39" = 758/912/989.
    같은 모델명이 빗각·스탠다드에 둘 다 있어 번호만으로는 하나로 안 좁혀집니다 — 목록에서 「빗각」/「스탠다드」를 골라 씁니다. */
 const OD_CABX_GLASS_MODELS = [
-  '케비넥스 빗각 BWV-WBC1230|238*746', '케비넥스 빗각 W-WBC1236|238*900', '케비넥스 빗각 W1239|238*977',
-  '케비넥스 빗각 BWV1530|314*746',     '케비넥스 빗각 W1536|314*900',     '케비넥스 빗각 W1539|314*977',
-  '케비넥스 빗각 BWPVS-BBC1830|390*746','케비넥스 빗각 W1836|390*900',     '케비넥스 빗각 W1839|390*977',
-  '케비넥스 스탠다드 BWV-WBC1230|278*734', '케비넥스 스탠다드 W-WBC1236|278*888', '케비넥스 스탠다드 W1239|278*965',
-  '케비넥스 스탠다드 BWV1530|354*734',     '케비넥스 스탠다드 W1536|354*888',     '케비넥스 스탠다드 W1539|354*965',
-  '케비넥스 스탠다드 BWPVS-BBC1830|430*734','케비넥스 스탠다드 W1836|430*888',     '케비넥스 스탠다드 W1839|430*965'
+  '빗각 BWV-WBC1230|238*746', '빗각 W-WBC1236|238*900', '빗각 W1239|238*977',
+  '빗각 BWV1530|314*746',     '빗각 W1536|314*900',     '빗각 W1539|314*977',
+  '빗각 BWPVS-BBC1830|390*746','빗각 W1836|390*900',     '빗각 W1839|390*977',
+  '스탠다드 BWV-WBC1230|278*734', '스탠다드 W-WBC1236|278*888', '스탠다드 W1239|278*965',
+  '스탠다드 BWV1530|354*734',     '스탠다드 W1536|354*888',     '스탠다드 W1539|354*965',
+  '스탠다드 BWPVS-BBC1830|430*734','스탠다드 W1836|430*888',     '스탠다드 W1839|430*965'
 ];
 const OD_CATALOG = {
   '유리': {
@@ -14886,10 +14886,10 @@ const OD_CATALOG = {
       {type:'5T 투명', grp:'기타', ord:6, pick:'5T 투명 비규격', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
       /* 케비넥스 — 대원 5T 브론즈와 같은 꼴(제목 5T 브론즈 · 비고 휠/강화), 투명도 같은 꼴 (사장님 2026-11-12) */
       {type:'5T 브론즈 정규격 (케비넥스)', grp:'케비넥스', ord:4, pick:'5T 브론즈 정규격', thick:'5T 브론즈', title:'5T 브론즈', bigo:'휠/강화', pname:'', modelMode:true,
-         fname:'5T브론즈', models:OD_CABX_GLASS_MODELS, kinds:['빗각','스탠다드'],
+         fname:'5T브론즈', models:OD_CABX_GLASS_MODELS, kinds:['빗각','스탠다드'], client:'케비넥스',
          hint:'케비넥스 정규격 · 모델명(W1536 등)을 치고 목록에서 빗각/스탠다드를 고르면 유리 사이즈 자동 (빗각 −64×−12 · 스탠다드 −24×−24) · 비고 휠/강화'},
       {type:'5T 투명 정규격 (케비넥스)', grp:'케비넥스', ord:5, pick:'5T 투명 정규격', thick:'5T 투명', title:'5T 투명', bigo:'휠/강화', pname:'', modelMode:true,
-         fname:'5T투명', models:OD_CABX_GLASS_MODELS, kinds:['빗각','스탠다드'],
+         fname:'5T투명', models:OD_CABX_GLASS_MODELS, kinds:['빗각','스탠다드'], client:'케비넥스',
          hint:'케비넥스 정규격 · 모델명(W1536 등)을 치고 목록에서 빗각/스탠다드를 고르면 유리 사이즈 자동 (빗각 −64×−12 · 스탠다드 −24×−24) · 비고 휠/강화'}
     ]
   },
@@ -15346,6 +15346,12 @@ function odTypeChanged(){
     document.getElementById('od-type-hint').textContent =
       (p.hint||'') + (linked ? '\n🟠 저장하면 에토프재고의 발주 기록에도 같이 들어갑니다 — 거기서 따로 넣지 않으셔도 됩니다.' : '');
     document.getElementById('od-type-hint').style.whiteSpace = 'pre-line';
+    /* 업체명 — 종류에 `client` 가 있으면 그 이름(케비넥스, 사장님 2026-11-12 「한샘이 아니라 케비넥스」).
+       칸이 비었거나 「한샘」·앞서 저절로 넣은 값일 때만 바꾸고, 다른 종류로 옮기면 저절로 넣은 것만 「한샘」으로 되돌립니다. 손으로 적으신 이름은 안 건드림. */
+    const cl=document.getElementById('od-client');
+    if(cl){ const v=(cl.value||'').trim(), auto=cl.dataset.auto||'';
+      if(p.client){ if(!v || v==='한샘' || v===auto){ cl.value=p.client; cl.dataset.auto=p.client; } }
+      else if(auto && v===auto){ cl.value='한샘'; cl.dataset.auto=''; } }
     document.getElementById('od-line-hint').textContent=p.boxName?'인쇄명 — 지난 발주에서 골라 쓰기':p.modelMode?'모델명 입력 → 사이즈 자동':'규격은 가로*세로 (mm)';
   }
   renderOdLines();
