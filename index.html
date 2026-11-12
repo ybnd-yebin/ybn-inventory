@@ -14801,11 +14801,11 @@ const OD_CATALOG = {
       {type:'비규격 (5T브론즈)',           thick:'5T 브론즈', title:'5T 브론즈',      bigo:'휠/강화',       pname:'5T 브론즈', sizeMode:true,
          fname:'5T브론즈', grp:'기타 외주', ord:4, pick:'5T 브론즈 비규격',
          hint:'5T 브론즈 비규격 · 비고 휠/강화'},
-      {type:'3T 은경',                    thick:'3T 은경',   title:'3t 은경',        bigo:'각면/후면시트지', pname:'3t 은경', sizeMode:true,
+      {type:'3T 은경', grp:'기타', ord:5,                    thick:'3T 은경',   title:'3t 은경',        bigo:'각면/후면시트지', pname:'3t 은경', sizeMode:true,
          hint:'3T 은경 · 비고 각면/후면시트지'},
-      {type:'3T 브론즈경',                 thick:'3T 브론즈경', title:'3t 브론즈경',   bigo:'각면/후면시트지', pname:'3t 브론즈경', sizeMode:true,
+      {type:'3T 브론즈경', grp:'기타', ord:6,                 thick:'3T 브론즈경', title:'3t 브론즈경',   bigo:'각면/후면시트지', pname:'3t 브론즈경', sizeMode:true,
          hint:'3T 브론즈경 · 비고 각면/후면시트지'},
-      {type:'바스 정규격 (백사틴·한샘바스)', thick:'백사틴',    title:'백샤틴(정규격)',  bigo:'각면/강화',     pname:'한샘바스', sizeMode:true,
+      {type:'바스 정규격 (백사틴·한샘바스)', grp:'바스', ord:7, pick:'백사틴 정규격', thick:'백사틴',    title:'백샤틴(정규격)',  bigo:'각면/강화',     pname:'한샘바스', sizeMode:true,
          sizes:['293*794','313*446','393*794'],
          fname:'바스 백사틴',
          hint:'한샘바스에 들어가는 백사틴 · 비고 각면/강화'},
@@ -14822,31 +14822,32 @@ const OD_CATALOG = {
          hint:'3.2T 백사틴 비규격 · 줄 비고 각면/강화'}
     ],
     '아름유리': [
-      {type:'5T 투명', pick:'5T 투명 비규격', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
+      {type:'5T 투명', grp:'기타', ord:7, pick:'5T 투명 비규격', def:true,   // 아름 기본 = 예전처럼 맨 처음 종류(5T 투명) — 목록 차례만 아래로 (2026-11-12)
+        thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
       /* 제목 칸에 사양을 한 줄로 — `5T브론즈/강화/비산방지필름` (사장님 2026-10-08, 발주서 그림 그대로).
          예전에는 제목 `5T 투명(비산방지필름)` + 옆 칸 비고 `비산방지필름` 으로 같은 말이 두 번 찍혔습니다.
          ⚠ `type` 은 그대로 둡니다 — 발주 기록·비규격 넘겨받기(SUBDOOR_ORDER_ROUTE)가 그 이름을 씁니다. */
       /* 사장님 엑셀 「에어힌지 (AL프레임 에어힌지)」 시트 그대로 (2026-10-14) — 제목 `비규격` · 품명 `키친바흐` · 줄 비고 `5T투명/강화/비산방지필름`.
          고르는 칸 이름(pick)은 엑셀 시트 이름 + 정규격/비규격. KB 빗각은 같은 짜임에 브론즈(시트를 아직 못 봄 — 다르면 고칩니다).
          ⚠ `type` 은 그대로 — 발주 기록·수납도어 넘겨받기(SUBDOOR_ORDER_ROUTE)·마감 단가가 그 이름을 씁니다. */
-      {type:'5T 투명 / 비산방지필름', pick:'에어힌지 (AL프레임 에어힌지) 비규격', thick:'5T 투명', title:'비규격', bigo:'', noBigoMemo:true, lineBigo:'5T투명/강화/비산방지필름', pname:'키친바흐', sizeMode:true, fname:'KB 5T투명', hint:'AL 프레임 에어힌지 비규격 · 비고 5T투명/강화/비산방지필름 · 납기는 화·금'},
-      {type:'5T 브론즈 / 비산방지필름', pick:'키친바흐 (KB 빗각도어) 비규격', thick:'5T 브론즈', title:'비규격', bigo:'', noBigoMemo:true, lineBigo:'5T브론즈/강화/비산방지필름', pname:'키친바흐', sizeMode:true, fname:'KB 5T브론즈', hint:'KB 빗각 도어 비규격 · 비고 5T브론즈/강화/비산방지필름 · 납기는 화·금'},
+      {type:'5T 투명 / 비산방지필름', grp:'에어힌지', ord:2, pick:'5T 투명 비규격', thick:'5T 투명', title:'비규격', bigo:'', noBigoMemo:true, lineBigo:'5T투명/강화/비산방지필름', pname:'키친바흐', sizeMode:true, fname:'KB 5T투명', hint:'AL 프레임 에어힌지 비규격 · 비고 5T투명/강화/비산방지필름 · 납기는 화·금'},
+      {type:'5T 브론즈 / 비산방지필름', grp:'키친바흐', ord:4, pick:'5T 브론즈 비규격', thick:'5T 브론즈', title:'비규격', bigo:'', noBigoMemo:true, lineBigo:'5T브론즈/강화/비산방지필름', pname:'키친바흐', sizeMode:true, fname:'KB 5T브론즈', hint:'KB 빗각 도어 비규격 · 비고 5T브론즈/강화/비산방지필름 · 납기는 화·금'},
       /* **정규격** — 모델명을 치면 유리 사이즈가 나옵니다 (사장님 표 2026-10-08 · 요청 2026-10-13 "EURO700 처럼").
          `models` 는 '모델명|유리 가로*세로|줄 비고' — 모델을 더하려면 한 줄만. 에어힌지는 모델 번호가 없어 장 사이즈로 부릅니다.
          에어힌지 유리 = 장 −41 × −40 · KB 빗면 = 장 −95 × −10 · 시그니처 = 장 −5 × −5. */
-      {type:'5T 투명 / 비산방지필름 정규격', pick:'에어힌지 (AL프레임 에어힌지) 정규격', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T투명',
+      {type:'5T 투명 / 비산방지필름 정규격', grp:'에어힌지', ord:1, pick:'5T 투명 정규격', thick:'5T 투명', title:'5T투명/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T투명',
          models:['에어힌지 벽장 445×738|405*698','에어힌지 벽장 495×738|455*698','에어힌지 분리장 595×1345|555*1305','에어힌지 키큰장 545×2113|505*2073'],
          hint:'AL 프레임 에어힌지 정규격 · 벽장·분리장·키큰장 또는 445 같은 장 사이즈를 치면 유리 사이즈 자동 · 납기는 화·금'},
-      {type:'5T 브론즈 / 비산방지필름 정규격', pick:'키친바흐 (KB 빗각도어) 정규격', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T브론즈',
+      {type:'5T 브론즈 / 비산방지필름 정규격', grp:'키친바흐', ord:3, pick:'5T 브론즈 정규격', thick:'5T 브론즈', title:'5T브론즈/강화/비산방지필름', bigo:'', noBigoMemo:true, pname:'', modelMode:true, fname:'KB 5T브론즈',
          models:['KB 빗면 키큰장 60211|500*2103|좌우 확인','KB 빗면 벽장 4574|350*728','KB 빗면 벽장 5074|400*728','KB 빗면 플랩장 10054|900*528','KB 빗면 플랩장 12054|1100*528'],   // 앞에 「KB」 (사장님 2026-10-29)
          hint:'KB 빗면 정규격 · 모델 번호(4574 등)를 치면 유리 사이즈 자동 · 키큰장 60211 은 좌우가 있습니다 · 납기는 화·금'},
-      {type:'5T 투명 정규격 (시그니처 글래스도어)', pick:'시그니처 (글래스도어) 정규격', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
+      {type:'5T 투명 정규격 (시그니처 글래스도어)', grp:'시그니처', ord:6, pick:'5T 투명 정규격', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
          models:['시그니처 글래스도어 450|441*2165','시그니처 글래스도어 500|491*2165'],   // 앞에 「시그니처」 (사장님 2026-10-29)
          hint:'시그니처 글래스도어 정규격 · 450 / 500 을 치면 유리 사이즈 자동 (유리 = 장 −5 × −5)'},
       /* 투명·브론즈를 **한 장에** (사장님 2026-10-08 "한페이지에 발주서를 만들어달라고 했거든.
          그래서 비고란에 투명, 브론즈 나눠서 넣어줘야해"). 줄마다 비고에 `투명`/`브론즈`.
          비규격 수납도어 보내기가 아름유리 몫에 두 유리가 섞여 있으면 이 종류로 보냅니다. */
-      {type:'5T 투명·브론즈 / 비산방지필름', pick:'에어힌지·키친바흐 한 장 비규격 (비고에 사양)', thick:'5T', title:'비규격', bigo:'', noBigoMemo:true, pname:'키친바흐', sizeMode:true, fname:'KB 5T투명·브론즈', hint:'에어힌지(투명)·KB 빗각(브론즈)을 한 장에 · 줄마다 비고에 투명/브론즈 · 납기는 화·금'}
+      {type:'5T 투명·브론즈 / 비산방지필름', grp:'에어힌지·키친바흐', ord:5, pick:'5T 투명·브론즈 비규격', thick:'5T', title:'비규격', bigo:'', noBigoMemo:true, pname:'키친바흐', sizeMode:true, fname:'KB 5T투명·브론즈', hint:'에어힌지(투명)·KB 빗각(브론즈)을 한 장에 · 줄마다 비고에 투명/브론즈 · 납기는 화·금'}
     ],
     // 현성유리는 에토프 색상을 인쇄해 완성품으로 보내 줍니다(🟠 에토프재고 탭).
     // 3.2T 백사틴 두 줄은 대원유리 것을 그대로 옮긴 것입니다 — 사장님 지시 2026-09-15.
@@ -14854,15 +14855,15 @@ const OD_CATALOG = {
        「각면/강화」 대신 「에토프」. 저장 이름은 `현성유리 261002 3.2t 백사틴 에토프 비규격`
        (날짜가 앞 — `fileDateFirst`). 정규격도 같은 꼴로 `… 에토프 정규격`. */
     '현성유리': [
-      {type:'3.2T 백사틴 정규격 (유로700)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'에토프', noBigoMemo:true, pname:'',       modelMode:true,
+      {type:'3.2T 백사틴 정규격 (유로700)', grp:'유로700', ord:1, pick:'3.2T 백사틴 정규격', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'에토프', noBigoMemo:true, pname:'',       modelMode:true,
          fname:'3.2T 백사틴 에토프',
          hint:'유로700에 들어가는 3.2T 백사틴 에토프 정규격 · 품명에 모델명 입력하면 사이즈 자동'},
-      {type:'3.2T 백사틴 비규격',          thick:'3.2T 백사틴', title:'3.2T 백사틴',   bigo:'에토프', noBigoMemo:true, pname:'비규격', sizeMode:true,
+      {type:'3.2T 백사틴 비규격', grp:'유로700', ord:2, pick:'3.2T 백사틴 비규격', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'에토프', noBigoMemo:true, pname:'비규격', sizeMode:true,
          fname:'3.2T 백사틴 에토프',
          hint:'3.2T 백사틴 에토프 비규격'},
       /* 유리장식장도어 **정규격** — 모델명과 유리 사이즈 (사장님 표 2026-10-08, 유리 = 장 −24 × −24).
          단추를 누르면 줄에 유리 사이즈와 모델명이 들어갑니다. 모델을 더하려면 sizes 에 한 줄. */
-      {type:'5T 백유리 정규격', fname:'5T 백유리', pick:'5T 백유리 정규격 (유리장식장)', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'', modelMode:true,
+      {type:'5T 백유리 정규격', fname:'5T 백유리', grp:'유리장식장', ord:3, pick:'5T 백유리 정규격', thick:'5T 백유리', title:'5T 백유리 투명/반강화', bigo:'', pname:'', modelMode:true,
          // 모델명 앞에 「유리장식장」 (사장님 2026-10-29) — 번호(60222)만 쳐도 찾습니다(odFindModel)
          models:['유리장식장 60222|571*2089','유리장식장 60235|571*2217','유리장식장 45222|421*2089','유리장식장 45235|421*2217','유리장식장 4586|421*836','유리장식장 5086|471*836','유리장식장 6086|571*836'],
          sizes:['571*2089|유리장식장 60222','571*2217|유리장식장 60235','421*2089|유리장식장 45222','421*2217|유리장식장 45235','421*836|유리장식장 4586','471*836|유리장식장 5086','571*836|유리장식장 6086'],
@@ -14870,24 +14871,24 @@ const OD_CATALOG = {
       // 유리장식장도어 비규격 — 제목 `5T 백유리 투명/반강화` (사장님 2026-10-08)
       /* 사장님 엑셀 양식 그대로 (2026-10-14) — 제목 `5T백유리`(띄어쓰기 없음 · 옆 비고 없음) · 품명 `비규격` · 줄 비고 `반강화/각면`.
          줄 비고는 lineBigo — 공통 비고(제목 옆 B9)에는 안 찍히고 줄 비고 칸에만 들어갑니다. 기억해 둔 옛 비고는 안 꺼냅니다(noBigoMemo). */
-      {type:'5T 백유리', fname:'5T 백유리', pick:'5T 백유리 비규격 (유리장식장)', thick:'5T 백유리', title:'5T백유리', bigo:'', noBigoMemo:true, lineBigo:'반강화/각면', pname:'비규격', sizeMode:true, hint:'5T 백유리 비규격 · 유리장식장도어 · 비고 반강화/각면 · 사이즈 직접 입력'}
+      {type:'5T 백유리', fname:'5T 백유리', grp:'유리장식장', ord:4, pick:'5T 백유리 비규격', thick:'5T 백유리', title:'5T백유리', bigo:'', noBigoMemo:true, lineBigo:'반강화/각면', pname:'비규격', sizeMode:true, hint:'5T 백유리 비규격 · 유리장식장도어 · 비고 반강화/각면 · 사이즈 직접 입력'}
     ],
     '명그라스': [
-      {type:'3.2T 백사틴 정규격 (모델명 자동)', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'', modelMode:true,
+      {type:'3.2T 백사틴 정규격 (모델명 자동)', grp:'유로700', ord:1, pick:'3.2T 백사틴 정규격', thick:'3.2T 백사틴', title:'백샤틴(정규격)', bigo:'각면/강화', pname:'', modelMode:true,
          fname:'3.2T 백사틴',
          hint:'품명에 모델명 입력하면 사이즈 자동 · 비고 각면/강화'},
-      {type:'3.2T 백사틴 비규격 (수기)', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'각면/강화', pname:'비규격', sizeMode:true,
+      {type:'3.2T 백사틴 비규격 (수기)', grp:'유로700', ord:2, pick:'3.2T 백사틴 비규격', thick:'3.2T 백사틴', title:'3.2T 백사틴', bigo:'각면/강화', pname:'비규격', sizeMode:true,
          fname:'3.2T 백사틴',
          hint:'3.2T 백사틴 비규격 · 사이즈 직접 입력 · 비고 각면/강화'},
-      {type:'5T 투명 정규격 (시그니처 글래스도어)', pick:'5T 투명 정규격 (시그니처 글래스도어)', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
+      {type:'5T 투명 정규격 (시그니처 글래스도어)', grp:'시그니처', ord:3, pick:'5T 투명 정규격', thick:'5T 투명', title:'5T투명/반강화', bigo:'', pname:'', modelMode:true, fname:'5T투명',
          models:['시그니처 글래스도어 450|441*2165','시그니처 글래스도어 500|491*2165'],   // 앞에 「시그니처」 (사장님 2026-10-29)
          hint:'시그니처 글래스도어 정규격 · 450 / 500 을 치면 유리 사이즈 자동 (유리 = 장 −5 × −5)'},
-      {type:'5T 투명', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
+      {type:'5T 투명', grp:'기타', ord:6, pick:'5T 투명 비규격', thick:'5T 투명', title:'5T 투명', bigo:'', pname:'5T 투명', sizeMode:true, hint:'5T 투명 · 사이즈 직접 입력'},
       /* 케비넥스 — 대원 5T 브론즈와 같은 꼴(제목 5T 브론즈 · 비고 휠/강화), 투명도 같은 꼴 (사장님 2026-11-12) */
-      {type:'5T 브론즈 정규격 (케비넥스)', pick:'5T 브론즈 정규격 (케비넥스)', thick:'5T 브론즈', title:'5T 브론즈', bigo:'휠/강화', pname:'', modelMode:true,
+      {type:'5T 브론즈 정규격 (케비넥스)', grp:'케비넥스', ord:4, pick:'5T 브론즈 정규격', thick:'5T 브론즈', title:'5T 브론즈', bigo:'휠/강화', pname:'', modelMode:true,
          fname:'5T브론즈', models:OD_CABX_GLASS_MODELS,
          hint:'케비넥스 정규격 · 모델명(W1536 등)을 치고 목록에서 빗각/스탠다드를 고르면 유리 사이즈 자동 (빗각 −64×−12 · 스탠다드 −24×−24) · 비고 휠/강화'},
-      {type:'5T 투명 정규격 (케비넥스)', pick:'5T 투명 정규격 (케비넥스)', thick:'5T 투명', title:'5T 투명', bigo:'휠/강화', pname:'', modelMode:true,
+      {type:'5T 투명 정규격 (케비넥스)', grp:'케비넥스', ord:5, pick:'5T 투명 정규격', thick:'5T 투명', title:'5T 투명', bigo:'휠/강화', pname:'', modelMode:true,
          fname:'5T투명', models:OD_CABX_GLASS_MODELS,
          hint:'케비넥스 정규격 · 모델명(W1536 등)을 치고 목록에서 빗각/스탠다드를 고르면 유리 사이즈 자동 (빗각 −64×−12 · 스탠다드 −24×−24) · 비고 휠/강화'}
     ]
@@ -15148,21 +15149,33 @@ function odTypeView(vendor, presets){
 }
 /* 칸 모양 목록 — 기본 고르기 칸(<select>)은 글꼴 탓에 「ㅣ」가 어긋나 직접 그립니다. 앞 이름 칸 폭은 **가장 긴 앞 이름**을 실제로 재서
    모든 줄이 같은 폭을 씁니다 — 목록이 늘거나 이름이 길어져도 「ㅣ」가 한 줄로 섭니다. <select id="od-type"> 는 숨겨 두고 값만 씁니다. */
-function odTypeGw(list){
-  const names=list.map(x=>x.grp).filter(Boolean); if(!names.length) return 0;
+/* 세 칸 — 앞 이름 ㅣ 유리 ㅣ 규격 (사장님 2026-11-12 「엑셀 칸처럼 선끼리 맞게 · 글씨가 길어지면 거기 맞게」).
+   보이는 이름에서 「정규격/비규격」을 떼어 셋째 칸으로(odTypeSplit) — 목록 고치기에서 이름을 바꿔도 그대로 갈립니다.
+   칸 폭은 칸마다 **가장 긴 글자를 실제로 잰 값** — 길어지면 그 칸이 넓어지고 「ㅣ」 두 줄이 같이 밀립니다. */
+function odTypeSplit(name){
+  const m=String(name||'').match(/^(.*?)\s*(정규격|비규격)\s*(.*)$/);
+  if(!m || !m[1]) return { b:String(name||''), c:'' };
+  return { b:(m[1]+(m[3]?' '+m[3]:'')).trim(), c:m[2] };
+}
+function odTypeMeasure(names){
+  names=names.filter(Boolean); if(!names.length) return 0;
   const m=document.createElement('span'); m.className='od-tp-g'; m.style.cssText='position:absolute;visibility:hidden;white-space:nowrap';
   document.body.appendChild(m); let w=0; names.forEach(n=>{ m.textContent=n; w=Math.max(w, m.getBoundingClientRect().width); }); m.remove();
   return Math.ceil(w)+2;
 }
+function odTypeGw(list){ return odTypeMeasure(list.map(x=>x.grp)); }
 function odTypeRowHtml(x, gw){
-  return `<span class="od-tp-g">${_odEsc(x.grp||'')}</span><span class="od-tp-bar">${gw && x.grp ? 'ㅣ' : ''}</span><span class="od-tp-n">${_odEsc(x.name)}</span>`;
+  const s=odTypeSplit(x.name);
+  return `<span class="od-tp-g">${_odEsc(x.grp||'')}</span><span class="od-tp-bar">${gw && x.grp ? 'ㅣ' : ''}</span>`
+    + `<span class="od-tp-n">${_odEsc(s.b)}</span><span class="od-tp-bar">${s.c ? 'ㅣ' : ''}</span><span class="od-tp-n">${_odEsc(s.c)}</span>`;
 }
 function odTypePickRender(){
   const sel=document.getElementById('od-type'), btn=document.getElementById('od-type-btn'), box=document.getElementById('od-type-list');
   if(!sel || !btn || !box) return;
   const vendor=document.getElementById('od-vendor').value, presets=curCatVendors()[vendor]||[];
   const list=odTypeView(vendor, presets), gw=odTypeGw(list), cur=String(sel.value);
-  const cols=gw ? `${gw}px 16px minmax(0,1fr)` : `0 0 minmax(0,1fr)`;
+  const sp=list.map(x=>odTypeSplit(x.name)), bw=odTypeMeasure(sp.map(s=>s.b)), hasC=sp.some(s=>s.c);
+  const cols=(gw ? `${gw}px 16px ` : `0 0 `) + (hasC ? `minmax(0,${bw}px) 16px minmax(0,1fr)` : `minmax(0,1fr) 0 0`);
   box.style.setProperty('--od-tp-cols', cols); btn.style.setProperty('--od-tp-cols', cols);
   box.innerHTML=list.map(x=>`<div class="od-tp-row${String(x.i)===cur?' on':''}" onclick="odTypePick(${x.i})">${odTypeRowHtml(x,gw)}</div>`).join('')
     + `<div class="od-tp-edit" onclick="odTypePickClose();odTypeEditOpen()">✏️ 목록 고치기 (이름 · 앞 이름 · 차례)</div>`;
@@ -18960,7 +18973,7 @@ function odSigStdSize(w,h){
   if(!window._odSigStd){
     const s=new Set();
     try{ Object.values(OD_CATALOG).forEach(g=>Object.values(g).forEach(list=>(list||[]).forEach(p=>{
-      if(p && /시그니처/.test([p.type,p.pick].join(' '))) odPresetModels(p).forEach(m=>{ s.add(m.w+'x'+m.h); s.add(m.h+'x'+m.w); });
+      if(p && /시그니처/.test([p.type,p.pick,p.grp].join(' '))) odPresetModels(p).forEach(m=>{ s.add(m.w+'x'+m.h); s.add(m.h+'x'+m.w); });
     }))); }catch(e){}
     window._odSigStd=s;
   }
