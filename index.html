@@ -16769,13 +16769,15 @@ function odSheetToHtml(wb, ws){
         'border-right:'  + bcss(edgeR(r, r2, c2)),
         // ⚠ style="..." 안이라 **큰따옴표를 쓰면 속성이 거기서 끊깁니다.**
         //    실제로 서식이 통째로 안 먹었습니다 (2026-09-15). 홑따옴표를 씁니다.
-        "font-family:'" + (f.name || OD_FONT) + "',sans-serif",
+        'font-family:' + odFontStack(f.name || OD_FONT),
         'font-size:' + Math.round((f.size || 11) * 1.32) + 'px',
         f.bold ? 'font-weight:700' : 'font-weight:400',
         'color:#111',
         'text-align:' + (a.horizontal || (typeof v === 'number' ? 'right' : 'left')),
         'vertical-align:' + (a.vertical === 'top' ? 'top' : a.vertical === 'bottom' ? 'bottom' : 'middle'),
         'padding:0 3px', 'overflow:hidden',
+        // 0 이 아니면 html2canvas 가 **글자마다 화면 자리**에 찍습니다 — 글꼴이 달라도 단어끼리 안 겹칩니다(눈에는 안 보이는 값)
+        'letter-spacing:0.01px',
         a.wrapText ? 'white-space:pre-wrap' : 'white-space:pre'
       ].join(';');
       html += '<td data-rc="' + r + ',' + c + '"' + (sp ? ' rowspan="' + sp.rs + '" colspan="' + sp.cs + '"' : '') +
@@ -16817,6 +16819,18 @@ function odSheetToHtml(wb, ws){
 
   return '<div id="od-capture" style="position:relative;display:inline-block;padding:18px;background:#fff;color:#111">' +
          html + imgs + '</div>';
+}
+
+/* 글꼴 이름 뒤에 맥·아이폰에 있는 글꼴을 이어 붙입니다 (사장님 2026-11-13 「카톡 이미지 글자 간격이 어색」).
+   양식 글꼴(맑은 고딕·굴림·돋움·바탕)은 윈도에만 있어, 맥·아이폰에서는 화면은 애플 고딕으로 그리는데
+   html2canvas 가 찍을 때는 다른 글꼴로 찍어 **글자 폭이 달라 단어끼리 겹쳤습니다**(PURCHASEORDER · 26-1113).
+   이름을 하나씩 적어 두면 화면과 찍는 쪽이 같은 글꼴을 고릅니다. 윈도는 예전 그대로입니다. */
+function odFontStack(name){
+  const serif = /바탕|명조|batang|myeongjo/i.test(name || '');
+  const en = { '맑은 고딕':'Malgun Gothic', '굴림':'Gulim', '돋움':'Dotum', '바탕':'Batang', '한컴바탕':'HCR Batang' }[name];
+  const tail = serif ? "'AppleMyungjo','Nanum Myeongjo',serif"
+                     : "'Apple SD Gothic Neo','Noto Sans KR','Noto Sans CJK KR',sans-serif";
+  return "'" + name + "'" + (en ? ",'" + en + "'" : '') + ',' + tail;
 }
 
 function odEsc(s){
