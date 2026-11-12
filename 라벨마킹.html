@@ -86,6 +86,25 @@ code,.mono{font-family:"SFMono-Regular",Consolas,"D2Coding",monospace}
 .checklist li.done .nm{text-decoration:line-through}
 .checklist li.grp{cursor:default;background:var(--rule-2);font-size:11px;font-weight:700;color:var(--ink-2);padding:5px 12px}
 .checklist .none{color:var(--ink-3);font-size:13px}
+/* 보기 꼬리표 · 납품서 대조 (2026-11-13) */
+.checklist .vw{display:inline-flex;gap:0;margin-left:10px;vertical-align:middle}
+.checklist .vw button{font-size:12px;font-weight:400;padding:3px 10px;border:1px solid var(--rule-2);background:var(--card);color:var(--ink-2);cursor:pointer}
+.checklist .vw button:first-child{border-radius:6px 0 0 6px}
+.checklist .vw button:last-child{border-radius:0 6px 6px 0;border-left:0}
+.checklist .vw button.on{background:#1f3a5f;border-color:#1f3a5f;color:#fff;font-weight:700}
+.checklist .dv{border:1px solid #f0b4a8;background:#fff6f3;border-radius:8px;padding:10px 12px;margin:0 0 16px;font-size:13px}
+.checklist .dv.dv-ok{border-color:#b7dfc0;background:#f1faf3}
+.checklist .dv-s{color:var(--ink-2);font-size:12px}
+.checklist .dv-bad{color:#c92a2a}
+.checklist .dv-nd{margin-top:6px;font-size:12px;color:#c92a2a}
+.checklist .dv-t{border-collapse:collapse;margin:8px 0 4px;width:100%;font-size:12px;font-variant-numeric:tabular-nums}
+.checklist .dv-t th,.checklist .dv-t td{border-bottom:1px solid var(--rule-2);padding:4px 6px;text-align:right;white-space:nowrap}
+.checklist .dv-t th:nth-child(2),.checklist .dv-t td.dv-nm{text-align:left;white-space:normal}
+.checklist .dv-t th{color:var(--ink-3);font-weight:400}
+.checklist .dv-tag{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;color:#c92a2a;border:1px solid #f0b4a8;border-radius:4px;padding:0 4px}
+.checklist .dv-tag.nd{color:#b8590b;border-color:#f3cf9f}
+.checklist ul.pv{max-width:760px}
+@media (max-width:600px){ .checklist .dv-t td:nth-child(6),.checklist .dv-t th:nth-child(6){display:none} }
 .checklist .clear{margin-top:14px}
 button,.filebtn{
   font:inherit;color:var(--ink);
@@ -1958,15 +1977,169 @@ function checkPages(set){
   const a = [...set].sort((x,y)=>x-y);
   return (a.length > 2 && a[a.length-1]-a[0] === a.length-1) ? a[0]+"~"+a[a.length-1]+"쪽" : a.join("·")+"쪽";
 }
+/* ---------- 납품서 대조 · 쪽수순 보기 (사장님 2026-11-13) ----------
+   라벨 한 칸 = 한 장. 칸마다 구매오더번호(51…·54…, 납품서의 참조문서번호) · 제품코드 · 오더번호(바코드 앞 10자리)가 찍힙니다.
+   앱 📦 납품서 탭에 올린 납품서(ybn-deliv-v1 — 같은 주소라 저장함을 나눠 씀)를 읽어 **구매오더 + 제품코드 + 오더번호**로 장수를 맞춥니다.
+   ⚠ 앱은 오더번호를 숫자로 담아 앞 0 이 빠집니다(0313019947 → 313019947) — 양쪽 다 앞 0 을 떼고 봅니다.
+   보기만 합니다 — 납품서·재고는 안 건드립니다. */
+const CHECK_VIEW_KEY = "label-mark-check-view-v1";
+function checkView(){ try{ return localStorage.getItem(CHECK_VIEW_KEY) === "page" ? "page" : "color"; }catch(e){ return "color"; } }
+function setCheckView(v){ try{ localStorage.setItem(CHECK_VIEW_KEY, v); }catch(e){} renderCheckList(); }
+/* 앱 index.html 의 ybnUnz 와 같은 함수 (CLAUDE.md 12-56 — 고치면 네 파일 다) */
+function ybnUnz(s){
+  if(typeof s!=='string' || s.slice(0,3)!=='Z1:') return s;
+  const MAX=0xD700, dict=[]; for(let i=0;i<256;i++) dict[i]=String.fromCharCode(i);
+  let next=256, prev=null; const parts=[];
+  for(let i=3;i<s.length;i++){
+    const k=s.charCodeAt(i)-0x100; let e;
+    if(k<next) e=dict[k]; else if(k===next && prev!==null) e=prev+prev[0]; else throw new Error('ybnUnz: 깨진 압축본');
+    parts.push(e); if(prev!==null && next<MAX) dict[next++]=prev+e[0]; prev=e;
+  }
+  const l=parts.join(''), u=new Uint8Array(l.length);
+  for(let i=0;i<l.length;i++) u[i]=l.charCodeAt(i);
+  return new TextDecoder().decode(u);
+}
+const ordNorm = s => String(s||"").replace(/\D/g,"").replace(/^0+/,"");
+/* 라벨마다 구매오더·제품코드·오더번호 — labelNames() 의 칸(사분면) 안 글자에서 읽습니다 */
+function labelInfos(){
+  const pages = new Map(state.pages.map(p=>[p.num, p]));
+  return labelNames().map(l=>{
+    const p = pages.get(l.page), qx = l.line.x < 0.5, qy = l.line.y < 0.5;
+    const its = p.items.filter(o => (o.x < 0.5) === qx && (o.y < 0.5) === qy);
+    let po = "", code = "", ord = "";
+    for(const o of its){
+      const s = o.str.trim();
+      if(!po){ const m = s.match(/(?<!\d)5[14]\d{8}(?!\d)/); if(m) po = m[0]; }
+      if(!ord){ const m = s.match(/\*(\d{10})-\d{6}\*/); if(m) ord = ordNorm(m[1]); }
+      if(!code && /^[A-Z]{2,}[A-Z0-9]*\d{3,}$/.test(s) && !/^\d+$/.test(s)) code = s;
+    }
+    return {page:l.page, line:l.line, name:l.name, quad:(qy?0:2)+(qx?0:1), po, code, ord};
+  });
+}
+function delivReadApp(){
+  let log = [], del = {};
+  try{ log = JSON.parse(ybnUnz(localStorage.getItem("ybn-deliv-v1")) || "[]") || []; }
+  catch(e){ return {err:"앱이 저장해 둔 납품서를 읽지 못했습니다."}; }
+  try{ del = JSON.parse(localStorage.getItem("ybn-deliv-del-v1") || "{}") || {}; }catch(e){ del = {}; }
+  if(!Array.isArray(log) || !log.length)
+    return {err: location.protocol === "file:"
+      ? "파일을 더블클릭해서 여시면 앱과 저장함이 갈려 납품서가 안 보입니다. 홈페이지 주소로 열어 주십시오."
+      : "앱 📦 납품서 탭에 올라온 납품서가 없습니다."};
+  return {log: log.filter(d => d && d.id && !del[d.id])};
+}
+/* 구매오더마다: 납품서가 있나 · 줄(제품코드+오더번호)마다 라벨 장수 vs 납품서 수량 */
+function delivMatch(infos){
+  const pos = [...new Set(infos.map(x=>x.po).filter(Boolean))].sort();
+  const noPo = infos.filter(x=>!x.po).length;
+  if(!pos.length) return {pos:[], noPo, err: infos.length ? "라벨에서 구매오더번호를 읽지 못했습니다." : ""};
+  const r = delivReadApp();
+  const byNo = new Map();                              // 같은 납품번호는 한 번만
+  for(const d of (r.log || [])) if(pos.includes(String(d.refNo))) byNo.set(String(d.delivNo || d.id), d);
+  const docs = [...byNo.values()];
+  const out = [];
+  for(const po of pos){
+    const ds = docs.filter(d => String(d.refNo) === po);
+    const labs = infos.filter(x => x.po === po);
+    if(!ds.length){ out.push({po, nodoc:true, labels:labs.length, rows:[]}); continue; }
+    const items = ds.flatMap(d => d.items || []);
+    /* 오더번호로 가르는 것은 양쪽 모두 오더번호가 있을 때만 — 하나라도 없으면 제품코드로만 */
+    const useOrd = items.every(it => ordNorm(it.orderNo)) && labs.every(x => x.ord);
+    const keyOf = (code, ord) => code + (useOrd ? "|" + ord : "");
+    const m = new Map();
+    const row = k => m.get(k) || (m.set(k, {key:k, lab:0, del:0, pages:new Set(), name:"", lr:{}}), m.get(k));
+    for(const x of labs){ const g = row(keyOf(x.code, x.ord)); g.lab++; g.pages.add(x.page); if(!g.name) g.name = x.name; }
+    for(const it of items){
+      const g = row(keyOf(it.code, ordNorm(it.orderNo)));
+      g.del += +it.qty || 0; if(!g.name) g.name = it.name || it.short || it.code;
+    }
+    const rows = [...m.values()].map(g => ({...g, po, ok: g.lab === g.del}));
+    out.push({po, nodoc:false, docs:ds.map(d=>d.delivNo).filter(Boolean), rows, labels:labs.length, useOrd});
+  }
+  return {pos:out, noPo, err: r.err && !docs.length ? r.err : ""};
+}
+function delivMatchHtml(mt){
+  if(mt.err && !mt.pos.length) return `<div class="dv"><b>📄 납품서 대조</b> <span class="dv-s">${esc(mt.err)}</span></div>`;
+  let okN = 0, okRows = 0; const bad = [], nodoc = [];
+  for(const p of mt.pos){
+    if(p.nodoc){ nodoc.push(p); continue; }
+    for(const g of p.rows){ if(g.ok){ okN += g.lab; okRows++; } else bad.push(g); }
+  }
+  const allOk = !bad.length && !nodoc.length && !mt.noPo;
+  const sum = [`구매오더 ${mt.pos.length}건`, `맞음 ${okN}장`,
+    bad.length ? `<b class="dv-bad">다름 ${bad.length}줄</b>` : "",
+    nodoc.length ? `<b class="dv-bad">납품서 없음 ${nodoc.length}건</b>` : "",
+    mt.noPo ? `<b class="dv-bad">구매오더 못 읽은 라벨 ${mt.noPo}장</b>` : ""].filter(Boolean).join(" · ");
+  let h = `<div class="dv${allOk ? " dv-ok" : ""}"><b>📄 납품서 대조</b> <span class="dv-s">${allOk ? "✓ 모두 맞습니다 · " : ""}${sum}</span>`;
+  if(mt.err) h += `<div class="dv-s">${esc(mt.err)}</div>`;
+  if(nodoc.length) h += `<div class="dv-nd">납품서가 앱에 아직 없습니다: ` +
+    nodoc.map(p=>`<b>${p.po}</b>(라벨 ${p.labels}장)`).join(" · ") + ` — 앱 📦 납품서 탭에 올리면 다시 맞춰 봅니다.</div>`;
+  if(bad.length){
+    h += `<table class="dv-t"><thead><tr><th>구매오더</th><th>품목</th><th>라벨</th><th>납품서</th><th>차이</th><th>쪽</th></tr></thead><tbody>`;
+    for(const g of bad){
+      const d = g.lab - g.del;
+      h += `<tr><td>${g.po}</td><td class="dv-nm">${esc(g.name)}</td><td>${g.lab || "-"}</td><td>${g.del || "-"}</td>` +
+           `<td class="dv-bad">${d > 0 ? "+" + d : d}</td><td>${g.pages.size ? checkPages(g.pages) : "-"}</td></tr>`;
+    }
+    h += `</tbody></table><div class="dv-s">차이 = 라벨 − 납품서. + 는 라벨이 많음(납품서에 없거나 적음) · − 는 라벨이 모자람.</div>`;
+  }
+  return h + `</div>`;
+}
+/* 쪽수순 — 라벨 뭉치를 위에서부터 한 장씩 넘기며 맞춰 볼 때. 쪽 안은 왼쪽 위 → 오른쪽 위 → 왼쪽 아래 → 오른쪽 아래.
+   한 쪽 안에 같은 품명이 여럿이면 한 줄로 묶습니다. 체크는 색별 보기와 따로(「쪽|품명」 열쇠) — 쪽마다 따로 넘기므로. */
+function renderPageView(infos, done, mt){
+  const badKeys = new Set();
+  for(const p of mt.pos) for(const g of p.rows) if(!g.ok) badKeys.add(p.po + "#" + g.key);
+  const nodocPo = new Set(mt.pos.filter(p=>p.nodoc).map(p=>p.po));
+  const useOrdOf = new Map(mt.pos.map(p=>[p.po, p.useOrd]));
+  const byPage = new Map();
+  for(const x of infos){ (byPage.get(x.page) || byPage.set(x.page, []).get(x.page)).push(x); }
+  const rows = []; let h = "";
+  for(const pg of [...byPage.keys()].sort((a,b)=>a-b)){
+    const list = byPage.get(pg).sort((a,b)=>a.quad - b.quad);
+    const grp = new Map();
+    for(const x of list){
+      const k = "P|" + pg + "|" + x.name;
+      const g = grp.get(k) || (grp.set(k, {key:k, x, n:0}), grp.get(k)); g.n++;
+    }
+    const pos = [...new Set(list.map(x=>x.po).filter(Boolean))];
+    h += `<li class="grp">${pg}쪽${pos.length ? " · " + pos.join(" · ") : ""}</li>`;
+    for(const g of grp.values()){
+      rows.push(g);
+      const it = checkItemOf(g.x.name), on = done.has(g.key);
+      const mk = g.x.po + "#" + g.x.code + (useOrdOf.get(g.x.po) ? "|" + g.x.ord : "");
+      const tag = nodocPo.has(g.x.po) ? `<span class="dv-tag nd">납품서 없음</span>`
+                : badKeys.has(mk) ? `<span class="dv-tag">납품서와 다름</span>` : "";
+      h += `<li class="${on ? "done" : ""}" data-key="${esc(g.key).replace(/"/g,"&quot;")}"${checkChipStyle(it.color, it.tok)}>` +
+        `<input type="checkbox"${on ? " checked" : ""} tabindex="-1">` +
+        `<span class="nm">${it.color ? "<b>" + esc(it.color) + "</b>" : ""}${esc([it.type, it.text].filter(Boolean).join(" "))}${it.side && LR_KEEP_RE.test(g.x.name) ? " " + it.side : ""}${tag}</span>` +
+        `<span class="q">${g.n}장</span></li>`;
+    }
+  }
+  return {rows, html: `<ul class="pv">${h}</ul>`};
+}
 function renderCheckList(){
   const box = document.getElementById("checklist");
   if(!state.pages.length){ box.innerHTML = '<p class="none">PDF를 먼저 열어주세요.</p>'; return; }
+  const infos = labelInfos(), mt = delivMatch(infos), view = checkView();
+  const vw = `<div class="vw"><button class="${view==="color"?"on":""}" data-v="color">색별</button><button class="${view==="page"?"on":""}" data-v="page">쪽수순</button></div>`;
+  if(view === "page"){
+    const done = checkLoad(), pv = renderPageView(infos, done, mt);
+    const nDone = pv.rows.filter(g=>done.has(g.key)).length;
+    box.innerHTML = `<h2>철 확인 ${vw}</h2>` +
+      `<p class="meta">${esc(state.fileName)} · 쪽수순 ${pv.rows.length}줄 중 <b>${nDone}줄 완료</b> · 라벨 ${infos.length}장 · 줄을 누르면 체크됩니다 (색별 보기와 체크가 따로입니다)</p>` +
+      `<div class="bar"><i style="width:${pv.rows.length ? nDone/pv.rows.length*100 : 0}%"></i></div>` +
+      delivMatchHtml(mt) + pv.html +
+      (nDone ? '<button class="clear" id="checkClear">쪽수순 체크 모두 지우기</button>' : "");
+    checkListHook(box, k => k.startsWith("P|"));
+    return;
+  }
   const rows = buildCheckList(), done = checkLoad();
   const nDone = rows.filter(g=>done.has(g.key)).length;
   const labels = rows.reduce((s,g)=>s+g.n, 0);
-  let html = '<h2>철 확인</h2>' +
+  let html = `<h2>철 확인 ${vw}</h2>` +
     `<p class="meta">${esc(state.fileName)} · ${rows.length}줄 중 <b>${nDone}줄 완료</b> · 라벨 ${labels}장 · 줄을 누르면 체크됩니다</p>` +
-    `<div class="bar"><i style="width:${rows.length ? nDone/rows.length*100 : 0}%"></i></div>`;
+    `<div class="bar"><i style="width:${rows.length ? nDone/rows.length*100 : 0}%"></i></div>` +
+    delivMatchHtml(mt);
   /* 두 칸 (사장님 2026-10-21) — 왼쪽 EURO700 · 오른쪽 EURO500, 그 아래 수납도어·그 밖.
      EURO700 은 묶음 제목이 「색 · HD/OB」 라 줄에서는 HD/OB 를 뺍니다. */
   const block = (title, list, withLine) => {
@@ -1994,15 +2167,24 @@ function renderCheckList(){
     : '<p class="none">셀 라벨이 없습니다.</p>';
   if(nDone) html += '<button class="clear" id="checkClear">체크 모두 지우기</button>';
   box.innerHTML = html;
+  checkListHook(box, k => !k.startsWith("P|"));
+}
+/* 앱 창에서 납품서를 올리면 이 창도 새로고침 없이 다시 맞춥니다 */
+window.addEventListener("storage", e => {
+  if((e.key === "ybn-deliv-v1" || e.key === "ybn-deliv-del-v1") && state.tab === "check" && state.pages.length) renderCheckList();
+});
+/* 줄 누르기 · 보기 꼬리표 · 지우기 — 지우기는 지금 보기의 체크만(mine) */
+function checkListHook(box, mine){
   box.querySelectorAll("li[data-key]").forEach(li => li.addEventListener("click", ()=>{
     const s = checkLoad(), k = li.dataset.key;
     s.has(k) ? s.delete(k) : s.add(k);
     checkSave(s); renderCheckList();
   }));
+  box.querySelectorAll(".vw button").forEach(b => b.addEventListener("click", ()=> setCheckView(b.dataset.v)));
   const clr = document.getElementById("checkClear");
   if(clr) clr.addEventListener("click", ()=>{
-    if(!confirm("이 파일의 체크를 모두 지웁니다. 계속할까요?")) return;
-    checkSave(new Set()); renderCheckList();
+    if(!confirm("이 보기의 체크를 모두 지웁니다. 계속할까요?")) return;
+    checkSave(new Set([...checkLoad()].filter(k => !mine(k)))); renderCheckList();
   });
 }
 
