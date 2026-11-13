@@ -14816,6 +14816,181 @@ const OD_CABX_GLASS_MODELS = [
   '스탠다드 BWV1530|354*734',     '스탠다드 W1536|354*888',     '스탠다드 W1539|354*965',
   '스탠다드 BWPVS-BBC1830|430*734','스탠다드 W1836|430*888',     '스탠다드 W1839|430*965'
 ];
+/* ── 알루미늄 장바 계산기 (사장님 2026-11-13 「소요량 계산·발주 사이즈 추천·재고 추정 — 일단 예시로 틀」) ──
+   발주탭 → 알루미늄 → 대진종합금속 → 「케비넥스 장바」(alBar) 를 고르면 품목 위에 계산기가 뜹니다.
+   도어(폭×높이×장수) → 프로파일별 재단 개수 → 장바 수 → 재고 빼고 + 안전분 → 추천 발주 → 「발주서에 넣기」.
+   규칙(사장님 확정 2026-11-13):
+     도어 1장 = 좌우바 2(손잡이 1 + 빗각 1, 길이 = 도어 높이, 모양만 다름) + 상하바 2(길이 = 도어 폭).
+     좌우바: 758 → 2350 장바 3개 · 912 → 2750 장바 3개 (톱날·양끝 처리 감안한 길이. 2350은 팬트리 2322와 공용).
+     상하바: 3050 장바 — 302×10 · 378×8 · 454×6 + 302×1.
+     로스는 적게, 그러나 **안전로스 필수**(너무 짧게 남기면 재단 중 파편 위험).
+   989 → 2350 2개는 사장님이 정한 것이 아닙니다(확인 필요 표시). 표에 없는 길이는 남김 AL_MIN_LOSS 이상만 지켜
+   계산하고 「확인 필요」를 붙입니다 — 14mm = 사장님 패턴의 가장 작은 남김(2750 − 912×3).
+   재고(실사)는 **이 기기에만** 둡니다(틀 단계 · 시트 동기화 안 함). 수량은 사장님이 발주서에서 고쳐 쓰십니다. */
+const AL_MIN_LOSS = 14;
+const AL_BAR_LENS = [2350, 2750, 3050];
+const AL_SIDE_RULES = { 758:{bar:2350, n:3}, 912:{bar:2750, n:3}, 989:{bar:2350, n:2, check:true} };
+const AL_RAIL_BAR = 3050;
+const AL_RAIL_RULES = { 302:10, 378:8, 454:6 };
+const AL_RAIL_COMBO = { 454:302 };               // 454 장바에는 302 하나를 같이 뽑습니다
+const AL_PROF_ORDER = ['손잡이', '빗각', '상하바'];
+const AL_CABX_W = {12:302, 15:378, 18:454}, AL_CABX_H = {30:758, 36:912, 39:989};   // 케비넥스 모델 번호 = 폭" 2자리 + 높이" 2자리
+const LS_AL_STOCK = 'ybn-al-stock-v1';
+let alStock = {};
+try{ alStock = J(localStorage.getItem(LS_AL_STOCK)) || { '상하바|3050':36, _date:'2026-11-13' }; }catch(e){ alStock = {}; }
+let alDoors = [{m:'', c:'', w:'', h:'', q:''}];
+let alSpare = 10;
+
+function alParseModel(s){
+  const m = String(s||'').match(/(\d{2})(\d{2})\s*$/);
+  if(!m) return null;
+  const w = AL_CABX_W[m[1]], h = AL_CABX_H[m[2]];
+  return (w && h) ? {w, h} : null;
+}
+/* 좌우바 한 길이 → 어느 장바에서 몇 개 */
+function alSidePlan(len){
+  const r = AL_SIDE_RULES[len];
+  if(r) return {bar:r.bar, n:r.n, check:!!r.check};
+  let best = null;
+  AL_BAR_LENS.forEach(bar => {
+    const n = Math.floor((bar - AL_MIN_LOSS) / len);
+    if(n < 1) return;
+    const waste = (bar - n*len) / n;
+    if(!best || waste < best.waste) best = {bar, n, waste};
+  });
+  return best ? {bar:best.bar, n:best.n, check:true} : null;
+}
+/* 상하바 — {길이: 개수} → 3050 장바 수 */
+function alRailBars(cnt){
+  const c = Object.assign({}, cnt); let bars = 0, check = false; const notes = [];
+  Object.keys(AL_RAIL_COMBO).forEach(k => {
+    const L = +k; if(!(c[L] > 0)) return;
+    const b = Math.ceil(c[L] / AL_RAIL_RULES[L]), ex = AL_RAIL_COMBO[L];
+    bars += b; notes.push(`${L}×${AL_RAIL_RULES[L]}+${ex} → ${c[L]}개 ${b}바`);
+    if(c[ex] > 0) c[ex] = Math.max(0, c[ex] - b);
+    c[L] = 0;
+  });
+  Object.keys(c).forEach(k => {
+    const L = +k, pcs = c[L]; if(!(pcs > 0)) return;
+    let n = AL_RAIL_RULES[L];
+    if(!n){ n = Math.floor((AL_RAIL_BAR - AL_MIN_LOSS) / L); check = true; }
+    if(n < 1){ notes.push(`${L} ${pcs}개 — 3050에 안 들어감`); check = true; return; }
+    const b = Math.ceil(pcs / n); bars += b; notes.push(`${L}×${n}${AL_RAIL_RULES[L]?'':'?'} → ${pcs}개 ${b}바`);
+  });
+  return {bars, notes, check};
+}
+function alKey(prof, color, bar){ return [prof, color, bar].filter(x => x !== '' && x != null).join('|'); }
+function alCompute(){
+  const rows = {};
+  const add = (prof, color, bar, bars, note, check) => {
+    const k = alKey(prof, color, bar);
+    const r = rows[k] || (rows[k] = {key:k, prof, color, bar, bars:0, notes:[], check:false});
+    r.bars += bars; r.notes.push(note); if(check) r.check = true;
+  };
+  const doors = alDoors.map(d => ({w:+d.w||0, h:+d.h||0, q:+d.q||0, c:String(d.c||'').trim()})).filter(d => d.q > 0 && (d.w || d.h));
+  [...new Set(doors.map(d => d.c))].forEach(c => {
+    const ds = doors.filter(d => d.c === c);
+    const byH = {}; ds.forEach(d => { if(d.h) byH[d.h] = (byH[d.h]||0) + d.q; });
+    ['손잡이', '빗각'].forEach(prof => Object.keys(byH).forEach(H => {
+      const pcs = byH[H], pl = alSidePlan(+H);
+      if(!pl){ add(prof, c, '?', 0, `${H} ${pcs}개 — 장바에 안 들어감`, true); return; }
+      const b = Math.ceil(pcs / pl.n);
+      add(prof, c, pl.bar, b, `${H}×${pl.n}${pl.check?'?':''} → ${pcs}개 ${b}바`, pl.check);
+    }));
+    const byW = {}; ds.forEach(d => { if(d.w) byW[d.w] = (byW[d.w]||0) + d.q*2; });
+    const rr = alRailBars(byW);
+    if(rr.bars || rr.notes.length) add('상하바', c, AL_RAIL_BAR, rr.bars, rr.notes.join(' · '), rr.check);
+  });
+  const list = Object.values(rows).sort((a,b) => (a.color||'').localeCompare(b.color||'') || AL_PROF_ORDER.indexOf(a.prof) - AL_PROF_ORDER.indexOf(b.prof) || (+a.bar||0) - (+b.bar||0));
+  list.forEach(r => {
+    r.stock = +alStock[r.key] || 0;
+    r.spare = Math.ceil(r.bars * alSpare / 100);
+    const raw = Math.max(0, r.bars + r.spare - r.stock);
+    r.order = raw > 0 ? Math.ceil(raw / 10) * 10 : 0;        // 10개 단위로 올림
+    r.after = r.stock + r.order - r.bars;
+  });
+  return list;
+}
+function alCalcHtml(){
+  return `<div id="al-calc" style="border:1px solid var(--b2);border-radius:10px;padding:10px 10px 8px;background:var(--s2);margin-bottom:4px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:2px">🧮 장바 소요량 · 발주 추천</div>
+    <div style="font-size:10.5px;color:var(--tx3);margin-bottom:8px;line-height:1.5">도어 1장 = 손잡이 1 + 빗각 1 (길이 = 높이) + 상하바 2 (길이 = 폭) · 모델 칸에 W1536 처럼 치면 폭·높이가 들어갑니다 · 색은 장바를 색별로 따로 시킬 때만 적으세요</div>
+    <div id="al-doors">${alDoorsHtml()}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 8px">
+      <button type="button" class="f-btn" onclick="alDoorAdd()">＋ 도어 줄</button>
+      <button type="button" class="f-btn" onclick="alExample()">예시: CABX-63</button>
+      <button type="button" class="f-btn" onclick="alDoorsClear()">비우기</button>
+      <label style="font-size:11.5px;color:var(--tx2);display:flex;align-items:center;gap:4px;margin-left:auto">안전분 <input type="number" inputmode="numeric" value="${alSpare}" oninput="alSpare=Math.max(0,+this.value||0);alResultRender()" class="inp" style="width:52px;margin:0;padding:4px;text-align:center">%</label>
+    </div>
+    <div id="al-result"></div>
+  </div>`;
+}
+function alDoorsHtml(){
+  const inp = (i, k, ph, w, ev) => `<input value="${_odEsc(alDoors[i][k])}" placeholder="${ph}" ${ev||`oninput="alDoors[${i}].${k}=this.value;alResultRender()"`} class="inp" style="margin:0;padding:5px 4px;font-size:12.5px;text-align:center;min-width:0;width:100%">`;
+  return `<div style="display:grid;grid-template-columns:minmax(70px,1.3fr) minmax(40px,.8fr) minmax(46px,1fr) minmax(46px,1fr) minmax(42px,.8fr) 22px;gap:4px;align-items:center;font-size:10.5px;color:var(--tx3);text-align:center">
+    <span>모델</span><span>색</span><span>폭</span><span>높이</span><span>장수</span><span></span>
+    ${alDoors.map((d, i) => inp(i,'m','W1536',0,`oninput="alDoors[${i}].m=this.value" onchange="alDoorModel(${i},this.value)"`) + inp(i,'c','—') + inp(i,'w','302') + inp(i,'h','758') + inp(i,'q','0')
+      + `<button type="button" onclick="alDoorDel(${i})" class="icon-btn del" style="font-size:13px;padding:2px" title="이 줄 지우기">✕</button>`).join('')}
+  </div>`;
+}
+function alDoorModel(i, v){
+  const s = alParseModel(v);
+  if(s){ alDoors[i].w = s.w; alDoors[i].h = s.h; }
+  alDoorsRender(); alResultRender();
+}
+function alDoorsRender(){ const el = document.getElementById('al-doors'); if(el) el.innerHTML = alDoorsHtml(); }
+function alDoorAdd(){ alDoors.push({m:'', c:'', w:'', h:'', q:''}); alDoorsRender(); }
+function alDoorDel(i){ alDoors.splice(i, 1); if(!alDoors.length) alDoors.push({m:'', c:'', w:'', h:'', q:''}); alDoorsRender(); alResultRender(); }
+function alDoorsClear(){ alDoors = [{m:'', c:'', w:'', h:'', q:''}]; alDoorsRender(); alResultRender(); }
+/* 예시 — CABX-63 (2026-11-12 빗각 92박스 = 184장). 색은 비워 둡니다(장바 색 구분은 사장님 확인 전) */
+function alExample(){
+  alDoors = [ {m:'1230', c:'', w:302, h:758, q:56}, {m:'1236', c:'', w:302, h:912, q:52},
+              {m:'1239', c:'', w:302, h:989, q:56}, {m:'1830', c:'', w:454, h:758, q:20} ];
+  alDoorsRender(); alResultRender();
+}
+function alStockSet(key, v){
+  const n = parseInt(v);
+  if(isNaN(n)) delete alStock[key]; else alStock[key] = n;
+  _put(LS_AL_STOCK, alStock);
+  alResultRender();
+}
+function alStockDate(v){ alStock._date = v; _put(LS_AL_STOCK, alStock); }
+function alResultRender(){
+  const el = document.getElementById('al-result'); if(!el) return;
+  const list = alCompute();
+  if(!list.length){ el.innerHTML = '<div style="font-size:11.5px;color:var(--tx3);padding:4px 2px">도어 장수를 넣으면 여기 장바 수·추천 발주가 나옵니다.</div>'; return; }
+  const th = 'padding:4px 3px;font-weight:700;color:var(--tx3);font-size:10.5px;text-align:center;white-space:nowrap';
+  const td = 'padding:4px 3px;text-align:center;border-top:1px solid var(--b1)';
+  const anyCheck = list.some(r => r.check);
+  el.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr><th style="${th};text-align:left">프로파일</th><th style="${th}">장바</th><th style="${th}">필요</th><th style="${th}">재고</th><th style="${th}">+안전분</th><th style="${th}">추천 발주</th><th style="${th}">작업 후</th></tr>
+    ${list.map(r => `<tr title="${_odEsc(r.notes.join('\n'))}">
+      <td style="${td};text-align:left;white-space:nowrap"><b>${_odEsc(r.prof)}</b>${r.color?' <span style="color:var(--tx3)">'+_odEsc(r.color)+'</span>':''}${r.check?' <span style="color:#c2410c;font-size:10.5px" title="사장님이 정한 규칙이 아님">확인 필요</span>':''}</td>
+      <td style="${td};font-family:'JetBrains Mono',monospace">${r.bar}</td>
+      <td style="${td}"><b>${r.bars}</b></td>
+      <td style="${td}"><input type="number" inputmode="numeric" value="${alStock[r.key]!=null?alStock[r.key]:''}" placeholder="0" onchange="alStockSet('${_odEsc(r.key)}',this.value)" class="inp" style="width:52px;margin:0;padding:3px;text-align:center;font-size:12px"></td>
+      <td style="${td};color:var(--tx3)">${r.spare}</td>
+      <td style="${td}"><b style="color:var(--acc)">${r.order}</b></td>
+      <td style="${td};${r.after<0?'color:var(--acc4);font-weight:700':r.after<r.spare?'color:#c2410c':''}">${r.after}</td>
+    </tr>
+    <tr><td colspan="7" style="padding:0 3px 4px;font-size:10.5px;color:var(--tx3)">${_odEsc(r.notes.join(' · '))}</td></tr>`).join('')}
+  </table></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:11px;color:var(--tx3)">
+    <label style="display:flex;align-items:center;gap:4px">재고 실사일 <input type="date" value="${_odEsc(alStock._date||'')}" onchange="alStockDate(this.value)" class="inp" style="margin:0;padding:3px 6px;font-size:11.5px;width:auto"></label>
+    <span>· 재고는 이 기기에만 저장 · 추천 = 필요 + 안전분 − 재고 (10개 단위 올림) · 작업 후 = 재고 + 발주 − 필요</span>
+    <button type="button" onclick="alToOrder()" style="margin-left:auto;padding:6px 12px;background:var(--acc);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">⬇ 추천 수량을 발주서에 넣기</button>
+  </div>
+  ${anyCheck?'<div style="font-size:10.5px;color:#c2410c;margin-top:4px">「확인 필요」 = 사장님 규칙표에 없는 길이라 남김 '+AL_MIN_LOSS+'mm 이상만 지켜 계산한 값입니다 (989 → 2350 2개 포함).</div>':''}`;
+}
+function alToOrder(){
+  const list = alCompute().filter(r => r.order > 0);
+  if(!list.length){ showToast('추천 발주가 없습니다 (재고로 충분)'); return; }
+  const filled = odLines.filter(odLineValid).length;
+  if(filled && !confirm('지금 발주 품목 ' + filled + '줄을 추천 수량으로 바꿀까요?')) return;
+  odLines = list.map(r => ({w:'', h:'', qty:r.order, pname:`${r.prof}${r.color?' '+r.color:''} 장바 ${r.bar}`, bigo:''}));
+  renderOdLines();
+  showToast('추천 수량 ' + list.length + '줄을 넣었습니다 — 발주서에서 고쳐 쓰셔도 됩니다');
+}
 const OD_CATALOG = {
   '유리': {
     '대원유리': [
@@ -14928,6 +15103,10 @@ const OD_CATALOG = {
     ]
   },
   '알루미늄': {
+    /* 대진종합금속 — 알루미늄 장바 (사장님 2026-11-13). 계산기는 위 alCalcHtml (alBar) */
+    '대진종합금속': [
+      {type:'케비넥스 장바', thick:'', title:'알루미늄 장바 발주', bigo:'', pname:'', qtyOnly:true, alBar:true, client:'케비넥스', def:true, hint:'케비넥스 손잡이·빗각·상하바 장바 · 위 계산기에 도어(모델·장수)를 넣으면 장바 수·추천 발주가 나오고 「발주서에 넣기」로 품목이 채워집니다 · 좌우바 758→2350×3 · 912→2750×3 · 상하바 3050'}
+    ],
     '(거래처 미설정)': [
       {type:'일반', thick:'', title:'알루미늄 발주', bigo:'', pname:'', sizeMode:true, hint:'아직 종류가 등록되지 않았어요. 규격·수량을 직접 입력하거나, 필요한 알루미늄 종류를 알려주시면 추가해 드릴게요.'}
     ]
@@ -15814,7 +15993,10 @@ function renderOdLines(){
   // 프리셋 사이즈 빠른추가 버튼
   const psHost=document.getElementById('od-preset-sizes');
   if(psHost){
-    if(p && Array.isArray(p.kinds) && p.kinds.length){
+    if(p && p.alBar){                       // 알루미늄 장바 계산기 — 입력 중 다시 그리면 칸이 날아가므로 있으면 둡니다
+      if(!document.getElementById('al-calc')) psHost.innerHTML = alCalcHtml();
+      alResultRender();
+    } else if(p && Array.isArray(p.kinds) && p.kinds.length){
       const on = p.kinds.indexOf(odModelKind)>=0;
       psHost.innerHTML='<span style="font-size:11px;color:'+(on?'var(--tx3)':'var(--acc3,#c2410c)')+';margin-right:6px">'+(on?'갈래':'먼저 고르세요 →')+'</span>'+
         p.kinds.map(k=>`<button onclick="odModelKindSet('${k}')" class="f-btn${odModelKind===k?' on':''}" style="margin:2px 4px 2px 0;padding:4px 14px;${odModelKind===k?'background:var(--acc);color:#fff;border-color:var(--acc)':''}">${k}</button>`).join('')
