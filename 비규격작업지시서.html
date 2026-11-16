@@ -5628,6 +5628,18 @@ function cadGenerate(){
      · 인쇄실용 색상별 유리 사이즈 표
      · HPM(베일) 색상은 인쇄유리가 아니라 빠진다
    ════════════════════════════════════════════════════════════════ */
+/* 정규격 유리 사이즈 표시 (사장님 2026-11-16) — 비규격으로 나온 유리라도 사이즈가 유로700 정규격 유리
+   (ybn-data.js SIZE_TO_MODELS)와 같으면 「정규격」 꼬리표를 붙입니다. 재고 유리로 쓸 수 있는지 보시라는 표시뿐 —
+   수량·합산·복사는 그대로입니다. ybn-data.js 가 안 붙으면 표시만 빠집니다. */
+function glStdTag(gw, gh){
+  if(typeof SIZE_TO_MODELS==='undefined') return '';
+  const k=SIZE_TO_MODELS[gw+'x'+gh] ? gw+'x'+gh : SIZE_TO_MODELS[gh+'x'+gw] ? gh+'x'+gw : null;
+  if(!k) return '';
+  const ms=SIZE_TO_MODELS[k].map(m=>String(m).replace(/^(OB|HD)\s+|\s+M$/g,''));
+  return ` <span title="정규격 유리 사이즈 — ${esc(ms.join(', '))}" style="display:inline-block;margin-left:6px;padding:0 5px;`
+    + `border:1px solid #111;border-radius:4px;font-size:11px;font-weight:700;color:#111;vertical-align:1px;white-space:nowrap">`
+    + `정규격 <span style="font-weight:400;font-size:10px;color:#444">${esc(ms[0])}${ms.length>1?' 외':''}</span></span>`;
+}
 function buildGlassOrderHTML(glassAll, odByShip, lead){
   let orderHTML=''; const byShipG={};
   (glassAll||[]).forEach(g=>{ (byShipG[g.ship]=byShipG[g.ship]||[]).push(g); });
@@ -5661,7 +5673,7 @@ function buildGlassOrderHTML(glassAll, odByShip, lead){
       // (n SET)은 그 사이즈가 한 SET에 몇 장 들어가는지로 나눕니다 — 예전의 ÷2 는 틀렸습니다
       const setN = g.set && g.perSet ? (g.qty/g.perSet) : 0;
       const tag  = (setN && Number.isFinite(setN)) ? ` <span class="set-tag">(${+setN.toFixed(2)}SET)</span>` : '';
-      return head+`<tr><td>${no}</td><td class="gs">${g.gw}×${g.gh}</td><td>${esc(g.color)}</td>`
+      return head+`<tr><td>${no}</td><td class="gs">${g.gw}×${g.gh}${glStdTag(g.gw,g.gh)}</td><td>${esc(g.color)}</td>`
            + `<td style="text-align:center;font-weight:bold">${g.qty}${tag}</td></tr>`;
     }).join('');
     const totQty=arr.reduce((s,g)=>s+g.qty,0);
@@ -5672,7 +5684,7 @@ function buildGlassOrderHTML(glassAll, odByShip, lead){
       const ca={}; byColorG[color].forEach(g=>{ const k=g.gw+'×'+g.gh; ca[k]=(ca[k]||0)+g.qty; });
       const carr=Object.keys(ca).map(k=>{const p=k.split('×');return{gw:+p[0],gh:+p[1],qty:ca[k]};}).sort((a,b)=>(b.gh-a.gh)||(b.gw-a.gw));
       const ct=carr.reduce((s,x)=>s+x.qty,0);
-      const crows=carr.map((g,i)=>`<tr><td>${i+1}</td><td class="gs">${g.gw}×${g.gh}</td><td style="text-align:center;font-weight:bold">${g.qty}</td></tr>`).join('');
+      const crows=carr.map((g,i)=>`<tr><td>${i+1}</td><td class="gs">${g.gw}×${g.gh}${glStdTag(g.gw,g.gh)}</td><td style="text-align:center;font-weight:bold">${g.qty}</td></tr>`).join('');
       const cKo=colorKo(color), cc=COLOR_CHIP[cKo];
       const cStyle=`display:inline-block;margin-bottom:5px;font-size:14px`
         + (cc?`;background:${cc[0]};border-color:${cc[1]};color:${cc[2]}`:'');
