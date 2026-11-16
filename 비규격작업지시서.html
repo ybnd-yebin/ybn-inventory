@@ -5636,9 +5636,9 @@ function glStdTag(gw, gh){
   const k=SIZE_TO_MODELS[gw+'x'+gh] ? gw+'x'+gh : SIZE_TO_MODELS[gh+'x'+gw] ? gh+'x'+gw : null;
   if(!k) return '';
   const ms=SIZE_TO_MODELS[k].map(m=>String(m).replace(/^(OB|HD)\s+|\s+M$/g,''));
-  return ` <span title="정규격 유리 사이즈 — ${esc(ms.join(', '))}" style="display:inline-block;margin-left:6px;padding:0 5px;`
-    + `border:1px solid #111;border-radius:4px;font-size:11px;font-weight:700;color:#111;vertical-align:1px;white-space:nowrap">`
-    + `정규격 <span style="font-weight:400;font-size:10px;color:#444">${esc(ms[0])}${ms.length>1?' 외':''}</span></span>`;
+  // 상자 없이 글자로만 (사장님 2026-11-16 「박스로 안 해도 돼 · 글씨가 안 보여」)
+  return ` <span title="정규격 유리 사이즈 — ${esc(ms.join(', '))}" style="margin-left:6px;color:#111;white-space:nowrap">`
+    + `[ 정규격 ${esc(ms[0])}${ms.length>1?' 외':''} ]</span>`;
 }
 function buildGlassOrderHTML(glassAll, odByShip, lead){
   let orderHTML=''; const byShipG={};
