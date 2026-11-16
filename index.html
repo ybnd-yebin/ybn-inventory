@@ -4168,6 +4168,9 @@ const SOONAP_CODES = Object.keys(SOONAP_GROUPS).reduce((a,g)=>a.concat(SOONAP_GR
 const SOONAP_CODE_SET = new Set(SOONAP_CODES);
 const SOONAP_GROUP_OF = {}; Object.keys(SOONAP_GROUPS).forEach(g=>SOONAP_GROUPS[g].forEach(c=>{SOONAP_GROUP_OF[c]=g;}));
 const SOONAP_CATS = new Set(['시그니처','EURO','에어힌지','빗각','빌트인']); // 비규격(연장 등) 판정용 대분류
+// 비규격 대응 — 재고를 두지 않고 오더가 오면 발주하는 묶음 (사장님 2026-11-16). 모델명 옆에 빨간 표시만, 계산은 그대로
+const SOONAP_NONSTD_GROUPS = new Set(['에어힌지','빗각']);
+function soonapNsTag(code){ return SOONAP_NONSTD_GROUPS.has(SOONAP_GROUP_OF[code]) ? ' <span style="color:#c62828;font-size:10px;font-weight:700;white-space:nowrap">비규격 대응</span>' : ''; }
 const SOONAP_DEFAULT_INACTIVE = ['MALWF0392']; // 6개월 0건 → 초기 비활성 (AL55브론즈매직)
 
 let soonap = J(localStorage.getItem('ybn-soonap-v1')) || {ins:{},onorder:{},active:{},base:{}};
@@ -4387,11 +4390,11 @@ function renderSoonap(){
       // 총재고도 글래스도어·월 격자와 같은 셈 (2026-10-27) — 이달 기초재고 − 이달 납품(발주일·AS 제외) + 이달 입고.
       // 예전 셈(첫 입고 뒤 입고 합 − 출고)은 기초재고를 넣을 자리가 없어 실사를 맞출 수 없었습니다. 기초재고가 없으면 「—」.
       const sn=soonapNowOf(code), tot=sn.now, low=tot!=null&&tot<=0; if(tot==null && act) snNeed++;
-      mR += snMItem(soonapName(code), tot==null?'-':tot, low,
+      mR += snMItem(soonapName(code)+soonapNsTag(code), tot==null?'-':tot, low,
         [['이번주', m.week], ['이번달', m.month], ['월평균', m.avg], ['발주중', m.onorder]],
         `<button class="sn-mb pri" onclick="soonapInPrompt('${cEsc}')">＋입고</button><button class="sn-mb" onclick="soonapGlassReal('${cEsc}')">실사</button><button class="sn-mb" onclick="soonapOrderPrompt('${cEsc}')">발주</button><label class="sn-ma"><input type="checkbox" ${act?'checked':''} onchange="soonapToggle('${cEsc}')"> 활성</label>`, act, code);
       r += `<tr style="border-bottom:1px solid var(--b1);${act?'':'opacity:.5'}">
-        <td style="padding:6px 8px;min-width:160px;line-height:1.3">${soonapName(code)}<div style="font-size:9px;color:var(--tx3)">${soonapCodesOf(code)}</div></td>
+        <td style="padding:6px 8px;min-width:160px;line-height:1.3">${soonapName(code)}${soonapNsTag(code)}<div style="font-size:9px;color:var(--tx3)">${soonapCodesOf(code)}</div></td>
         <td style="text-align:center;font-weight:700;font-size:15px;color:${low?'var(--acc4)':'var(--tx1)'};cursor:pointer" onclick="soonapGlassReal('${cEsc}')" title="이달 기초재고 ${sn.base==null?'-':sn.base} − 이달 납품 ${sn.ord} + 이달 입고 ${sn.ins} · 눌러서 실사">${tot==null?'—':tot}</td>
         <td style="text-align:center;color:var(--tx1)">${m.week||'·'}</td>
         <td style="text-align:center;color:var(--tx1)">${m.month||'·'}</td>
