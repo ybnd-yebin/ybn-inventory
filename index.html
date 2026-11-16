@@ -19040,7 +19040,7 @@ function renderOrderList(){
             <div style="font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;${it.received?'text-decoration:line-through':''}">${titleLine}${it.auto?' <span style="font-size:9px;font-family:Noto Sans KR,sans-serif;background:rgba(46,160,67,.14);color:var(--acc3);padding:1px 6px;border-radius:6px;font-weight:700">자동</span>':''}${it.recvHeld&&!it.received?' <span style="font-size:9px;font-family:Noto Sans KR,sans-serif;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 6px;border-radius:6px;font-weight:700">되돌림</span>':''}</div>
             <div style="font-size:10px;color:var(--tx3)">${subLine}</div>
             ${it.recvHeld&&!it.received?`<button onclick="odAutoUnhold('${o.id}',${i})" style="margin-top:4px;padding:3px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">자동에 다시</button>`:''}
-            ${hasSize&&it.received?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:var(--acc3)">📦 입고일</span><input type="date" value="${it.recvDate||''}" onchange="odSetRecvDate('${o.id}',${i},this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif"></div>`:''}
+            ${hasSize&&it.received?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:var(--acc3)">📦 입고일</span><input type="date" value="${it.recvDate||''}" onchange="odSetRecvDate('${o.id}',${i},this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif"><span style="font-size:10px;color:var(--acc3);margin-left:6px">실입고</span><input type="number" min="0" value="${odRecvQty(it)}" onchange="odSetRecvQty('${o.id}',${i},this.value)" title="실제로 들어온 장수 — 발주와 다르면 고치십시오" style="width:54px;font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'JetBrains Mono',monospace;text-align:right"></div>`:''}
           </div>
           ${hasSize&&!it.received&&(Number(it.qty)||0)>1&&!editing?`<button onclick="odSplitRecv('${o.id}',${i})" title="일부만 들어왔을 때 — 들어온 장수만 입고하고 나머지는 대기 줄로 남깁니다" style="flex-shrink:0;padding:3px 8px;background:var(--s1);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap">나눠 입고</button>`:''}
           ${(()=>{ const df=odRecvDiff(it);
@@ -21549,6 +21549,34 @@ function odSplitRecv(orderId, idx){
   if(typeof renderDash==='function') renderDash();
   if(typeof autoSync==='function') autoSync();
   showToast(`📦 ${it.w}×${it.h} ${n}장 입고 (${today.slice(5).replace('-','/')}) · 남은 ${q-n}장은 대기`);
+}
+
+/* 이미 입고된 줄의 실입고 장수 고치기 (사장님 2026-11-16 「10개 발주 9개 입고 — 체크해 놔야 되는데 수정이 안 돼」)
+   · it.rq 만 바꿉니다(발주와 같으면 지움). 입고 기록이 있으면 그 장수도 같이 — 원유리 이벤트 / 발주탭이 만든 에토프 입고 줄.
+   · 「발주서 넣기」로 들어온 지난 발주(past-import)·에토프 탭 표시처럼 기록이 없는 줄은 장수 표시(매입 장수)만 바뀝니다 — 재고는 안 건드림. */
+function odSetRecvQty(orderId, idx, val){
+  const o=orderLog.find(x=>x.id===orderId); if(!o) return;
+  const it=o.items[idx]; if(!it || !it.received) return;
+  const n=parseInt(val);
+  if(!(n>=0)){ showToast('0 이상 숫자로 넣어 주십시오'); renderOrderList(); return; }
+  const prev=odRecvQty(it); if(n===prev) return;
+  { const lock=(typeof odClosedLock==='function')?odClosedLock(o):null;
+    if(lock && !confirm(`🔒 ${lock}인 발주입니다. 실입고를 ${prev} → ${n}장으로 고칠까요? (확정된 마감 금액은 그대로)`)){ renderOrderList(); return; } }
+  if(n===(Number(it.qty)||0)) delete it.rq; else it.rq=n;
+  let what='표시만';
+  if(String(it.eventId||'').indexOf('etpr_')===0){
+    const r=(etpLedger||[]).find(x=>x && x.id===it.eventId);
+    if(r){ r.qty=Math.max(0,(Number(r.qty)||0)+(n-prev)); r.ts=r.at=new Date().toISOString(); etpCommit(); what='에토프 장부도'; }
+  } else if(it.eventId){
+    const ev=((stockEvents||{})[`${it.w}x${it.h}`]||[]).find(e=>e && e.id===it.eventId);
+    if(ev){ ev.qty=n; ev.updatedAt=new Date().toISOString(); what='원유리 재고도';
+      if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h); }
+  }
+  o.updatedAt=new Date().toISOString();
+  saveAll(); saveOrderLog(); renderOrderList();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`${it.w}×${it.h} 실입고 ${prev} → ${n}장 (발주 ${it.qty}) · ${what} 고침`);
 }
 
 // 입고일 수정 (품목별로 다른 입고날짜 허용)
