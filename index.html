@@ -21125,6 +21125,15 @@ async function odImgRead(url, hint){
     if(/총\s*수\s*량/.test(t)){ foot=l; const m=t.match(/(\d+)\s*\D*$/); res.total=m?+m[1]:null; }
   });
   if(!head) throw new Error('표 머리(수량·비고)를 못 찾았습니다 — 발주서 양식 이미지가 맞는지 보십시오');
+  // 「수 신」 글자를 못 읽어도(「4 4:」로 읽힘 — 2026-11-16 실측) 표 머리 위에 아는 발주처 이름이 있으면 그것으로
+  if(!res.vendor){
+    const known=[]; Object.values(OD_CATALOG).forEach(g=>Object.keys(g).forEach(k=>{ if(!/미설정/.test(k)) known.push(k); }));
+    for(const l of lines){
+      if(l.b.y1>head.b.y0) break;
+      const t=l.t.replace(/\s/g,''), k=known.find(k=>t.includes(k));
+      if(k){ res.vendor=k; break; }
+    }
+  }
   // 종류: 표 머리 바로 위, 왼쪽 덩어리 ('백샤틴' · '3.2T 백사틴')
   for(const l of lines){
     if(l.b.y1>head.b.y0) break;
@@ -21140,8 +21149,14 @@ async function odImgRead(url, hint){
   const colOf=x=>{ for(let i=0;i<xs.length-1;i++) if(x>=xs[i] && x<xs[i+1]) return i; return -1; };
   const cellsOf=l=>{ const cells=Array(xs.length-1).fill(''); l.words.forEach(w=>{ const i=colOf((w.bbox.x0+w.bbox.x1)/2); if(i>=0) cells[i]+=(cells[i]?' ':'')+w.text; }); return cells; };
   const hc=cellsOf(head), find=re=>hc.findIndex(s=>re.test(s.replace(/\s/g,'')));
-  const qCol=find(/수량/), dCol=find(/[납남]기/), bCol=find(/비고/), cCol=find(/업체/);
+  const qCol=find(/수량/);
   if(qCol<2) throw new Error('수량 칸을 못 찾았습니다');
+  // 머리 글자를 못 읽으면(「납기」→「wl」, 「업체명」→「a」 — 2026-11-16 실측) 양식 차례 수량·납기·비고·업체명 으로 잡습니다
+  const nC=xs.length-1, byOrd=k=>(qCol+k<nC ? qCol+k : -1);
+  let dCol=find(/[납남]기/), bCol=find(/비고/), cCol=find(/업체/);
+  if(dCol<0) dCol=byOrd(1);
+  if(bCol<0) bCol=(dCol>=0 ? (dCol+1<nC ? dCol+1 : -1) : byOrd(2));
+  if(cCol<0) cCol=(bCol>=0 ? (bCol+1<nC ? bCol+1 : -1) : byOrd(3));
   // NO·품명은 규격 칸 기준으로 셉니다 — 이미지 가장자리 선이 칸 경계로 하나 더 잡히는 일이 있습니다(실측)
   const sCol=qCol-1, pCol=sCol-1, nCol=sCol-2;
 
@@ -21164,6 +21179,13 @@ async function odImgRead(url, hint){
     if(!pick) row.warn.push('규격을 못 읽었습니다');
     else if(!p1 || !p2 || +p1[1]!==+p2[1] || +p1[2]!==+p2[2]) row.warn.push(`두 번 읽은 값이 달랐습니다 (${p1?p1[1]+'*'+p1[2]:'?'} / ${p2?p2[1]+'*'+p2[2]:'?'})`);
     if(pick && (/^0/.test(pick[1]) || row.w<50 || row.h<50)) row.warn.push('규격이 이상합니다');
+    // 수량 칸도 잘라 숫자 전용으로 한 번 더 — 한글 읽기가 수량을 빠뜨리거나 다른 칸에 붙이는 일이 있습니다(2026-11-16)
+    {
+      const qc=odImgCrop(c, xs[qCol]+3*S, l.b.y0-5*S, xs[qCol+1]-3*S, l.b.y1+5*S, 2);
+      const q2=parseInt(((await odOcr.num.recognize(qc)).data.text||'').replace(/[^\d]/g,''))||0;
+      if(q2 && q2!==row.qty){ if(row.qty) row.warn.push(`수량을 두 번 읽은 값이 달랐습니다 (${row.qty} / ${q2})`); row.qty=q2; }
+      if(!row.qty) row.warn.push('수량을 못 읽었습니다');
+    }
     // 품명 — 「비규격」은 비규격으로. " 는 위와 같음. 읽기 잡음이면 위와 같음으로 보고 노랗게.
     const pn=(cell[pCol]||'').replace(/\s/g,'');             // '비 규 격' 처럼 띄어 읽힙니다
     if(/규격/.test(pn)) row.pname=/정규격/.test(pn)&&!/비/.test(pn)?'정규격':'비규격';
@@ -21177,6 +21199,14 @@ async function odImgRead(url, hint){
     prev={pname:row.pname, due:row.due, bigo:row.bigo, client:row.client};
     res.rows.push(row);
   }
+  // 총 수량 숫자를 못 읽었으면(「IE」로 읽힘 — 2026-11-16 실측) 수량 칸 자리만 잘라 숫자 전용으로
+  if(foot && res.total==null){
+    const tc=odImgCrop(c, xs[qCol]+3*S, foot.b.y0-8*S, xs[qCol+1]-3*S, foot.b.y1+8*S, 2);
+    const t2=parseInt(((await odOcr.num.recognize(tc)).data.text||'').replace(/[^\d]/g,''));
+    if(t2>0) res.total=t2;
+  }
+  // 업체명 「한생」처럼 한 글자 틀리게 읽힌 한샘
+  res.rows.forEach(r=>{ if(/^한[샘생셈쌤삼]$/.test(r.client)) r.client='한샘'; });
   // 첫 줄 품명을 못 읽었으면: 정규격 발주서가 아니면 「비규격」으로 두고 노랗게 (사장님: 비규격은 비규격으로)
   if(res.rows.length && !res.rows[0].pname && !/정규격/.test(res.type)){
     let i=0; while(i<res.rows.length && !res.rows[i].pname){ res.rows[i].pname='비규격'; i++; }
