@@ -2364,6 +2364,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 #pg-bas .tab:hover{background:var(--chip)}
 #pg-bas .tab.active{background:var(--panel);color:var(--accent);border-color:var(--line);font-weight:700}
 #pg-bas .bas-tab-sub{margin-top:10px;font-size:11.5px;opacity:.7}
+#pg-bas .tab.bas-tsub{padding-left:22px;font-size:12px}
+#pg-bas .tab.bas-tsub::before{content:'└ ';opacity:.5}
 #pg-bas .bas-side-note{margin:12px 6px 0 4px;font-size:10.5px;color:var(--sub);line-height:1.5;word-break:keep-all}
 #pg-bas .bas-side-note>div+div{margin-top:4px}
 #pg-bas .bas-grp{font-size:12.5px;font-weight:800;color:var(--sub);margin:16px 2px 6px}   /* 재고 기록 탭 안 묶음 이름 */
@@ -2597,7 +2599,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <div class="tab active" data-p="deliv">발주·납품</div>
     <div class="tab" data-p="now">재고</div>
     <div class="tab" data-p="record" data-up="now" style="display:none">재고 기록</div>
-    <div class="tab" data-p="close" data-up="now" style="display:none">월 마감</div>
+    <!-- 재고 밑 꼬리표 둘 (사장님 2026-11-16 「월마감 재고 밑에 탭으로」 · 판매오더 월별 모델×일자 표) -->
+    <div class="tab bas-tsub" data-p="srmgrid">판매오더 표</div>
+    <div class="tab bas-tsub" data-p="close">월 마감</div>
     <div class="tab" data-p="hit" style="display:none">예시 적중률</div>
   </div>
   <div class="bas-side-note">
@@ -2674,7 +2678,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </details>
   <div class="bas-subrow" style="margin-top:4px">가끔
     <button class="bas-fbtn" onclick="BAS.goTab('record')">📋 월말 실사 · 창고 출고 자료</button>
-    <button class="bas-fbtn" onclick="BAS.goTab('close')">🧾 월 마감</button>
   </div>
   </div><!-- /bas-now-main -->
 </section>
@@ -2822,17 +2825,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     </div>
    </div>
   </div>
-  <div class="card" id="bas-srmGridCard">
-    <div class="bas-ph">
-      <div><h2>📊 판매오더 모델 × 일자 <span class="bas-cnt" id="bas-srmGridTitle"></span></h2>
-        <div class="sub">판매오더(창고 출고)를 날짜마다 모델별로. 회색 칸은 아직 나가지 않은 예정분입니다.</div></div>
-      <div class="bas-tools">
-        <button class="quiet" id="bas-srmPrev">‹ 이전달</button>
-        <button class="quiet" id="bas-srmNext">다음달 ›</button>
-      </div>
-    </div>
-    <div class="tbl-wrap" id="bas-srmGrid"></div>
-  </div>
   <!-- 🔮 출고예시 (사장님 2026-11-09 「출고예시 넣으면 예상 수량 · 판매오더랑 얼마나 차이」) — 넣는 칸은 예전 「예시표 올리기」·「예시분석에서 받기」 그대로(칸 아이디 같음).
        예상 수량은 재고 표 예상 재고 밑 「예시 2주」 줄, 비교는 이 카드 아래(renderYesiCmp) -->
   <div class="card" id="bas-yesiCard">
@@ -2960,8 +2952,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 </section>
 
 <!-- 월 마감 -->
+<!-- 판매오더 표 (사장님 2026-11-16) — 판매오더 엑셀(창고 출고)을 한 달씩: 모델 · 월 누적 · 1일~말일. 예전 발주·납품 탭 아래 카드를 이 탭으로 옮김(칸 아이디 그대로) -->
+<section class="page" id="bas-page-srmgrid">
+  <div class="card" id="bas-srmGridCard">
+    <div class="bas-ph">
+      <div><h2>📊 판매오더 모델 × 일자 <span class="bas-cnt" id="bas-srmGridTitle"></span></h2>
+        <div class="sub">판매오더 엑셀로 넣은 창고 출고를 날짜마다 모델별로. 회색 칸은 아직 나가지 않은 예정분입니다.</div></div>
+      <div class="bas-tools">
+        <button class="quiet" id="bas-srmPrev">‹ 이전달</button>
+        <select id="bas-srmMonth" style="font-size:12.5px;padding:4px 6px"></select>
+        <button class="quiet" id="bas-srmNext">다음달 ›</button>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="bas-srmGrid"></div>
+  </div>
+</section>
+
 <section class="page" id="bas-page-close">
-  <div class="bas-subrow" style="margin:0 2px 6px"><button class="bas-link" onclick="BAS.goTab('now')">← 재고로</button></div>
   <!-- 월 마감 (2026-10-26 개편 4단계) — 주 일: 마감 월 고르기 → 마감표 확인·복사 → 한샘 마감내역 대조. 단가 관리는 부가. 칸 아이디는 예전 그대로 -->
   <div class="card">
     <div class="bas-ph">
@@ -32010,6 +32017,8 @@ function renderSrmGrid(hostId, titleId){
   if(!days.length){ host.innerHTML='<div class="empty">아직 올린 창고 출고 자료가 없습니다.</div>'; if(titleEl) titleEl.textContent=''; return; }
   if(!srmYm || !days.some(d=>d.slice(0,7)===srmYm)) srmYm=days[days.length-1].slice(0,7);
   if(titleEl) titleEl.textContent=srmYm.replace('-','년 ')+'월';
+  if(!hostId){ const ms=$b('srmMonth'); if(ms){ const yms=[...new Set(days.map(d=>d.slice(0,7)))].sort().reverse();
+    ms.innerHTML=yms.map(m=>`<option value="${m}"${m===srmYm?' selected':''}>${m.replace('-','년 ')}월</option>`).join(''); } }
   const y=+srmYm.slice(0,4), mo=+srmYm.slice(5,7);
   const nDays=new Date(y,mo,0).getDate();
   const dow=n=>['일','월','화','수','목','금','토'][new Date(y,mo-1,n).getDay()];
@@ -32040,8 +32049,8 @@ function renderSrmGrid(hostId, titleId){
   const totCell=`${stick(W_NAME,W_TOT,'border-right:2px solid var(--line);')}`;
 
   let html=`<table style="font-size:12px"><thead><tr>`
-    + `<th style="${nameCell};z-index:5">품목</th>`
-    + `<th class="num" style="${totCell};z-index:5">합계</th>`;
+    + `<th style="${nameCell};z-index:5">모델</th>`
+    + `<th class="num" style="${totCell};z-index:5">월 누적</th>`;
   for(let n=1;n<=nDays;n++) html+=`<th class="num" style="min-width:24px;${isPlan(n)?'background:var(--chip)':''}">${n}<br><span class="mini">${dow(n)}</span></th>`;
   html+=`</tr></thead><tbody>`;
   codes.forEach(c=>{
@@ -34122,6 +34131,7 @@ setupDrop('dzYbnd','fileYbnd','ybnd','ybndInfo');
   $b('btnSrmExport').onclick=srmExport;
   $b('srmPrev').onclick=()=>srmShiftMonth(-1);
   $b('srmNext').onclick=()=>srmShiftMonth(1);
+  $b('srmMonth').onchange=e=>{ srmYm=e.target.value; renderSrmGrid(); renderSrmGrid('nowGrid','nowGridTitle'); };
   // 수기 입력
   $b('sOutDate').value=TODAY;
   $b('btnSrmAdd').onclick=srmAddManual;
