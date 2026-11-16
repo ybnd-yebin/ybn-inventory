@@ -1098,6 +1098,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     .ys-tbl th:first-child,.ys-tbl td.ys-l{text-align:left}
     .ys-tbl tr.ys-short td{color:#d97706}
     .ys-tbl tr.ys-short td.ys-l{font-weight:700}
+    .ys-tbl td.ys-k{text-align:left;font-family:inherit;font-size:11px;color:var(--tx2)}
+    .ys-tbl td.ys-k .ys-ns{color:var(--tx1);font-weight:700}
     .ys-now{color:#d97706}
     .ys-neg{font-size:10.5px;color:#f85149}
     .ys-note{font-size:11px;color:var(--tx3);padding:6px 12px 9px;line-height:1.5}
@@ -26184,9 +26186,9 @@ function yesiRowsOf(color){
   const lead = (typeof OD_VENDOR_DUE !== 'undefined' && Number(OD_VENDOR_DUE[color === 'ETP' ? '현성유리' : '대원유리'])) || 0;
   const inc = {};   // 열쇠 → [{d,q}]
   const addInc = (k, d, q) => { if(q > 0) (inc[k] = inc[k] || []).push({ d, q }); };
-  const cur = {};
+  const cur = {}, nsMap = {};
   if(color === 'ETP'){
-    etpBuildRows().forEach(r => { cur[r.size] = r.cur; });
+    etpBuildRows().forEach(r => { cur[r.size] = r.cur; if(r.nonstd) nsMap[r.size] = 1; });
     (Array.isArray(etpPOs) ? etpPOs : []).forEach(po => {
       if(!po || po.status === 'done' || po.canceled) return;
       const due = etpPoDue(po);
@@ -26214,7 +26216,11 @@ function yesiRowsOf(color){
     const ii = inc[k] || [];
     const w = yesiWalk(stock, ii, n.byDay, N.from, N.to);
     const latest = w.first ? _addBizDays(w.first, -lead) : '';
-    out.push({ key:k, stock, book, hint, inc:ii.filter(x => !x.d || x.d <= N.to).reduce((s, x) => s + x.q, 0), need:n.tot,
+    // 정규격·비규격 표시 (사장님 2026-11-16) — 예시는 비규격 품목을 빼고 세므로 사이즈는 정규격 모델 유리입니다.
+    // 에토프 장부가 비규격으로만 오간 사이즈(etpNonStdSizes)이거나 정규격 모델 표에 없으면 「비규격」으로 드러냅니다.
+    const bk = etpBaseSize(k), mdl = (typeof SIZE_TO_MODELS !== 'undefined' && SIZE_TO_MODELS[bk]) || [];
+    const ns = !!nsMap[k] || !mdl.length;
+    out.push({ key:k, stock, book, hint, ns, models:mdl, inc:ii.filter(x => !x.d || x.d <= N.to).reduce((s, x) => s + x.q, 0), need:n.tot,
                first:w.first, short:w.short, latest, late:!!(latest && latest <= today) });
   });
   out.sort((a, c) => ((!!c.first) - (!!a.first)) || (a.first || '').localeCompare(c.first || '') || (c.short - a.short) || (c.need - a.need));
@@ -26239,9 +26245,10 @@ function yesiCardHtml(color){
     '</div>';
   if(!open) return '<div class="ys-card">' + head + '</div>';
   const list = R.rows.filter(r => r.first || r.need > 0);
-  const th = '<tr><th>사이즈</th><th>' + (color === 'ETP' ? '재고' : '원유리') + '</th><th>입고 예정</th><th>2주 예시</th><th>처음 모자라는 날</th><th>모자람</th><th>늦어도 발주</th></tr>';
+  const th = '<tr><th>사이즈</th><th style="text-align:left">구분</th><th>' + (color === 'ETP' ? '재고' : '원유리') + '</th><th>입고 예정</th><th>2주 예시</th><th>처음 모자라는 날</th><th>모자람</th><th>늦어도 발주</th></tr>';
   const tr = list.map(r =>
     '<tr' + (r.first ? ' class="ys-short"' : '') + '><td class="ys-l">' + etpEsc(r.key) + '</td>' +
+    '<td class="ys-k" title="' + etpEsc(r.models.length ? r.models.join(', ') : '정규격 모델 표에 없음') + '">' + (r.ns ? '<span class="ys-ns">비규격</span>' : '정규격' + (r.models.length ? ' · ' + etpEsc(r.models[0]) + (r.models.length > 1 ? ' 외' : '') : '')) + '</td>' +
     '<td' + (r.hint ? ' title="' + etpEsc(r.hint) + '"' : '') + '>' + (r.book < 0 ? '0 <span class="ys-neg">(장부 ' + r.book + ')</span>' : r.stock) + '</td>' +
     '<td>' + (r.inc || '-') + '</td><td>' + r.need + '</td>' +
     '<td>' + f(r.first) + '</td><td>' + (r.short || '-') + '</td>' +
@@ -26251,7 +26258,7 @@ function yesiCardHtml(color){
   const note = '<div class="ys-note">예시는 후보입니다 — 안 오는 것·예시 없이 오는 것이 10% 남짓씩 있습니다. ' +
     '늦어도 발주 = 처음 모자라는 날 − ' + vendor + ' 납기 ' + R.lead + '영업일' +
     (color === 'WC' ? '(인쇄 시간은 빼지 않음). 원유리 칸 = 원유리 + 인쇄유리(마이너스면 0) — 숫자에 마우스를 올리면 나눠 보입니다' : '') +
-    '. 장부가 마이너스인 사이즈는 0 으로 보고 셉니다. 안전재고·권장발주는 이 숫자로 안 바뀝니다. 예시를 넣은 이 PC 에서만 보입니다.</div>';
+    '. 장부가 마이너스인 사이즈는 0 으로 보고 셉니다. 안전재고·권장발주는 이 숫자로 안 바뀝니다. 구분 = 그 유리 사이즈가 정규격 모델 것인지(마우스를 올리면 모델 전부). 비규격 품목은 예시에서 빼고 셉니다. 예시를 넣은 이 PC 에서만 보입니다.</div>';
   return '<div class="ys-card">' + head +
     (list.length ? '<div class="ys-wrap"><table class="ys-tbl"><thead>' + th + '</thead><tbody>' + tr + '</tbody></table></div>'
                  : '<div class="ys-note">이 기간 예시에 ' + (color === 'ETP' ? '에토프' : '웜코튼') + ' 정규격이 없습니다.</div>') +
