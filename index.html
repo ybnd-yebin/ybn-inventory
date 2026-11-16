@@ -1328,7 +1328,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
               <button onclick="etpExportStock()">📋 지금 재고표 <small>표에 보이는 숫자 그대로</small></button>
               <button onclick="etpDefExcelMonth()">🚫 이달 불량 <small>월말 현성 정산용</small></button>
               <button onclick="etpExport()">📒 장부 전체 <small>입고·출고·조정 모든 줄</small></button>
-              <button onclick="rxOpen()">📤 오늘 입고 <small>직원 아티팩트에 붙여넣기용</small></button>
+              <button onclick="rxOpen()">📤 오늘 발주 <small>직원 아티팩트에 붙여넣기용</small></button>
             </div>
           </span>
           <button class="etp-sbtn" onclick="etpOpenInput('count')">🔢 실사</button>
@@ -1736,8 +1736,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     .od-auto{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;padding:7px 11px;margin-bottom:10px;border-radius:9px;font-size:11px;line-height:1.5;color:var(--tx2)}
   </style>
   <div id="od-stats" class="od-stats"></div>
-  <!-- 📤 오늘 입고 내보내기 — 직원 아티팩트에 붙여넣을 글자 묶음 (2026-11-16) -->
-  <div style="display:flex;justify-content:flex-end;margin:-4px 0 10px"><button onclick="rxOpen()" style="padding:6px 14px;font-size:12px;border:1px solid var(--b2);border-radius:8px;background:var(--s1);color:var(--tx1);cursor:pointer;font-family:'Noto Sans KR',sans-serif">📤 오늘 입고 내보내기</button></div>
+  <!-- 📤 오늘 발주 내보내기 — 직원 아티팩트에 붙여넣을 글자 묶음 (2026-11-16) -->
+  <div style="display:flex;justify-content:flex-end;margin:-4px 0 10px"><button onclick="rxOpen()" style="padding:6px 14px;font-size:12px;border:1px solid var(--b2);border-radius:8px;background:var(--s1);color:var(--tx1);cursor:pointer;font-family:'Noto Sans KR',sans-serif">📤 오늘 발주 내보내기</button></div>
 
   <!-- 🧊 비규격에서 넘어온 유리 — 색마다 한 장씩 (2026-09-16) -->
   <div id="od-handoff" style="display:none"></div>
@@ -29702,20 +29702,19 @@ function etpFallbackCopy(txt, done){
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   📤 오늘 입고 내보내기 — 직원 아티팩트에 붙여넣기 (사장님 2026-11-16)
-   발주는 앱에서 하고, 그날 들어온 것을 글자 묶음으로 복사해 아티팩트 「와이비앱 입고 가져오기」에 붙입니다.
-   읽기만 합니다 — 재고·발주 기록은 안 건드립니다.
+   📤 오늘 발주 내보내기 — 직원 아티팩트에 붙여넣기 (사장님 2026-11-16)
+   발주는 앱에서 하고, 그날 낸 발주를 글자 묶음으로 복사해 아티팩트 「와이비앱 발주 가져오기」에 붙입니다.
+   읽기만 합니다 — 발주 기록은 안 건드립니다.
 
    글자 꼴 (아티팩트 쪽 읽기는 이 꼴을 따릅니다 — 바꾸면 v 를 올리십시오)
-     #YBN-RECV v1 2026-11-16
-     구분	입고일	발주처	품목	모델	사이즈	좌우	입고	불량	발주수량	발주일	메모	번호
-     에토프	2026-11-16	현성유리	3.2T 백사틴 정규격	M 4573	445x729		20	1	20	2026-11-12		etpr_…
-     #END 3줄 입고 42장 불량 1장
-   - 칸은 탭. 사이즈는 「가로x세로」(관통보링 좌우는 「좌우」 칸에 L/R). 없는 값은 빈 칸.
-   - 「입고」 = 실제로 들어온 장수(불량 포함 — 인수증 장수). 재고에 더할 양 = 입고 − 불량.
-   - 「번호」는 줄마다 늘 같습니다 — 같은 묶음을 두 번 붙여도 아티팩트가 번호로 걸러 한 번만 더하면 됩니다.
-   - 구분: 에토프(🟠 에토프 장부 입고) · 유리(그 밖 발주 입고 — 원유리·5T 수납유리 등) · 박스 · 기타.
-   - 자동 입고(실물 확인 전)는 넣지 않습니다.
+     #YBN-ORDER v1 2026-11-16
+     구분	발주일	발주처	품목	규격	모델	사이즈	좌우	수량	납기	비고	번호	고친때
+     에토프	2026-11-16	현성유리	3.2T 백사틴 정규격 (유로700)	정규격	M 4573(공용)	445x729		20	2026-11-18		od_…#u1	2026-11-16T00:12:…
+     #END 3줄 발주 42장
+   - 칸은 탭. 사이즈 「가로x세로」(관통보링 좌우는 「좌우」 칸에 L/R). 없는 값은 빈 칸.
+   - 「번호」 = 발주 한 줄마다 늘 같은 값(발주id#품목번호). 같은 날 여러 번 내보내면 앞서 보낸 줄이 또 들어 있습니다 —
+     아티팩트가 번호로 걸러 새 번호만 더합니다. 번호가 같은데 수량·사이즈가 다르면 앱에서 고친 것(「고친때」로 확인).
+   - 구분: 에토프(현성 3.2T 백사틴 = odEtpClass 'etp') · 유리 · 박스 · 기타.
    ══════════════════════════════════════════════════════════════════════ */
 var rxDay = '';
 function rxSizeOf(s){
@@ -29724,64 +29723,38 @@ function rxSizeOf(s){
 }
 function rxRows(day){
   const out = [];
-  let autoN = 0, autoQ = 0;
   const clean = v => String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' ').trim();
-  // ① 🟠 에토프 장부 — 그날 입고 줄 + 같은 발주·사이즈의 입고 불량을 한 줄로
-  const etp = (typeof etpRows === 'function') ? etpRows() : [];
-  const pos = (typeof etpPOs !== 'undefined' && Array.isArray(etpPOs)) ? etpPOs : [];
-  const g = {};
-  etp.forEach(r => {
-    if(!r || r.d !== day) return;
-    const isIn = r.t === 'in', isBad = (typeof etpIsDefect === 'function') && etpIsDefect(r) && (r.poId || /입고 불량/.test(r.src || ''));
-    if(!isIn && !isBad) return;
-    const k = (r.poId || r.po || '') + '|' + r.size;
-    const x = g[k] || (g[k] = { inQ: 0, bad: 0, rows: [], r });
-    if(isIn){ x.inQ += Number(r.qty) || 0; if(x.r.t !== 'in') x.r = r; } else x.bad += Number(r.qty) || 0;
-    x.rows.push(r);
-  });
-  Object.values(g).forEach(x => {
-    const r = x.r, sz = rxSizeOf(r.size);
-    const po = r.poId ? pos.find(p => p && p.id === r.poId) : null;
-    let model = '', ordQ = '', ns = !!r.nonstd || !!(po && (po.nonstd || /비규격/.test(String(po.memo || ''))));
-    if(po){
-      const o = (orderLog || []).find(o => o && (po.fromOrder === o.id || po.id === 'etppo_' + o.id));
-      if(o){
-        const its = (o.items || []).filter(it => { try{ return odEtpSize(it) === r.size; }catch(e){ return false; } });
-        model = its.map(it => it.pname).filter(Boolean)[0] || '';
-        const q = its.reduce((s, it) => s + (Number(it.qty) || 0), 0); if(q) ordQ = q;
-      }
-    }
-    out.push({ kind: '에토프', day, vendor: '현성유리', item: '3.2T 백사틴 ' + (ns ? '비규격' : '정규격') + ' 에토프',
-      model: clean(model), size: sz.size, lr: sz.lr, q: x.inQ, bad: x.bad, ordQ, od: r.od || (po && po.date) || '',
-      memo: clean(x.rows.map(y => y.memo).filter(Boolean).join(' · ')), id: x.rows.map(y => y.id).sort()[0] });
-  });
-  // ② 발주 기록 — 그날 입고된 줄(에토프 장부로 간 줄은 ① 에서 셈)
   (orderLog || []).forEach(o => {
+    if(!o || o.date !== day) return;
+    let etp = false; try{ etp = odEtpClass(o).k === 'etp'; }catch(e){}
+    const box = (typeof odIsBoxOrder === 'function') && odIsBoxOrder(o);
+    const vendor = (typeof odStmtVendor === 'function' ? odStmtVendor(o.vendor) : '') || o.vendor || '';
+    const kindTxt = [o.type, o.title].join(' ');
+    let due = '';
+    try{ const dd = odDueToDate(o.due, o.date); due = dd ? (typeof dd === 'string' ? dd : _ymdLocal(dd)) : clean(o.due); }catch(e){ due = clean(o.due); }
     (o.items || []).forEach((it, i) => {
-      if(!it || !it.received || it.recvDate !== day) return;
-      if(it.recvBy === 'etp-tab' || it.recvBy === 'order-etp' || String(it.eventId || '').indexOf('etpr_') === 0) return;
-      const q = (typeof odRecvQty === 'function') ? odRecvQty(it) : (Number(it.qty) || 0);
-      if(it.auto){ autoN++; autoQ += q; return; }
-      const box = (typeof odIsBoxOrder === 'function') && odIsBoxOrder(o);
+      if(!it || !(Number(it.qty) > 0)) return;
       const hasSz = Number(it.w) > 0 && Number(it.h) > 0;
-      const kind = box ? '박스' : (hasSz || /유리/.test(o.cat || '')) ? '유리' : '기타';
-      const vendor = (typeof odStmtVendor === 'function' ? odStmtVendor(o.vendor) : '') || o.vendor || '';
-      out.push({ kind, day, vendor: clean(vendor), item: clean(o.type || o.title || ''),
-        model: clean(it.pname || ''), size: hasSz ? it.w + 'x' + it.h : clean(it.spec || ''), lr: '',
-        q, bad: 0, ordQ: Number(it.qty) || '', od: o.date || '', memo: clean(it.bigo || ''),
-        id: o.id + '#' + (it.uid || i) });
+      let sz = { size: '', lr: '' };
+      if(hasSz){ let s = it.w + 'x' + it.h; if(etp){ try{ s = odEtpSize(it); }catch(e){} } sz = rxSizeOf(s); }
+      const spec = /비규격|\(비\)/.test(kindTxt + ' ' + (it.pname || '')) ? '비규격' : /정규격/.test(kindTxt) ? '정규격' : '';
+      out.push({ kind: etp ? '에토프' : box ? '박스' : (hasSz || /유리/.test(o.cat || '')) ? '유리' : '기타',
+        od: o.date, vendor: clean(vendor), item: clean(o.type || o.title || ''), spec,
+        model: clean(it.pname || ''), size: hasSz ? sz.size : clean(it.spec || ''), lr: sz.lr,
+        q: Number(it.qty) || 0, due, bigo: clean(it.bigo || o.bigo || ''),
+        id: o.id + '#' + (it.uid || i), at: o.updatedAt || o.createdAt || '' });
     });
   });
   const ord = { '에토프': 0, '유리': 1, '박스': 2, '기타': 3 };
-  out.sort((a, b) => (ord[a.kind] - ord[b.kind]) || a.vendor.localeCompare(b.vendor) || a.size.localeCompare(b.size, 'ko', { numeric: true }));
-  return { rows: out, autoN, autoQ };
+  out.sort((a, b) => (ord[a.kind] - ord[b.kind]) || a.vendor.localeCompare(b.vendor) || a.id.localeCompare(b.id));
+  return { rows: out };
 }
 function rxText(day, rows){
-  const head = ['구분', '입고일', '발주처', '품목', '모델', '사이즈', '좌우', '입고', '불량', '발주수량', '발주일', '메모', '번호'];
-  const q = rows.reduce((s, r) => s + r.q, 0), b = rows.reduce((s, r) => s + r.bad, 0);
-  return ['#YBN-RECV v1 ' + day, head.join('\t')]
-    .concat(rows.map(r => [r.kind, r.day, r.vendor, r.item, r.model, r.size, r.lr, r.q, r.bad || '', r.ordQ, r.od, r.memo, r.id].join('\t')))
-    .concat(['#END ' + rows.length + '줄 입고 ' + q + '장' + (b ? ' 불량 ' + b + '장' : '')]).join('\n');
+  const head = ['구분', '발주일', '발주처', '품목', '규격', '모델', '사이즈', '좌우', '수량', '납기', '비고', '번호', '고친때'];
+  const q = rows.reduce((s, r) => s + r.q, 0);
+  return ['#YBN-ORDER v1 ' + day, head.join('\t')]
+    .concat(rows.map(r => [r.kind, r.od, r.vendor, r.item, r.spec, r.model, r.size, r.lr, r.q, r.due, r.bigo, r.id, r.at].join('\t')))
+    .concat(['#END ' + rows.length + '줄 발주 ' + q + '장']).join('\n');
 }
 function rxOpen(){
   let m = document.getElementById('rx-modal');
@@ -29797,41 +29770,40 @@ function rxOpen(){
 }
 function rxRender(){
   const m = document.getElementById('rx-modal'); if(!m) return;
-  const R = rxRows(rxDay), rows = R.rows;
-  const q = rows.reduce((s, r) => s + r.q, 0), b = rows.reduce((s, r) => s + r.bad, 0);
+  const rows = rxRows(rxDay).rows;
+  const q = rows.reduce((s, r) => s + r.q, 0);
   const td = 'padding:4px 7px;border-bottom:1px solid var(--b1);white-space:nowrap';
   const num = td + ';text-align:right;font-variant-numeric:tabular-nums';
   const body = rows.length ? `<div style="overflow:auto;max-height:52vh;border:1px solid var(--b2);border-radius:8px">
     <table style="border-collapse:collapse;font-size:12px;width:100%;min-width:560px">
-      <thead><tr style="background:var(--s2);position:sticky;top:0">${['구분','발주처','품목 · 모델','사이즈','입고','불량','발주','발주일'].map((h, i) => `<th style="${i >= 4 && i <= 6 ? num : td};font-weight:600">${h}</th>`).join('')}</tr></thead>
+      <thead><tr style="background:var(--s2);position:sticky;top:0">${['구분','발주처','품목 · 모델','사이즈','수량','납기','비고'].map((h, i) => `<th style="${i === 4 ? num : td};font-weight:600">${h}</th>`).join('')}</tr></thead>
       <tbody>${rows.map(r => `<tr>
         <td style="${td}">${r.kind}</td><td style="${td}">${r.vendor || '-'}</td>
         <td style="${td};white-space:normal">${r.item || '-'}${r.model ? `<div style="font-size:10px;color:var(--tx3)">${r.model}</div>` : ''}</td>
         <td style="${td}">${r.size ? r.size.replace('x', '×') : '-'}${r.lr ? ' ' + r.lr : ''}</td>
-        <td style="${num};font-weight:600">${r.q}</td><td style="${num};color:${r.bad ? 'var(--red,#d1242f)' : 'var(--tx3)'}">${r.bad || '-'}</td>
-        <td style="${num};color:var(--tx3)">${r.ordQ || '-'}${r.ordQ && r.ordQ !== r.q ? `<div style="font-size:10px;color:#c2410c">${r.q - r.ordQ > 0 ? '+' : ''}${r.q - r.ordQ}</div>` : ''}</td>
-        <td style="${td};color:var(--tx3)">${r.od ? r.od.slice(5).replace('-', '/') : '-'}</td></tr>`).join('')}</tbody>
+        <td style="${num};font-weight:600">${r.q}</td>
+        <td style="${td};color:var(--tx3)">${r.due ? r.due.slice(5).replace('-', '/') : '-'}</td>
+        <td style="${td};color:var(--tx3);white-space:normal">${r.bigo || '-'}</td></tr>`).join('')}</tbody>
     </table></div>`
-    : `<div style="padding:22px;text-align:center;color:var(--tx3);font-size:12px;border:1px dashed var(--b2);border-radius:8px">이 날 입고된 것이 없습니다</div>`;
+    : `<div style="padding:22px;text-align:center;color:var(--tx3);font-size:12px;border:1px dashed var(--b2);border-radius:8px">이 날 발주가 없습니다</div>`;
   m.innerHTML = `<div style="background:var(--s1);border-radius:12px;width:min(820px,100%);max-height:92vh;overflow:auto;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.2)">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <b style="font-size:14px">📤 입고 내보내기</b>
-      <input type="date" value="${rxDay}" max="${todayStr()}" onchange="rxDay=this.value||todayStr();rxRender()" style="padding:4px 6px;font-size:12px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:var(--tx1)">
-      <span style="font-size:11px;color:var(--tx2)">${rows.length ? `${rows.length}줄 · 입고 ${q}장${b ? ' · 불량 ' + b + '장' : ''}` : ''}</span>
+      <b style="font-size:14px">📤 발주 내보내기</b>
+      <input type="date" value="${rxDay}" onchange="rxDay=this.value||todayStr();rxRender()" style="padding:4px 6px;font-size:12px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:var(--tx1)">
+      <span style="font-size:11px;color:var(--tx2)">${rows.length ? `${rows.length}줄 · ${q.toLocaleString('ko-KR')}장` : ''}</span>
       <button onclick="document.getElementById('rx-modal').style.display='none'" style="margin-left:auto;border:none;background:none;font-size:18px;cursor:pointer;color:var(--tx2)">✕</button>
     </div>
     ${body}
-    ${R.autoN ? `<div style="font-size:11px;color:var(--tx3);margin-top:6px">자동 입고(실물 확인 전) ${R.autoN}줄 ${R.autoQ}장은 넣지 않았습니다</div>` : ''}
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px">
-      <span style="font-size:11px;color:var(--tx3);flex:1 1 260px">복사한 글자를 직원 아티팩트 「와이비앱 입고 가져오기」 칸에 붙이면 됩니다. 카톡으로 보내 붙여도 됩니다.</span>
+      <span style="font-size:11px;color:var(--tx3);flex:1 1 260px">직원 아티팩트 「와이비앱 발주 가져오기」 칸에 붙이십시오. 같은 날 여러 번 내보내도 됩니다 — 이미 넣은 줄은 아티팩트가 번호로 거릅니다.</span>
       <button onclick="rxCopy()" ${rows.length ? '' : 'disabled'} style="padding:8px 18px;font-size:12px;border:none;border-radius:8px;background:var(--acc,#2563eb);color:#fff;cursor:pointer;font-family:'Noto Sans KR',sans-serif;${rows.length ? '' : 'opacity:.45;cursor:default'}">📋 복사</button>
     </div></div>`;
 }
 function rxCopy(){
   const rows = rxRows(rxDay).rows;
-  if(!rows.length){ showToast('이 날 입고된 것이 없습니다'); return; }
+  if(!rows.length){ showToast('이 날 발주가 없습니다'); return; }
   const txt = rxText(rxDay, rows);
-  const done = () => showToast('📋 ' + rxDay.slice(5).replace('-', '/') + ' 입고 ' + rows.length + '줄 복사했습니다');
+  const done = () => showToast('📋 ' + rxDay.slice(5).replace('-', '/') + ' 발주 ' + rows.length + '줄 복사했습니다');
   try{
     if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, () => etpFallbackCopy(txt, done)); }
     else etpFallbackCopy(txt, done);
