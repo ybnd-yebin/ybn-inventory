@@ -31422,8 +31422,11 @@ function load(){
 let ST=load();
 /* 단종 씨앗 (사장님 2026-11-03 「주황색으로 한건 단종」 — 10월 건재 재고내역). 이 기기에 단종 기록이 아예 없을 때만 넣고,
    고친 때(_at)는 안 찍습니다 — 그래서 다른 기기에서 손으로 풀거나 바꾼 단종이 늘 이깁니다 */
-const SEED_DISC=['SFY062044','SFY062060','SJM061001'];
-if(!Object.keys(ST.disc||{}).length && !ST._at.disc){ ST.disc={}; SEED_DISC.forEach(c=>ST.disc[c]={on:true, at:'', seed:1}); }
+/* 2026-11-16 바로잡음 — 기본 단종은 「사장님이 정한 날」을 고친 때로 박고, 기기에 그 코드 기록이 없거나 그보다 옛것이면 늘 채웁니다.
+   예전 씨앗(at 빈 값)은 빈 목록 하나에 지워져 「반영됐다 안됐다」 했습니다. 손으로 푼 것(이 날 뒤)은 그대로 이깁니다 */
+const SEED_DISC=['SFY062044','SFY062060','SJM061001'], SEED_DISC_AT='2026-11-16T00:00:00.000Z';
+ST.disc=ST.disc||{};
+SEED_DISC.forEach(c=>{ const x=ST.disc[c]; if(!x || String(x.at||'')<SEED_DISC_AT) ST.disc[c]={on:true, at:SEED_DISC_AT, seed:1}; });
 const _secCache={};
 function _secSig(k){ try{ return JSON.stringify(ST[k]); }catch(e){ return ''; } }
 function _primeCache(){ SECS.forEach(k=>_secCache[k]=_secSig(k)); }
@@ -31484,6 +31487,19 @@ function mergeFromSheet(r){
   let n=0;
   SECS.forEach(k=>{
     const ra=String(r.at[k]||''), la=String(ST._at[k]||'');
+    if(k==='disc'){
+      /* 단종도 묶음 통째가 아니라 코드마다 나중에 고친 쪽 (사장님 2026-11-16 「단종 체크가 반영됐다 안됐다」).
+         예전에는 한 기기가 빈 단종 묶음을 더 늦은 때로 올리면(11-09) 다른 기기 단종이 통째로 지워졌습니다.
+         시트에 없는 코드는 이 기기 것을 지키고 다시 올립니다. 씨앗(at 빈 값)은 어떤 손 기록에도 집니다 */
+      const rc=r.disc||{}, lc=ST.disc||(ST.disc={});
+      let ch=0, behind=false;
+      Object.keys(rc).forEach(c=>{ const a=rc[c]; if(!a) return; const b=lc[c];
+        if(!b || String(a.at||'')>String(b.at||'')){ lc[c]=a; ch++; } });
+      Object.keys(lc).forEach(c=>{ const a=rc[c]; if(!a || String(lc[c].at||'')>String(a.at||'')) behind=true; });
+      if(ch){ if(ra>la) ST._at[k]=ra; n++; }
+      if(behind) _discBehind=true;
+      return;
+    }
     if(k==='poClose'){
       /* 잔량 종료는 묶음 통째가 아니라 발주 줄마다 나중에 고친 쪽이 이깁니다 — 두 기기가 서로 다른 발주를 종료해도 둘 다 남게.
          시트에 이 묶음이 없으면(옛 판 기기가 덮어 올린 경우) 이 기기 것을 그대로 두고, 다시 올립니다 */
@@ -31513,6 +31529,7 @@ function mergeFromSheet(r){
     ST._at[k]=ra; n++;
   });
   if(n){ _primeCache(); _write(); }
+  if(_discBehind){ _discBehind=false; _poCloseBehind=true; ST._at.disc=new Date().toISOString(); }   // 단종도 같은 길로 한 번 올림
   if(_poCloseBehind){   // 이 기기의 종료 표시가 시트보다 앞섬 → 한 번 올림
     _poCloseBehind=false;
     ST._at.poClose=new Date().toISOString(); _primeCache(); _write();
@@ -31522,6 +31539,7 @@ function mergeFromSheet(r){
   return n;
 }
 let _poCloseBehind=false;
+let _discBehind=false;
 
 /* ── 옛 화면 자료 넣기 — 옛 화면 「📤 내보내기」 .json, 또는 같은 주소의 옛 저장함 ── */
 function _adopt(s, from){
