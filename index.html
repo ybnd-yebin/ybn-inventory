@@ -15383,10 +15383,11 @@ function odTypeMeasure(names){
   return Math.ceil(w)+2;
 }
 function odTypeGw(list){ return odTypeMeasure(list.map(x=>x.grp)); }
-function odTypeRowHtml(x, gw){
+function odTypeRowHtml(x, gw, noSpec){
+  /* 2026-11-18 사장님 「산만해 · 정규격/비규격 중복 · 칸이 벌어져」 — 「ㅣ」 막대 빼고 앞 이름은 흐린 회색, 위 단추가 있으면 규격은 안 적음 */
   const s=odTypeSplit(x.name);
-  return `<span class="od-tp-g">${_odEsc(x.grp||'')}</span><span class="od-tp-bar">${gw && x.grp ? 'ㅣ' : ''}</span>`
-    + `<span class="od-tp-n">${_odEsc(s.b)}</span><span class="od-tp-bar">${s.c ? 'ㅣ' : ''}</span><span class="od-tp-n">${_odEsc(s.c)}</span>`;
+  return `<span class="od-tp-g">${_odEsc(x.grp||'')}</span><span class="od-tp-n">${_odEsc(s.b)}</span>`
+    + (noSpec ? '<span></span>' : `<span>${s.c ? `<span class="od-tp-c">${_odEsc(s.c)}</span>` : ''}</span>`);
 }
 function odTypePickRender(){
   const sel=document.getElementById('od-type'), btn=document.getElementById('od-type-btn'), box=document.getElementById('od-type-list');
@@ -15402,34 +15403,35 @@ function odTypePickRender(){
   const curSpec=curX?specOf(curX):'', act=odSpecFilter||curSpec;
   if(seg){ seg.style.display=hasBoth?'flex':'none';
     seg.innerHTML=hasBoth?['정규격','비규격'].map(k=>`<button type="button" class="od-seg${act===k?' on':''}" onclick="odSpecPick('${k}')">${k}</button>`).join(''):''; }
-  const shown=odSpecFilter?list.filter(x=>{ const c=specOf(x); return !c || c===odSpecFilter; }):list;
-  const sp=list.map(x=>odTypeSplit(x.name)), bw=odTypeMeasure(sp.map(s=>s.b)), hasC=sp.some(s=>s.c);
-  const cols=(gw ? `${gw}px 16px ` : `0 0 `) + (hasC ? `minmax(0,${bw}px) 16px minmax(0,1fr)` : `minmax(0,1fr) 0 0`);
+  // 위 단추가 있으면 목록은 늘 그 규격만(규격 글자 없는 종류는 늘 보임) — 같은 말이 두 번 안 보이게
+  const shown=hasBoth?list.filter(x=>{ const c=specOf(x); return !c || c===act; }):list;
+  const hasC=!hasBoth && list.some(x=>specOf(x));
+  const cols=(gw ? `${gw}px ` : `0 `) + (hasC ? `minmax(0,1fr) auto` : `minmax(0,1fr) 0`);
   box.style.setProperty('--od-tp-cols', cols); btn.style.setProperty('--od-tp-cols', cols);
-  box.innerHTML=shown.map(x=>`<div class="od-tp-row${String(x.i)===cur?' on':''}" onclick="odTypePick(${x.i})">${odTypeRowHtml(x,gw)}</div>`).join('')
+  box.innerHTML=shown.map(x=>`<div class="od-tp-row${String(x.i)===cur?' on':''}" onclick="odTypePick(${x.i})">${odTypeRowHtml(x,gw,hasBoth)}</div>`).join('')
     + `<div class="od-tp-edit" onclick="odTypePickClose();odTypeEditOpen()">✏️ 목록 고치기 (이름 · 앞 이름 · 차례)</div>`;
   const x=list.find(y=>String(y.i)===cur) || list[0];
-  btn.innerHTML = x ? `<span class="od-tp-row" style="flex:1;min-width:0">${odTypeRowHtml(x,gw)}</span><span style="color:var(--tx3);font-size:11px">▾</span>` : '';
+  btn.innerHTML = x ? `<span class="od-tp-row" style="flex:1;min-width:0">${odTypeRowHtml(x,gw,hasBoth)}</span><span style="color:var(--tx3);font-size:11px">▾</span>` : '';
 }
 function odTypePickCss(){
   if(document.getElementById('od-tp-css')) return;
   const s=document.createElement('style'); s.id='od-tp-css';
   s.textContent=`
   #od-type-btn{width:100%;display:flex;align-items:center;gap:6px;text-align:left;cursor:pointer}
-  .od-tp-row{display:grid;grid-template-columns:var(--od-tp-cols,0 0 1fr);align-items:center;font-size:13px}
-  .od-tp-g{white-space:nowrap;overflow:hidden;font-size:13px}
-  .od-tp-bar{text-align:center;color:var(--tx3)}
-  .od-tp-n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #od-type-list{position:absolute;left:0;right:0;top:100%;z-index:60;margin-top:2px;background:var(--s1);border:1px solid var(--b2);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:320px;overflow-y:auto}
-  #od-type-list .od-tp-row{padding:7px 10px;cursor:pointer}
+  .od-tp-row{display:grid;grid-template-columns:var(--od-tp-cols,0 1fr 0);column-gap:12px;align-items:center;font-size:13px}
+  .od-tp-g{white-space:nowrap;overflow:hidden;font-size:12px;color:var(--tx3)}
+  .od-tp-n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx1)}
+  .od-tp-c{white-space:nowrap;font-size:11px;color:var(--tx2);background:var(--s2);border-radius:4px;padding:1px 6px}
+  #od-type-list{position:absolute;left:0;right:0;top:100%;z-index:60;margin-top:4px;padding:4px;background:var(--s1);border:1px solid var(--b1);border-radius:10px;box-shadow:0 8px 24px rgba(20,30,60,.10);max-height:320px;overflow-y:auto}
+  #od-type-list .od-tp-row{padding:8px 10px;border-radius:6px;cursor:pointer}
   #od-type-list .od-tp-row:hover{background:var(--s2)}
-  #od-type-list .od-tp-row.on{background:var(--acc);color:#fff}
-  #od-type-list .od-tp-row.on .od-tp-bar{color:#fff}
+  #od-type-list .od-tp-row.on{background:color-mix(in srgb,var(--acc) 9%,transparent)}
+  #od-type-list .od-tp-row.on .od-tp-n{color:var(--acc);font-weight:700}
   #od-spec-seg{border:1px solid var(--b2);border-radius:8px;overflow:hidden;flex:0 0 auto}
   .od-seg{border:none;background:var(--s1);color:var(--tx2);padding:0 12px;font-size:12.5px;cursor:pointer;white-space:nowrap}
   .od-seg+.od-seg{border-left:1px solid var(--b2)}
   .od-seg.on{background:var(--acc);color:#fff;font-weight:700}
-  .od-tp-edit{padding:7px 10px;border-top:1px dashed var(--b2);font-size:11.5px;color:var(--acc);cursor:pointer;text-align:right}`;
+  .od-tp-edit{padding:7px 10px 4px;margin-top:4px;border-top:1px solid var(--b1);font-size:11.5px;color:var(--acc);cursor:pointer;text-align:right}`;
   document.head.appendChild(s);
 }
 var odSpecFilter='';
