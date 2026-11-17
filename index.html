@@ -31458,6 +31458,8 @@ function _norm(s){
     srm:s.srm||{},       // 출고일 -> {asof, rows[]} · 창고에서 실제로 나간 물량
     close:s.close||{},    // 마감월 -> {at, rows{코드:{...}}} · 한샘이 보내온 마감내역 원본
     counts:Object.assign({},SEED_COUNTS,s.counts||{}),   // 실사날짜 -> {코드:수량}
+    // 실사 날짜마다 고친 때 {날짜: {at, del}} (2026-11-17) — 받을 때 날짜마다 나중 쪽, 한쪽에만 있는 날짜는 남김(del 이 나중이면 지움)
+    countsAt:Object.assign({},s.countsAt||{}),
     _at:Object.assign({},s._at||{}),   // 묶음 -> 마지막으로 고친 때
     _from:s._from||''};                // 어디서 이어받았나
 }
@@ -31494,9 +31496,21 @@ function _write(){
   catch(e){ try{ showToast('⚠ 바스 자료 저장 실패 — 저장 공간을 확인하십시오'); }catch(_){} }
 }
 let _syncT=null;
+/* 실사 날짜마다 고친 때 찍기 — 바뀐 날짜만. 날짜가 통째로 빠졌으면 del (사장님 2026-11-17 「11/1 실사가 10/1 로만」) */
+function _stampCountDates(prevSig, now){
+  let prev={}; try{ prev=JSON.parse(prevSig||'{}')||{}; }catch(e){}
+  const cur=ST.counts||{}, A=ST.countsAt||(ST.countsAt={});
+  new Set([...Object.keys(prev),...Object.keys(cur)]).forEach(d=>{
+    const a=prev[d]?JSON.stringify(prev[d]):'', b=cur[d]?JSON.stringify(cur[d]):'';
+    if(a===b) return;
+    A[d]= b ? {at:now} : {at:now, del:1};
+  });
+}
 function save(){
   const now=new Date().toISOString(); let ch=false;
-  SECS.forEach(k=>{ const s=_secSig(k); if(s!==_secCache[k]){ _secCache[k]=s; ST._at[k]=now; ch=true; } });
+  SECS.forEach(k=>{ const s=_secSig(k); if(s!==_secCache[k]){
+    if(k==='counts') _stampCountDates(_secCache[k], now);
+    _secCache[k]=s; ST._at[k]=now; ch=true; } });
   _write();
   if(ch){
     try{ if(typeof meta!=='undefined') meta.lastLocalChange=now; }catch(e){}
@@ -31530,6 +31544,7 @@ function forSync(){
     const from=addDays(iso(new Date()), -days);
     out={v:1, at:ST._at, srmFrom:from, srm:_srmSlim(from)};
     SECS.forEach(k=>{ if(k!=='srm') out[k]=ST[k]; });
+    out.countsAt=ST.countsAt||{};
     const n=JSON.stringify(out).length;
     if(n<=BAS_SYNC_MAX || days<=30){
       _syncNote = n>BAS_SYNC_MAX ? `⚠ 바스 자료가 커서(${Math.round(n/1000)}k) 시트에 다 못 싣습니다 — 알려 주십시오`
@@ -31556,6 +31571,28 @@ function mergeFromSheet(r){
       Object.keys(lc).forEach(c=>{ const a=rc[c]; if(!a || String(lc[c].at||'')>String(a.at||'')) behind=true; });
       if(ch){ if(ra>la) ST._at[k]=ra; n++; }
       if(behind) _discBehind=true;
+      return;
+    }
+    if(k==='counts'){
+      /* 실사도 묶음 통째가 아니라 날짜마다 (사장님 2026-11-17 「11/1 실사 올렸는데 10/1 로만」).
+         예전에는 11/1 실사가 없는 기기가 묶음을 더 늦은 때(11-09)로 올리자 다른 기기의 11/1 실사가 통째로 지워졌습니다.
+         날짜마다 고친 때(countsAt, 없으면 묶음 때)로 나중 쪽 · 한쪽에만 있는 날짜는 남기고 다시 올림 · 지운 표시(del)가 나중이면 지움 */
+      const rc=r.counts||{}, lc=ST.counts||(ST.counts={}), rA=r.countsAt||{}, lA=ST.countsAt||(ST.countsAt={});
+      const stamp=(A,d,side,sec)=>String((A[d]&&A[d].at)||(side[d]?sec:'')||'');
+      let ch=0, behind=false;
+      new Set([...Object.keys(rc),...Object.keys(rA),...Object.keys(lc),...Object.keys(lA)]).forEach(d=>{
+        const rs=stamp(rA,d,rc,ra), ls=stamp(lA,d,lc,la);
+        const rDel=!!(rA[d]&&rA[d].del), lDel=!!(lA[d]&&lA[d].del);
+        const rHas=!!rc[d] && !rDel, lHas=!!lc[d] && !lDel;
+        if(rs>ls){
+          if(rDel){ if(lc[d]){ delete lc[d]; ch++; } lA[d]=rA[d]; }
+          else if(rHas){ if(JSON.stringify(lc[d]||null)!==JSON.stringify(rc[d])){ lc[d]=rc[d]; ch++; } if(rA[d]) lA[d]=rA[d]; }
+          else if(lHas) behind=true;   // 시트엔 그 날짜가 없고 지운 표시도 없음 → 이 기기 것을 지키고 다시 올림
+        } else if(ls>rs){ if(lHas||lDel) behind=true; }
+        else if(lHas && !rHas) behind=true;
+      });
+      if(ch){ if(ra>la) ST._at[k]=ra; n++; }
+      if(behind){ _countsBehind=true; _discBehind=true; }   // 같은 길로 한 번 올림
       return;
     }
     if(k==='poClose'){
@@ -31587,6 +31624,9 @@ function mergeFromSheet(r){
     ST._at[k]=ra; n++;
   });
   if(n){ _primeCache(); _write(); }
+  if(_countsBehind){ _countsBehind=false; const now=new Date().toISOString(), A=ST.countsAt||(ST.countsAt={}), old=String(ST._at.counts||"");
+    Object.keys(ST.counts||{}).forEach(d=>{ if(!A[d]) A[d]={at:old}; });   // 옛 날짜는 옛 때 그대로 — 묶음 때만 올려 옛 판 기기도 받게
+    ST._at.counts=now; }
   if(_discBehind){ _discBehind=false; _poCloseBehind=true; ST._at.disc=new Date().toISOString(); }   // 단종도 같은 길로 한 번 올림
   if(_poCloseBehind){   // 이 기기의 종료 표시가 시트보다 앞섬 → 한 번 올림
     _poCloseBehind=false;
@@ -31598,6 +31638,7 @@ function mergeFromSheet(r){
 }
 let _poCloseBehind=false;
 let _discBehind=false;
+let _countsBehind=false;
 
 /* ── 옛 화면 자료 넣기 — 옛 화면 「📤 내보내기」 .json, 또는 같은 주소의 옛 저장함 ── */
 function _adopt(s, from){
