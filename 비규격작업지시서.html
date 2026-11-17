@@ -7215,7 +7215,7 @@ function subdoorPageSVG(p){
   s = subdoorDropSlots(s, empty);
   s = subdoorCenterBlock(t, s, grew, empty);
   s = subdoorKeepOffBox(t, s, textW);
-  s = subdoorAddNotes(p.id, s);
+  s = subdoorAddNotes(p.id, s, subdoorStdNotes(p));
   return SUBDOOR_SVG_OPEN + s + SUBDOOR_SVG_CLOSE;
 }
 
@@ -7231,8 +7231,35 @@ const SUBDOOR_NOTE_ADD = {
   SIG18:   [{t:'*라벨 출력 확인.', red:true}],
   SIGHANG: ['*합포수량 : 도어1, 힌지4, MP4', {t:'*라벨 출력 확인.', red:true}],
 };
-function subdoorAddNotes(id, s){
-  const add = SUBDOOR_NOTE_ADD[id];
+/* ── 비규격으로 왔는데 정규격 사이즈인 것 (사장님 2026-11-18) ──────────────────
+   「요즘 비규격에 정규격 사이즈가 자주 올라오는데 작업지시서 밑에 *정규격 45222 사이즈 이런식으로」
+   ■ 열쇠 = 계통 + **프레임** 사이즈. 유리로 맞추지 않는 까닭: KB 빗면 유리 세로(−10→−11, 11-09)·
+     에어힌지 유리 가로(−40→−41)가 바뀌어 유리값은 옛 정규격 표와 1mm씩 어긋납니다. 프레임은 그대로입니다.
+   ■ 숫자 출처 = 앱 발주탭 `OD_PRESETS` 의 정규격 모델 목록(index.html — 사장님 표 2026-10-08, CLAUDE.md 12-49).
+     거기 유리값 + 그때 감산 = 프레임. 정규격 모델이 바뀌면 **두 곳을 같이** 고치십시오.
+   ■ 알리기만 합니다 — 계산·장 나누기는 그대로. */
+const SUBDOOR_STD_FRAME = {
+  YU:  {'595x2113':'60222','595x2241':'60235','445x2113':'45222','445x2241':'45235','445x860':'4586','495x860':'5086','595x860':'6086'},
+  KB:  {'445x738':'4574','495x738':'5074','595x2113':'60211','995x538':'10054','1195x538':'12054'},
+  // 에어힌지는 모델 번호가 없고 「분리장 595×1345」 를 다 적으면 종이 밖으로 나가 도면 이름만 적습니다
+  AIR: {'445x738':'벽장','495x738':'벽장','595x1345':'분리장','545x2113':'키큰장'},
+  SIG: {'446x2170':'450','496x2170':'500'},
+};
+function subdoorStdNotes(p){
+  // 행잉(SIGHANG)은 안내문이 이미 일곱 줄이라 한 줄 더 올리면 위 프레임·손잡이 상자를 덮습니다 — 뺍니다
+  if(p.id === 'SIGHANG') return [];
+  const grp = /^SIG/.test(p.id) ? 'SIG' : /^YU/.test(p.id) ? 'YU' : /^KB/.test(p.id) ? 'KB' : /^AIR/.test(p.id) ? 'AIR' : '';
+  const tbl = SUBDOOR_STD_FRAME[grp];
+  if(!tbl) return [];
+  const seen = [];
+  Object.keys(p.slots||{}).forEach(k => (p.slots[k]||[]).slice(0, SUBDOOR_MAX_SIZES).forEach(d => {
+    const m = tbl[d.fw+'x'+d.fh];
+    if(m && seen.indexOf(m) < 0) seen.push(m);
+  }));
+  return seen.map(m => ({t:'*정규격 '+m+' 사이즈', red:true}));
+}
+function subdoorAddNotes(id, s, more){
+  const add = (SUBDOOR_NOTE_ADD[id] || []).concat(more || []);
   if(!add || !add.length) return s;
   try{
     const gRe = /<g transform="translate\(([\d.]+),([\d.]+)\)"([^>]*)>((?:(?!<\/g>)[\s\S])*?)<\/g>/g;
@@ -7244,7 +7271,9 @@ function subdoorAddNotes(id, s){
     if(!hit) return s;
     const ys = hit.ys.map(a => +a[1]), fs = hit.ys[0][2];
     const step = (ys[ys.length-1] - ys[0]) / (ys.length - 1);
-    const last = ys[ys.length-1];
+    /* 마지막 줄 = 묶음의 **모든** 줄 가운데 가장 아래 — `*5T브론즈/강화/` 다음 줄 `비산방지필름` 처럼
+       '*' 없이 이어진 줄이 있습니다(KB·에어힌지). '*' 줄만 보면 그 줄 위에 겹쳐 씁니다(2026-11-18). */
+    const last = Math.max(...[...hit.m[4].matchAll(/<text x="0" y="([\d.]+)"/g)].map(a => +a[1]), ys[ys.length-1]);
     const extra = add.map((it, i) => {
       const txt = typeof it==='string' ? it : it.t, red = !!(it && it.red);   // {t, red:true} = 빨간 줄
       return `<text x="0" y="${(last + step*(i+1)).toFixed(3)}" font-size="${fs}" fill="${red?'#e00000':'#000'}">${esc(txt)}</text>`;
