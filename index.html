@@ -20299,7 +20299,7 @@ async function clUploadVendor(inp){
     lines:p.lines, defects:p.defects, defectHist:old&&old.defectHist||null,
     vendorSupply:p.sums['공급가액']??null, vendorVat:p.sums['VAT']??null, vendorTotal:p.sums['합계금액']??null,
     carry:old&&old.carry||[], memo:old&&old.memo||'', qtyCheckedBy:old&&old.qtyCheckedBy||'', unlockLog:old&&old.unlockLog||[],
-    res:old&&old.res||{},   // 🧹 정리 처리 — 같은 줄(일자·규격·수량·금액)이면 다시 올려도 그대로 남음
+    res:old&&old.res||{},   // ✅ 확인할 것 처리 — 같은 줄(일자·규격·수량·금액)이면 다시 올려도 그대로 남음
 
     createdAt:old&&old.createdAt||new Date().toISOString() };
   clPrepLines(c); clAutoMatch(c); clResReapply(c);
@@ -20505,10 +20505,10 @@ function clListHtml(){
   return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <button onclick="clPickVendorFile()" style="${B}background:var(--acc);border:none;color:#fff">＋ 거래처 마감 엑셀 올리기</button></div>
     <div style="font-size:10.5px;color:var(--tx2);line-height:1.7;margin-bottom:10px">
-      거래처에서 온 <b>마감 엑셀</b>을 올리면 줄을 읽어 <b>발주 기록과 자동으로 맞춰</b> 보고, 「🧹 정리」 탭에서 수량 다름 · 따로 보는 품목 · 금액 다름 · 마감에 없는 발주를 바로 보여 줍니다.
+      거래처에서 온 <b>마감 엑셀</b>을 올리면 줄을 읽어 <b>발주 기록과 자동으로 맞춰</b> 보고, 「✅ 확인할 것」 탭에서 수량 다름 · 따로 보는 품목 · 금액 다름 · 마감에 없는 발주를 바로 보여 줍니다.
       앱이 다시 센 합계와 거래처 합계가 <b>0원 차이</b>일 때만 확정할 수 있습니다. 지금은 현성유리 형식을 읽습니다.</div>
     ${list.length?`<div style="overflow-x:auto;border:1px solid var(--b1);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead style="background:var(--s3)"><tr>${['마감월','거래처','최종 공급가액','합계(VAT 포함)','상태','이월','정리 남음',''].map((h,k)=>`<th style="padding:7px 8px;font-size:10px;color:var(--tx3);text-align:${k>=2&&k<=3||k===5||k===6?'right':'left'};white-space:nowrap">${h}</th>`).join('')}</tr></thead>
+      <thead style="background:var(--s3)"><tr>${['마감월','거래처','최종 공급가액','합계(VAT 포함)','상태','이월','확인 남음',''].map((h,k)=>`<th style="padding:7px 8px;font-size:10px;color:var(--tx3);text-align:${k>=2&&k<=3||k===5||k===6?'right':'left'};white-space:nowrap">${h}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody></table></div>`
     :`<div style="text-align:center;color:var(--tx3);font-size:11px;padding:24px">아직 마감 기록이 없습니다</div>`}${buyPxHtml()}`;
 }
@@ -20548,7 +20548,7 @@ function clDetailHtml(c){
   const inc=clIncoming(c).filter(x=>!x.it.done);
   const incBanner=inc.length?`<div onclick="clTab='carry';clRender()" style="cursor:pointer;font-size:11.5px;background:#ea6c0012;border:1px solid #ea6c0055;border-radius:8px;padding:8px 10px;margin-bottom:10px">↪ 지난달에서 넘어온 이월 <b style="color:#ea6c00">${inc.length}건</b> — ${inc.slice(0,3).map(x=>clEsc(x.it.text)).join(' · ')}${inc.length>3?' …':''} <span style="color:var(--tx3)">(보기 ›)</span></div>`:'';
   const nOpen=clReviewOpenN(c);
-  const tabs=[['review',`🧹 정리${nOpen?` (${nOpen})`:''}`],['lines',`대조결과${c.lines?` (${c.lines.length})`:''}`],['defects',`불량차감${c.defects?` (${c.defects.length})`:''}`],['carry',`이월항목 (${clOpenCarry(c)})`],['summary','요약']];
+  const tabs=[['review',`✅ 확인할 것${nOpen?` (${nOpen})`:''}`],['lines',`대조결과${c.lines?` (${c.lines.length})`:''}`],['defects',`불량차감${c.defects?` (${c.defects.length})`:''}`],['carry',`이월항목 (${clOpenCarry(c)})`],['summary','요약']];
   const tabBar=`<div style="display:flex;gap:4px;border-bottom:1px solid var(--b2);margin-bottom:10px;overflow-x:auto">${tabs.map(([k,l])=>`<button onclick="clTab='${k}';clRender()" style="padding:8px 12px;border:none;border-bottom:2px solid ${clTab===k?'var(--acc)':'transparent'};background:none;font-size:12px;font-weight:${clTab===k?800:500};color:${clTab===k?'var(--acc)':'var(--tx2)'};cursor:pointer;white-space:nowrap;font-family:'Noto Sans KR',sans-serif">${l}</button>`).join('')}</div>`;
   let body='';
   if(clTab==='review') body=clReviewHtml(c,lock);
@@ -20672,7 +20672,7 @@ function clSummaryHtml(c,lock){
       ${(c.unlockLog||[]).length?`<br><b style="color:var(--tx2)">확정 해제 기록</b><br>${c.unlockLog.map(u=>`${clEsc(u.at.slice(0,16).replace('T',' '))} · ${clEsc(u.by)} — ${clEsc(u.why)}`).join('<br>')}`:''}</div>`;
 }
 
-/* ── 🧹 정리 (2026-11-18 사장님 「마감 파일이 오면 바로 대조」 — 대리님 「유리 마감」 화면 방식, 유리마감_옮기기_계획.md 1단계) ──
+/* ── ✅ 확인할 것 (2026-11-18 사장님 「마감 파일이 오면 바로 대조」 — 대리님 「유리 마감」 화면 방식, 유리마감_옮기기_계획.md 1단계) ──
    업체 마감 줄을 ① 수량 다름 · ② 따로 보는 품목 · ③ 금액 다름 · ④ 업체 마감에 없는 우리 발주 로 나눠 보이고,
    체크 → 처리 고르기 → 메모 → 「확인칸으로」. 처리는 c.res {id:{a,m,at,by,prev?}} 에 남습니다.
    ⚠ 처리는 금액·확정에 영향이 없습니다. 「청구 인정」만 그 줄 상태를 「비규격 초과 인정」으로 바꿉니다(대조결과 탭에서 손으로 바꾸는 것과 같음) — ↩ 하면 되돌립니다.
@@ -20934,14 +20934,14 @@ function clExcel(){
   const ca=[['구분','내용','가로','세로','수량','금액','넘긴 달','처리','처리한 달','처리한 사람']];
   const push=(it,src)=>ca.push([CL_CARRY_KINDS[it.kind]||it.kind,it.text,it.w||'',it.h||'',it.qty||'',it.amt||'',src.ym,it.done?'완료':'남음',it.doneYm||'',it.doneBy||'']);
   clIncoming(c).forEach(x=>push(x.it,x.src)); (c.carry||[]).forEach(it=>push(it,c));
-  if(c.lines){   // 🧹 정리 — 칸마다 남은 것 · 처리한 것
+  if(c.lines){   // ✅ 확인할 것 — 칸마다 남은 것 · 처리한 것
     const R=clReview(c), res=c.res||{}, a=[['칸','일자','규격','수량','업체 금액','이유 · 추천','처리','메모','처리한 사람']];
     ['A','B','D','O'].forEach(k=>R[k].forEach(x=>{ const v=res[x.id]||{};
       a.push([CL_SEC_NAME[k], x.L?x.L.date:x.date, x.L?(x.L.w&&x.L.h?x.L.w+'×'+x.L.h:x.L.model||''):x.w+'×'+x.h, x.L?x.L.qty:x.qty, x.L?Math.round(x.L.amtFile||0):'',
         [x.why||'', x.hint?'추천 '+(CL_ACT_LABEL[x.hint.a]||'')+' — '+x.hint.t:''].filter(Boolean).join(' · ')+(k==='D'&&x.loss!=null?` (손해 ${Math.round(x.loss)})`:''),
         v.a?(CL_ACT_LABEL[v.a]||v.a):'남음', v.m||'', v.by||'']); }));
     const w5=XLSX.utils.aoa_to_sheet(a); w5['!cols']=[{wch:22},{wch:11},{wch:12},{wch:6},{wch:11},{wch:50},{wch:16},{wch:30},{wch:10}];
-    XLSX.utils.book_append_sheet(wb,w5,'정리');
+    XLSX.utils.book_append_sheet(wb,w5,'확인할 것');
   }
   const w4=XLSX.utils.aoa_to_sheet(ca); w4['!cols']=[{wch:18},{wch:44},{wch:6},{wch:6},{wch:5},{wch:9},{wch:8},{wch:6},{wch:8},{wch:10}];
   XLSX.utils.book_append_sheet(wb,w4,'이월항목');
