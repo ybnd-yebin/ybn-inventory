@@ -20299,13 +20299,15 @@ async function clUploadVendor(inp){
     lines:p.lines, defects:p.defects, defectHist:old&&old.defectHist||null,
     vendorSupply:p.sums['공급가액']??null, vendorVat:p.sums['VAT']??null, vendorTotal:p.sums['합계금액']??null,
     carry:old&&old.carry||[], memo:old&&old.memo||'', qtyCheckedBy:old&&old.qtyCheckedBy||'', unlockLog:old&&old.unlockLog||[],
+    res:old&&old.res||{},   // 🧹 정리 처리 — 같은 줄(일자·규격·수량·금액)이면 다시 올려도 그대로 남음
+
     createdAt:old&&old.createdAt||new Date().toISOString() };
-  clPrepLines(c); clAutoMatch(c);
+  clPrepLines(c); clAutoMatch(c); clResReapply(c);
   try{ c.pxChanges=buyPxFromClosing(c); try{ const s=JSON.parse(localStorage.getItem(LS_BUY_PX_SEEN)||'{}')||{}; s[c.id]=c.uploadedAt; localStorage.setItem(LS_BUY_PX_SEEN, JSON.stringify(s)); }catch(e){} }catch(e){ console.warn('[단가 이력]', e); }   // 📚 단가 이력(12-102)
   if(c.defectHist) clApplyDefectTypes(c);
   delete closingDeleted[id];
   closings[id]=c; clTouch(c);
-  clView=id; clTab='lines'; clFilter=null; clRender();
+  clView=id; clTab='review'; clFilter=null; clSel=null; clRender();
   showToast(`✓ ${p.vendor} ${+p.ym.slice(5,7)}월 마감 — 입고 ${p.lines.length}줄 · 불량 ${p.defects.length}줄`);
 }
 /* 우리 불량이력(「불량 이력」 시트) — 사이즈별로 현성 차감과 맞춰 봅니다 */
@@ -20466,7 +20468,7 @@ function clOpen(){   // 📒 화면으로 (2026-11-02 — 예전엔 발주 화�
   if(typeof curMain!=='undefined' && curMain==='closing') clRender(); else if(b) b.click(); else showMain('closing');
   window.scrollTo(0,0);
 }
-function clGo(id){ clView=id; clTab='lines'; clFilter=null; clRender(); window.scrollTo(0,0); }
+function clGo(id){ clView=id; clTab='review'; clFilter=null; clSel=null; clRender(); window.scrollTo(0,0); }
 function clBtn(){
   const b=document.getElementById('cl-btn'); if(!b) return;
   const list=Object.values(closings).sort((a,b)=>b.ym.localeCompare(a.ym));
@@ -20498,14 +20500,15 @@ function clListHtml(){
       <td style="${N}">${clWon(c.total)}</td>
       <td style="${P}"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:${c.status==='확정'?'#16a34a1f':'#ea6c001f'};color:${c.status==='확정'?'#16a34a':'#ea6c00'}">${c.status}</span>${c.slim?' <span style="font-size:9px;color:var(--tx3)">요약만</span>':''}</td>
       <td style="${N}${clOpenCarry(c)?'color:var(--acc2);font-weight:700':''}">${clOpenCarry(c)||'-'}</td>
+      <td style="${N}">${(()=>{ const n=c.status==='확정'?0:clReviewOpenN(c); return n?`<b style="color:#dc2626">${n}</b>`:'-'; })()}</td>
       <td style="${P}color:var(--tx3);font-size:11px">열기 ›</td></tr>`).join('');
   return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <button onclick="clPickVendorFile()" style="${B}background:var(--acc);border:none;color:#fff">＋ 거래처 마감 엑셀 올리기</button></div>
     <div style="font-size:10.5px;color:var(--tx2);line-height:1.7;margin-bottom:10px">
-      거래처에서 온 <b>마감 엑셀</b>을 올리면 줄을 읽어 <b>발주 기록과 자동으로 맞춰</b> 봅니다.
+      거래처에서 온 <b>마감 엑셀</b>을 올리면 줄을 읽어 <b>발주 기록과 자동으로 맞춰</b> 보고, 「🧹 정리」 탭에서 수량 다름 · 따로 보는 품목 · 금액 다름 · 마감에 없는 발주를 바로 보여 줍니다.
       앱이 다시 센 합계와 거래처 합계가 <b>0원 차이</b>일 때만 확정할 수 있습니다. 지금은 현성유리 형식을 읽습니다.</div>
     ${list.length?`<div style="overflow-x:auto;border:1px solid var(--b1);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead style="background:var(--s3)"><tr>${['마감월','거래처','최종 공급가액','합계(VAT 포함)','상태','이월',''].map((h,k)=>`<th style="padding:7px 8px;font-size:10px;color:var(--tx3);text-align:${k>=2&&k<=3||k===5?'right':'left'};white-space:nowrap">${h}</th>`).join('')}</tr></thead>
+      <thead style="background:var(--s3)"><tr>${['마감월','거래처','최종 공급가액','합계(VAT 포함)','상태','이월','정리 남음',''].map((h,k)=>`<th style="padding:7px 8px;font-size:10px;color:var(--tx3);text-align:${k>=2&&k<=3||k===5||k===6?'right':'left'};white-space:nowrap">${h}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody></table></div>`
     :`<div style="text-align:center;color:var(--tx3);font-size:11px;padding:24px">아직 마감 기록이 없습니다</div>`}${buyPxHtml()}`;
 }
@@ -20544,10 +20547,12 @@ function clDetailHtml(c){
         ${okDiff||lock?'':`<span style="font-size:11px;color:#dc2626;align-self:center">차이가 0원이어야 확정할 수 있습니다</span>`}</div></div>`;
   const inc=clIncoming(c).filter(x=>!x.it.done);
   const incBanner=inc.length?`<div onclick="clTab='carry';clRender()" style="cursor:pointer;font-size:11.5px;background:#ea6c0012;border:1px solid #ea6c0055;border-radius:8px;padding:8px 10px;margin-bottom:10px">↪ 지난달에서 넘어온 이월 <b style="color:#ea6c00">${inc.length}건</b> — ${inc.slice(0,3).map(x=>clEsc(x.it.text)).join(' · ')}${inc.length>3?' …':''} <span style="color:var(--tx3)">(보기 ›)</span></div>`:'';
-  const tabs=[['lines',`대조결과${c.lines?` (${c.lines.length})`:''}`],['defects',`불량차감${c.defects?` (${c.defects.length})`:''}`],['carry',`이월항목 (${clOpenCarry(c)})`],['summary','요약']];
+  const nOpen=clReviewOpenN(c);
+  const tabs=[['review',`🧹 정리${nOpen?` (${nOpen})`:''}`],['lines',`대조결과${c.lines?` (${c.lines.length})`:''}`],['defects',`불량차감${c.defects?` (${c.defects.length})`:''}`],['carry',`이월항목 (${clOpenCarry(c)})`],['summary','요약']];
   const tabBar=`<div style="display:flex;gap:4px;border-bottom:1px solid var(--b2);margin-bottom:10px;overflow-x:auto">${tabs.map(([k,l])=>`<button onclick="clTab='${k}';clRender()" style="padding:8px 12px;border:none;border-bottom:2px solid ${clTab===k?'var(--acc)':'transparent'};background:none;font-size:12px;font-weight:${clTab===k?800:500};color:${clTab===k?'var(--acc)':'var(--tx2)'};cursor:pointer;white-space:nowrap;font-family:'Noto Sans KR',sans-serif">${l}</button>`).join('')}</div>`;
   let body='';
-  if(clTab==='lines') body=c.lines?clLinesHtml(c,P,dis):'<div style="color:var(--tx3);font-size:11px;padding:18px;text-align:center">이 기기에는 줄 세부가 없습니다</div>';
+  if(clTab==='review') body=clReviewHtml(c,lock);
+  else if(clTab==='lines') body=c.lines?clLinesHtml(c,P,dis):'<div style="color:var(--tx3);font-size:11px;padding:18px;text-align:center">이 기기에는 줄 세부가 없습니다</div>';
   else if(clTab==='defects') body=c.defects?clDefectsHtml(c,dis):'<div style="color:var(--tx3);font-size:11px;padding:18px;text-align:center">이 기기에는 줄 세부가 없습니다</div>';
   else if(clTab==='carry') body=clCarryHtml(c,lock);
   else body=clSummaryHtml(c,lock);
@@ -20667,6 +20672,234 @@ function clSummaryHtml(c,lock){
       ${(c.unlockLog||[]).length?`<br><b style="color:var(--tx2)">확정 해제 기록</b><br>${c.unlockLog.map(u=>`${clEsc(u.at.slice(0,16).replace('T',' '))} · ${clEsc(u.by)} — ${clEsc(u.why)}`).join('<br>')}`:''}</div>`;
 }
 
+/* ── 🧹 정리 (2026-11-18 사장님 「마감 파일이 오면 바로 대조」 — 대리님 「유리 마감」 화면 방식, 유리마감_옮기기_계획.md 1단계) ──
+   업체 마감 줄을 ① 수량 다름 · ② 따로 보는 품목 · ③ 금액 다름 · ④ 업체 마감에 없는 우리 발주 로 나눠 보이고,
+   체크 → 처리 고르기 → 메모 → 「확인칸으로」. 처리는 c.res {id:{a,m,at,by,prev?}} 에 남습니다.
+   ⚠ 처리는 금액·확정에 영향이 없습니다. 「청구 인정」만 그 줄 상태를 「비규격 초과 인정」으로 바꿉니다(대조결과 탭에서 손으로 바꾸는 것과 같음) — ↩ 하면 되돌립니다.
+   id = 구분|줄키. 줄키 = 일자·규격(가로·세로 순서 무관)·수량·업체 금액 + 같은 줄 순번 → 같은 파일·수정본을 다시 올려도 같은 줄이면 처리가 그대로 남습니다. */
+const CL_ACT={
+  A:[['carry','다음 달 이월'],['edge','기간 경계 (앞뒤 달 발주)'],['redo','불량 재발주분'],['acc','청구 인정'],['other','다른 업체 · 한샘 작업 외'],['ask','업체 문의'],['ok','확인함 · 문제없음']],
+  B:[['std','정규격 · 재고분'],['other','다른 업체 · 한샘 작업 외'],['ours','우리 것 (확인함)'],['ask','업체 문의'],['ok','확인함']],
+  D:[['ask','업체 문의 (공제 요청)'],['ok','확인함 · 맞는 금액']],
+  O:[['carry','다음 달 마감에 들어옴'],['edge','지난달 마감에 들어감'],['void','발주 안 함 · 취소된 발주'],['ask','업체 문의 (청구 빠짐)'],['ok','확인함']]
+};
+const CL_ACT_LABEL={}; Object.values(CL_ACT).forEach(a=>a.forEach(([k,l])=>{ if(!CL_ACT_LABEL[k]) CL_ACT_LABEL[k]=l; }));
+CL_ACT_LABEL.ask='업체 문의';
+const CL_SEC_NAME={A:'① 수량 다름',B:'② 따로 보는 품목',D:'③ 금액 다름 — 우리가 손해 보는 줄',O:'④ 업체 마감에 없는 우리 발주'};
+var clSel=null;   // 지금 체크한 줄 (저장 안 함) — var: 화면을 막 그릴 때 먼저 불려도 되게
+function clSzKey(w,h){ w=+w||0; h=+h||0; return Math.min(w,h)+'x'+Math.max(w,h); }
+function clLineKeys(c){
+  const seen={};
+  return (c.lines||[]).map(L=>{
+    const base=[L.date||'', L.w&&L.h?clSzKey(L.w,L.h):'', L.qty, Math.round(Number(L.amtFile)||0), L.w&&L.h?'':(L.model||'')].join('|');
+    seen[base]=(seen[base]||0)+1; return base+'#'+seen[base];
+  });
+}
+function clReview(c){
+  const out={A:[],B:[],D:[],O:[],G:[]};
+  if(!c.lines) return out;
+  const P=clPrice(c.vendor,c.id), keys=clLineKeys(c);
+  const dup={}; c.lines.forEach(L=>{ if(L.w&&L.h){ const k=[L.date,clSzKey(L.w,L.h),L.qty,Math.round(Number(L.amtFile)||0)].join('|'); dup[k]=(dup[k]||0)+1; } });
+  const orders=(orderLog||[]).filter(o=>o && odStmtVendor(o.vendor)===c.vendor);
+  const near=L=>{   // 앞뒤 3주 안 같은 유리·같은 규격 발주 (짝이 안 된 까닭 찾기)
+    const r=[], sk=clSzKey(L.w,L.h), t=new Date(L.date).getTime();
+    orders.forEach(o=>{ const g=clGlass([o.type,o.title,o.thick].join(' ')); if(g!==L.glassCls) return;
+      (o.items||[]).forEach(it=>{ if(clSzKey(it.w,it.h)!==sk) return; const dd=Math.abs((new Date(o.date).getTime()-t)/864e5); if(dd<=21) r.push(clMd(o.date)+' '+(Number(it.qty)||0)+'장'); }); });
+    return r;
+  };
+  c.lines.forEach((L,k)=>{
+    const r=clCalcLine(L,P,c.vendor), key=keys[k], base={k,key,L,r};
+    const noSize=!(L.w&&L.h);
+    if(L.box){
+      if(L.st!=='일치') out.A.push({...base,id:'A|'+key,why:L.poQty==null?'같은 인쇄명 박스 발주 기록이 없음':`박스 발주 ${L.poQty}개보다 ${L.diff}개 많음`});
+    } else if(noSize || L.kind==='기타비용' || L.kind==='팬톤' || L.kind==='사하라' || L.qty<0){
+      out.B.push({...base,id:'B|'+key,why:noSize?'규격 없는 줄 (비용 등)':L.qty<0?'마이너스 줄':`${L.kind} — 발주 대조 안 함`});
+    } else if(L.st!=='일치' || (L.diff!=null && L.diff!==0)){
+      let hint=null, why=L.st;
+      if(L.st==='정규격 초과 인정'){ why=`발주 ${L.poQty}장보다 ${L.diff}장 많음`; hint={a:'ok',t:'정규격은 입고 수량대로 정산 — 재고분'}; }
+      else if(L.st==='정규격 입고정산(발주서 없음)'){ const n=near(L); why='맞는 발주 기록이 없음 (정규격 입고분)'; if(n.length) hint={a:'edge',t:`앞뒤 3주 같은 규격 발주 ${n.join(', ')} — 다른 달 마감에 맞춰졌거나 명세서보다 늦은 발주`}; }
+      else if(/비규격 초과/.test(L.st)) why=`발주 ${L.poQty}장보다 ${L.diff}장 많음`;
+      else if(L.st==='발주서 미확인'){ const n=near(L); why='맞는 발주 기록이 없음'+(n.length?'':' — 앞뒤 3주에도 같은 규격 발주 없음'); if(n.length) hint={a:'edge',t:`앞뒤 3주 같은 규격 발주 ${n.join(', ')} — 날짜 경계일 수 있음`}; }
+      const dk=[L.date,clSzKey(L.w,L.h),L.qty,Math.round(Number(L.amtFile)||0)].join('|');
+      if(dup[dk]>1) hint={a:'ask',t:`업체 파일에 같은 날·같은 규격·같은 금액 줄이 ${dup[dk]}개 — 중복 기입 의심`};
+      out.A.push({...base,id:'A|'+key,why,hint});
+    }
+    if(r.amtCalc!=null && L.amtFile!=null && !L.box){
+      const d=Number(L.amtFile)-r.amtCalc;
+      if(d>0.5) out.D.push({...base,id:'D|'+key,loss:d,why:r.flags.join(' · ')||'업체 금액이 앱 계산보다 큼'});
+      else if(d<-0.5) out.G.push({...base,gain:-d,why:r.flags.join(' · ')});
+    } else if(r.pUnit==null && !noSize && !L.box && L.kind!=='기타비용') out.D.push({...base,id:'D|'+key,loss:null,why:'단가 없음 — 금액 확인 못 함'});
+  });
+  /* ④ 마감 기간 안 우리 발주 중 어느 마감에도 안 잡힌 것 (다른 달 마감이 가져간 것 · 이 마감 줄이 가져간 것은 뺌) */
+  try{
+    const rg=odStmtRange(c.ym,c.vendor), pool=clOrderPool(c), usedHere={};
+    c.lines.forEach(L=>(L.po||[]).forEach(p=>{ const k=p.uid||(p.oid+'#'+p.i); usedHere[k]=(usedHere[k]||0)+p.qty; }));
+    const last3=new Set(); { let d=rg.to; for(let i=0;i<3;i++){ last3.add(d); d=_addBizDays(d,-1); } }
+    const byId=new Map((orderLog||[]).map(o=>[o&&o.id,o]));
+    Object.values(pool).forEach(arr=>arr.forEach(e=>{
+      if(e.date<rg.from || e.date>rg.to) return;
+      const left=e.left-(usedHere[e.uid]||usedHere[e.oid+'#'+e.i]||0); if(left<=0) return;
+      const o=byId.get(e.oid)||{}, it=(o.items||[])[e.i]||{};
+      out.O.push({id:'O|'+(e.uid||e.oid+'#'+e.i), date:e.date, w:+it.w, h:+it.h, qty:left, file:e.file, pname:it.pname||'',
+        hint: last3.has(e.date)||e.date>=_addBizDays(rg.to,-2) ? {a:'carry',t:'마감 끝 무렵 발주 — 다음 달 마감에 들어올 것'} : null});
+    }));
+    out.O.sort((a,b)=>a.date.localeCompare(b.date));
+  }catch(e){ console.warn('[정리 ④]', e); }
+  return out;
+}
+function clReviewOpenN(c){
+  if(!c || !c.lines) return null;
+  const R=clReview(c), res=c.res||{};
+  return ['A','B','D','O'].reduce((s,k)=>s+R[k].filter(x=>!res[x.id]).length,0);
+}
+function clSelToggle(id,on){ clSel=clSel||new Set(); if(on) clSel.add(id); else clSel.delete(id); }
+function clSelAll(sec,on){
+  const c=clCur(); if(!c) return; const R=clReview(c), res=c.res||{};
+  clSel=clSel||new Set(); R[sec].filter(x=>!res[x.id]).forEach(x=>{ if(on) clSel.add(x.id); else clSel.delete(x.id); });
+  clRender();
+}
+function clResPut(c,id,a,m){
+  c.res=c.res||{};
+  const rec={a,m:m||'',at:new Date().toISOString(),by:getActor()||''};
+  if(a==='acc' && id.startsWith('A|')){
+    const keys=clLineKeys(c), k=keys.indexOf(id.slice(2)), L=c.lines[k];
+    if(L && L.st==='비규격 초과(경고)'){ rec.prev={st:L.st,man:!!L.stManual}; L.st='비규격 초과 인정'; L.stManual=true; }
+  }
+  c.res[id]=rec;
+}
+/* 파일을 다시 올리면 줄이 새로 만들어져 상태가 자동으로 돌아갑니다 — 남아 있는 「청구 인정」 처리를 그 줄에 다시 걸어 둡니다 */
+function clResReapply(c){
+  if(!c.res||!c.lines) return;
+  const keys=clLineKeys(c);
+  Object.entries(c.res).forEach(([id,v])=>{
+    if(v.a!=='acc' || !id.startsWith('A|')) return;
+    const L=c.lines[keys.indexOf(id.slice(2))];
+    if(L && L.st==='비규격 초과(경고)'){ v.prev={st:L.st,man:!!L.stManual}; L.st='비규격 초과 인정'; L.stManual=true; }
+  });
+}
+function clResMove(sec){
+  const c=clCur(); if(!c||clLocked(c)) return;
+  const sel=[...(clSel||[])].filter(id=>id.startsWith(sec+'|'));
+  if(!sel.length){ showToast('옮길 줄을 먼저 체크해 주십시오'); return; }
+  const a=(document.getElementById('cl-act-'+sec)||{}).value, m=((document.getElementById('cl-memo-'+sec)||{}).value||'').trim();
+  if(!a){ showToast('처리를 골라 주십시오'); return; }
+  sel.forEach(id=>{ clResPut(c,id,a,m); clSel.delete(id); });
+  clTouch(c); clRender(); showToast(`✓ ${sel.length}건을 확인칸으로 옮겼습니다`);
+}
+function clResHint(sec){
+  const c=clCur(); if(!c||clLocked(c)) return;
+  const R=clReview(c), res=c.res||{};
+  const list=R[sec].filter(x=>!res[x.id] && x.hint && x.hint.a!=='ask');
+  if(!list.length) return;
+  list.forEach(x=>clResPut(c,x.id,x.hint.a,x.hint.t));
+  clTouch(c); clRender(); showToast(`✓ 추천 그대로 ${list.length}건 옮겼습니다`);
+}
+function clResUndo(id){
+  const c=clCur(); if(!c||clLocked(c)||!c.res||!c.res[id]) return;
+  const rec=c.res[id];
+  if(rec.prev && id.startsWith('A|')){
+    const k=clLineKeys(c).indexOf(id.slice(2)), L=c.lines[k];
+    if(L && L.st==='비규격 초과 인정'){ L.st=rec.prev.st; L.stManual=rec.prev.man; }
+  }
+  delete c.res[id]; clTouch(c); clRender();
+}
+function clResMemo(id,v){ const c=clCur(); if(!c||!c.res||!c.res[id]) return; c.res[id].m=v; clTouch(c); }
+function clItemLabel(x){
+  if(x.L) return `${clMd(x.L.date)} ${x.L.w&&x.L.h?x.L.w+'×'+x.L.h:clEsc(x.L.model||'')} ${x.L.qty}장 · ${clWon(x.L.amtFile)}원`;
+  return `${clMd(x.date)} 발주 ${x.w}×${x.h} ${x.qty}장${x.pname?' · '+clEsc(x.pname):''}`;
+}
+function clAskText(c){
+  const R=clReview(c), res=c.res||{}, all=[...R.A,...R.B,...R.D,...R.O], by=new Map(all.map(x=>[x.id,x]));
+  const lines=Object.entries(res).filter(([id,v])=>v.a==='ask' && by.has(id)).map(([id,v])=>{
+    const x=by.get(id), sec=id[0];
+    const what = sec==='O' ? `${clMd(x.date)} 발주 ${x.w}×${x.h} ${x.qty}장 — 마감에 없음`
+      : `${clMd(x.L.date)} ${x.L.w&&x.L.h?x.L.w+'×'+x.L.h:(x.L.model||'')} ${x.L.qty}장 · ${clWon(x.L.amtFile)}원 — ${sec==='D'?(x.loss!=null?'손해 '+clWon(x.loss)+'원 · ':'')+x.why:x.why}`;
+    return `- ${what}${v.m?' ('+v.m+')':''}`;
+  });
+  if(!lines.length) return '';
+  return `[${c.vendor} ${+c.ym.slice(5,7)}월 마감 확인 요청 — 와이비앤디]\n`+lines.join('\n');
+}
+function clAskCopy(){
+  const c=clCur(); if(!c) return; const t=clAskText(c); if(!t) return;
+  const ok=()=>showToast('✓ 복사했습니다 — 카톡·메일에 붙여 넣으십시오');
+  try{ navigator.clipboard.writeText(t).then(ok,()=>{ const a=document.getElementById('cl-ask-txt'); if(a){ a.select(); document.execCommand('copy'); ok(); } }); }
+  catch(e){ const a=document.getElementById('cl-ask-txt'); if(a){ a.select(); document.execCommand('copy'); ok(); } }
+}
+function clReviewHtml(c,lock){
+  if(!c.lines) return '<div style="color:var(--tx3);font-size:11px;padding:18px;text-align:center">이 기기에는 줄 세부가 없습니다</div>';
+  const R=clReview(c), res=c.res||{};
+  clSel=clSel||new Set();
+  const P2='padding:5px 6px;', N=P2+"text-align:right;font-family:'JetBrains Mono',monospace;white-space:nowrap;";
+  const inp=`style="margin:0;padding:4px 6px;font-size:11px;border:1px solid var(--b2);border-radius:5px;background:var(--s1);font-family:'Noto Sans KR',sans-serif"`;
+  const open=k=>R[k].filter(x=>!res[x.id]);
+  const nRes=Object.keys(res).length;
+  const jump=(k,l,n)=>`<a href="#cl-sec-${k}" onclick="event.preventDefault();var e=document.getElementById('cl-sec-${k}');if(e)e.scrollIntoView({behavior:'smooth',block:'start'})" style="text-decoration:none;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid ${n?'#dc262655':'var(--b1)'};color:${n?'#dc2626':'var(--tx3)'};background:${n?'#dc26260a':'var(--s1)'}">${l} ${n}</a>`;
+  const bar=`<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px">
+      ${jump('A','① 수량 다름',open('A').length)}${jump('B','② 따로 보는 품목',open('B').length)}${jump('D','③ 금액 다름',open('D').length)}${jump('O','④ 마감에 없는 발주',open('O').length)}
+      <a href="#cl-sec-C" onclick="event.preventDefault();var e=document.getElementById('cl-sec-C');if(e)e.scrollIntoView({behavior:'smooth',block:'start'})" style="text-decoration:none;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid var(--b1);color:var(--tx2)">✓ 확인칸 ${nRes}</a></div>`;
+  const actBar=(sec,list)=>{
+    if(lock||!list.length) return '';
+    const nHint=list.filter(x=>x.hint && x.hint.a!=='ask').length;
+    const nSel=list.filter(x=>clSel.has(x.id)).length;
+    return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0">
+        <label style="font-size:11px;display:flex;gap:4px;align-items:center"><input type="checkbox"${nSel&&nSel===list.length?' checked':''} onchange="clSelAll('${sec}',this.checked)">전체</label>
+        <span style="font-size:11px;color:var(--tx3)">${nSel}건 선택</span>
+        <select id="cl-act-${sec}" ${inp}><option value="">— 처리 고르기 —</option>${CL_ACT[sec].map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select>
+        <input id="cl-memo-${sec}" ${inp} placeholder="메모 (고른 것 모두에 같이)" style="flex:1;min-width:140px;max-width:280px">
+        <button class="icon-btn" onclick="clResMove('${sec}')" style="font-size:11px;font-weight:700">확인칸으로 ↓</button>
+        ${nHint?`<button class="icon-btn" onclick="clResHint('${sec}')" style="font-size:11px">추천 그대로 ${nHint}건</button>`:''}</div>`;
+  };
+  const ck=x=>lock?'':`<input type="checkbox" data-id="${clEsc(x.id)}"${clSel.has(x.id)?' checked':''} onchange="clSelToggle(this.dataset.id,this.checked)">`;
+  const hintTd=x=>x.hint?`<div style="font-size:10px;color:${x.hint.a==='ask'?'#dc2626':'#2563eb'}">추천: ${clEsc(CL_ACT_LABEL[x.hint.a]||x.hint.a)} — ${clEsc(x.hint.t)}</div>`:'';
+  const head=cols=>`<thead style="background:var(--s3)"><tr>${cols.map((h,i)=>`<th style="padding:6px;font-size:10px;color:var(--tx3);text-align:${h[1]?'right':'left'};white-space:nowrap">${h[0]}</th>`).join('')}</tr></thead>`;
+  const sec=(k,title,list,cols,row,empty,note)=>`<div id="cl-sec-${k}" style="border:1px solid var(--b1);border-radius:10px;padding:10px 12px;margin-bottom:10px;scroll-margin-top:120px">
+      <div style="font-size:13px;font-weight:800">${title} <span style="font-size:11px;font-weight:700;color:${list.length?'#dc2626':'var(--tx3)'}">${list.length}건</span></div>
+      ${note?`<div style="font-size:10.5px;color:var(--tx3);margin-top:2px">${note}</div>`:''}
+      ${list.length?actBar(k,list)+`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:560px">${head(cols)}<tbody>${list.map(row).join('')}</tbody></table></div>`
+        :`<div style="font-size:11px;color:#16a34a;padding:6px 0">✓ ${empty}</div>`}</div>`;
+  const lineCells=x=>`<td style="${P2}white-space:nowrap">${clMd(x.L.date)}</td><td style="${P2}">${clEsc(x.L.model||'')}${x.L.note?`<div style="font-size:9.5px;color:var(--tx3)">${clEsc(x.L.note)}</div>`:''}</td><td style="${N}">${x.L.w&&x.L.h?x.L.w+'×'+x.L.h:'-'}</td><td style="${N}font-weight:700">${x.L.qty}</td>`;
+  const A=open('A'), B=open('B'), D=open('D'), O=open('O');
+  const secA=sec('A',CL_SEC_NAME.A,A,[['',0],['일자',0],['품명',0],['규격',1],['마감',1],['발주',1],['차이',1],['상태',0],['이유 · 추천',0]],
+    x=>`<tr style="border-top:1px solid var(--b1)"><td style="${P2}">${ck(x)}</td>${lineCells(x)}<td style="${N}">${x.L.poQty==null?'-':x.L.poQty}</td><td style="${N}color:#ea6c00;font-weight:700">${x.L.diff==null?'-':(x.L.diff>0?'+':'')+x.L.diff}</td><td style="${P2}">${clStatusChip(x.L.st)}</td><td style="${P2}font-size:10.5px">${clEsc(x.why)}${hintTd(x)}</td></tr>`,
+    '발주 기록과 수량이 모두 맞습니다','마감 수량 − 연결된 발주 수량. 정규격은 입고 수량대로 정산하므로 많아도 재고분입니다.');
+  const secB=sec('B',CL_SEC_NAME.B,B,[['',0],['일자',0],['품명',0],['규격',1],['수량',1],['업체 금액',1],['까닭',0]],
+    x=>`<tr style="border-top:1px solid var(--b1)"><td style="${P2}">${ck(x)}</td>${lineCells(x)}<td style="${N}">${clWon(x.L.amtFile)}</td><td style="${P2}font-size:10.5px">${clEsc(x.why)}</td></tr>`,
+    '따로 볼 품목이 없습니다');
+  const secD=sec('D',CL_SEC_NAME.D,D,[['',0],['일자',0],['품명',0],['규격',1],['수량',1],['업체 금액',1],['앱 계산',1],['우리 손해',1],['이유',0]],
+    x=>`<tr style="border-top:1px solid var(--b1)"><td style="${P2}">${ck(x)}</td>${lineCells(x)}<td style="${N}">${clWon(x.L.amtFile)}</td><td style="${N}">${clWon(x.r.amtCalc)}</td><td style="${N}color:#dc2626;font-weight:700">${x.loss==null?'-':clWon(x.loss)}</td><td style="${P2}font-size:10.5px">${clEsc(x.why)}</td></tr>`,
+    '우리가 손해 보는 금액이 없습니다');
+  const G=R.G, gSum=G.reduce((s,x)=>s+x.gain,0);
+  const gainHtml=G.length?`<details style="margin:-4px 0 10px;font-size:11px"><summary style="cursor:pointer;color:var(--tx3)">💡 우리에게 유리한 차이 ${G.length}줄 · ${clWon(gSum)}원 — 처리 안 해도 됩니다 (참고만)</summary>
+      ${G.map(x=>`<div style="padding:3px 0;border-top:1px solid var(--b1)">${clItemLabel(x)} · 앱 ${clWon(x.r.amtCalc)}원 · <span style="color:#16a34a">−${clWon(x.gain)}</span> ${clEsc(x.why)}</div>`).join('')}</details>`:'';
+  const secO=sec('O',CL_SEC_NAME.O,O,[['',0],['발주일',0],['발주서',0],['규격',1],['남은 수량',1],['추천',0]],
+    x=>`<tr style="border-top:1px solid var(--b1)"><td style="${P2}">${ck(x)}</td><td style="${P2}white-space:nowrap">${clMd(x.date)}</td><td style="${P2}">${clEsc(x.file)}${x.pname?`<div style="font-size:9.5px;color:var(--tx3)">${clEsc(x.pname)}</div>`:''}</td><td style="${N}">${x.w}×${x.h}</td><td style="${N}font-weight:700">${x.qty}</td><td style="${P2}font-size:10.5px">${hintTd(x)}</td></tr>`,
+    '마감 기간 안 발주가 모두 마감에 들어왔습니다', `마감 기간 ${clMd(odStmtRange(c.ym,c.vendor).from)}~${clMd(odStmtRange(c.ym,c.vendor).to)} 발주 중 어느 달 마감에도 안 잡힌 수량입니다.`);
+  /* 확인칸 */
+  const all=new Map([...R.A,...R.B,...R.D,...R.O].map(x=>[x.id,x]));
+  const ents=Object.entries(res);
+  const stale=ents.filter(([id])=>!all.has(id)).length;
+  const grp={}; ents.filter(([id])=>all.has(id)).forEach(([id,v])=>{ (grp[v.a]=grp[v.a]||[]).push([id,v]); });
+  const tag={A:'수량',B:'따로',D:'금액',O:'발주'};
+  const secC=`<div id="cl-sec-C" style="border:1px solid var(--b1);border-radius:10px;padding:10px 12px;margin-bottom:10px;scroll-margin-top:120px;background:var(--s2)">
+      <div style="font-size:13px;font-weight:800">✓ 확인칸 <span style="font-size:11px;color:var(--tx3);font-weight:500">${ents.length-stale}건 · ↩ 를 누르면 위로 되돌아갑니다</span></div>
+      ${Object.entries(grp).map(([a,arr])=>`<div style="margin-top:8px"><div style="font-size:11px;font-weight:800;color:${a==='ask'?'#dc2626':'var(--tx2)'}">${clEsc(CL_ACT_LABEL[a]||a)} ${arr.length}</div>
+        ${arr.map(([id,v])=>{ const x=all.get(id); return `<div style="display:flex;gap:6px;align-items:center;padding:4px 0;border-top:1px solid var(--b1);font-size:11px;flex-wrap:wrap">
+          <span style="font-size:9.5px;font-weight:700;padding:0 6px;border-radius:5px;background:var(--s3);color:var(--tx2)">${tag[id[0]]||''}</span>
+          <span style="flex:1;min-width:180px">${clItemLabel(x)}</span>
+          <input ${inp} data-id="${clEsc(id)}" value="${clEsc(v.m||'')}" ${lock?'disabled':''} onchange="clResMemo(this.dataset.id,this.value)" placeholder="메모" style="flex:1;min-width:120px;max-width:260px">
+          <span style="font-size:9.5px;color:var(--tx3);white-space:nowrap">${clEsc((v.at||'').slice(5,10).replace('-','/'))} ${clEsc(v.by||'')}</span>
+          ${lock?'':`<button class="icon-btn" data-id="${clEsc(id)}" onclick="clResUndo(this.dataset.id)" style="font-size:11px" title="되돌리기">↩</button>`}</div>`; }).join('')}</div>`).join('')||'<div style="font-size:11px;color:var(--tx3);padding:6px 0">아직 옮긴 줄이 없습니다</div>'}
+      ${stale?`<div style="font-size:10px;color:var(--tx3);margin-top:6px">※ 파일이 바뀌어 맞는 줄이 없는 처리 ${stale}건은 숨겼습니다</div>`:''}</div>`;
+  const ask=clAskText(c);
+  const askHtml=ask?`<div style="border:1px solid #dc262655;border-radius:10px;padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div style="font-size:13px;font-weight:800">📣 업체 문의 ${ask.split('\n').length-1}건</div>
+        <button class="icon-btn" onclick="clAskCopy()" style="font-size:11px;font-weight:700">복사 (카톡 · 메일)</button></div>
+      <textarea id="cl-ask-txt" readonly rows="${Math.min(10,ask.split('\n').length+1)}" style="width:100%;margin-top:6px;font-size:11px;font-family:'Noto Sans KR',sans-serif;border:1px solid var(--b2);border-radius:6px;padding:6px;background:var(--s1);color:var(--tx1)">${clEsc(ask)}</textarea></div>`:'';
+  const left=A.length+B.length+D.length+O.length;
+  const done=`<div style="font-size:12px;font-weight:700;margin-bottom:8px;color:${left?'#dc2626':'#16a34a'}">${left?`남은 일 ${left}건 — 줄을 체크하고 처리를 골라 확인칸으로 옮겨 주십시오`:'✅ 남은 일 없음'}${lock?' <span style="color:var(--tx3);font-weight:500">(확정된 달 — 보기만)</span>':''}</div>`;
+  return done+bar+secA+secB+secD+gainHtml+secO+askHtml+secC;
+}
+
 /* ── 엑셀 내보내기 — 요약 / 대조결과 / 불량차감 / 이월항목 ── */
 function clExcel(){
   const c=clCur(); if(!c) return;
@@ -20701,6 +20934,15 @@ function clExcel(){
   const ca=[['구분','내용','가로','세로','수량','금액','넘긴 달','처리','처리한 달','처리한 사람']];
   const push=(it,src)=>ca.push([CL_CARRY_KINDS[it.kind]||it.kind,it.text,it.w||'',it.h||'',it.qty||'',it.amt||'',src.ym,it.done?'완료':'남음',it.doneYm||'',it.doneBy||'']);
   clIncoming(c).forEach(x=>push(x.it,x.src)); (c.carry||[]).forEach(it=>push(it,c));
+  if(c.lines){   // 🧹 정리 — 칸마다 남은 것 · 처리한 것
+    const R=clReview(c), res=c.res||{}, a=[['칸','일자','규격','수량','업체 금액','이유 · 추천','처리','메모','처리한 사람']];
+    ['A','B','D','O'].forEach(k=>R[k].forEach(x=>{ const v=res[x.id]||{};
+      a.push([CL_SEC_NAME[k], x.L?x.L.date:x.date, x.L?(x.L.w&&x.L.h?x.L.w+'×'+x.L.h:x.L.model||''):x.w+'×'+x.h, x.L?x.L.qty:x.qty, x.L?Math.round(x.L.amtFile||0):'',
+        [x.why||'', x.hint?'추천 '+(CL_ACT_LABEL[x.hint.a]||'')+' — '+x.hint.t:''].filter(Boolean).join(' · ')+(k==='D'&&x.loss!=null?` (손해 ${Math.round(x.loss)})`:''),
+        v.a?(CL_ACT_LABEL[v.a]||v.a):'남음', v.m||'', v.by||'']); }));
+    const w5=XLSX.utils.aoa_to_sheet(a); w5['!cols']=[{wch:22},{wch:11},{wch:12},{wch:6},{wch:11},{wch:50},{wch:16},{wch:30},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,w5,'정리');
+  }
   const w4=XLSX.utils.aoa_to_sheet(ca); w4['!cols']=[{wch:18},{wch:44},{wch:6},{wch:6},{wch:5},{wch:9},{wch:8},{wch:6},{wch:8},{wch:10}];
   XLSX.utils.book_append_sheet(wb,w4,'이월항목');
   XLSX.writeFile(wb, odFileName([c.ym.slice(2,4)+c.ym.slice(5,7), odFileVendorOf(c.vendor), '월마감']) + '.xlsx');   // 2610_현성_월마감
