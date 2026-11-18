@@ -11017,6 +11017,8 @@ function metaForSync(){
   try{ if(odModelFix && Object.keys(odModelFix).length) put('odModelFix', odModelFix); }catch(e){}
   /* 📑 매출 마감일 — 달·매출처마다 직접 고친 날(2026-10-26). 열쇠마다 나중에 고친 쪽이 이김 */
   try{ if(sellClose && Object.keys(sellClose).length) put('sellClose', sellClose); }catch(e){}
+  /* 📚 매입 단가 이력 (2026-11-17, 12-102) — 줄마다 나중 at 이 이김 */
+  try{ if(buyPx && Object.keys(buyPx).length) put('buyPx', buyPx); }catch(e){}
   /* 📋 한샘 단가표 (2026-10-21) — 합의서·SRM 줄·지운 표시(`hsForSync`). hsPrice 는 뒤쪽 let 이라 try 로 감쌉니다 */
   try{ put('hsPrice', hsForSync()); }catch(e){}
   /* 🛁 바스재고 (2026-10-20) — 묶음마다 고친 때를 같이 보냅니다. 창고 출고는 최근 120일만, 예시 스냅샷은 안 보냅니다(`BAS.forSync`).
@@ -11212,6 +11214,7 @@ function applyMergedFromSheet(data){
   if(data.odTypeCfg!==undefined){ try{ odTypeCfgMerge(data.odTypeCfg); }catch(e){ console.warn('[발주 종류 목록] 받기 실패', e); } }
   if(data.odModelFix!==undefined){ try{ odModelFixMerge(data.odModelFix); }catch(e){ console.warn('[정규격 모델 사이즈] 받기 실패', e); } }
   if(data.sellClose!==undefined){ try{ if(sellCloseMerge(data.sellClose)) renderLgSummary(); }catch(e){ console.warn('[매출 마감일] 받기 실패', e); } }
+  if(data.buyPx!==undefined){ try{ if(buyPxMerge(data.buyPx)){ try{ renderLgSummary(); }catch(e){} try{ if(curMain==='closing') clRender(); }catch(e){} } }catch(e){ console.warn('[단가 이력] 받기 실패', e); } }
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
   }
@@ -19311,13 +19314,20 @@ function odStmtRows(vendor, ym, range){
       const oq=qty, rq=(it.received && !nonstd) ? odRecvQty(it) : qty;
       if(rq!==qty){ qty=rq; if(!qty) return; }
       const ja = (w&&h) ? odPyeong(w,h,vendor,/브론즈/.test(kind||'')) : null;
-      const unit = kind ? (price[kind]||null) : null;
+      // 단가 = 그 날의 단가 — 📚 단가 이력(12-102), 없으면 OD_VENDOR_PRICE
+      let unit = kind ? (buyPriceOf(vendor, kind, day)||null) : null;
       // 관통보링 — 한 장에 OD_THROUGH_BORE_N 개 × 보링 단가(있는 발주처만)
-      const tb = price['보링'] && (OD_THROUGH_BORE.re.test(it.pname||'') || /관통보링/.test([it.bigo, o.bigo].join(' ')));
+      const boreP = buyPriceOf(vendor, '보링', day)||0;
+      const tb = boreP && (OD_THROUGH_BORE.re.test(it.pname||'') || /관통보링/.test([it.bigo, o.bigo].join(' ')));
       const bore = tb ? OD_THROUGH_BORE_N : 0;
-      const amt = (ja!=null && unit) ? ja*qty*unit + (bore ? bore*price['보링']*qty : 0) : null;
+      let amt = (ja!=null && unit) ? ja*qty*unit + (bore ? bore*boreP*qty : 0) : null;
+      // 박스(승일포장) — 인쇄명으로 단가 이력을 찾아 개당 단가 × 수량
+      if(amt==null && !kind && !(w&&h) && odIsBoxOrder(o)){
+        const bk=odBoxNameKey(it.pname), bp=bk ? buyPriceOf(vendor, '박스|'+bk, day) : null;
+        if(bp){ unit=bp; amt=bp*qty; }
+      }
       rows.push({ day, st, w, h, ja, qty, oq, unit, amt, kind, bore,
-        pname: (kind || o.thick || o.type || it.pname || '')+(bore?' +관통보링'+bore:''), bigo: it.bigo||o.bigo||'',
+        pname: (kind || (odIsBoxOrder(o) && it.pname) || o.thick || o.type || it.pname || '')+(bore?' +관통보링'+bore:''), bigo: it.bigo||o.bigo||'',
         odate:o.date||'', oid:o.id, i });
     });
   });
@@ -19335,7 +19345,7 @@ function odStmtBtn(){
   const supply=Math.round(sum), total=supply+Math.round(supply*0.1);
   const skN = rows.skipped ? (rows.skipped.미입고 + rows.skipped.자동) : 0;
   const val = !rows.length ? (skN ? `입고 체크 0장 · 빠진 것 ${skN}장` : '기록 없음')
-            : OD_VENDOR_PRICE[vendor] ? `${total.toLocaleString('ko-KR')}원${OD_VENDOR_PRICE_EST.has(vendor)?' (추정)':''}` : `${qty}장 · 단가 확인 필요`;
+            : (OD_VENDOR_PRICE[vendor] || buyPxHasVendor(vendor)) ? `${total.toLocaleString('ko-KR')}원${OD_VENDOR_PRICE_EST.has(vendor)?' (추정)':''}` : `${qty}장 · 단가 확인 필요`;
   b.innerHTML=`<span>🧾 <b>${vendor}</b> ${+ym.slice(5,7)}월 마감 <b style="font-family:'JetBrains Mono',monospace;color:var(--acc3)">${val}</b></span>`
     +`<span style="color:var(--tx3);font-size:11px;white-space:nowrap">보기 ›</span>`;
 }
@@ -19507,9 +19517,185 @@ let clView=null, clTab='lines', clFilter=null;
 const clWon=n=>(n==null||isNaN(n))?'-':Math.round(n).toLocaleString('ko-KR');
 const clEsc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const clMd=s=>/^\d{4}-\d{2}-\d{2}/.test(s||'')?`${+s.slice(5,7)}/${+s.slice(8,10)}`:(s||'-');
-function clPrice(vendor){
+/* ── 📚 매입 단가 이력 (사장님 2026-11-17 「모든 단가들을 품고 있어야 … 단가 변동도 이력으로」 — CLAUDE.md 12-102) ──
+   거래처 월 마감 엑셀을 넣을 때마다 품목별 단가를 쌓습니다. 같은 값이면 안 늘고, 달라진 때만 새 줄 = 변동 이력.
+   한 줄 = { v 거래처, item 열쇠(유리 = 종류 이름 · 박스 = '박스|'+인쇄명 열쇠), name 보이는 이름, p 단가, u '평'|'개',
+             from 적용 시작일, src 그 마감 id, ok 손으로 인정함, at, by, del 지움 }.  열쇠 id = 거래처|item|from.
+   쓰는 법: buyPriceOf(거래처, item, 날짜) — 그 날 이전에 시작한 마지막 이력, 없으면 OD_VENDOR_PRICE(코드에 적은 첫 단가).
+   마감 대조는 **그 마감이 만든 이력을 빼고**(인정한 것은 넣고) 봅니다 — 안 그러면 늘 제 단가와 맞아 변동이 안 보입니다.
+   동기화: metaForSync 의 buyPx — 줄마다 나중 at 이 이김(지운 것도 del 로 남겨 되살아나지 않게). */
+const LS_BUY_PX='ybn-buy-px-v1', LS_BUY_PX_SEEN='ybn-buy-px-seen-v1';
+var buyPx = buyPx || (function(){ try{ return JSON.parse(localStorage.getItem(LS_BUY_PX)||'{}')||{}; }catch(e){ return {}; } })();
+let _buyPxSyncT=null;
+function buyPxSave(sync){
+  try{ localStorage.setItem(LS_BUY_PX, JSON.stringify(buyPx)); }catch(e){}
+  if(sync===false) return;
+  clearTimeout(_buyPxSyncT);
+  _buyPxSyncT=setTimeout(()=>{ try{ if(typeof autoSync==='function') autoSync(); }catch(e){} }, 1500);
+}
+function buyPxMerge(x){
+  if(!x || typeof x!=='object') return false;
+  if(!buyPx || typeof buyPx!=='object') buyPx={};
+  let ch=false;
+  Object.keys(x).forEach(k=>{ const a=x[k], b=buyPx[k]; if(a && String(a.at||'')>String((b&&b.at)||'')){ buyPx[k]=a; ch=true; } });
+  if(ch) buyPxSave(false);
+  return ch;
+}
+function buyPxEntries(v, item){
+  return Object.values(buyPx||{}).filter(e=>e && !e.del && e.v===v && (item==null || e.item===item))
+    .sort((a,b)=>String(a.from).localeCompare(String(b.from)) || String(a.at||'').localeCompare(String(b.at||'')));
+}
+function buyPxHasVendor(v){ return Object.values(buyPx||{}).some(e=>e && !e.del && e.v===v); }
+/* 그 날의 단가 — opt.exclude = 이 마감 id 가 만든 이력은 빼고(인정한 것은 넣고) */
+function buyPriceOf(v, item, day, opt){
+  const ex=opt&&opt.exclude, d=String(day||'9999-12-31');
+  let hit=null;
+  buyPxEntries(v, item).forEach(e=>{ if(String(e.from)<=d && !(ex && e.src===ex && !e.ok)) hit=e; });
+  if(hit) return hit.p;
+  const base=(OD_VENDOR_PRICE[v]||{})[item];
+  return base==null ? null : base;
+}
+/* 마감 한 줄 → 이력 열쇠 · 단가. 사하라·팬톤·기타비용(박스 말고)은 안 셈 */
+function clPxKey(L, vendor){
+  // 박스 — 크기(장·폭·고)가 적힌 줄만. 크기 없는 줄(「수지대금4건」 같은 비용)은 단가로 안 쌓음
+  if(L.box){ const k=odBoxNameKey(L.model); return (k && L.note) ? { item:'박스|'+k, name:L.model, u:'개' } : null; }
+  if(L.kind!=='정규격' && L.kind!=='비규격') return null;
+  let item;
+  if(vendor==='아름유리') item = /시그니처/.test(L.model) ? '시그니처 5T 투명 '+L.kind : (/브론즈/.test(L.glass)?'KB 빗면 5T 브론즈 ':'에어힌지 5T 투명 ')+L.kind;
+  else item = (L.glassCls==='5T백유리' ? '5T 백유리 ' : '3.2T 백사틴 ')+L.kind;
+  return { item, name:item, u:'평' };
+}
+function clPxItem(L, vendor){
+  const k=clPxKey(L, vendor); if(!k) return null;
+  const p=Number(L.box ? L.unitFile : L.pUnitFile)||0;
+  return p>0 ? Object.assign(k, { p }) : null;
+}
+/* 마감에서 이력 쌓기 — 품목마다 그 마감에서 가장 많이 쓰인 단가(장수로)를 그 단가가 처음 나온 날부터.
+   다시 올린 마감은 앞서 만든 이력을 지우고 다시 셉니다. 돌려주는 값 = 바뀐 것 [{item,name,u,old,p,from}] */
+function buyPxFromClosing(c){
+  if(!c || !c.lines || !c.vendor) return [];
+  const now=new Date().toISOString(), by=(typeof getActor==='function'&&getActor())||'';
+  Object.values(buyPx).forEach(e=>{ if(e && e.src===c.id && !e.del){ e.del=true; e.at=now; } });
+  const g={};
+  c.lines.forEach(L=>{
+    const x=clPxItem(L, c.vendor); if(!x) return;
+    const o=g[x.item]||(g[x.item]={ name:x.name, u:x.u, by:{} });
+    const b=o.by[x.p]||(o.by[x.p]={ q:0, first:'' });
+    b.q+=Number(L.qty)||0;
+    const d=L.date||(c.ym+'-01'); if(!b.first || d<b.first) b.first=d;
+  });
+  const out=[];
+  Object.keys(g).forEach(item=>{
+    const o=g[item], best=Object.entries(o.by).sort((a,b)=>b[1].q-a[1].q)[0];
+    const p=+best[0], from=best[1].first;
+    const old=buyPriceOf(c.vendor, item, from, { exclude:c.id });
+    if(old===p) return;
+    const id=c.vendor+'|'+item+'|'+from, prev=buyPx[id];
+    buyPx[id]={ v:c.vendor, item, name:o.name, p, u:o.u, from, src:c.id, ok:!!(prev && prev.ok && prev.p===p), at:now, by };
+    out.push({ item, name:o.name, u:o.u, old, p, from });
+  });
+  buyPxSave();
+  return out;
+}
+/* 이미 넣어 둔 마감(줄이 이 기기에 있는 것)에서 한 번 채우기 — 앞선 달부터 */
+function buyPxBackfill(){
+  let seen={}; try{ seen=JSON.parse(localStorage.getItem(LS_BUY_PX_SEEN)||'{}')||{}; }catch(e){}
+  const list=Object.values(closings||{}).filter(c=>c && c.lines && c.vendor && seen[c.id]!==(c.uploadedAt||c.createdAt||'1') && !Object.values(buyPx).some(e=>e && e.src===c.id))
+    .sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+  if(!list.length) return 0;
+  list.forEach(c=>{ try{ c.pxChanges=buyPxFromClosing(c); }catch(e){ console.warn('[단가 이력] 채우기 실패', c.id, e); } seen[c.id]=(c.uploadedAt||c.createdAt||'1'); });
+  try{ clSave(); }catch(e){}   // pxChanges 를 남김(시트로는 안 보냄 — updatedAt 그대로)
+  try{ localStorage.setItem(LS_BUY_PX_SEEN, JSON.stringify(seen)); }catch(e){}
+  return list.length;
+}
+/* 마감 화면 — 이 마감에서 바뀐 단가를 「새 단가로 인정」하면 그 마감 대조에도 새 단가를 씁니다 */
+function buyPxAccept(cid, on){
+  const now=new Date().toISOString();
+  Object.values(buyPx).forEach(e=>{ if(e && e.src===cid && !e.del){ e.ok=on!==false; e.at=now; } });
+  buyPxSave();
+  const c=closings[cid]; if(c){ try{ clTouch(c); }catch(e){} }
+  try{ clRender(); }catch(e){}
+}
+function buyPxDel(id){
+  const e=buyPx[id]; if(!e) return;
+  if(!confirm(`${e.v} · ${e.name}\n${e.from} 부터 ${Math.round(e.p).toLocaleString('ko-KR')}원/${e.u}\n이 단가 이력을 지울까요? (그 날부터 앞선 단가로 셉니다)`)) return;
+  e.del=true; e.at=new Date().toISOString(); buyPxSave();
+  try{ clRender(); }catch(err){}
+}
+function buyPxEdit(id){
+  const e=buyPx[id]; if(!e) return;
+  const v=prompt(`${e.v} · ${e.name}\n${e.from} 부터의 단가(원/${e.u})`, String(e.p)); if(v==null) return;
+  const p=Number(String(v).replace(/[,\s원]/g,'')); if(!(p>0)){ alert('단가를 숫자로 적어 주십시오'); return; }
+  const f=prompt('적용 시작일 (YYYY-MM-DD)', e.from); if(f==null) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(f)){ alert('날짜는 2026-10-01 꼴로 적어 주십시오'); return; }
+  const now=new Date().toISOString(), by=(typeof getActor==='function'&&getActor())||'';
+  if(f!==e.from){ e.del=true; e.at=now; }
+  const id2=e.v+'|'+e.item+'|'+f;
+  buyPx[id2]=Object.assign({}, e, { p, from:f, ok:true, del:false, at:now, by, src:e.src||'', hand:true });
+  buyPxSave();
+  try{ clRender(); }catch(err){}
+}
+// 앱을 열고 한 번 — 이 기기에 줄이 있는 지난 마감에서 이력을 채웁니다
+setTimeout(()=>{ try{ if(buyPxBackfill()){ try{ renderLgSummary(); }catch(e){} } }catch(e){ console.warn('[단가 이력] 채우기', e); } }, 2500);
+var buyPxOpenSt = buyPxOpenSt || { open:false, v:'' };
+function buyPxGo(){ clView=null; buyPxOpenSt.open=true; clRender(); setTimeout(()=>{ const e=document.getElementById('buypx-card'); if(e) e.scrollIntoView({behavior:'smooth',block:'start'}); }, 60); }
+function buyPxHtml(){
+  const all=Object.entries(buyPx||{}).filter(([id,e])=>e && !e.del).map(([id,e])=>Object.assign({id},e));
+  const vends=[...new Set(all.map(e=>e.v).concat(Object.keys(OD_VENDOR_PRICE)))].sort((a,b)=>a.localeCompare(b,'ko'));   // 코드에 첫 단가가 있는 거래처도 늘 보임
+  const st=buyPxOpenSt, won=n=>Math.round(n).toLocaleString('ko-KR');
+  const head=`<div onclick="buyPxOpenSt.open=!buyPxOpenSt.open;clRender()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px">
+      <div style="font-size:13px;font-weight:800">📚 매입 단가 이력 <span style="font-size:11px;font-weight:500;color:var(--tx3)">${all.length?`${vends.length}곳 · ${all.length}줄`:'아직 없음'}</span></div>
+      <span style="font-size:11px;color:var(--tx3)">${st.open?'접기 ▴':'보기 ▾'}</span></div>`;
+  if(!st.open) return `<div id="buypx-card" style="border:1px solid var(--b1);border-radius:10px;margin-top:14px">${head}</div>`;
+  const v=st.v && vends.includes(st.v) ? st.v : (vends[0]||'');
+  const chips=vends.map(x=>`<button onclick="buyPxOpenSt.v='${clEsc(x)}';clRender()" style="padding:4px 10px;border-radius:14px;font-size:11px;cursor:pointer;border:1px solid ${x===v?'var(--acc)':'var(--b2)'};background:${x===v?'#2563eb12':'var(--s1)'};font-weight:${x===v?700:500};font-family:'Noto Sans KR',sans-serif">${clEsc(x)}</button>`).join('');
+  // 거래처 안 품목마다 — 지금 단가(오늘) · 처음 단가(코드) · 바뀐 날들
+  const items={};
+  all.filter(e=>e.v===v).forEach(e=>{ (items[e.item]=items[e.item]||{ name:e.name, u:e.u, list:[] }).list.push(e); });
+  Object.keys(OD_VENDOR_PRICE[v]||{}).forEach(k=>{ if(!items[k]) items[k]={ name:k, u:k==='보링'?'개':'평', list:[] }; });
+  const P='padding:6px 8px;', N=P+"text-align:right;font-family:'JetBrains Mono',monospace;white-space:nowrap;";
+  const rows=Object.keys(items).sort((a,b)=>a.localeCompare(b,'ko')).map(item=>{
+    const o=items[item]; o.list.sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+    const base=(OD_VENDOR_PRICE[v]||{})[item], now=buyPriceOf(v,item,_ymdLocal(new Date()));
+    const hist=o.list.map(e=>`<div style="white-space:nowrap">${clEsc(e.from)} 부터 <b style="font-family:'JetBrains Mono',monospace">${won(e.p)}</b>
+        <span style="font-size:9.5px;color:var(--tx3)">${e.hand?'손으로 고침':(closings[e.src]?`${+closings[e.src].ym.slice(5,7)}월 마감`:'마감')}${e.ok&&!e.hand?' · 인정':''}</span>
+        <button class="icon-btn" onclick="buyPxEdit('${clEsc(e.id)}')" style="font-size:10px">고치기</button>
+        <button class="icon-btn" onclick="buyPxDel('${clEsc(e.id)}')" style="font-size:10px;color:var(--acc4)">지우기</button></div>`).join('');
+    return `<tr style="border-top:1px solid var(--b1)">
+      <td style="${P}">${clEsc(o.name)}</td><td style="${P}color:var(--tx3)">${o.u}</td>
+      <td style="${N}font-weight:800">${now==null?'-':won(now)}</td>
+      <td style="${N}color:var(--tx3)">${base==null?'-':won(base)}</td>
+      <td style="${P}font-size:11px">${hist||'<span style="color:var(--tx3)">바뀐 적 없음</span>'}</td></tr>`;
+  }).join('');
+  return `<div id="buypx-card" style="border:1px solid var(--b1);border-radius:10px;margin-top:14px">${head}
+    <div style="padding:0 12px 12px">
+      <div style="font-size:10.5px;color:var(--tx2);line-height:1.7;margin-bottom:8px">거래처 마감 엑셀을 넣을 때마다 품목별 단가를 쌓습니다 — 같은 값이면 그대로, 달라지면 그 날부터 새 단가.
+        발주 금액(매입매출·마감 명세서)은 발주 날의 단가로 셉니다. 박스는 인쇄명이 마감과 같아야 단가가 붙습니다.</div>
+      ${vends.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${chips}</div>
+      <div style="overflow-x:auto;border:1px solid var(--b1);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px">
+        <thead style="background:var(--s3)"><tr>${['품목','단위','지금 단가','처음 단가','바뀐 이력'].map((h,k)=>`<th style="padding:6px 8px;font-size:10px;color:var(--tx3);text-align:${k===2||k===3?'right':'left'};white-space:nowrap">${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows}</tbody></table></div>`
+      :'<div style="font-size:11px;color:var(--tx3);padding:10px 0">마감 엑셀을 넣으면 여기에 쌓입니다</div>'}</div></div>`;
+}
+/* 마감 화면 위 띠 — 이 마감에서 바뀐 단가 */
+function buyPxBannerHtml(c){
+  const ch=(c.pxChanges||[]).filter(x=>x.old!=null);
+  const fresh=(c.pxChanges||[]).filter(x=>x.old==null);
+  if(!ch.length && !fresh.length) return '';
+  const own=Object.values(buyPx||{}).filter(e=>e && !e.del && e.src===c.id);
+  const ok=own.length && own.every(e=>e.ok), won=n=>Math.round(n).toLocaleString('ko-KR');
+  return `<div style="font-size:11.5px;background:#2563eb0d;border:1px solid #2563eb44;border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.7">
+    📚 <b>단가 이력</b> — ${ch.length?`<b style="color:#dc2626">바뀐 단가 ${ch.length}개</b>: ${ch.slice(0,4).map(x=>`${clEsc(x.name)} ${won(x.old)} → <b>${won(x.p)}</b> (${clMd(x.from)}부터)`).join(' · ')}${ch.length>4?' …':''}`:''}
+    ${fresh.length?`${ch.length?' · ':''}처음 들어온 단가 ${fresh.length}개`:''}
+    ${ch.length&&!clLocked(c)?`<button class="icon-btn" onclick="buyPxAccept('${clEsc(c.id)}',${ok?'false':'true'})" style="font-size:11px;margin-left:6px">${ok?'↶ 인정 풀기':'✓ 새 단가로 인정'}</button>`:''}
+    ${ch.length?`<span style="font-size:10px;color:var(--tx3)">${ok?' (이 마감 대조에 새 단가를 씁니다)':' (인정 전에는 이 마감 대조에 앞선 단가를 씁니다)'}</span>`:''}</div>`;
+}
+function clPrice(vendor, src){
   const p=OD_VENDOR_PRICE[vendor]||{};
-  return { std:p['3.2T 백사틴 정규격'], non:p['3.2T 백사틴 비규격'], w5:p['5T 백유리 비규격'], w5std:p['5T 백유리 정규격'], bore:p['보링'] };
+  // src = 이 마감 id — 단가 이력(12-102)에서 그 마감이 만든 줄은 인정 전까지 빼고 봅니다
+  const hp=item=>new Set(buyPxEntries(vendor, item).filter(e=>!(src && e.src===src && !e.ok)).map(e=>e.p));
+  return { std:p['3.2T 백사틴 정규격'], non:p['3.2T 백사틴 비규격'], w5:p['5T 백유리 비규격'], w5std:p['5T 백유리 정규격'], bore:p['보링'], src,
+    stdSet:hp('3.2T 백사틴 정규격'), nonSet:hp('3.2T 백사틴 비규격') };
 }
 /* 유리 종류 — 마감 줄과 발주 기록을 같은 이름으로 맞춥니다 */
 function clGlass(t){
@@ -19528,12 +19714,14 @@ function clKindOf(L,P,vendor){
   // 5T 백유리 — 마감 파일이 「비규격/정규격」이라 적었으면 그것, 안 적었으면 사이즈(정규격 사이즈 = 2,300 · 사장님 2026-10-22).
   // 9월 최종 파일에 571×836(정규격 사이즈)이 「백유리 비규격」 2,800 으로 와 있어, 파일 글자를 먼저 봅니다.
   if(L.glassCls==='5T백유리') return /비규격/.test(L.model) ? '비규격' : (/정규격/.test(L.model) || od5tStdSize(L.w,L.h)) ? '정규격' : '비규격';
-  if(L.pUnitFile && L.pUnitFile===P.std) return '정규격';
-  if(L.pUnitFile && L.pUnitFile===P.non) return '비규격';
+  if(L.pUnitFile && (L.pUnitFile===P.std || (P.stdSet&&P.stdSet.has(L.pUnitFile)))) return '정규격';
+  if(L.pUnitFile && (L.pUnitFile===P.non || (P.nonSet&&P.nonSet.has(L.pUnitFile)))) return '비규격';
   return /비규격/.test(L.model)?'비규격':'정규격';
 }
 function clExpPUnit(L,P,vendor){
   if(L.kind==='기타비용') return null;
+  /* 📚 단가 이력(12-102) — 그 줄 날짜의 단가. 이 마감이 만든 이력은 「새 단가로 인정」 전까지 빼고 봅니다(P.src) */
+  { const k=clPxKey(L, vendor); if(k){ const p=buyPriceOf(vendor, k.item, L.date, { exclude:P && P.src }); if(p!=null) return p; } }
   /* 아름유리 — 투명(에어힌지) · 브론즈(KB 빗면) × 정규격/비규격. 시그니처는 단가가 없어 거래처 금액 그대로(OD_VENDOR_PRICE 에 넣으면 셈) */
   if(vendor==='아름유리'){
     const A=OD_VENDOR_PRICE['아름유리']||{};
@@ -19579,7 +19767,7 @@ function clCalcDefect(d,vendor){
 /* 합계 — 반올림은 줄마다 하지 않고 끝에서 한 번(현성 엑셀과 같음). VAT·합계는 원 단위 절사 */
 function clRecalc(c){
   if(!c.lines){ return c; }                      // 줄이 없는 기기(확정 요약만 받은 기기)는 받은 숫자 그대로
-  const P=clPrice(c.vendor);
+  const P=clPrice(c.vendor, c.id);
   let recv=0, def=0;
   c.lines.forEach(L=>{ recv+=clCalcLine(L,P,c.vendor).amt; });
   (c.defects||[]).forEach(d=>{ if(d.how!=='이월') def+=clCalcDefect(d,c.vendor).amt; });
@@ -19821,7 +20009,7 @@ function clParseVendorXlsx(buf){
 }
 /* 줄마다 종류·보링을 채웁니다 (올릴 때 · 씨앗 넣을 때 같이 씀) */
 function clPrepLines(c){
-  const P=clPrice(c.vendor);
+  const P=clPrice(c.vendor, c.id);
   c.lines.forEach(L=>{
     L.glassCls=clGlass([L.thick,L.glass,L.model].join(' '));
     L.kind=L.kind||clKindOf(L,P,c.vendor);
@@ -19954,6 +20142,7 @@ async function clUploadVendor(inp){
     carry:old&&old.carry||[], memo:old&&old.memo||'', qtyCheckedBy:old&&old.qtyCheckedBy||'', unlockLog:old&&old.unlockLog||[],
     createdAt:old&&old.createdAt||new Date().toISOString() };
   clPrepLines(c); clAutoMatch(c);
+  try{ c.pxChanges=buyPxFromClosing(c); try{ const s=JSON.parse(localStorage.getItem(LS_BUY_PX_SEEN)||'{}')||{}; s[c.id]=c.uploadedAt; localStorage.setItem(LS_BUY_PX_SEEN, JSON.stringify(s)); }catch(e){} }catch(e){ console.warn('[단가 이력]', e); }   // 📚 단가 이력(12-102)
   if(c.defectHist) clApplyDefectTypes(c);
   delete closingDeleted[id];
   closings[id]=c; clTouch(c);
@@ -20071,6 +20260,7 @@ function clDelete(){
   if(clLocked(c)){ showToast('확정된 마감은 지울 수 없습니다'); return; }
   if(!confirm(`${c.vendor} ${c.ym} 마감을 지웁니다. 되돌릴 수 없습니다. 지울까요?`)) return;
   closingDeleted[c.id]=new Date().toISOString(); delete closings[c.id];
+  try{ const now=new Date().toISOString(); Object.values(buyPx).forEach(e=>{ if(e && e.src===c.id && !e.del && !e.hand){ e.del=true; e.at=now; } }); buyPxSave(false); }catch(e){}   // 그 마감이 쌓은 단가 이력도 지움(12-102)
   clSave(); try{ autoSync(); }catch(e){}
   clView=null; clRender();
 }
@@ -20158,7 +20348,7 @@ function clListHtml(){
     ${list.length?`<div style="overflow-x:auto;border:1px solid var(--b1);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead style="background:var(--s3)"><tr>${['마감월','거래처','최종 공급가액','합계(VAT 포함)','상태','이월',''].map((h,k)=>`<th style="padding:7px 8px;font-size:10px;color:var(--tx3);text-align:${k>=2&&k<=3||k===5?'right':'left'};white-space:nowrap">${h}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody></table></div>`
-    :`<div style="text-align:center;color:var(--tx3);font-size:11px;padding:24px">아직 마감 기록이 없습니다</div>`}`;
+    :`<div style="text-align:center;color:var(--tx3);font-size:11px;padding:24px">아직 마감 기록이 없습니다</div>`}${buyPxHtml()}`;
 }
 function clStatusChip(st){
   const c=CL_ST_COLOR[st]||'#5a6282';
@@ -20167,7 +20357,7 @@ function clStatusChip(st){
 function clDetailHtml(c){
   clRecalc(c);
   const lock=clLocked(c), dis=lock?' disabled':'';
-  const P=clPrice(c.vendor);
+  const P=clPrice(c.vendor, c.id);
   const B='padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;font-family:\'Noto Sans KR\',sans-serif;cursor:pointer;';
   const okDiff=c.diff===0;
   const head=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -20202,7 +20392,7 @@ function clDetailHtml(c){
   else if(clTab==='defects') body=c.defects?clDefectsHtml(c,dis):'<div style="color:var(--tx3);font-size:11px;padding:18px;text-align:center">이 기기에는 줄 세부가 없습니다</div>';
   else if(clTab==='carry') body=clCarryHtml(c,lock);
   else body=clSummaryHtml(c,lock);
-  return head+big+incBanner+tabBar+body;
+  return head+big+buyPxBannerHtml(c)+incBanner+tabBar+body;
 }
 function clLinesHtml(c,P,dis){
   const calc=c.lines.map(L=>clCalcLine(L,P,c.vendor));
@@ -20323,7 +20513,7 @@ function clExcel(){
   const c=clCur(); if(!c) return;
   if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 — 잠시 후 다시'); return; }
   clRecalc(c);
-  const P=clPrice(c.vendor), wb=XLSX.utils.book_new();
+  const P=clPrice(c.vendor, c.id), wb=XLSX.utils.book_new();
   const sumAoa=[[`${c.vendor} ${+c.ym.slice(0,4)}년 ${+c.ym.slice(5,7)}월 마감`],[],
     ['상태',c.status],['확정일',(c.confirmedAt||'').slice(0,10)],['확정자',c.confirmedBy||''],['수량 확인',c.qtyCheckedBy||''],[],
     ['입고 공급가액',c.recvAmt],['불량 차감액',-c.defectAmt],['최종 공급가액',c.supply],['VAT(절사)',c.vat],['합계',c.total],
@@ -20411,7 +20601,7 @@ async function clUploadCompare(inp){
     c.carry=(c.carry||[]).filter(x=>!/^cmp-/.test(x.auto||''));
     const now=new Date().toISOString(), by=getActor()||'';
     const add=(o,auto)=>c.carry.push(Object.assign({ id:'ca_'+Date.now().toString(36)+'_'+c.carry.length, fromYm:c.ym, done:false, auto, at:now, by },o));
-    const P=clPrice(c.vendor);
+    const P=clPrice(c.vendor, c.id);
     c.lines.filter(L=>L.st==='인정(가격 재확인 요청)').forEach(L=>{
       add({ kind:'가격재확인', text:`${L.model} ${clWon(clCalcLine(L,P,c.vendor).amt)}원 — 가격 재확인 요청`, qty:L.qty, amt:Math.round(clCalcLine(L,P,c.vendor).amt) },'cmp-price');
     });
@@ -22890,7 +23080,7 @@ function lgKindSplit(v, rows){
 function lgKindSplitClosing(v, c){
   if(!LG_KIND_VENDORS.has(v) || !c || !(c.lines||[]).length) return null;
   try{
-    const P=clPrice(c.vendor), m={};
+    const P=clPrice(c.vendor, c.id), m={};
     c.lines.forEach(L=>{ const r=clCalcLine(L,P,c.vendor);   // 기타비용(잉크비 등)은 「기타」
       const g = L.kind==='기타비용' ? '기타' : L.glassCls==='5T백유리' ? '5T'+(L.kind==='정규격'?' 정규격':' 비규격')
               : L.glassCls==='사틴' ? '3.2T'+(L.kind==='정규격'?' 정규격':' 비규격') : '기타';
@@ -22903,11 +23093,12 @@ function lgKindSplitClosing(v, c){
 }
 function lgOdBuy(ym, from, to, useClosing){
   const out={}, vendors=new Set(Object.keys(OD_VENDOR_PRICE));
+  try{ Object.values(buyPx||{}).forEach(e=>{ if(e && !e.del) vendors.add(e.v); }); }catch(e){}   // 📚 단가 이력이 있는 발주처(승일포장 등, 12-102)
   if(useClosing){ try{ for(const id in closings){ const c=closings[id]; if(c && c.ym===ym) vendors.add(odStmtVendor(c.vendor)); } }catch(e){} }
   vendors.forEach(v=>{
     const c = useClosing ? lgClosingOf(v, ym) : null;
     if(c){ out[v]={ v, amt:lgClosingAmt(c), closing:c, kinds:lgKindSplitClosing(v, c) }; return; }
-    if(!OD_VENDOR_PRICE[v]) return;
+    if(!OD_VENDOR_PRICE[v] && !buyPxHasVendor(v)) return;
     let rows=[]; try{ rows=odStmtRows(v, ym, {from, to}); }catch(e){ console.warn('[매입 요약] 발주', v, e); return; }
     const sk=rows.skipped||{미입고:0, 자동:0};
     if(!rows.length && !sk.미입고 && !sk.자동) return;
@@ -34383,6 +34574,7 @@ var GNAV_MENU=[
   { c:'경영·마감', items:[
     { t:'매입매출', m:'ledger' },
     { t:'거래처 월 마감', m:'closing' },   // 자기 화면 (2026-11-02 — 예전엔 발주 화면 + 창)
+    { t:'매입 단가 이력', m:'closing', fn:'buyPxGo' },   // 거래처 월 마감 화면 아래 칸 (2026-11-17, 12-102)
     { t:'마감 명세서', m:'order', fn:'odStmtOpen' },
     { t:'자료 내보내기·백업', m:'settings' },
   ]},
