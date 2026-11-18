@@ -3507,7 +3507,22 @@ function nsAlertsWrite(){
   Object.values(unk).forEach(x => out.push(x));
   // ② 수납도어 — 도면을 못 고름 · 규격 못 읽음
   const sd = subdoorCollect('');
-  sd.skipped.forEach(s => out.push({id:'ns-sdskip|'+s.name+'|'+s.why+'|'+(s.raw||''), t:'수납도어 '+s.why, d:s.raw||s.name, q:1}));
+  /* 사장님 2026-11-19 「다 풀어졌는데 왜 오류가」 — 품명이 잘려 규격 없이 남은 옛 줄이 한 장씩 떴습니다.
+     ⓐ 최근 14일 발주만 ⓑ 같은 납품서에 같은 계통 줄이 규격까지 제대로 풀려 있으면 빼고(이미 풀린 것)
+     ⓒ 남은 것은 납품서·사유마다 한 줄로 모읍니다. */
+  const okBy = {};
+  ROWS.forEach(r => { if(r.include !== false && r.delivNo && +r.w && +r.h){ const g = subdoorGroup(r.short); if(g) okBy[r.delivNo+'|'+g] = true; } });
+  const sdk = {};
+  sd.skipped.forEach(s => {
+    const r = s.row || {};
+    if(r.delivNo && !recent(r)) return;
+    const g = subdoorGroup(s.name);
+    if(s.why === '규격을 읽지 못함' && r.delivNo && okBy[r.delivNo+'|'+g]) return;
+    const k = (r.delivNo||s.raw||s.name)+'|'+s.why;
+    sdk[k] = sdk[k] || {id:'ns-sdskip|'+k, t:'수납도어 '+s.why+(r.delivNo?' · 납품서 '+r.delivNo:''), d:s.raw||s.name, po:r.delivNo?chkOrderDate(r):'', q:0};
+    sdk[k].q += +r.qty||1;
+  });
+  Object.values(sdk).forEach(x => out.push(x));
   // ③ 정규격 사이즈 재고/발주 미정
   subdoorStdList(sd.pages.filter(p => !p.po || p.po >= since)).filter(x => !x.pick)
     .forEach(x => out.push({id:'ns-std|'+x.key, t:'정규격 '+x.model+' 사이즈 — 재고 사용/발주 미정', d:x.d.fw+'×'+x.d.fh, po:x.day, q:x.qty, tab:'subdoor'}));
@@ -7037,12 +7052,12 @@ function subdoorCollect(onlyPo){
     const grp = subdoorGroup(r.short);
     if(!grp) return;                                   // 유로 계열 등 — 이 탭 대상 아님
     const lw = +r.w, lh = +r.h;
-    if(!lw || !lh){ skipped.push({name:r.short, why:'규격을 읽지 못함', raw:r.name||'', fromApp:!!r.fromApp}); return; }
+    if(!lw || !lh){ skipped.push({name:r.short, why:'규격을 읽지 못함', raw:r.name||'', fromApp:!!r.fromApp, row:r}); return; }
     const C  = SUBDOOR_CALC[grp];
     const fw = lw + C.f[0], fh = lh + C.f[1];
     const gw = fw + C.g[0], gh = fh + C.g[1];
     const id = subdoorSheetId(grp, r.short, fh);
-    if(!id){ skipped.push({name:r.short, why:'맞는 도면이 없음', raw:r.name||'', fromApp:!!r.fromApp}); return; }
+    if(!id){ skipped.push({name:r.short, why:'맞는 도면이 없음', raw:r.name||'', fromApp:!!r.fromApp, row:r}); return; }
     const isSig = id.indexOf('SIG') === 0;
     const ship  = r.ship || '';
     // 시그니처는 한 장 안에 450연장·500연장 두 줄이 있으므로 세로가 같으면 같은 장에 담는다
