@@ -36025,7 +36025,7 @@ var ALERT=(function(){
     return ch;
   }
   // 펼친 목록은 바깥을 누르면 닫힘 (떠 있는 칸이라 본문을 가리지 않게)
-  document.addEventListener('click', function(e){ var b=document.getElementById('alert-bar'); if(open && b && !b.contains(e.target)){ open=false; render(); } });
+  document.addEventListener('click', function(e){ var b=document.getElementById('alert-bar'); if(open && b && e.target && e.target.isConnected && !b.contains(e.target)){ open=false; render(); } });  // 누른 칸이 다시 그려져 떨어져 나간 것(카드 자신)은 바깥이 아님
   window.addEventListener('storage', function(e){ if(e.key==='nonspec-alerts-v1'||e.key==='nonspec-rows-v1'||e.key==='nonspec-archive-v1') render(); });
   setInterval(function(){ try{ render(); }catch(e){} }, 60000);
   setTimeout(function(){ try{ render(); }catch(e){ console.warn('[확인 안 된 오더]', e); } }, 1800);
