@@ -35364,10 +35364,15 @@ var LBL=(function(){
   }
   /* ── 라벨이 안 나오는 품목 (한 곳) ── */
   var NO_LABEL=[
-    {t:'정규격 글래스도어(채널·행잉·18T)', f:function(it){ var n=(it.name||'')+' '+(it.short||''); return /글래스/.test(n) && !isNonStd(n); }},
+    {t:'정규격 글래스도어(채널·행잉·18T)', f:function(it){ var n=(it.name||'')+' '+(it.short||''); return /글래스/.test(n) && !nsLoose(n); }},
     {t:'B/I 빌트인 · TV장 · 현관장', f:function(it){ return /^(CAIT|SAE|FGIT|CDIT|MALWF)/i.test(String(it.code||'')); }},
     {t:'바스(드림하이텍)', f:function(it){ return isBasCode(it.code) || /EURO5\s*베일/i.test(it.name||''); }},
   ];
+  /* 비규격 글래스도어 (채널·행잉·18T) — 라벨을 **카테고리를 따로 잡아 따로 뽑아야** 해서 자주 빠뜨립니다(사장님 2026-11-18).
+     그날 라벨 파일이 둘이어야 합니다. 빠지면 띠·카드에 따로 크게 알립니다. */
+  // 「( 비 ) 글래스 채널도어 500(18T 용 )」 처럼 괄호 안 띄어쓰기로도 옵니다 — isNonStd 는 「(비)」 만 봐서 따로 넓게 봅니다
+  function nsLoose(n){ n=String(n||''); return isNonStd(n) || /\(\s*비\s*\)/.test(n); }
+  function isGlassNs(n){ n=String(n||''); return /글래스/.test(n) && nsLoose(n); }
   function needsLabel(it){ for(var i=0;i<NO_LABEL.length;i++) if(NO_LABEL[i].f(it)) return false; return true; }
   function ordNorm(s){ return String(s||'').replace(/^0+/,''); }
   /* 맞춰 보기 — 라벨이 있는 발주일(그 라벨 구매오더의 납품서 발주일)마다:
@@ -35399,14 +35404,14 @@ var LBL=(function(){
         var keys={}; Object.keys(want).concat(Object.keys(got)).forEach(function(k){ keys[k]=1; });
         Object.keys(keys).forEach(function(k){ var w=want[k]||0, g=got[k]||0;
           if(w===g){ res.ok++; res.okQ+=w; return; }
-          res.rows.push({day:day, po:po, delivNo:d.delivNo, code:k.split('|')[1], name:nm[k]||'', want:w, got:g, as:po.indexOf('54')===0}); });
+          res.rows.push({day:day, po:po, delivNo:d.delivNo, code:k.split('|')[1], name:nm[k]||'', want:w, got:g, as:po.indexOf('54')===0, glass:isGlassNs(nm[k])}); });
       });
     });
     // 라벨이 통째로 없는 구매오더는 한 줄로 모읍니다(줄마다 늘어놓으면 표가 길어 정작 다른 차이가 묻힘)
     var grp={}; res.rows.forEach(function(x){ if(!labPos[x.po]) (grp[x.po]=grp[x.po]||[]).push(x); });
     res.rows=res.rows.filter(function(x){ return labPos[x.po]; });
     Object.keys(grp).forEach(function(po){ var a=grp[po];
-      res.rows.push({day:a[0].day, po:po, whole:true, code:'라벨 없음', name:a.length+'줄 — '+a.slice(0,2).map(function(x){ return x.name; }).join(' · ')+(a.length>2?' 외':''), want:a.reduce(function(s,x){ return s+x.want; },0), got:0, as:a[0].as}); });
+      res.rows.push({day:a[0].day, po:po, whole:true, code:'라벨 없음', name:a.length+'줄 — '+a.slice(0,2).map(function(x){ return x.name; }).join(' · ')+(a.length>2?' 외':''), want:a.reduce(function(s,x){ return s+x.want; },0), got:0, as:a[0].as, glass:a.some(function(x){ return x.glass; })}); });
     res.rows.sort(function(a,b){ return String(a.day).localeCompare(String(b.day)) || String(a.po).localeCompare(String(b.po)); });
     return res;
   }
@@ -35429,6 +35434,8 @@ var LBL=(function(){
         +r.rows.map(function(x){ return '<tr style="border-top:1px solid var(--b1)"><td style="padding:3px 6px">'+md(x.day)+'</td><td style="padding:3px 6px">'+esc(x.po)+(x.as?' · AS':'')+'</td><td style="padding:3px 6px">'+esc(x.code)+' <span style="color:var(--tx3)">'+esc(String(x.name).slice(0,36))+'</span></td><td style="text-align:right;padding:3px 6px;font-family:monospace">'+x.want+'</td><td style="text-align:right;padding:3px 6px;font-family:monospace">'+(x.got||'-')+'</td><td style="text-align:right;padding:3px 6px;font-family:monospace;color:#dc2626;font-weight:800">'+(x.got-x.want>0?'+':'')+(x.got-x.want)+'</td></tr>'; }).join('')
         +'</table></div><div style="font-size:11px;color:var(--tx3);margin-top:4px">라벨 0 = 라벨이 와야 하는데 아직 없음(따로 오는 비규격 글래스도어 라벨이면 그 파일도 올려 주십시오). 라벨이 안 나오는 품목: '+NO_LABEL.map(function(x){ return x.t; }).join(' · ')+'</div>';
     }
+    var gl=r.rows.filter(function(x){ return x.glass && x.got<x.want; });
+    if(gl.length) h+='<div style="margin-top:8px;padding:8px 10px;border:2px solid #dc2626;border-radius:8px;background:#fef2f2;color:#991b1b;font-size:12.5px;font-weight:700">⚠ 비규격 글래스도어 라벨이 빠졌습니다 — 라벨 카테고리를 따로 잡아 뽑아 올려 주십시오 (그날 라벨 파일이 2개여야 합니다)<div style="font-weight:500;margin-top:4px">'+gl.map(function(x){ return md(x.day)+' · '+esc(x.po)+' — 납품서 '+x.want+'장 · 라벨 '+(x.got||0)+'장'; }).join('<br>')+'</div></div>';
     if(r.noDoc.length) h+='<div style="font-size:12px;color:#dc2626;margin-top:6px">라벨은 있는데 앱에 납품서가 없는 구매오더: '+r.noDoc.map(function(x){ return esc(x.po)+' ('+x.n+'장)'; }).join(' · ')+'</div>';
     h+='<div style="margin-top:8px;font-size:12px;color:var(--tx2)">담아 둔 라벨 '+fs.length+'개 — 라벨마킹에서 바로 열립니다'+(syn.kept?' · <b style="color:#b45309">'+syn.kept+'개는 크기 때문에 이 기기에만</b>':'')+'</div>'
       +fs.map(function(f){ return '<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0;border-top:1px dashed var(--b1)"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.name)+'</span><span style="color:var(--tx3)">'+md(f.day)+' · '+f.n+'장</span><button onclick="LBL.remove(\''+esc(f.id).replace(/'/g,"\\'")+'\')" style="border:1px solid var(--b2);background:none;border-radius:6px;font-size:11px;padding:1px 8px;cursor:pointer">지우기</button></div>'; }).join('')
@@ -35437,7 +35444,7 @@ var LBL=(function(){
   }
   function alerts(){
     var r=check(); if(!r) return [];
-    var out=r.rows.map(function(x){ return {id:(x.whole?'lblpo|'+x.po+'|'+x.want:'lbl|'+x.po+'|'+x.code+'|'+x.want+'|'+x.got), g:'🏷 납품서 ↔ 라벨 장수가 다름', t:x.po+(x.as?' · AS':'')+' '+x.code+' — 납품서 '+x.want+' · 라벨 '+(x.got||0), sub:'발주 '+md(x.day)+' · '+x.name, q:'', go:"tdyGoTo('delivery','deliv-label-box')", goT:'보기'}; });
+    var out=r.rows.map(function(x){ return {id:(x.whole?'lblpo|'+x.po+'|'+x.want:'lbl|'+x.po+'|'+x.code+'|'+x.want+'|'+x.got), g:(x.glass && x.got<x.want ? '🏷 비규격 글래스도어 라벨 빠짐 — 라벨 카테고리를 따로 잡아 뽑아 올려 주십시오' : '🏷 납품서 ↔ 라벨 장수가 다름'), t:x.po+(x.as?' · AS':'')+' '+x.code+' — 납품서 '+x.want+' · 라벨 '+(x.got||0), sub:'발주 '+md(x.day)+' · '+x.name, q:'', go:"tdyGoTo('delivery','deliv-label-box')", goT:'보기'}; });
     r.noDoc.forEach(function(x){ out.push({id:'lblnodoc|'+x.po, g:'🏷 납품서 ↔ 라벨 장수가 다름', t:'라벨은 있는데 납품서가 없는 구매오더 '+x.po, sub:'라벨 '+x.n+'장 — 납품서를 올려 주십시오', q:'', go:"tdyGoTo('delivery','deliv-label-box')", goT:'보기'}); });
     return out;
   }
