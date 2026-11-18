@@ -482,6 +482,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   <!-- 🧭 대분류·소분류 메뉴 — GNAV 가 그립니다 (맨 아래 GNAV_MENU 표 한 곳) -->
   <nav id="gnav" aria-label="메뉴"></nav>
 </div>
+<div id="alert-bar" class=""></div>
 
 <!-- HOME -->
 <!-- ══ 🏠 홈 = 오늘의 점검 ══════════════════════════════════════════
@@ -1763,6 +1764,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     .od-acts{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:flex-end}
     .od-acts .icon-btn{font-size:12px;padding:3px 5px}
     .od-card{overflow:visible}
+    .od-day{margin-bottom:6px}
+    .od-day-h{display:grid;grid-template-columns:12px 92px minmax(0,1fr) 70px 150px;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);cursor:pointer;font-size:12px}
+    .od-day-h:hover{border-color:var(--b2)}
+    .od-day.on>.od-day-h{border-color:var(--b2);background:var(--s2)}
+    .od-day-d{font-weight:800;font-size:13px;white-space:nowrap}
+    .od-day-v{color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .od-day-q{text-align:right;color:var(--tx2);white-space:nowrap}
+    .od-day-q b{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+    .od-day-s{text-align:right;white-space:nowrap;font-size:11.5px}
+    .od-day-b{padding:6px 0 4px 14px}
+    @media (max-width:560px){ .od-day-h{grid-template-columns:12px auto 1fr;row-gap:2px} .od-day-v{grid-column:2/4;grid-row:2} .od-day-q{grid-column:3;grid-row:1} .od-day-s{grid-column:2/4;grid-row:3;text-align:left} .od-day-b{padding-left:6px} }
     .od-more{position:relative;display:inline-block}
     .od-more>summary{list-style:none;cursor:pointer;font-size:13px;padding:2px 7px;border-radius:6px;color:var(--tx2)}
     .od-more>summary::-webkit-details-marker{display:none}
@@ -6222,6 +6234,7 @@ function showMain(id){
   if(id==='closing') clRender();   // 📒 거래처 월 마감 (2026-11-02)
   if(id==='bas'){ try{ BAS.open(); }catch(e){ console.warn('[바스재고]', e); } }   // 🛁 바스재고 (2026-10-20)
   if(id==='jobsheet') jsOpen();   // 🔲 비규격 작업지시서 (2026-11-18)
+  try{ if(typeof ALERT!=='undefined') ALERT.render(); }catch(e){}
   if(_toSub) showSub(_toSub);
 }
 function showSub(id){
@@ -11088,6 +11101,8 @@ function metaForSync(){
   try{ if(sellClose && Object.keys(sellClose).length) put('sellClose', sellClose); }catch(e){}
   /* 📚 매입 단가 이력 (2026-11-17, 12-102) — 줄마다 나중 at 이 이김 */
   try{ if(buyPx && Object.keys(buyPx).length) put('buyPx', buyPx); }catch(e){}
+  /* ⚠ 확인 안 된 오더 — 「확인」 누른 줄(누가·언제). 열쇠마다 나중 쪽 (2026-11-18) */
+  try{ if(typeof ALERT!=='undefined'){ const a=ALERT.forSync(); if(Object.keys(a).length) put('alertAck', a); } }catch(e){}
   /* 📋 한샘 단가표 (2026-10-21) — 합의서·SRM 줄·지운 표시(`hsForSync`). hsPrice 는 뒤쪽 let 이라 try 로 감쌉니다 */
   try{ put('hsPrice', hsForSync()); }catch(e){}
   /* 🛁 바스재고 (2026-10-20) — 묶음마다 고친 때를 같이 보냅니다. 창고 출고는 최근 120일만, 예시 스냅샷은 안 보냅니다(`BAS.forSync`).
@@ -11283,6 +11298,8 @@ function applyMergedFromSheet(data){
   if(data.odTypeCfg!==undefined){ try{ odTypeCfgMerge(data.odTypeCfg); }catch(e){ console.warn('[발주 종류 목록] 받기 실패', e); } }
   if(data.odModelFix!==undefined){ try{ odModelFixMerge(data.odModelFix); }catch(e){ console.warn('[정규격 모델 사이즈] 받기 실패', e); } }
   if(data.sellClose!==undefined){ try{ if(sellCloseMerge(data.sellClose)) renderLgSummary(); }catch(e){ console.warn('[매출 마감일] 받기 실패', e); } }
+  if(data.alertAck!==undefined){ try{ if(typeof ALERT!=='undefined') ALERT.merge(data.alertAck); }catch(e){ console.warn('[확인 안 된 오더] 받기 실패', e); } }
+  try{ if(typeof ALERT!=='undefined') setTimeout(ALERT.render, 300); }catch(e){}
   if(data.buyPx!==undefined){ try{ if(buyPxMerge(data.buyPx)){ try{ renderLgSummary(); }catch(e){} try{ if(curMain==='closing') clRender(); }catch(e){} } }catch(e){ console.warn('[단가 이력] 받기 실패', e); } }
   if(data.closings!==undefined || data.closingDeleted!==undefined){
     try{ if(clMergeFromSheet(data.closings, data.closingDeleted)) clRender(); }catch(e){ console.warn('[거래처 월 마감] 받기 실패', e); }
@@ -14749,6 +14766,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     /* 🛁 바스재고 — 여기 빠져 있어 메뉴로 들어가면 안 그려지고, 시트 받기가 끝나야(약 10초) 그려졌습니다 (2026-10-27 사장님 「10초쯤 걸린다」) */
     else if(id==='bas'){ try{ BAS.open(); }catch(e){ console.warn('[바스재고]', e); } }
     else if(id==='jobsheet') jsOpen();   // 🔲 비규격 작업지시서 — showMain 과 두 곳 다 (12-79 함정)
+    try{ if(typeof ALERT!=='undefined') ALERT.render(); }catch(e){}
   };
 });
 
@@ -18961,6 +18979,46 @@ function odReorder(orderId){
                   입고 대기는 오늘 탭 타일과 같은 함수(tdyOpenOrders)라 두 화면 숫자가 같습니다.
    odRefSync    : 참조 메모는 점선 단추 뒤에 접어 두고, 값이 있으면 펼친 채로. */
 var odListOpen = {};
+/* 📅 날짜별 묶음 (사장님 2026-11-18 「일자별로 접어서」) — 이 창에서만 기억. 손대지 않은 날은 가장 최근 발주일만 펼침. */
+var odDayOpen = {};
+function odDayToggle(d, cur){ odDayOpen[d]=!cur; renderOrderList(); }
+var _odLatestDay = '';
+function odDayGroupsHtml(orders, cardOf){
+  const byDay={}, days=[];
+  orders.forEach(o=>{ const d=o.date||''; if(!byDay[d]){ byDay[d]=[]; days.push(d); } byDay[d].push(o); });
+  const WD='일월화수목금토', today=todayStr();
+  return days.map(d=>{
+    const list=byDay[d];
+    const forced=list.some(o=>odEditing===o.id || o.items.some(it=>odFindItemHit(it, o)));
+    const open = forced || (d in odDayOpen ? odDayOpen[d] : d===_odLatestDay);
+    let qty=0, openQty=0, late=false, sized=false;
+    const vend=[];
+    list.forEach(o=>{
+      const v=(typeof odFileVendorOf==='function'?odFileVendorOf(o.vendor):'')||String(o.vendor||'').trim();
+      if(v && !vend.includes(v)) vend.push(v);
+      let oq=0;
+      o.items.forEach(it=>{ const q=Number(it.qty)||0; qty+=q; if(it.w&&it.h){ sized=true; if(!it.received) oq+=q; } });
+      openQty+=oq;
+      const dd=odDueToDate(o.due, o.date);
+      if(oq && dd && dd<today) late=true;
+    });
+    const dt=new Date(d+'T00:00:00');
+    const lab=isNaN(dt) ? (d||'날짜 없음') : `${dt.getMonth()+1}/${dt.getDate()} (${WD[dt.getDay()]})`;
+    const st = openQty
+      ? `<span style="color:var(--acc2);font-weight:700">미입고 ${openQty}${late?' · 납기 지남':''}</span>`
+      : `<span style="color:var(--tx3)">${sized?'다 입고':'-'}</span>`;
+    return `<div class="od-day${open?' on':''}">
+      <div class="od-day-h" onclick="odDayToggle('${_odEsc(d)}',${open})" title="${open?'접기':'이 날 발주 보기'}">
+        <span class="od-chev">${open?'▾':'▸'}</span>
+        <span class="od-day-d">${lab}</span>
+        <span class="od-day-v">${list.length}건 · ${vend.map(_odEsc).join(' · ')}</span>
+        <span class="od-day-q"><b>${qty}</b>장</span>
+        <span class="od-day-s">${st}</span>
+      </div>
+      ${open?`<div class="od-day-b">${list.map(cardOf).join('')}</div>`:''}
+    </div>`;
+  }).join('');
+}
 var odRefOpen = false;
 function odListToggle(id){ odListOpen[id]=!odListOpen[id]; renderOrderList(); }
 function odMoreClose(el){ const d=el && el.closest('details'); if(d) d.open=false; }
@@ -19035,6 +19093,7 @@ function renderOrderList(){
     (groups[ym]=groups[ym]||[]).push(o);
   });
   const yms=Object.keys(groups).sort((a,b)=>b.localeCompare(a)); // 최신월 먼저
+  _odLatestDay = shown.reduce((m,o)=>String(o.date||'')>m?String(o.date||''):m, '');
   const autoBanner=(typeof odAutoBannerHtml==='function')?odAutoBannerHtml():'';
 
   host.innerHTML=autoBanner+yms.map(ym=>{
@@ -19061,7 +19120,7 @@ function renderOrderList(){
     const diff=ordTot-recvTot;
     const ymLabel=ym==='기타'?'기타':`${ym.slice(0,4)}년 ${parseInt(ym.slice(5,7))}월`;
 
-    const ordersHtml=orders.map(o=>{
+    const cardOf=o=>{
       const total=o.items.length;
       const recv=o.items.filter(i=>i.received).length;
       const allDone=total>0 && recv===total;   // 품목 0건이 '입고완료'로 보이지 않게
@@ -19170,7 +19229,8 @@ function renderOrderList(){
         </div>
         ${isOpen?`<div style="padding:4px 14px 10px">${itemsHtml}</div>`:''}
       </div>`;
-    }).join('');
+    };
+    const ordersHtml=odDayGroupsHtml(orders, cardOf);
 
     return `
     <div style="margin-bottom:18px">
@@ -25662,6 +25722,7 @@ function newItemDecide(key, sel){
   itemRulesSave();
   if(typeof autoSync==='function') autoSync();
   showToast(cat==='SKIP' ? '🚫 집계에서 뺍니다' : '✅ 정했습니다 — 앞으로 이 분류로 셉니다');
+  try{ ALERT.render(); }catch(e){}
   renderDelivery();
 }
 function newItemUndo(key){
@@ -35196,6 +35257,131 @@ function stkPrRender(){
   try{
     if(typeof showSub==='function'){ var _o=showSub; showSub=function(id){ if(id==='stocklist' && (typeof curSub==='undefined'||curSub!=='stocklist')){ stkMode='raw'; var sp=document.getElementById('sp-stocklist'); if(sp) sp.classList.remove('pr-mode'); var a=document.getElementById('stk-tab-raw'),b=document.getElementById('stk-tab-pr'),pr=document.getElementById('stock-printed'); if(a)a.classList.add('on'); if(b)b.classList.remove('on'); if(pr)pr.style.display='none'; } return _o.apply(this,arguments); }; }
   }catch(e){ console.warn('[웜코튼 안 탭]', e); }
+})();
+</script>
+<!-- ⚠ 확인 안 된 오더 — 모든 화면 메뉴 밑 빨간 띠 (사장님 2026-11-18 「놓치는 오더가 없도록 더블체크 · 경각심 있게」)
+     따로 된 덩어리(ALERT) — 여기서 멈춰도 앱은 돕니다(9-3). 계산은 새로 만들지 않고 있는 함수 값을 모읍니다.
+     「확인」을 눌러야 빠지는 줄은 누른 사람·때를 alertAck 에 남겨 시트로 모든 기기에 갑니다(열쇠마다 나중 쪽). -->
+<style>
+#alert-bar{display:none;margin:6px 12px 8px;border:1.5px solid #dc2626;border-radius:10px;background:#fef2f2;color:#991b1b;font-family:'Noto Sans KR',sans-serif}
+#alert-bar.on{display:block}
+#alert-bar .ab-hd{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;font-size:13.5px;font-weight:800}
+#alert-bar .ab-hd .ab-n{background:#dc2626;color:#fff;border-radius:12px;padding:1px 9px;font-size:12.5px}
+#alert-bar .ab-hd .ab-sum{flex:1;min-width:0;font-weight:600;font-size:12px;color:#b91c1c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#alert-bar .ab-list{display:none;border-top:1px solid #fecaca;padding:4px 12px 8px;max-height:50vh;overflow:auto}
+#alert-bar.open .ab-list{display:block}
+#alert-bar .ab-g{font-size:11.5px;font-weight:800;color:#7f1d1d;margin:8px 0 2px}
+#alert-bar .ab-r{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px dashed #fecaca;font-size:12.5px;color:#7f1d1d}
+#alert-bar .ab-r .ab-t{flex:1;min-width:0}
+#alert-bar .ab-r .ab-t small{display:block;color:#b45309;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#alert-bar .ab-r .ab-q{font-family:'JetBrains Mono',monospace;font-weight:800;white-space:nowrap}
+#alert-bar button{flex:none;padding:3px 10px;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid #fca5a5;background:#fff;color:#991b1b;font-family:inherit}
+#alert-bar button.go{background:#dc2626;border-color:#dc2626;color:#fff}
+#alert-bar .ab-foot{font-size:11px;color:#9f1239;margin-top:6px}
+</style>
+<script>
+var ALERT=(function(){
+  var ACK_KEY='ybn-alert-ack-v1';
+  function ackLoad(){ try{ return JSON.parse(localStorage.getItem(ACK_KEY)||'{}')||{}; }catch(e){ return {}; } }
+  var ack=ackLoad();
+  function ackSave(){ try{ localStorage.setItem(ACK_KEY, JSON.stringify(ack)); }catch(e){} }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function today(){ return (typeof todayStr==='function')?todayStr():new Date().toISOString().slice(0,10); }
+  function since(n){ return (typeof _addDays==='function')?_addDays(today(),-n):''; }
+  function md(d){ return d?String(d).slice(5).replace('-','/'):''; }
+  // 비규격 작업지시서가 이미 가져간 납품번호 (이 기기 — 작업 중인 줄 + 보관함)
+  function nsHaveText(){
+    var s=''; try{ s+=localStorage.getItem('nonspec-rows-v1')||''; }catch(e){} try{ s+=localStorage.getItem('nonspec-archive-v1')||''; }catch(e){}
+    return s;
+  }
+  function collect(){
+    var out=[], from=since(7);
+    // ① 처음 보는 품목 — 분류를 정해야 빠집니다(확인 단추 없음)
+    try{
+      var lim=since(typeof NEW_ITEM_RECENT_DAYS!=='undefined'?NEW_ITEM_RECENT_DAYS:14);
+      newItemScan().filter(function(u){ return (u.last||'')>=lim; }).forEach(function(u){
+        out.push({id:'new|'+u.key, g:'🆕 처음 보는 품목 — 앱이 분류를 모릅니다', t:(u.code||'')+' '+(u.name||''), sub:'마지막 '+md(u.last)+(u.as?' · AS':'')+' · 앱 짐작: '+((u.guess&&u.guess.cat)||'모름'), q:u.qty+'장', go:"tdyGoTo('delivery','deliv-newitem-box')", goT:'정하기', noAck:true});
+      });
+    }catch(e){ console.warn('[확인 안 된 오더] 처음 보는 품목', e); }
+    // ② 비규격 품목이 있는데 비규격 작업지시서로 안 넘어간 납품서 (최근 7일 발주, 이 기기 기준)
+    try{
+      var have=nsHaveText();
+      (typeof delivLog!=='undefined'?delivLog:[]).forEach(function(d){
+        if(!d || !d.delivNo || (d.id && typeof delivDeleted!=='undefined' && delivDeleted && delivDeleted[d.id])) return;
+        var day=d.orderDate||d.delivReqDate||''; if(!day || day<from) return;
+        var ns=(d.items||[]).filter(function(it){ return isNonStd((it.name||'')+' '+(it.short||'')); });
+        if(!ns.length) return;
+        var no=String(d.delivNo);
+        if(have.indexOf('"delivNo":"'+no+'"')>=0 || have.indexOf('"delivNo":'+no+',')>=0 || have.indexOf('"delivNo":'+no+'}')>=0) return;
+        var q=ns.reduce(function(s,it){ return s+(+it.qty||0); },0);
+        out.push({id:'nsmiss|'+no, g:'🔲 비규격인데 작업지시서로 안 넘어간 납품서 (이 기기)', t:'납품서 '+no+((d.refNo||'').indexOf('54')===0?' · AS':''), sub:'발주 '+md(day)+' · '+ns.slice(0,2).map(function(it){ return it.short||it.name||it.code; }).join(' · ')+(ns.length>2?' 외 '+(ns.length-2):''), q:q+'장', go:"showMain('jobsheet')", goT:'작업지시서'});
+      });
+    }catch(e){ console.warn('[확인 안 된 오더] 비규격 안 넘어감', e); }
+    // ③ 비규격 작업지시서가 못 푼 줄 — 그 화면이 적어 둔 요약 (nonspec-alerts-v1)
+    try{
+      var na=JSON.parse(localStorage.getItem('nonspec-alerts-v1')||'{}');
+      (na.items||[]).forEach(function(x){
+        out.push({id:x.id, g:'🔲 비규격 작업지시서가 못 푼 줄', t:x.t, sub:(x.po?'발주 '+md(x.po)+' · ':'')+(x.d||''), q:x.q?x.q+'장':'', go:"showMain('jobsheet')", goT:'열기', noAck:/^ns-std\|/.test(x.id)});
+      });
+    }catch(e){}
+    // ④ 재고에서 아직 안 빠진 정오더 납품서 (어제까지 발주)
+    try{
+      var pd=delivPendingList().filter(function(d){ return (d.orderDate||'')<today(); });
+      if(pd.length) out.push({id:'pend', g:'📦 재고 차감', t:'재고에서 아직 안 빠진 납품서 '+pd.length+'장', sub:pd.slice(0,4).map(function(d){ return d.delivNo; }).join(' · '), q:'', go:"showMain('delivery')", goT:'보기', noAck:true});
+    }catch(e){}
+    // ⑤ 납품서를 2영업일 넘게 안 올림
+    try{
+      var up=todayUploadGap();
+      if(up && up.gap>=2) out.push({id:'upl|'+today(), g:'📥 납품서', t:'납품서를 '+up.gap+'영업일째 안 올렸습니다', sub:'마지막 '+md(up.last), q:'', go:"showMain('delivery')", goT:'올리기'});
+    }catch(e){}
+    return out.filter(function(x){ return x.noAck || !ack[x.id]; });
+  }
+  var open=false, last=[];
+  function render(){
+    var bar=document.getElementById('alert-bar'); if(!bar) return;
+    var list=collect(); last=list;
+    if(!list.length){ bar.className=''; bar.innerHTML=''; return; }
+    var gs={}, order=[];
+    list.forEach(function(x){ if(!gs[x.g]){ gs[x.g]=[]; order.push(x.g); } gs[x.g].push(x); });
+    var sum=order.map(function(g){ return g.replace(/ —.*| \(.*/,'')+' '+gs[g].length; }).join(' · ');
+    var h='<div class="ab-hd" onclick="ALERT.toggle()"><span>⚠ 확인 안 된 오더</span><span class="ab-n">'+list.length+'</span><span class="ab-sum">'+esc(sum)+'</span><span>'+(open?'▴':'▾')+'</span></div><div class="ab-list">';
+    order.forEach(function(g){
+      h+='<div class="ab-g">'+esc(g)+'</div>';
+      gs[g].forEach(function(x,i){
+        var k=last.indexOf(x);
+        h+='<div class="ab-r"><div class="ab-t">'+esc(x.t)+(x.sub?'<small title="'+esc(x.sub)+'">'+esc(x.sub)+'</small>':'')+'</div>'
+          +(x.q?'<span class="ab-q">'+esc(x.q)+'</span>':'')
+          +(x.go?'<button class="go" onclick="ALERT.go('+k+')">'+esc(x.goT||'보기')+'</button>':'')
+          +(x.noAck?'':'<button onclick="ALERT.ok('+k+')" title="확인했다고 적고 띠에서 뺍니다 — 누른 사람·때가 남습니다">확인</button>')+'</div>';
+      });
+    });
+    h+='<div class="ab-foot">「확인」은 직접 보고 처리한 줄만 눌러 주십시오 — 다른 기기에서도 빠집니다. 분류를 정하거나 재고를 빼면 저절로 빠지는 줄은 「확인」 단추가 없습니다.</div></div>';
+    bar.className='on'+(open?' open':''); bar.innerHTML=h;
+  }
+  function ok(k){
+    var x=last[k]; if(!x) return;
+    if(!confirm('이 줄을 확인했다고 적을까요?\n\n'+x.t+(x.sub?'\n'+x.sub:''))) return;
+    var by=''; try{ by=(typeof odMgrGet==='function'&&odMgrGet())||''; }catch(e){}
+    ack[x.id]={at:new Date().toISOString(), by:by, t:x.t};
+    ackSave(); if(typeof autoSync==='function') autoSync(); render();
+  }
+  function go(k){ var x=last[k]; if(!x||!x.go) return; open=false; try{ (new Function(x.go))(); }catch(e){ console.warn(e); } render(); }
+  function toggle(){ open=!open; render(); }
+  function forSync(){
+    var cut=new Date(Date.now()-90*86400000).toISOString(), o={};
+    for(var k in ack){ if(String(ack[k].at||'')>=cut) o[k]=ack[k]; }
+    return o;
+  }
+  function merge(x){
+    if(!x||typeof x!=='object') return false; var ch=false;
+    for(var k in x){ var a=x[k], b=ack[k]; if(a && String(a.at||'')>String((b&&b.at)||'')){ ack[k]=a; ch=true; } }
+    if(ch){ ackSave(); render(); }
+    return ch;
+  }
+  window.addEventListener('storage', function(e){ if(e.key==='nonspec-alerts-v1'||e.key==='nonspec-rows-v1'||e.key==='nonspec-archive-v1') render(); });
+  setInterval(function(){ try{ render(); }catch(e){} }, 60000);
+  setTimeout(function(){ try{ render(); }catch(e){ console.warn('[확인 안 된 오더]', e); } }, 1800);
+  return {render:render, ok:ok, go:go, toggle:toggle, forSync:forSync, merge:merge};
 })();
 </script>
 </body>
