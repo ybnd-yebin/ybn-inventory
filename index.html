@@ -451,8 +451,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <!-- 비규격 작업지시서 — 이 앱 안의 탭이 아니라 같은 주소의 다른 페이지다(새 창).
          상대경로라 홈페이지에서도, 바탕화면에서도 그대로 열린다.
          같은 출처(ybnd-yebin.github.io)이므로 두 페이지가 브라우저 저장함을 나눠 쓴다. -->
-    <a class="main-nav-btn ext" href="비규격작업지시서.html" target="_blank" rel="opener"
-       title="새 창에서 열립니다 — 납품서를 올리면 비규격 도어의 프레임·유리 치수와 작업지시서가 나옵니다">🔲 비규격 작업지시서<span class="ext-mark">↗</span></a>
+    <!-- 2026-11-18 사장님 「창 왔다갔다 덜하게」 — 새 창 대신 앱 안 탭(#pg-jobsheet)에 비규격 페이지를 통째로 띄웁니다(iframe).
+         두 파일은 따로 둡니다(같은 이름 함수 25개 — 합치면 덮어씀). 새 창으로도 그대로 열 수 있게 탭 위에 「↗ 새 창으로」. -->
+    <button class="main-nav-btn" onclick="showMain('jobsheet')"
+       title="납품서를 올리면 비규격 도어의 프레임·유리 치수와 작업지시서가 나옵니다">🔲 비규격 작업지시서</button>
     <!-- 라벨마킹 — 비규격 작업지시서와 같은 방식(새 창, 상대경로) (2026-10-02).
          앱 탭으로 합치지 않은 까닭: 라벨은 A4 가로·여백 0, 앱은 A4 세로·여백 10mm 라
          한 파일에 두면 @page 가 부딪칩니다. 원본 그대로 찍혀야 하는 라벨이 틀어집니다. -->
@@ -1679,6 +1681,40 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 </div>
 
 <!-- ORDER ANALYSIS -->
+<!-- 🔲 비규격 작업지시서 — 앱 안 탭 (2026-11-18). 페이지는 처음 열 때 한 번만 불러오고(jsOpen), 다른 탭에 갔다 와도 지우지 않습니다.
+     비규격 화면의 계산·저장·인쇄는 그 페이지가 그대로 합니다(같은 주소라 저장함을 함께 씀). -->
+<div class="sec-pg" id="pg-jobsheet">
+  <style>
+    #pg-jobsheet.sec-pg{max-width:none;margin:0;padding:0 8px 8px}
+    .js-bar{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:4px 4px 6px;font-size:12px;color:var(--tx3)}
+    .js-bar a{color:var(--acc);text-decoration:none;font-weight:700}
+    #js-frame{display:block;width:100%;border:1px solid var(--b1);border-radius:8px;background:#fff;height:calc(100vh - 170px);min-height:480px}
+    @media (max-width:560px){ #js-frame{height:calc(100vh - 190px)} }
+  </style>
+  <div class="js-bar"><span id="js-msg">불러오는 중…</span><a href="#" onclick="jsReload();return false" title="비규격 화면만 새로 읽습니다">↻ 새로 읽기</a><a href="비규격작업지시서.html" target="_blank" rel="opener" title="예전처럼 따로 된 창으로 엽니다">↗ 새 창으로</a></div>
+  <div id="js-host"></div>
+  <script>
+  function jsOpen(){
+    var host=document.getElementById('js-host'); if(!host) return;
+    var f=document.getElementById('js-frame');
+    if(!f){
+      f=document.createElement('iframe'); f.id='js-frame'; f.title='비규격 작업지시서';
+      f.src='비규격작업지시서.html';
+      f.onload=function(){ var m=document.getElementById('js-msg'); if(m) m.textContent='인쇄는 화면 안 「인쇄」 단추로 — 키보드 Ctrl+P 는 앱 화면이 찍힙니다'; jsFit(); };
+      host.appendChild(f);
+    }
+    jsFit();
+  }
+  function jsFit(){   // 위 머리·메뉴 높이만큼 빼고 화면 끝까지
+    var f=document.getElementById('js-frame'); if(!f) return;
+    var top=f.getBoundingClientRect().top + (window.scrollY||0);
+    var bn=document.getElementById('bnav'), bh=(bn && getComputedStyle(bn).display!=='none') ? bn.offsetHeight : 0;
+    f.style.height=Math.max(480, window.innerHeight - top - bh - 10)+'px';
+  }
+  function jsReload(){ var f=document.getElementById('js-frame'); if(f){ try{ f.contentWindow.location.reload(); }catch(e){ f.src=f.src; } } else jsOpen(); }
+  window.addEventListener('resize', function(){ if(typeof curMain!=='undefined' && curMain==='jobsheet') jsFit(); });
+  </script>
+</div>
 <!-- 📒 거래처 월 마감 화면 (2026-11-02 사장님 「화면으로 옮겨줘」) — 예전 발주 화면 위 창(cl-modal)을 경영·마감 아래 화면으로.
      목록·한 달 대조는 clRender 가 #cl-body 에 그립니다(함수·저장 그대로). 1400px 이상에서 한 달을 열면 왼쪽에 마감 목록(cl-rail). -->
 <div class="sec-pg" id="pg-closing">
@@ -4198,7 +4234,7 @@ soonapEnsureIds(soonap);
 function soonapMerge(local, remote){
   const L=soonapEnsureIds(local||{}), R=soonapEnsureIds(JSON.parse(JSON.stringify(remote||{})));
   const La=L.at||{}, Ra=R.at||{};
-  const out={ins:{}, onorder:{}, active:{}, base:{}, at:{}, insDel:{}, artPo:{}};
+  const out={ins:{}, onorder:{}, active:{}, base:{}, at:{}, insDel:{}, artPo:{}, use:{}};
   // 지운 표시 — 둘 다 모으고 180일 지난 것은 덜어냄
   const cut=new Date(Date.now()-180*86400000).toISOString();
   [L.insDel, R.insDel].forEach(d=>{ for(const k in (d||{})){ const v=String(d[k]||''); if(v>=cut && (!out.insDel[k] || v>out.insDel[k])) out.insDel[k]=v; } });
@@ -4230,6 +4266,8 @@ function soonapMerge(local, remote){
   for(const c in out.ins) out.ins[c].sort((a,b)=>String(a.at)<String(b.at)?-1:1);
   [L.artPo, R.artPo].forEach(P=>{ for(const id in (P||{})){ if(out.insDel[id]) continue; const o=out.artPo[id];
     if(!o || String(P[id].updatedAt||'')>String(o.updatedAt||'')) out.artPo[id]=P[id]; } });
+  // 비규격 「재고 사용」 — 열쇠마다 나중에 고친 쪽(지운 것은 del 로 남김) (2026-11-18)
+  [L.use, R.use].forEach(U=>{ for(const k in (U||{})){ const v=U[k], o=out.use[k]; if(v && (!o || String(v.at||'')>String(o.at||''))) out.use[k]=v; } });
   // 기준일(아티팩트 재고로 맞춘 날) — 나중에 맞춘 쪽 (12-97)
   [L.cut, R.cut].forEach(C=>{ if(C && C.d && (!out.cut || String(C.at||'')>String(out.cut.at||''))) out.cut=C; });
   return out;
@@ -4946,8 +4984,38 @@ function soonapOrderIndex(){
       c[day]=(c[day]||0)+q;
     }
   }
+  // 비규격으로 왔지만 정규격 재고에서 꺼내 쓴 유리 — 비규격 작업지시서 「재고 사용」 (2026-11-18). 그 발주일 칸에 납품처럼 뺍니다
+  for(const u of Object.values(soonap.use||{})){
+    if(!u || u.del || !u.code || !(u.qty>0)) continue;
+    const dt=String(u.day||''); if(dt.length<10) continue;
+    const k=soonapKey(u.code); if(!SOONAP_CODE_SET.has(k)) continue;
+    if(cut && cut.codes.has(k) && dt>=cut.from && dt<=cut.d && String(u.at||'')>String((cut.src&&cut.src.at)||'')) continue;   // 아티팩트 재고로 맞춘 뒤 고른 것 — 이미 그 숫자에 들어 있음
+    const ym=dt.slice(0,7), day=+dt.slice(8,10);
+    const m=idx[ym]=idx[ym]||{}; const c=m[k]=m[k]||{};
+    c[day]=(c[day]||0)+(+u.qty);
+  }
   return idx;
 }
+/* 비규격 작업지시서의 「재고 사용 / 발주」(nonspec-stdpick-v1, 같은 주소 저장함) → soonap.use (시트로 모든 기기). 2026-11-18
+   이 기기에서 고른 것만 옮깁니다 — 열쇠마다 더 나중에 고친 쪽. 「발주」·미정으로 바꾸면 del. */
+function soonapUseSync(){
+  let picks; try{ picks=JSON.parse(localStorage.getItem('nonspec-stdpick-v1')||'{}')||{}; }catch(e){ return; }
+  soonap.use=soonap.use||{}; let ch=false;
+  for(const key in picks){
+    const p=picks[key]; if(!p || !p.at) continue;
+    const o=soonap.use[key];
+    if(o && String(o.at||'')>=String(p.at)) continue;
+    if(p.pick==='stock') soonap.use[key]={code:p.code, qty:+p.qty||0, day:p.day||'', model:p.model||'', at:p.at};
+    else if(o) soonap.use[key]={code:o.code, qty:0, day:o.day, model:o.model, at:p.at, del:true};
+    else continue;
+    ch=true;
+  }
+  if(!ch) return;
+  saveSoonap(); if(typeof autoSync==='function') autoSync();
+  try{ if(typeof curMain!=='undefined' && curMain==='stock' && typeof curSub!=='undefined' && curSub==='storage') renderSoonap(); }catch(e){}
+}
+window.addEventListener('storage', e=>{ if(e.key==='nonspec-stdpick-v1') soonapUseSync(); });
+setTimeout(()=>{ try{ soonapUseSync(); }catch(e){} }, 4000);
 
 // 입고 이력 → {ym:{code:{day:qty}}}
 function soonapInIndex(){
@@ -6153,6 +6221,7 @@ function showMain(id){
   if(id==='settings')initGsUI();
   if(id==='closing') clRender();   // 📒 거래처 월 마감 (2026-11-02)
   if(id==='bas'){ try{ BAS.open(); }catch(e){ console.warn('[바스재고]', e); } }   // 🛁 바스재고 (2026-10-20)
+  if(id==='jobsheet') jsOpen();   // 🔲 비규격 작업지시서 (2026-11-18)
   if(_toSub) showSub(_toSub);
 }
 function showSub(id){
@@ -14679,6 +14748,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     else if(id==='settings')initGsUI();
     /* 🛁 바스재고 — 여기 빠져 있어 메뉴로 들어가면 안 그려지고, 시트 받기가 끝나야(약 10초) 그려졌습니다 (2026-10-27 사장님 「10초쯤 걸린다」) */
     else if(id==='bas'){ try{ BAS.open(); }catch(e){ console.warn('[바스재고]', e); } }
+    else if(id==='jobsheet') jsOpen();   // 🔲 비규격 작업지시서 — showMain 과 두 곳 다 (12-79 함정)
   };
 });
 
@@ -34545,7 +34615,7 @@ var GNAV_MENU=[
   ]},
   { c:'납품·작업', items:[
     { t:'납품서 접수·목록', m:'delivery' },
-    { t:'비규격 작업지시서', href:'비규격작업지시서.html' },
+    { t:'비규격 작업지시서', m:'jobsheet' },   // 2026-11-18 앱 안 탭으로 (새 창은 탭 위 「↗ 새 창으로」)
     { t:'라벨마킹', href:'라벨마킹.html' },
     { t:'출고예시 분석', href:'출고예시분석.html' },
   ]},
@@ -34703,9 +34773,11 @@ var GNAV=(function(){
 var BNAV=(function(){
   var KEY='ybn-bnav-v1', MAX=4, DEF=['home','order','delivery','stock'];
   // 아래 줄에 쓸 짧은 이름 (목록 창에는 원래 이름 그대로)
-  var SHORT={'delivery':'납품','stock':'재고','order-analysis':'발주분석','x:비규격작업지시서.html':'작업지시','x:출고예시분석.html':'출고예시'};
+  var SHORT={'delivery':'납품','stock':'재고','order-analysis':'발주분석','jobsheet':'작업지시','x:출고예시분석.html':'출고예시'};
   function load(){
-    try{ var a=JSON.parse(localStorage.getItem(KEY)||'null'); if(Array.isArray(a)&&a.length) return a.slice(0,MAX); }catch(e){}
+    try{ var a=JSON.parse(localStorage.getItem(KEY)||'null');
+      // 비규격이 새 창 → 앱 탭이 되며 열쇠가 바뀜 (2026-11-18) — ☆ 해 두신 것 이어받기
+      if(Array.isArray(a)&&a.length) return a.map(function(k){ return k==='x:비규격작업지시서.html'?'jobsheet':k; }).slice(0,MAX); }catch(e){}
     return DEF.slice();
   }
   function store(a){ try{ localStorage.setItem(KEY, JSON.stringify(a)); }catch(e){} }

@@ -6319,6 +6319,12 @@ function subdoorHandoffSend(){
   const daySel = document.getElementById('subdoorDate');
   const day = daySel ? daySel.value : '';
   const pages = subdoorCollect(day).pages;
+  // 정규격 사이즈 — 「재고 사용」은 안 보냄 · 미정이 있으면 먼저 여쭘 (2026-11-18)
+  const stdL = subdoorStdList(pages), undec = stdL.filter(x => !x.pick);
+  if(undec.length && !confirm('정규격과 같은 사이즈인데 재고 사용/발주를 안 고른 줄이 ' + undec.length + '줄 있습니다 ('
+      + undec.map(x => x.model + ' ' + x.qty + '장').join(', ') + ').\n\n발주로 보낼까요? (취소하면 아래 표에서 고르실 수 있습니다)')) return;
+  const useStock = new Set(stdL.filter(x => x.pick === 'stock').map(x => x.key));
+  let stockQty = 0;
   const byVendor = {}, order = [];
   let skipped = 0;
   pages.forEach(p => {
@@ -6327,6 +6333,7 @@ function subdoorHandoffSend(){
     Object.values(p.slots || {}).forEach(list => (list || []).forEach(s => {
       const q = (s.L||0) + (s.R||0) + (s.N||0) + (s.C||0);
       if(!q) return;
+      if(useStock.has(stdPickKey(p, s))){ stockQty += q; return; }
       if(!rt){ skipped += q; return; }
       let g = byVendor[rt.vendor];
       if(!g){ g = byVendor[rt.vendor] = { vendor:rt.vendor, types:new Set(), ships:new Set(), raw:[] }; order.push(g); }
@@ -6353,7 +6360,7 @@ function subdoorHandoffSend(){
   order.length = 0; groups.forEach(x => order.push(x));
   if(!order.length){
     say((day ? esc(fmtDate(day)) + ' 발주에는 ' : '') + '보낼 수납도어 유리가 없습니다'
-        + (skipped ? ` (시그니처 등 발주처가 안 정해진 ${skipped}장은 안 보냅니다)` : '') + '.', true);
+        + (skipped ? ` (시그니처 등 발주처가 안 정해진 ${skipped}장은 안 보냅니다)` : '') + (stockQty ? ` (재고 사용 ${stockQty}장은 안 보냅니다)` : '') + '.', true);
     return;
   }
   const keep = odHandoffKeep('subdoor', false);        // 색깔 유리 몫은 그대로 둡니다
@@ -6362,12 +6369,15 @@ function subdoorHandoffSend(){
   catch(e){ say('저장 공간이 부족해 보내지 못했습니다.', true); return; }
   say('✓ 앱 발주탭으로 보냈습니다 — ' + order.map(g => `${esc(g.color)} ${g.qty}장 → ${esc(g.route.vendor)}`).join(' · ')
       + (skipped ? ` <span style="color:#6b7280">(시그니처 등 ${skipped}장은 발주처가 안 정해져 안 보냈습니다)</span>` : '')
+      + (stockQty ? ` <span style="color:#0f766e">(재고 사용 ${stockQty}장은 안 보냈습니다)</span>` : '')
       + '.' + ' <button type="button" onclick="odOpenAppOrder()" style="margin-left:6px;padding:4px 10px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">앱 발주탭 열기 →</button>');
 }
 
 /* 「앱 발주탭 열기」 — 열려 있는 앱 창(이름 ybn-app, 앱이 스스로 붙임)을 찾아 주소 끝에 #order 만 붙입니다.
    주소가 같고 끝(#)만 바뀌므로 앱이 새로 안 읽히고 발주탭으로 넘어갑니다(앱 odHashGo). 앱 창이 없으면 새로 엽니다. (2026-11-10) */
 function odOpenAppOrder(){
+  // 앱 안 탭(iframe)으로 열려 있으면 바깥 앱에 바로 「발주탭으로」 (2026-11-18)
+  try{ if(window.parent && window.parent !== window && typeof window.parent.odGoOrderTab === 'function'){ window.parent.odGoOrderTab(); return; } }catch(e){}
   let base = '';
   try{ if(window.opener && !window.opener.closed && window.opener.location.href.indexOf('비규격')<0 && typeof window.opener.odGoOrderTab==='function')
          base = window.opener.location.href.split('#')[0]; }catch(e){}
@@ -7245,18 +7255,94 @@ const SUBDOOR_STD_FRAME = {
   AIR: {'445x738':'벽장','495x738':'벽장','595x1345':'분리장','545x2113':'키큰장'},
   SIG: {'446x2170':'450','496x2170':'500'},
 };
+/* 정규격 모델 → 앱 수납유리재고의 품목코드 (앱 `SOONAP_SHEET` 와 같은 값). 「재고 사용」을 고르면 앱이 이 코드에서 뺍니다. */
+const SUBDOOR_STD_CODE = {
+  YU:  {'595x2113':'ME1TM0003','595x2241':'ME1TM0004','445x2113':'ME1TM0001','445x2241':'ME1TM0002','445x860':'ME1WM0001','495x860':'ME1WM0002','595x860':'ME1WM0003'},
+  KB:  {'445x738':'MK1WM0004','495x738':'MK1WM0005','595x2113':'MK1TM0006','995x538':'MK1WM0006','1195x538':'MK1WM0007'},
+  AIR: {'445x738':'MK1WM0001','495x738':'MK1WM0002','595x1345':'MK1MM0001','545x2113':'MK1TM0005'},
+  SIG: {'446x2170':'CAIB13894','496x2170':'CAIB13895'},
+};
+function subdoorGrpOf(id){ return /^SIG/.test(id) ? 'SIG' : /^YU/.test(id) ? 'YU' : /^KB/.test(id) ? 'KB' : /^AIR/.test(id) ? 'AIR' : ''; }
+
+/* 「재고 사용 / 발주」 고르기 (사장님 2026-11-18 — 대리님 화면처럼).
+   비규격으로 왔는데 정규격 사이즈인 줄마다 고릅니다. 저장은 이 기기 `nonspec-stdpick-v1` {열쇠: {pick, code, model, qty, day, at}}.
+   · 재고 사용 → 앱 발주탭으로 보내기에서 빠지고, 앱(같은 주소)이 읽어 수납유리재고에서 그 발주일에 그만큼 뺍니다(soonap.use — 시트로 모든 기기).
+   · 발주 → 예전처럼 보냅니다.  · 미정 → 보낼 때 한 번 여쭙니다.
+   열쇠 = 납품요청일|도면|프레임 사이즈 (장 하나 안 한 줄). */
+const LS_STD_PICK = 'nonspec-stdpick-v1';
+function stdPickAll(){ try{ return JSON.parse(localStorage.getItem(LS_STD_PICK)||'{}')||{}; }catch(e){ return {}; } }
+function stdPickKey(p, d){ return (p.ship||'')+'|'+p.id+'|'+d.fw+'x'+d.fh; }
+function stdPickOf(p, d){ const v = stdPickAll()[stdPickKey(p, d)]; return v ? v.pick : ''; }
+// 장 목록에서 정규격 사이즈인 줄을 모읍니다
+function subdoorStdList(pages){
+  const out = [];
+  (pages||[]).forEach(p => {
+    if(p.id === 'SIGHANG') return;
+    const grp = subdoorGrpOf(p.id), tbl = SUBDOOR_STD_FRAME[grp], ctb = SUBDOOR_STD_CODE[grp] || {};
+    if(!tbl) return;
+    Object.keys(p.slots||{}).forEach(k => (p.slots[k]||[]).forEach(d => {
+      const sk = d.fw+'x'+d.fh, m = tbl[sk]; if(!m) return;
+      const qty = (d.L||0)+(d.R||0)+(d.N||0)+(d.C||0); if(!qty) return;
+      out.push({ key:stdPickKey(p, d), page:p, d, model:m, code:ctb[sk]||'', qty, day:p.po||p.ship||'', pick:stdPickOf(p, d) });
+    }));
+  });
+  return out;
+}
+function stdPickSet(key, pick){
+  const all = stdPickAll();
+  const day = document.getElementById('subdoorDate');
+  const hit = subdoorStdList(subdoorCollect(day ? day.value : '').pages).find(x => x.key === key);
+  if(!hit) return;
+  const cur = all[key] && all[key].pick;
+  const nv = (cur === pick) ? '' : pick;                       // 같은 단추를 다시 누르면 미정으로
+  all[key] = { pick:nv, code:hit.code, model:hit.model, qty:hit.qty, day:hit.day, at:new Date().toISOString() };
+  try{ localStorage.setItem(LS_STD_PICK, JSON.stringify(all)); }catch(e){ alert('저장 공간이 부족해 기억하지 못했습니다.'); return; }
+  try{ if(window.parent && window.parent !== window && typeof window.parent.soonapUseSync === 'function') window.parent.soonapUseSync(); }catch(e){}
+  subdoorGenerate();
+}
+// 앱 안 탭으로 열려 있으면 앱의 수납유리 재고를 같이 보여 줍니다(따로 연 창이면 '-')
+function stdStockOf(code){
+  try{ if(code && window.parent && window.parent !== window && typeof window.parent.soonapNowOf === 'function'){ const r = window.parent.soonapNowOf(code), v = (r && typeof r==='object') ? r.now : r; return (v===null||v===undefined) ? '-' : v; } }catch(e){}
+  return '-';
+}
+function subdoorStdPanel(pages){
+  const list = subdoorStdList(pages);
+  if(!list.length) return '';
+  const undec = list.filter(x => !x.pick).length;
+  const btn = (x, v, t) => `<button type="button" onclick="stdPickSet('${esc(x.key)}','${v}')" style="padding:3px 10px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;`
+    + (x.pick===v ? (v==='stock' ? 'background:#0f766e;color:#fff;border:1px solid #0f766e' : 'background:#4f46e5;color:#fff;border:1px solid #4f46e5')
+                  : 'background:#fff;color:#374151;border:1px solid #cbd5e1') + `">${t}</button>`;
+  const rows = list.map(x => `<tr${x.pick?'':' style="background:#fff1f2"'}>
+      <td style="padding:4px 8px">${esc(fmtDate(x.page.ship||''))}</td>
+      <td style="padding:4px 8px">${esc(x.d.fw+'×'+x.d.fh)} <span style="color:#9aa1a9">유리 ${esc(x.d.gw+'×'+x.d.gh)}</span></td>
+      <td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums">${x.qty}</td>
+      <td style="padding:4px 8px">정규격 <b>${esc(x.model)}</b></td>
+      <td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums">${esc(String(stdStockOf(x.code)))}</td>
+      <td style="padding:4px 8px;white-space:nowrap">${btn(x,'stock','재고 사용')} ${btn(x,'order','발주')}${x.pick?'':' <span style="color:#b91c1c;font-size:11px;font-weight:700">미정</span>'}</td></tr>`).join('');
+  return `<div class="cad-note" style="border-left:3px solid ${undec?'#dc2626':'#0f766e'}">
+    <b style="color:${undec?'#b91c1c':'#0f766e'}">정규격과 같은 사이즈 ${list.length}줄${undec?` · 미정 ${undec}줄`:''}</b>
+    <span style="color:#6b7280"> — 「재고 사용」이면 유리 발주로 안 보내고 앱 수납유리재고에서 뺍니다. 「발주」면 예전처럼 보냅니다. 다시 누르면 미정.</span>
+    <div style="overflow-x:auto;margin-top:6px"><table style="border-collapse:collapse;font-size:12px;min-width:560px">
+      <tr style="color:#6b7280;border-bottom:1px solid #e5e7eb"><th style="padding:4px 8px;text-align:left">납품요청</th><th style="padding:4px 8px;text-align:left">프레임</th><th style="padding:4px 8px;text-align:right">수량</th><th style="padding:4px 8px;text-align:left">같은 모델</th><th style="padding:4px 8px;text-align:right">현재고</th><th style="padding:4px 8px;text-align:left">고르기</th></tr>
+      ${rows}</table></div></div>`;
+}
 function subdoorStdNotes(p){
   // 행잉(SIGHANG)은 안내문이 이미 일곱 줄이라 한 줄 더 올리면 위 프레임·손잡이 상자를 덮습니다 — 뺍니다
   if(p.id === 'SIGHANG') return [];
-  const grp = /^SIG/.test(p.id) ? 'SIG' : /^YU/.test(p.id) ? 'YU' : /^KB/.test(p.id) ? 'KB' : /^AIR/.test(p.id) ? 'AIR' : '';
+  const grp = subdoorGrpOf(p.id);
   const tbl = SUBDOOR_STD_FRAME[grp];
   if(!tbl) return [];
-  const seen = [];
+  const seen = [], how = {};
   Object.keys(p.slots||{}).forEach(k => (p.slots[k]||[]).slice(0, SUBDOOR_MAX_SIZES).forEach(d => {
     const m = tbl[d.fw+'x'+d.fh];
-    if(m && seen.indexOf(m) < 0) seen.push(m);
+    if(!m) return;
+    if(seen.indexOf(m) < 0) seen.push(m);
+    const pk = stdPickOf(p, d);
+    (how[m] = how[m] || new Set()).add(pk);
   }));
-  return seen.map(m => ({t:'*정규격 '+m+' 사이즈', red:true}));
+  // 고른 것이 하나로 모이면 「사이즈」 자리에 「(재고)」·「(발주)」 — 붙이면 종이 밖으로 나가 바꿔 씁니다(실측 60211 216mm → 191mm). 섞이거나 미정이면 그대로
+  return seen.map(m => { const s = [...how[m]]; const tag = s.length===1 ? (s[0]==='stock' ? ' (재고)' : s[0]==='order' ? ' (발주)' : '') : '';
+    return {t:'*정규격 '+m+(tag || ' 사이즈'), red:true}; });
 }
 function subdoorAddNotes(id, s, more){
   const add = (SUBDOOR_NOTE_ADD[id] || []).concat(more || []);
@@ -7528,6 +7614,7 @@ function subdoorGenerate(){
                     + '그 납품서를 <b>와이비앤디 앱에 다시 올리시면</b> 빠진 규격만 채워집니다(수량·차감은 그대로). 그 뒤 다시 가져오십시오.</div>' : '')
           + '</div>';
   }
+  note += subdoorStdPanel(pages);   // 정규격 사이즈 — 재고 사용 / 발주 고르기 (2026-11-18)
   out.innerHTML = note + pages.map(p=>'<div class="cad-page" data-od="'+esc(day||'전체')+'">'+subdoorPageSVG(p)+'</div>').join('');
   pcNumberPages(out, '수납');
   if(typeof setStatus === 'function') setStatus('✓ 수납도어 '+pages.length+'장 생성');
