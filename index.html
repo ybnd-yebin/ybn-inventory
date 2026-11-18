@@ -458,8 +458,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     <!-- 라벨마킹 — 비규격 작업지시서와 같은 방식(새 창, 상대경로) (2026-10-02).
          앱 탭으로 합치지 않은 까닭: 라벨은 A4 가로·여백 0, 앱은 A4 세로·여백 10mm 라
          한 파일에 두면 @page 가 부딪칩니다. 원본 그대로 찍혀야 하는 라벨이 틀어집니다. -->
-    <a class="main-nav-btn ext" href="라벨마킹.html" target="_blank" rel="noopener"
-       title="새 창에서 열립니다 — 한샘 출고라벨 PDF 를 올리면 형광펜·메모를 자동으로 얹어 인쇄합니다">🏷 라벨마킹<span class="ext-mark">↗</span></a>
+    <!-- 2026-11-18 앱 안 탭(iframe)으로 — 라벨 문서는 iframe 안에 따로 있어 @page 가 안 섞입니다 -->
+    <button class="main-nav-btn" onclick="showMain('labelmark')"
+       title="한샘 출고라벨 PDF 에 형광펜·메모를 자동으로 얹어 인쇄합니다">🏷 라벨마킹</button>
     <!-- 출고예시 집계 — 같은 방식(새 창, 상대경로) (2026-10-06). 같은 주소라 저장함을 함께 씁니다. -->
     <a class="main-nav-btn ext" href="출고예시분석.html" target="_blank" rel="noopener"
        title="새 창에서 열립니다 — 출고예시 엑셀을 넣어 출고일별 집계·예시 대비 실물 대조를 봅니다">📈 출고예시 집계<span class="ext-mark">↗</span></a>
@@ -857,6 +858,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
   </div>
 
   <!-- 미출고(되돌린 것) · 확인 필요(매칭 안 된 품목) -->
+  <div id="deliv-label-box"></div>
   <div id="deliv-newitem-box"></div>
   <div id="deliv-pending-box"></div>
   <div id="deliv-unmatched-box"></div>
@@ -1713,7 +1715,29 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
     f.style.height=Math.max(480, window.innerHeight - top - bh - 10)+'px';
   }
   function jsReload(){ var f=document.getElementById('js-frame'); if(f){ try{ f.contentWindow.location.reload(); }catch(e){ f.src=f.src; } } else jsOpen(); }
-  window.addEventListener('resize', function(){ if(typeof curMain!=='undefined' && curMain==='jobsheet') jsFit(); });
+  window.addEventListener('resize', function(){ if(typeof curMain!=='undefined' && curMain==='jobsheet') jsFit(); if(typeof curMain!=='undefined' && curMain==='labelmark') lmFit(); });
+  </script>
+</div>
+<!-- 🏷 라벨마킹 — 앱 안 탭 (2026-11-18). 비규격과 같은 방식(iframe). 라벨은 A4 가로·여백 0 이라 앱과 @page 가 달라 파일은 따로 둡니다 —
+     iframe 안은 제 문서라 인쇄 설정이 안 섞입니다. 앱 📦 납품서 탭에 올린 라벨은 「📥 앱에 올린 라벨」로 바로 열립니다. -->
+<div class="sec-pg" id="pg-labelmark">
+  <style>#pg-labelmark.sec-pg{max-width:none;margin:0;padding:0 8px 8px} #lm-frame{display:block;width:100%;border:1px solid var(--b1);border-radius:8px;background:#fff;min-height:480px}</style>
+  <div class="js-bar"><span>라벨은 📦 납품서 탭에서 같이 올리시면 여기 「📥 앱에 올린 라벨」로 열립니다 · 인쇄는 화면 안 단추로</span><a href="#" onclick="lmReload();return false">↻ 새로 읽기</a><a href="라벨마킹.html" target="_blank" rel="noopener">↗ 새 창으로</a></div>
+  <div id="lm-host"></div>
+  <script>
+  function lmOpen(){
+    var host=document.getElementById('lm-host'); if(!host) return;
+    var f=document.getElementById('lm-frame');
+    if(!f){ f=document.createElement('iframe'); f.id='lm-frame'; f.title='라벨마킹'; f.src='라벨마킹.html'; f.onload=lmFit; host.appendChild(f); }
+    lmFit();
+  }
+  function lmFit(){
+    var f=document.getElementById('lm-frame'); if(!f) return;
+    var top=f.getBoundingClientRect().top + (window.scrollY||0);
+    var bn=document.getElementById('bnav'), bh=(bn && getComputedStyle(bn).display!=='none') ? bn.offsetHeight : 0;
+    f.style.height=Math.max(480, window.innerHeight - top - bh - 10)+'px';
+  }
+  function lmReload(){ var f=document.getElementById('lm-frame'); if(f){ try{ f.contentWindow.location.reload(); }catch(e){ f.src=f.src; } } else lmOpen(); }
   </script>
 </div>
 <!-- 📒 거래처 월 마감 화면 (2026-11-02 사장님 「화면으로 옮겨줘」) — 예전 발주 화면 위 창(cl-modal)을 경영·마감 아래 화면으로.
@@ -6234,6 +6258,7 @@ function showMain(id){
   if(id==='closing') clRender();   // 📒 거래처 월 마감 (2026-11-02)
   if(id==='bas'){ try{ BAS.open(); }catch(e){ console.warn('[바스재고]', e); } }   // 🛁 바스재고 (2026-10-20)
   if(id==='jobsheet') jsOpen();   // 🔲 비규격 작업지시서 (2026-11-18)
+  if(id==='labelmark') lmOpen();   // 🏷 라벨마킹 (2026-11-18)
   try{ if(typeof ALERT!=='undefined') ALERT.render(); }catch(e){}
   if(_toSub) showSub(_toSub);
 }
@@ -11064,7 +11089,7 @@ const GS_EXT_LIMIT=45000;      // 시트 한 칸 5만자 제한 — 넘기면 �
    2026-07-30: 한 칸만 쓰다가 45,000자를 넘겨 11가지가 통째로 동기화에서 빠지는 일이 있었습니다.
    여덟 칸이면 약 36만 자까지 실립니다. 그래도 넘치면 그건 시트 스크립트를 고쳐야 할 신호입니다.
    2026-10-27: 89%(321k / 360k)까지 차서 열여섯 칸(약 72만 자)으로 늘렸습니다. 받는 쪽은 _extN 만큼 읽으므로 옛 판 기기도 그대로 읽습니다. */
-const GS_EXT_MAX_PARTS=16;
+const GS_EXT_MAX_PARTS=24;   // 16 → 24 (2026-11-18 라벨 이틀치 몫). 받는 쪽은 _extN 만큼 읽어 옛 판도 그대로 읽음(12-86)
 function metaForSync(){
   const ext={};
   const put=(k,v)=>{ if(v!==undefined) ext[k]=v; };
@@ -11103,6 +11128,8 @@ function metaForSync(){
   try{ if(buyPx && Object.keys(buyPx).length) put('buyPx', buyPx); }catch(e){}
   /* ⚠ 확인 안 된 오더 — 「확인」 누른 줄(누가·언제). 열쇠마다 나중 쪽 (2026-11-18) */
   try{ if(typeof ALERT!=='undefined'){ const a=ALERT.forSync(); if(Object.keys(a).length) put('alertAck', a); } }catch(e){}
+  /* 🏷 라벨 PDF 이틀치 (2026-11-18 A안) — 크기 상한 넘는 것은 이 기기에만(LBL.forSync) */
+  try{ if(typeof LBL!=='undefined'){ const l=LBL.forSync(); if(l.files.length || Object.keys(l.del).length) put('labelFiles', {files:l.files, del:l.del}); } }catch(e){}
   /* 📋 한샘 단가표 (2026-10-21) — 합의서·SRM 줄·지운 표시(`hsForSync`). hsPrice 는 뒤쪽 let 이라 try 로 감쌉니다 */
   try{ put('hsPrice', hsForSync()); }catch(e){}
   /* 🛁 바스재고 (2026-10-20) — 묶음마다 고친 때를 같이 보냅니다. 창고 출고는 최근 120일만, 예시 스냅샷은 안 보냅니다(`BAS.forSync`).
@@ -11298,6 +11325,7 @@ function applyMergedFromSheet(data){
   if(data.odTypeCfg!==undefined){ try{ odTypeCfgMerge(data.odTypeCfg); }catch(e){ console.warn('[발주 종류 목록] 받기 실패', e); } }
   if(data.odModelFix!==undefined){ try{ odModelFixMerge(data.odModelFix); }catch(e){ console.warn('[정규격 모델 사이즈] 받기 실패', e); } }
   if(data.sellClose!==undefined){ try{ if(sellCloseMerge(data.sellClose)) renderLgSummary(); }catch(e){ console.warn('[매출 마감일] 받기 실패', e); } }
+  if(data.labelFiles!==undefined){ try{ if(typeof LBL!=='undefined') LBL.merge(data.labelFiles); }catch(e){ console.warn('[라벨] 받기 실패', e); } }
   if(data.alertAck!==undefined){ try{ if(typeof ALERT!=='undefined') ALERT.merge(data.alertAck); }catch(e){ console.warn('[확인 안 된 오더] 받기 실패', e); } }
   try{ if(typeof ALERT!=='undefined') setTimeout(ALERT.render, 300); }catch(e){}
   if(data.buyPx!==undefined){ try{ if(buyPxMerge(data.buyPx)){ try{ renderLgSummary(); }catch(e){} try{ if(curMain==='closing') clRender(); }catch(e){} } }catch(e){ console.warn('[단가 이력] 받기 실패', e); } }
@@ -14750,7 +14778,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     else if(id==='deskboard'){renderHome();renderNotices();renderSchedules();renderCal();renderBreaks();if(typeof renderWeekly==='function')renderWeekly();}
     else if(id==='plan'){ bdRender(); bdRenderExtras(); }   // 🗓️ 일정·업무 (2026-10-12) + 업무판 칸 (10-13)
     else if(id==='worklog')renderWorklogMain();
-    else if(id==='delivery'){renderDelivery(); if(typeof renderDelivArchive==='function') renderDelivArchive();}
+    else if(id==='delivery'){renderDelivery(); try{ LBL.render(); }catch(e){} if(typeof renderDelivArchive==='function') renderDelivArchive();}
     else if(id==='todo')renderTodo();
     else if(id==='board'){renderNotices();renderSchedules();renderCal();}
     else if(id==='stock')showSub(curSub);   // 2026-10-26 — renderSub 만 하면 처음 열 때 「현황」 칸(가림 없음)이 보이고 탭은 「인쇄실」이 켜져 어긋났습니다(휴대폰 아래 줄·옛 탭 줄)
@@ -14766,6 +14794,7 @@ document.querySelectorAll('.main-nav-btn').forEach((btn)=>{
     /* 🛁 바스재고 — 여기 빠져 있어 메뉴로 들어가면 안 그려지고, 시트 받기가 끝나야(약 10초) 그려졌습니다 (2026-10-27 사장님 「10초쯤 걸린다」) */
     else if(id==='bas'){ try{ BAS.open(); }catch(e){ console.warn('[바스재고]', e); } }
     else if(id==='jobsheet') jsOpen();   // 🔲 비규격 작업지시서 — showMain 과 두 곳 다 (12-79 함정)
+    else if(id==='labelmark') lmOpen();
     try{ if(typeof ALERT!=='undefined') ALERT.render(); }catch(e){}
   };
 });
@@ -24957,6 +24986,7 @@ async function handleDelivPdf(ev){
   const statusEl=document.getElementById('deliv-upload-status');
   statusEl.textContent='⏳ '+files.length+'개 파일 읽는 중...';
   let added=0,dup=0,fail=0,skipped=0,fixedSize=0;
+  let labelN=0, labelF=0;   // 🏷 라벨 PDF
   window._delivDebug=''; const _oldBox=document.getElementById('deliv-debug-box'); if(_oldBox) _oldBox.remove();
   for(const file of files){
     try{
@@ -25004,6 +25034,8 @@ async function handleDelivPdf(ev){
         if(pageItems) cellItems=cellItems.concat(pageItems);
         else cellOk=false; // 한 페이지라도 헤더 못 찾으면 폴백 신호
       }
+      // 🏷 라벨 PDF 면 납품서로 읽지 않고 라벨로 담습니다 (2026-11-18 — 납품서 탭에서 같이 올리기)
+      if(typeof LBL!=='undefined' && LBL.isLabelText(full)){ try{ labelN+=await LBL.add(file, pdf); labelF++; }catch(e){ console.warn('[라벨] 담기 실패', e); fail++; } continue; }
       // 헤더 정보(납품번호/날짜/납품처/참조)는 텍스트 파서로
       const parsed=parseDelivText(full);
       // 품명만 「품명 칸」으로 다시 읽어 끼웁니다 (2026-10-06 · 맞지 않으면 예전 그대로)
@@ -25105,7 +25137,8 @@ async function handleDelivPdf(ev){
     try{ if(typeof etpAutoDeduct==='function') etpAutoDeduct(); }catch(e){ console.warn('[에토프 자동차감]', e); }
     if(typeof autoSync==='function') autoSync(); }
   if(added && typeof renderSoonap==='function') renderSoonap(); // 수납유리재고 자동 반영
-  statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${fixedSize?` · <b style="color:var(--acc3)">빠져 있던 규격 ${fixedSize}건 채움</b>`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${fail?` · 실패 ${fail}건`:''}`;
+  statusEl.innerHTML=`✅ ${added}건 추가${dup?` · 중복 ${dup}건`:''}${fixedSize?` · <b style="color:var(--acc3)">빠져 있던 규격 ${fixedSize}건 채움</b>`:''}${skipped?` · 집계 아님 ${skipped}건 제외`:''}${labelF?` · 🏷 라벨 ${labelF}개 ${labelN}장 담음`:''}${fail?` · 실패 ${fail}건`:''}`;
+  try{ LBL.render(); if(typeof ALERT!=='undefined') ALERT.render(); }catch(e){}   // 🏷 납품서가 늘면 라벨 대조도 다시
   ev.target.value='';
   renderDelivery();
   // 납품서가 추가되면 인쇄실 카드 월평균(6개월 롤링)도 즉시 반영
@@ -34677,7 +34710,7 @@ var GNAV_MENU=[
   { c:'납품·작업', items:[
     { t:'납품서 접수·목록', m:'delivery' },
     { t:'비규격 작업지시서', m:'jobsheet' },   // 2026-11-18 앱 안 탭으로 (새 창은 탭 위 「↗ 새 창으로」)
-    { t:'라벨마킹', href:'라벨마킹.html' },
+    { t:'라벨마킹', m:'labelmark' },   // 2026-11-18 앱 안 탭으로
     { t:'출고예시 분석', href:'출고예시분석.html' },
   ]},
   { c:'발주·입고', items:[
@@ -34834,11 +34867,11 @@ var GNAV=(function(){
 var BNAV=(function(){
   var KEY='ybn-bnav-v1', MAX=4, DEF=['home','order','delivery','stock'];
   // 아래 줄에 쓸 짧은 이름 (목록 창에는 원래 이름 그대로)
-  var SHORT={'delivery':'납품','stock':'재고','order-analysis':'발주분석','jobsheet':'작업지시','x:출고예시분석.html':'출고예시'};
+  var SHORT={'delivery':'납품','stock':'재고','order-analysis':'발주분석','jobsheet':'작업지시','labelmark':'라벨','x:출고예시분석.html':'출고예시'};
   function load(){
     try{ var a=JSON.parse(localStorage.getItem(KEY)||'null');
       // 비규격이 새 창 → 앱 탭이 되며 열쇠가 바뀜 (2026-11-18) — ☆ 해 두신 것 이어받기
-      if(Array.isArray(a)&&a.length) return a.map(function(k){ return k==='x:비규격작업지시서.html'?'jobsheet':k; }).slice(0,MAX); }catch(e){}
+      if(Array.isArray(a)&&a.length) return a.map(function(k){ return k==='x:비규격작업지시서.html'?'jobsheet':k==='x:라벨마킹.html'?'labelmark':k; }).slice(0,MAX); }catch(e){}
     return DEF.slice();
   }
   function store(a){ try{ localStorage.setItem(KEY, JSON.stringify(a)); }catch(e){} }
@@ -35259,6 +35292,160 @@ function stkPrRender(){
   }catch(e){ console.warn('[웜코튼 안 탭]', e); }
 })();
 </script>
+<!-- 🏷 라벨 PDF — 납품서 탭에서 같이 올리면 앱이 이틀치(오늘 + 바로 전 영업일)를 담아 두고 시트로 모든 기기에 나눕니다 (사장님 2026-11-18 A안).
+     · 라벨마킹은 같은 주소 저장함 `ybn-label-files-v1` 을 읽어 「앱에 올린 라벨」로 바로 엽니다 — 다시 안 올려도 됩니다.
+     · 납품서 ↔ 라벨 장수를 맞춰 봅니다. 라벨이 안 나오는 품목은 LBL_NO_LABEL 한 곳(정규격 글래스도어 · B/I 빌트인·TV장 · 바스).
+       근거: 10/27~11/18 라벨 PDF 와 납품서를 맞춰 봄 — 라벨이 붙은 구매오더 33건의 163품목은 장수가 모두 같았고,
+       라벨이 아예 없던 구매오더는 위 세 갈래뿐이었습니다(비규격 글래스도어는 라벨이 따로 된 파일로 옴).
+     따로 된 덩어리(LBL) — 여기서 멈춰도 앱은 돕니다(9-3). -->
+<script>
+var LBL=(function(){
+  var KEY='ybn-label-files-v1', DEL_KEY='ybn-label-del-v1';
+  var SYNC_MAX=300000;   // 시트로 보낼 라벨 글자 수 상한 — 넘치면 오래된 것부터 이 기기에만 둡니다(넘치면 동기화 전체가 멈춤, 12-37)
+  function J(k,d){ try{ var v=JSON.parse(localStorage.getItem(k)||'null'); return v==null?d:v; }catch(e){ return d; } }
+  var files=J(KEY,[]), del=J(DEL_KEY,{});
+  if(!Array.isArray(files)) files=[];
+  function today(){ return todayStr(); }
+  function keepFrom(){ return _addBizDays(today(),-1); }      // 오늘 + 바로 전 영업일
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(files)); localStorage.setItem(DEL_KEY, JSON.stringify(del)); return true; }catch(e){ showToast('⚠ 라벨을 담을 저장 공간이 모자랍니다'); return false; } }
+  function prune(){
+    var k=keepFrom(), n=files.length;
+    files=files.filter(function(f){ return f && f.day>=k && !del[f.id]; });
+    var cut=_addDays(today(),-14); for(var id in del){ if(String(del[id]).slice(0,10)<cut) delete del[id]; }
+    return n!==files.length;
+  }
+  function isLabelText(full){ return /공장출고일/.test(full) && !/납품번호\s*\/\s*묶음번호/.test(full); }
+  function b64(buf){ var s='', a=new Uint8Array(buf), i, CH=0x8000; for(i=0;i<a.length;i+=CH) s+=String.fromCharCode.apply(null, a.subarray(i,i+CH)); return btoa(s); }
+  function unb64(t){ var s=atob(t), a=new Uint8Array(s.length); for(var i=0;i<s.length;i++) a[i]=s.charCodeAt(i); return a; }
+  // 한 장 = 라벨 4칸. 칸마다 구매오더(51·54…) · 제품코드 · 오더번호 (라벨마킹 labelInfos 와 같은 읽기)
+  async function readInfos(pdf){
+    var out=[];
+    for(var p=1;p<=pdf.numPages;p++){
+      var pg=await pdf.getPage(p), base=pg.getViewport({scale:1}), tc=await pg.getTextContent(), q={};
+      tc.items.forEach(function(it){ var s=(it.str||'').trim(); if(!s) return; var t=pdfjsLib.Util.transform(base.transform,it.transform);
+        var k=(t[5]/base.height<0.5?0:2)+(t[4]/base.width<0.5?0:1); (q[k]=q[k]||[]).push(s); });
+      Object.keys(q).forEach(function(k){ var po='',code='',ord='';
+        q[k].forEach(function(s){
+          if(!po){ var m=s.match(/(?<!\d)5[14]\d{8}(?!\d)/); if(m) po=m[0]; }
+          if(!ord){ var m2=s.match(/\*(\d{10})-\d{6}\*/); if(m2) ord=m2[1].replace(/^0+/,''); }
+          if(!code && /^[A-Z]{2,}[A-Z0-9]*\d{3,}$/.test(s)) code=s; });
+        if(po||code) out.push({po:po, code:code, ord:ord, p:p}); });
+    }
+    return out;
+  }
+  async function add(file, pdf){
+    var infos=await readInfos(pdf);
+    var buf=await file.arrayBuffer();   // pdf.js 가 읽은 버퍼는 넘겨져 비어 있을 수 있어 다시 읽습니다
+    var id=file.name+'|'+buf.byteLength;
+    files=files.filter(function(f){ return f.id!==id; });
+    delete del[id];
+    files.push({id:id, name:file.name, day:today(), at:new Date().toISOString(), n:infos.length, infos:infos, b64:b64(buf)});
+    prune(); save(); if(typeof autoSync==='function') autoSync();
+    return infos.length;
+  }
+  function remove(id){
+    if(!confirm('이 라벨 파일을 지울까요? 다른 기기에서도 빠집니다.')) return;
+    del[id]=new Date().toISOString(); files=files.filter(function(f){ return f.id!==id; }); save();
+    if(typeof autoSync==='function') autoSync(); render();
+  }
+  function forSync(){
+    var sorted=files.slice().sort(function(a,b){ return String(b.at).localeCompare(String(a.at)); }), sum=0, out=[];
+    sorted.forEach(function(f){ var L=(f.b64||'').length; if(sum+L<=SYNC_MAX){ sum+=L; out.push(f); } });
+    return {files:out, del:del, kept:files.length-out.length};
+  }
+  function merge(x){
+    if(!x||typeof x!=='object') return false;
+    var ch=false;
+    for(var id in (x.del||{})){ if(!del[id] || String(x.del[id])>String(del[id])){ del[id]=x.del[id]; ch=true; } }
+    (x.files||[]).forEach(function(f){ if(!f||!f.id||del[f.id]) return; if(!files.some(function(g){ return g.id===f.id; })){ files.push(f); ch=true; } });
+    if(prune()) ch=true;
+    if(ch){ save(); render(); }
+    return ch;
+  }
+  /* ── 라벨이 안 나오는 품목 (한 곳) ── */
+  var NO_LABEL=[
+    {t:'정규격 글래스도어(채널·행잉·18T)', f:function(it){ var n=(it.name||'')+' '+(it.short||''); return /글래스/.test(n) && !isNonStd(n); }},
+    {t:'B/I 빌트인 · TV장 · 현관장', f:function(it){ return /^(CAIT|SAE|FGIT|CDIT|MALWF)/i.test(String(it.code||'')); }},
+    {t:'바스(드림하이텍)', f:function(it){ return isBasCode(it.code) || /EURO5\s*베일/i.test(it.name||''); }},
+  ];
+  function needsLabel(it){ for(var i=0;i<NO_LABEL.length;i++) if(NO_LABEL[i].f(it)) return false; return true; }
+  function ordNorm(s){ return String(s||'').replace(/^0+/,''); }
+  /* 맞춰 보기 — 라벨이 있는 발주일(그 라벨 구매오더의 납품서 발주일)마다:
+     그날 납품서 가운데 라벨이 나와야 하는 줄 vs 라벨 장수 (구매오더 + 제품코드, 오더번호가 양쪽 다 있으면 그것까지) */
+  function check(){
+    var log=(typeof delivLog!=='undefined'?delivLog:[]).filter(function(d){ return d && !(d.id && typeof delivDeleted!=='undefined' && delivDeleted && delivDeleted[d.id]); });
+    var labs=[]; files.forEach(function(f){ (f.infos||[]).forEach(function(x){ labs.push(x); }); });
+    if(!labs.length) return null;
+    // 같은 라벨이 두 파일에 다 있으면(합친 파일 등) 한 번만 — 파일마다 센 것 가운데 큰 쪽
+    var perFile={};
+    files.forEach(function(f){ var c={}; (f.infos||[]).forEach(function(x){ if(!x.po) return; var k=x.po+'|'+x.code+'|'+ordNorm(x.ord); c[k]=(c[k]||0)+1; });
+      for(var k in c) perFile[k]=Math.max(perFile[k]||0, c[k]); });
+    var labPos={}; Object.keys(perFile).forEach(function(k){ labPos[k.split('|')[0]]=1; });
+    var days={};
+    log.forEach(function(d){ if(labPos[String(d.refNo)] && d.orderDate) days[d.orderDate]=1; });
+    // 라벨을 쓰기 시작했으면 오늘·바로 전 영업일 발주는 라벨이 하나도 없어도 봅니다 — 그날 라벨을 통째로 빠뜨린 것도 잡도록
+    var kf=keepFrom(); log.forEach(function(d){ if(d.orderDate && d.orderDate>=kf && d.orderDate<=today()) days[d.orderDate]=1; });
+    var res={days:Object.keys(days).sort(), rows:[], noDoc:[], ok:0, okQ:0};
+    Object.keys(labPos).forEach(function(po){ if(!log.some(function(d){ return String(d.refNo)===po; })){
+      var n=0; for(var k in perFile) if(k.indexOf(po+'|')===0) n+=perFile[k]; res.noDoc.push({po:po, n:n}); } });
+    res.days.forEach(function(day){
+      log.filter(function(d){ return d.orderDate===day; }).forEach(function(d){
+        var po=String(d.refNo||''), its=(d.items||[]).filter(needsLabel);
+        if(!its.length) return;
+        var useOrd=its.every(function(it){ return ordNorm(it.orderNo); }) && Object.keys(perFile).filter(function(k){ return k.indexOf(po+'|')===0; }).every(function(k){ return k.split('|')[2]; });
+        var want={}, nm={};
+        its.forEach(function(it){ var k=po+'|'+it.code+'|'+(useOrd?ordNorm(it.orderNo):''); want[k]=(want[k]||0)+(+it.qty||0); nm[k]=it.short||it.name||it.code; });
+        var got={}; for(var k in perFile){ if(k.indexOf(po+'|')!==0) continue; var kk=useOrd?k:k.replace(/\|[^|]*$/,'|'); got[kk]=(got[kk]||0)+perFile[k]; }
+        var keys={}; Object.keys(want).concat(Object.keys(got)).forEach(function(k){ keys[k]=1; });
+        Object.keys(keys).forEach(function(k){ var w=want[k]||0, g=got[k]||0;
+          if(w===g){ res.ok++; res.okQ+=w; return; }
+          res.rows.push({day:day, po:po, delivNo:d.delivNo, code:k.split('|')[1], name:nm[k]||'', want:w, got:g, as:po.indexOf('54')===0}); });
+      });
+    });
+    // 라벨이 통째로 없는 구매오더는 한 줄로 모읍니다(줄마다 늘어놓으면 표가 길어 정작 다른 차이가 묻힘)
+    var grp={}; res.rows.forEach(function(x){ if(!labPos[x.po]) (grp[x.po]=grp[x.po]||[]).push(x); });
+    res.rows=res.rows.filter(function(x){ return labPos[x.po]; });
+    Object.keys(grp).forEach(function(po){ var a=grp[po];
+      res.rows.push({day:a[0].day, po:po, whole:true, code:'라벨 없음', name:a.length+'줄 — '+a.slice(0,2).map(function(x){ return x.name; }).join(' · ')+(a.length>2?' 외':''), want:a.reduce(function(s,x){ return s+x.want; },0), got:0, as:a[0].as}); });
+    res.rows.sort(function(a,b){ return String(a.day).localeCompare(String(b.day)) || String(a.po).localeCompare(String(b.po)); });
+    return res;
+  }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function md(d){ return d?String(d).slice(5).replace('-','/'):''; }
+  function render(){
+    var el=document.getElementById('deliv-label-box'); if(!el) return;
+    if(!files.length){ el.innerHTML='<div class="card" style="padding:10px 14px;font-size:12px;color:var(--tx3)">🏷 라벨 PDF 도 여기 「PDF 올리기」로 같이 올리시면 납품서와 장수를 맞춰 보고, 라벨마킹에서 바로 열립니다(오늘 + 바로 전 영업일만 담아 둡니다).</div>'; return; }
+    var r=check()||{days:[],rows:[],noDoc:[],ok:0,okQ:0};
+    var fs=files.slice().sort(function(a,b){ return String(b.at).localeCompare(String(a.at)); });
+    var syn=forSync();
+    var h='<div class="card" style="border-left:3px solid '+(r.rows.length||r.noDoc.length?'#dc2626':'#0f766e')+'">'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:13.5px">🏷 납품서 ↔ 라벨</b>'
+      +'<span style="font-size:12px;color:var(--tx3)">발주일 '+(r.days.map(md).join(' · ')||'-')+'</span>'
+      +'<span style="flex:1"></span><span style="font-size:12px;color:#0f766e;font-weight:700">맞음 '+r.ok+'줄 · '+r.okQ+'장</span>'
+      +(r.rows.length?'<span style="font-size:12px;color:#dc2626;font-weight:800">다름 '+r.rows.length+'줄</span>':'')
+      +(r.noDoc.length?'<span style="font-size:12px;color:#dc2626;font-weight:800">납품서 없음 '+r.noDoc.length+'건</span>':'')+'</div>';
+    if(r.rows.length){
+      h+='<div style="overflow-x:auto;margin-top:6px"><table style="border-collapse:collapse;font-size:12px;min-width:520px;width:100%"><tr style="color:var(--tx3)"><th style="text-align:left;padding:3px 6px">발주일</th><th style="text-align:left;padding:3px 6px">구매오더</th><th style="text-align:left;padding:3px 6px">품목</th><th style="text-align:right;padding:3px 6px">납품서</th><th style="text-align:right;padding:3px 6px">라벨</th><th style="text-align:right;padding:3px 6px">차이</th></tr>'
+        +r.rows.map(function(x){ return '<tr style="border-top:1px solid var(--b1)"><td style="padding:3px 6px">'+md(x.day)+'</td><td style="padding:3px 6px">'+esc(x.po)+(x.as?' · AS':'')+'</td><td style="padding:3px 6px">'+esc(x.code)+' <span style="color:var(--tx3)">'+esc(String(x.name).slice(0,36))+'</span></td><td style="text-align:right;padding:3px 6px;font-family:monospace">'+x.want+'</td><td style="text-align:right;padding:3px 6px;font-family:monospace">'+(x.got||'-')+'</td><td style="text-align:right;padding:3px 6px;font-family:monospace;color:#dc2626;font-weight:800">'+(x.got-x.want>0?'+':'')+(x.got-x.want)+'</td></tr>'; }).join('')
+        +'</table></div><div style="font-size:11px;color:var(--tx3);margin-top:4px">라벨 0 = 라벨이 와야 하는데 아직 없음(따로 오는 비규격 글래스도어 라벨이면 그 파일도 올려 주십시오). 라벨이 안 나오는 품목: '+NO_LABEL.map(function(x){ return x.t; }).join(' · ')+'</div>';
+    }
+    if(r.noDoc.length) h+='<div style="font-size:12px;color:#dc2626;margin-top:6px">라벨은 있는데 앱에 납품서가 없는 구매오더: '+r.noDoc.map(function(x){ return esc(x.po)+' ('+x.n+'장)'; }).join(' · ')+'</div>';
+    h+='<div style="margin-top:8px;font-size:12px;color:var(--tx2)">담아 둔 라벨 '+fs.length+'개 — 라벨마킹에서 바로 열립니다'+(syn.kept?' · <b style="color:#b45309">'+syn.kept+'개는 크기 때문에 이 기기에만</b>':'')+'</div>'
+      +fs.map(function(f){ return '<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0;border-top:1px dashed var(--b1)"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.name)+'</span><span style="color:var(--tx3)">'+md(f.day)+' · '+f.n+'장</span><button onclick="LBL.remove(\''+esc(f.id).replace(/'/g,"\\'")+'\')" style="border:1px solid var(--b2);background:none;border-radius:6px;font-size:11px;padding:1px 8px;cursor:pointer">지우기</button></div>'; }).join('')
+      +'</div>';
+    el.innerHTML=h;
+  }
+  function alerts(){
+    var r=check(); if(!r) return [];
+    var out=r.rows.map(function(x){ return {id:(x.whole?'lblpo|'+x.po+'|'+x.want:'lbl|'+x.po+'|'+x.code+'|'+x.want+'|'+x.got), g:'🏷 납품서 ↔ 라벨 장수가 다름', t:x.po+(x.as?' · AS':'')+' '+x.code+' — 납품서 '+x.want+' · 라벨 '+(x.got||0), sub:'발주 '+md(x.day)+' · '+x.name, q:'', go:"tdyGoTo('delivery','deliv-label-box')", goT:'보기'}; });
+    r.noDoc.forEach(function(x){ out.push({id:'lblnodoc|'+x.po, g:'🏷 납품서 ↔ 라벨 장수가 다름', t:'라벨은 있는데 납품서가 없는 구매오더 '+x.po, sub:'라벨 '+x.n+'장 — 납품서를 올려 주십시오', q:'', go:"tdyGoTo('delivery','deliv-label-box')", goT:'보기'}); });
+    return out;
+  }
+  if(prune()) save();
+  setTimeout(function(){ try{ render(); }catch(e){ console.warn('[라벨]', e); } }, 1500);
+  return {isLabelText:isLabelText, add:add, remove:remove, forSync:forSync, merge:merge, render:render, check:check, alerts:alerts, files:function(){ return files; }, unb64:unb64};
+})();
+</script>
 <!-- ⚠ 확인 안 된 오더 — 모든 화면 메뉴 밑 빨간 띠 (사장님 2026-11-18 「놓치는 오더가 없도록 더블체크 · 경각심 있게」)
      따로 된 덩어리(ALERT) — 여기서 멈춰도 앱은 돕니다(9-3). 계산은 새로 만들지 않고 있는 함수 값을 모읍니다.
      「확인」을 눌러야 빠지는 줄은 누른 사람·때를 alertAck 에 남겨 시트로 모든 기기에 갑니다(열쇠마다 나중 쪽). -->
@@ -35306,6 +35493,7 @@ var ALERT=(function(){
     // ② 비규격 품목이 있는데 비규격 작업지시서로 안 넘어간 납품서 (최근 7일 발주, 이 기기 기준)
     try{
       var have=nsHaveText();
+      if(!have) throw 0;   // 이 기기에서 비규격 작업지시서를 안 쓰면(휴대폰 등) 이 갈래는 안 봅니다 — 늘 뜨는 헛경보가 됨
       (typeof delivLog!=='undefined'?delivLog:[]).forEach(function(d){
         if(!d || !d.delivNo || (d.id && typeof delivDeleted!=='undefined' && delivDeleted && delivDeleted[d.id])) return;
         var day=d.orderDate||d.delivReqDate||''; if(!day || day<from) return;
@@ -35316,7 +35504,7 @@ var ALERT=(function(){
         var q=ns.reduce(function(s,it){ return s+(+it.qty||0); },0);
         out.push({id:'nsmiss|'+no, g:'🔲 비규격인데 작업지시서로 안 넘어간 납품서 (이 기기)', t:'납품서 '+no+((d.refNo||'').indexOf('54')===0?' · AS':''), sub:'발주 '+md(day)+' · '+ns.slice(0,2).map(function(it){ return it.short||it.name||it.code; }).join(' · ')+(ns.length>2?' 외 '+(ns.length-2):''), q:q+'장', go:"showMain('jobsheet')", goT:'작업지시서'});
       });
-    }catch(e){ console.warn('[확인 안 된 오더] 비규격 안 넘어감', e); }
+    }catch(e){ if(e!==0) console.warn('[확인 안 된 오더] 비규격 안 넘어감', e); }
     // ③ 비규격 작업지시서가 못 푼 줄 — 그 화면이 적어 둔 요약 (nonspec-alerts-v1)
     try{
       var na=JSON.parse(localStorage.getItem('nonspec-alerts-v1')||'{}');
@@ -35324,6 +35512,8 @@ var ALERT=(function(){
         out.push({id:x.id, g:'🔲 비규격 작업지시서가 못 푼 줄', t:x.t, sub:(x.po?'발주 '+md(x.po)+' · ':'')+(x.d||''), q:x.q?x.q+'장':'', go:"showMain('jobsheet')", goT:'열기', noAck:/^ns-std\|/.test(x.id)});
       });
     }catch(e){}
+    // 🏷 납품서 ↔ 라벨 장수
+    try{ if(typeof LBL!=='undefined') LBL.alerts().forEach(function(x){ out.push(x); }); }catch(e){ console.warn('[확인 안 된 오더] 라벨', e); }
     // ④ 재고에서 아직 안 빠진 정오더 납품서 (어제까지 발주)
     try{
       var pd=delivPendingList().filter(function(d){ return (d.orderDate||'')<today(); });

@@ -358,6 +358,7 @@ button:focus-visible,.filebtn:focus-visible,input:focus-visible,select:focus-vis
 <div class="topbar">
   <div class="brand">라벨 마킹<span>한샘 출고라벨 형광펜 · 메모</span></div>
   <label class="filebtn">PDF 열기<input type="file" id="file" accept="application/pdf" multiple title="여러 개를 한꺼번에 고르면 이어 붙여 엽니다"></label>
+  <button id="btnApp" title="앱 📦 납품서 탭에 올린 라벨(오늘·바로 전 영업일)을 바로 엽니다 — 다시 안 올려도 됩니다" style="display:none">📥 앱에 올린 라벨</button>
   <label class="packopt" title="PDF 여러 개를 열 때, 파일마다 끝에 1~3칸만 찬 장들을 4칸씩 모아 한 장으로 합칩니다. 라벨은 크기·모양 그대로 옮깁니다."><input type="checkbox" id="optPack"> 덜 찬 장 합치기</label>
   <div class="tabs">
     <button data-tab="labels" aria-pressed="true">라벨</button>
@@ -670,6 +671,9 @@ const viewer = document.getElementById("viewer");
 document.getElementById("file").addEventListener("change", async e=>{
   const fs = [...e.target.files];
   e.target.value = "";
+  return openFiles(fs);
+});
+async function openFiles(fs){
   if(!fs.length) return;
   if(fs.length === 1) return openPdf(fs[0]);
   /* 여러 파일 = 한 PDF 로 이어 붙여 엽니다 (사장님 2026-11-02 「월요일은 2-3개 · 글래스도어 비규격은 따로 파일」).
@@ -697,7 +701,34 @@ document.getElementById("file").addEventListener("change", async e=>{
   }catch(err){
     alert("PDF 여러 개를 합치지 못했습니다 — " + err.message + "\n한 파일씩 열어 주십시오.");
   }
-});
+}
+/* 📥 앱에 올린 라벨 (2026-11-18) — 앱 📦 납품서 탭이 담아 둔 라벨 PDF(같은 주소 저장함 `ybn-label-files-v1`, 오늘·바로 전 영업일)를 바로 엽니다.
+   다른 기기에서 올린 것도 시트로 받아 와 있습니다. 여러 개면 위 openFiles 와 같은 길(이름 차례로 이어 붙임·덜 찬 장 합치기). */
+function appLabels(){
+  try{ const a = JSON.parse(localStorage.getItem("ybn-label-files-v1") || "[]"); return Array.isArray(a) ? a.filter(f => f && f.b64) : []; }catch(e){ return []; }
+}
+function appLabelFile(f){ const s = atob(f.b64), a = new Uint8Array(s.length); for(let i=0;i<s.length;i++) a[i] = s.charCodeAt(i); return new File([a], f.name, {type:"application/pdf"}); }
+function appLabelsBtn(){
+  const b = document.getElementById("btnApp"); if(!b) return;
+  const n = appLabels().length;
+  b.style.display = n ? "" : "none"; b.textContent = "📥 앱에 올린 라벨 " + n;
+}
+function appLabelsOpen(){
+  const list = appLabels().sort((a,b) => String(b.day).localeCompare(String(a.day)) || a.name.localeCompare(b.name, "ko", {numeric:true}));
+  if(!list.length){ alert("앱에 올린 라벨이 없습니다. 앱 📦 납품서 탭에서 라벨 PDF 를 올려 주십시오."); return; }
+  const days = [...new Set(list.map(f => f.day))];
+  let pick = list;
+  if(days.length > 1){
+    const ans = prompt("어느 날 라벨을 열까요?\n" + days.map((d,i) => (i+1) + ") " + d + " — " + list.filter(f=>f.day===d).map(f=>f.name).join(", ")).join("\n") + "\n\n번호를 적어 주십시오 (비우면 1)", "1");
+    if(ans === null) return;
+    const d = days[(parseInt(ans,10)||1) - 1]; if(!d) return;
+    pick = list.filter(f => f.day === d);
+  }
+  return openFiles(pick.map(appLabelFile));
+}
+document.getElementById("btnApp").addEventListener("click", appLabelsOpen);
+window.addEventListener("storage", e => { if(e.key === "ybn-label-files-v1") appLabelsBtn(); });
+appLabelsBtn();
 
 /* ---------- 덜 찬 장 합치기 (사장님 2026-11-02) ----------
    한 장 = 라벨 4칸(왼위·오위·왼아래·오아래 차례로 찹니다). 파일마다 끝장이 1~3칸만 차면, 그런 장들의 라벨을 모아 4칸씩 새 장에 채웁니다.
