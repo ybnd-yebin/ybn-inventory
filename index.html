@@ -11124,6 +11124,8 @@ function metaForSync(){
   try{ if(odModelFix && Object.keys(odModelFix).length) put('odModelFix', odModelFix); }catch(e){}
   /* 📑 매출 마감일 — 달·매출처마다 직접 고친 날(2026-10-26). 열쇠마다 나중에 고친 쪽이 이김 */
   try{ if(sellClose && Object.keys(sellClose).length) put('sellClose', sellClose); }catch(e){}
+  /* 🧾 한샘 마감 파일 (2026-11-18) — 줄은 이 기기에만, 시트에는 달마다 요약 */
+  try{ if(typeof hsClose!=='undefined' && hsClose && Object.keys(hsClose).length) put('hsClose', hsCloseForSync()); }catch(e){}
   /* 📚 매입 단가 이력 (2026-11-17, 12-102) — 줄마다 나중 at 이 이김 */
   try{ if(buyPx && Object.keys(buyPx).length) put('buyPx', buyPx); }catch(e){}
   /* ⚠ 확인 안 된 오더 — 「확인」 누른 줄(누가·언제). 열쇠마다 나중 쪽 (2026-11-18) */
@@ -11325,6 +11327,7 @@ function applyMergedFromSheet(data){
   if(data.odTypeCfg!==undefined){ try{ odTypeCfgMerge(data.odTypeCfg); }catch(e){ console.warn('[발주 종류 목록] 받기 실패', e); } }
   if(data.odModelFix!==undefined){ try{ odModelFixMerge(data.odModelFix); }catch(e){ console.warn('[정규격 모델 사이즈] 받기 실패', e); } }
   if(data.sellClose!==undefined){ try{ if(sellCloseMerge(data.sellClose)) renderLgSummary(); }catch(e){ console.warn('[매출 마감일] 받기 실패', e); } }
+  if(data.hsClose!==undefined){ try{ if(hsCloseMerge(data.hsClose)) renderLgSummary(); }catch(e){ console.warn('[한샘 마감 파일] 받기 실패', e); } }
   if(data.labelFiles!==undefined){ try{ if(typeof LBL!=='undefined') LBL.merge(data.labelFiles); }catch(e){ console.warn('[라벨] 받기 실패', e); } }
   if(data.alertAck!==undefined){ try{ if(typeof ALERT!=='undefined') ALERT.merge(data.alertAck); }catch(e){ console.warn('[확인 안 된 오더] 받기 실패', e); } }
   try{ if(typeof ALERT!=='undefined') setTimeout(ALERT.render, 300); }catch(e){}
@@ -23755,6 +23758,179 @@ function sellCloseExcel(ym){
   XLSX.writeFile(wb, odFileName([ym.slice(2,4)+ym.slice(5,7),'한샘','매출마감']) + '.xlsx');
   showToast(`📥 ${+ym.slice(5,7)}월 매출 마감 엑셀 — ${n}줄`);
 }
+
+/* ── 🧾 한샘 마감 파일 (2026-11-18 사장님 「한샘 마감 1번부터」 — 대리님 앱 「한샘 마감」 방식, 한샘마감_분석.md 3-1) ──
+   한샘이 주는 「N월 마감」 엑셀(GR 입고) = 실제 받은 금액. 머리줄 `자재 · 자재명 · GR수량 · 단가 · GR금액 · GR날짜 · 구매문서 · (창고) · (Vendor Name)`.
+   GR 날짜의 달마다 한 건(hsClose[YYYY-MM]). 그 달 첫 파일 = 「가마감」(지난달·이번 달) / 다시 올리면 「정마감」 — 예전 가마감은 hsClosePre 에 사본.
+   매출처: 창고 1001 그레이박스 · 2001 오이도 · 5001 바스. 창고 칸이 없는 옛 파일은 Vendor 드림하이텍·BB 코드 = 바스, 그 밖은 구매문서(PO)가 같은 우리 납품서의 납품처로.
+   ⚠ 줄(rows)은 이 기기에만 — 시트로는 요약만 보냅니다(10월 1,140줄 ≈ 60KB, 덧붙임 칸이 넘치면 동기화가 멈춤). 단가·금액 줄은 코드에 안 적습니다(공개 저장소). */
+const LS_HS_CLOSE='ybn-hs-close-v1', LS_HS_CLOSE_PRE='ybn-hs-close-pre-v1';
+var hsClose = hsClose || (()=>{ try{ return JSON.parse(localStorage.getItem(LS_HS_CLOSE))||{}; }catch(e){ return {}; } })();
+var hsClosePre = hsClosePre || (()=>{ try{ return JSON.parse(localStorage.getItem(LS_HS_CLOSE_PRE))||{}; }catch(e){ return {}; } })();
+const HS_CLOSE_WH={ '1001':'gb', '2001':'od', '5001':'bas' };
+const HS_CLOSE_WH_NAME={ gb:'한샘 · 그레이박스', od:'한샘 · 오이도', bas:'바스 (드림하이텍)' };
+function hsCloseSave(sync){
+  try{ localStorage.setItem(LS_HS_CLOSE, JSON.stringify(hsClose)); }catch(e){ showToast('⚠ 한샘 마감 저장 실패 — 저장 공간을 확인하십시오'); }
+  try{ localStorage.setItem(LS_HS_CLOSE_PRE, JSON.stringify(hsClosePre)); }catch(e){}
+  if(sync!==false && typeof autoSync==='function') autoSync();
+}
+function hsCloseDate(v){
+  if(v instanceof Date) return _ymdLocal(v);
+  if(typeof v==='number' && v>20000 && v<80000) return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);   // 엑셀 날짜 숫자(UTC 자정 — 3-1 예외)
+  const s=String(v||'').replace(/\D/g,'');
+  return s.length>=8 && /^20\d{2}[01]\d[0-3]\d/.test(s) ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : '';
+}
+function hsCloseNum(v){ if(typeof v==='number') return v; const n=Number(String(v||'').replace(/[,\s원]/g,'')); return isFinite(n)?n:0; }
+/* 엑셀 → { sheet, rows:[[gr,code,qty,price,amt,po,wh]], names } — 시트마다 위 12줄에서 머리줄을 찾고 줄이 가장 많은 시트를 씁니다.
+   묶어 보기로 뽑은 파일은 자재·자재명·Vendor 가 첫 줄에만 있어 빈 칸은 윗줄 값을 이어 씁니다. 합계·요약 줄은 뺍니다. */
+function hsCloseParse(buf){
+  const wb=XLSX.read(buf,{type:'array'}); let best=null;
+  wb.SheetNames.forEach(sn=>{
+    /* 엑셀이 칸 범위를 A1:XFD(16,384칸)로 적어 둔 파일이 있습니다(0707 정리본) — 그대로 읽으면 멈추므로 앞 40칸만 */
+    const ws=wb.Sheets[sn]; if(ws && ws['!ref']){ const rg=XLSX.utils.decode_range(ws['!ref']); if(rg.e.c>39){ rg.e.c=39; ws['!ref']=XLSX.utils.encode_range(rg); } }
+    const m=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+    for(let i=0;i<Math.min(m.length,12);i++){
+      const H=(m[i]||[]).map(x=>String(x).replace(/[\s.]/g,''));
+      const c={ code:H.indexOf('자재'), name:H.indexOf('자재명'), qty:H.indexOf('GR수량'), price:H.indexOf('단가'), amt:H.indexOf('GR금액'),
+        gr:H.findIndex(x=>/^GR날짜/.test(x)), po:H.indexOf('구매문서'), wh:H.indexOf('창고'), vd:H.findIndex(x=>/^VendorName$|^업체명$|^공급업체/i.test(x)) };
+      if(c.code<0||c.qty<0||c.amt<0||c.gr<0) continue;
+      const rows=[], names={}; let pc='', pn='', pv='';
+      for(let r=i+1;r<m.length;r++){
+        const R=m[r]||[];
+        if(R.some(x=>/합계|총계|요약|Total/i.test(String(x)))) continue;
+        let code=String(R[c.code]||'').trim(), nm=c.name>=0?String(R[c.name]||'').trim():'', vd=c.vd>=0?String(R[c.vd]||'').trim():'';
+        if(vd) pv=vd; else vd=pv;
+        if(code){ pc=code; pn=nm; } else { code=pc; nm=nm||pn; }
+        const gr=hsCloseDate(R[c.gr]), q=hsCloseNum(R[c.qty]), a=hsCloseNum(R[c.amt]);
+        if(!code || !gr || (!q && !a)) continue;
+        if(nm) names[code]=nm;
+        let wh=c.wh>=0 ? (HS_CLOSE_WH[String(R[c.wh]).trim()]||'') : '';
+        if(!wh && (/드림/.test(vd) || isBasCode(code))) wh='bas';
+        rows.push([gr, code, q, c.price>=0?hsCloseNum(R[c.price]):0, a, c.po>=0?String(R[c.po]||'').trim():'', wh]);
+      }
+      if(!best || rows.length>best.rows.length) best={ sheet:sn, rows, names };
+      break;
+    }
+  });
+  return best;
+}
+/* 창고 칸이 없는 줄 — 같은 PO 의 우리 납품서 납품처로(오이도/그레이박스). 못 찾으면 그레이박스 */
+function hsCloseFillWh(rows){
+  const byRef={};
+  (typeof delivLog!=='undefined'?delivLog:[]).forEach(d=>{ if(d && d.refNo) byRef[String(d.refNo)]=delivDestGroup(d.dest)==='오이도'?'od':'gb'; });
+  /* 우리 납품서가 없는 옛 달(6월 전) — 대리님 앱 규칙: 그 PO 품목이 글래스 도어 450·500 채널(CAIB13894·13895)뿐이고 AS 가 아니면 오이도 */
+  const poCodes={}; rows.forEach(r=>{ if(r[5]) (poCodes[r[5]]=poCodes[r[5]]||new Set()).add(r[1]); });
+  const oidoPo=po=>!String(po).startsWith('54') && poCodes[po] && [...poCodes[po]].every(c=>c==='CAIB13894'||c==='CAIB13895');
+  rows.forEach(r=>{ if(!r[6]) r[6]=(r[5] && byRef[r[5]]) || (r[5] && oidoPo(r[5]) ? 'od' : 'gb'); });
+}
+function hsCloseSummary(rec){
+  const s={ n:0, qty:0, amt:0, grFrom:'', grTo:'', byWh:{gb:{q:0,a:0},od:{q:0,a:0},bas:{q:0,a:0}}, bad:0, pos:0 };
+  const pos=new Set();
+  (rec.rows||[]).forEach(r=>{ s.n++; s.qty+=r[2]; s.amt+=r[4]; const w=s.byWh[r[6]]||s.byWh.gb; w.q+=r[2]; w.a+=r[4];
+    if(!s.grFrom||r[0]<s.grFrom) s.grFrom=r[0]; if(r[0]>s.grTo) s.grTo=r[0]; if(r[5]) pos.add(r[5]);
+    if(r[3] && Math.abs(r[2]*r[3]-r[4])>1) s.bad++; });
+  s.pos=pos.size; s.amt=Math.round(s.amt);
+  return s;
+}
+function hsClosePick(){ const f=document.getElementById('hs-close-file'); if(f){ f.value=''; f.click(); } }
+async function hsCloseUpload(inp){
+  const file=inp.files&&inp.files[0]; if(!file) return;
+  if(typeof XLSX==='undefined'){ showToast('엑셀 기능 로딩 중 — 잠시 후 다시'); return; }
+  let p; try{ p=hsCloseParse(await file.arrayBuffer()); }catch(e){ alert('한샘 마감 엑셀을 못 읽었습니다.\n'+e.message); return; }
+  if(!p || !p.rows.length){ alert('「자재 · GR수량 · GR금액 · GR날짜」 머리줄이 있는 시트를 찾지 못했습니다.\n한샘 마감 엑셀(GR 입고 내역)인지 확인해 주십시오.'); return; }
+  hsCloseFillWh(p.rows);
+  const by={}; p.rows.forEach(r=>{ (by[r[0].slice(0,7)]=by[r[0].slice(0,7)]||[]).push(r); });
+  const yms=Object.keys(by).sort(), lastYm=sellYmShift(todayStr().slice(0,7),-1);
+  const plan=yms.map(ym=>{ const old=hsClose[ym], rec={rows:by[ym]}, s=hsCloseSummary(rec);
+    const kind= old ? '정마감' : (ym>=lastYm ? '가마감' : '정마감');
+    return { ym, old, s, kind }; });
+  const msg=plan.map(x=>`· ${+x.ym.slice(0,4)}년 ${+x.ym.slice(5,7)}월 — ${x.s.n}줄 · ${x.s.amt.toLocaleString('ko-KR')}원 → ${x.kind}`
+    +(x.old?` (지금 ${x.old.kind} ${Math.round(x.old.amt||0).toLocaleString('ko-KR')}원 · 차이 ${(x.s.amt-Math.round(x.old.amt||0)).toLocaleString('ko-KR')}원)`:'')).join('\n');
+  if(!confirm(`한샘 마감 파일을 넣습니다 — ${file.name}\n\n${msg}\n\n이미 있는 달은 새 파일로 바뀝니다(가마감이었으면 사본을 남깁니다).`)) return;
+  const at=new Date().toISOString(), by_=(typeof getActor==='function'&&getActor())||'';
+  plan.forEach(x=>{
+    if(x.old && x.old.kind==='가마감' && x.old.rows) hsClosePre[x.ym]=x.old;
+    const names={}; by[x.ym].forEach(r=>{ if(p.names[r[1]]) names[r[1]]=p.names[r[1]]; });
+    hsClose[x.ym]=Object.assign({ kind:x.kind, file:file.name, sheet:p.sheet, at, by:by_, rows:by[x.ym], names }, x.s);
+  });
+  hsCloseSave(); renderLgSummary();
+  showToast(`🧾 한샘 마감 ${plan.map(x=>+x.ym.slice(5,7)+'월 '+x.kind).join(' · ')} 넣었습니다`);
+}
+function hsCloseKind(ym){
+  const r=hsClose[ym]; if(!r) return;
+  r.kind=r.kind==='가마감'?'정마감':'가마감'; r.at=new Date().toISOString(); r.by=(typeof getActor==='function'&&getActor())||'';
+  hsCloseSave(); renderLgSummary(); showToast(`${+ym.slice(5,7)}월 한샘 마감 → ${r.kind}`);
+}
+function hsCloseDel(ym){
+  const r=hsClose[ym]; if(!r) return;
+  if(!confirm(`${+ym.slice(0,4)}년 ${+ym.slice(5,7)}월 한샘 마감 파일(${r.kind} · ${r.n}줄)을 지울까요?\n다른 기기에서도 지워집니다. 파일을 다시 올리면 되살아납니다.`)) return;
+  if(r.kind==='가마감' && r.rows) hsClosePre[ym]=r;
+  hsClose[ym]={ del:true, at:new Date().toISOString(), by:(typeof getActor==='function'&&getActor())||'' };
+  hsCloseSave(); renderLgSummary();
+}
+/* 시트 — 줄 빼고 요약만. 받기는 달마다 나중 at 이 이김. 받은 것이 요약뿐인데 이 기기 줄이 같은 판(at 같음)이면 줄을 살림 */
+function hsCloseForSync(){
+  const o={}; Object.keys(hsClose||{}).forEach(ym=>{ const r=Object.assign({},hsClose[ym]); delete r.rows; delete r.names; o[ym]=r; }); return o;
+}
+function hsCloseMerge(x){
+  if(!x || typeof x!=='object') return false; let ch=false;
+  if(!hsClose || typeof hsClose!=='object'){ try{ hsClose=JSON.parse(localStorage.getItem(LS_HS_CLOSE))||{}; }catch(e){ hsClose={}; } }   // 앱을 막 열 때 먼저 받아도 되게
+  Object.keys(x).forEach(ym=>{ const a=x[ym], b=hsClose[ym];
+    if(!a || String(a.at||'')<=String((b&&b.at)||'')) return;
+    const m=Object.assign({},a);
+    if(!m.rows && b && b.rows && String(b.at)===String(a.at)){ m.rows=b.rows; m.names=b.names; }
+    hsClose[ym]=m; ch=true; });
+  if(ch) hsCloseSave(false);
+  return ch;
+}
+function hsCloseSecHtml(ym){
+  const mm=+ym.slice(5,7), won=x=>Math.round(x||0).toLocaleString('ko-KR'), md=d=>d?`${+d.slice(5,7)}/${+d.slice(8,10)}`:'-';
+  const rec=hsClose[ym] && !hsClose[ym].del ? hsClose[ym] : null;
+  const open=!!lgDash.hsc;
+  const chip=k=>`<span style="font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:6px;background:${k==='정마감'?'#16a34a1f':'#ea6c001f'};color:${k==='정마감'?'#16a34a':'#ea6c00'}">${k}</span>`;
+  let body='';
+  if(open){
+    const N="text-align:right;font-family:'JetBrains Mono',monospace;";
+    let rowsHtml='';
+    if(rec){
+      rowsHtml=SELL_CLOSE_GROUPS.map(g=>{ const w=(rec.byWh||{})[g.k]||{q:0,a:0};
+        let sc=null; try{ const rr=sellCloseRows(g, ym); sc={ q:rr.reduce((s,r)=>s+r.qty,0), a:rr.reduce((s,r)=>s+(r.amt||0),0) }; }catch(e){}
+        const d=sc?Math.round(w.a-sc.a):null;
+        return `<div style="display:grid;grid-template-columns:var(--hcc);gap:8px;align-items:center;padding:7px 12px;border-top:1px solid var(--b1);font-size:12px">
+          <b>${g.name}</b><span style="${N}">${w.q||'-'}</span><span style="${N}font-weight:800">${w.a?won(w.a):'-'}</span>
+          <span class="hc-x" style="${N}color:var(--tx2)">${sc&&sc.a?won(sc.a):'-'}</span>
+          <span style="${N}font-weight:700;color:${d==null||Math.abs(d)<1?'var(--tx3)':'#ea6c00'}">${d==null?'-':Math.abs(d)<1?'0':(d>0?'+':'')+won(d)}</span></div>`; }).join('');
+    }
+    const pre=hsClosePre[ym];
+    const preHtml= rec && pre && rec.kind==='정마감' ? `<div style="padding:6px 12px;font-size:11px;color:var(--tx2);border-top:1px solid var(--b1)">가마감 → 정마감: ${pre.n}줄 ${won(pre.amt)}원 → ${rec.n}줄 ${won(rec.amt)}원 · <b style="color:${rec.amt===pre.amt?'var(--tx3)':'#ea6c00'}">${rec.amt-pre.amt>0?'+':''}${won(rec.amt-pre.amt)}원</b> (GR ${md(pre.grTo)}까지 → ${md(rec.grTo)}까지)</div>`:'';
+    const months=Object.keys(hsClose).filter(k=>!hsClose[k].del).sort().reverse();
+    body=`<style>.hc-wrap{--hcc:minmax(0,1.3fr) 56px minmax(96px,1fr) minmax(96px,1fr) minmax(80px,.8fr)}@media (max-width:560px){.hc-wrap{--hcc:minmax(0,1fr) 40px minmax(78px,auto) minmax(62px,auto)}.hc-wrap .hc-x{display:none}}</style>
+    <div class="lgd-body hc-wrap" style="padding:0">
+      ${rec?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;font-size:11.5px">${chip(rec.kind)}
+          <span style="color:var(--tx2)">GR ${md(rec.grFrom)} ~ ${md(rec.grTo)} · ${rec.n}줄 · PO ${rec.pos}건 · ${rec.qty}개</span>
+          <span style="color:var(--tx3);font-size:10.5px">${etpEsc(rec.file||'')} · ${etpEsc((rec.at||'').slice(5,16).replace('T',' '))} ${etpEsc(rec.by||'')}${rec.rows?'':' · <b style="color:var(--acc2)">이 기기엔 요약만</b>'}</span></div>
+        <div style="display:grid;grid-template-columns:var(--hcc);gap:8px;padding:6px 12px;background:var(--s3);font-size:10.5px;font-weight:700;color:var(--tx2)">
+          <span>매출처</span><span style="text-align:right">개수</span><span style="text-align:right">① 마감 파일</span><span class="hc-x" style="text-align:right">📑 매출 마감</span><span style="text-align:right">차이</span></div>
+        ${rowsHtml}
+        <div style="display:grid;grid-template-columns:var(--hcc);gap:8px;align-items:center;padding:8px 12px;border-top:2px solid var(--b2);font-size:12px"><b>합계</b><span style="${N}">${rec.qty}</span><span style="${N}font-weight:800;color:#15803d">${won(rec.amt)}</span><span class="hc-x"></span><span></span></div>
+        ${preHtml}
+        ${rec.bad?`<div style="padding:6px 12px;font-size:11px;color:#dc2626;border-top:1px solid var(--b1)">⚠ GR수량 × 단가 ≠ GR금액 인 줄 ${rec.bad}개 — 한샘 파일 확인</div>`:''}
+        <div style="padding:6px 12px;font-size:10.5px;color:var(--tx3);border-top:1px solid var(--b1)">① 마감 파일 = 한샘 GR 입고일 기준 실제 금액 · 📑 매출 마감 = 우리 납품서 × 단가, 납품요청일 기준이라 달 경계에서 차이가 납니다. PO별로 맞춰 보기는 다음 단계입니다.</div>`
+      :`<div style="padding:12px;font-size:11.5px;color:var(--tx3)">${mm}월 한샘 마감 파일이 아직 없습니다 — 한샘에서 받은 「${mm}월 마감」 엑셀을 올리면 매출처별 금액을 바로 보여 드립니다.</div>`}
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--b1);background:var(--s2)">
+        <span style="font-size:10.5px;color:var(--tx3);flex:1;min-width:180px">${months.length?'넣은 달: '+months.map(k=>`${+k.slice(5,7)}월 ${hsClose[k].kind}`).join(' · '):''}</span>
+        ${rec?`<button class="lgd-nb" onclick="hsCloseKind('${ym}')">${rec.kind==='가마감'?'정마감으로':'가마감으로'} 바꾸기</button><button class="lgd-nb" onclick="hsCloseDel('${ym}')" style="color:var(--acc4)">이 달 지우기</button>`:''}
+        <button class="lgd-nb" onclick="hsClosePick()" style="font-weight:700">📥 한샘 마감 엑셀 올리기</button>
+        <input type="file" id="hs-close-file" accept=".xlsx,.xls" style="display:none" onchange="hsCloseUpload(this)"></div>
+    </div>`;
+  }
+  return `<div class="lgd-sec${open?' open':''}">
+    <div class="lgd-head" onclick="lgDashToggle('hsc')" style="grid-template-columns:minmax(0,1fr) auto 18px">
+      <span class="h">🧾 ${mm}월 한샘 마감 파일<small>${rec?`${rec.kind} · GR ${md(rec.grFrom)}~${md(rec.grTo)} · 한샘이 실제 잡아 준 금액`:'한샘 GR 입고 내역 — 아직 안 넣음'}</small></span>
+      <span><span class="k" style="display:block">① 마감 파일</span><span class="v" style="display:block;color:#15803d">${rec?won(rec.amt)+'원':'-'}</span></span>
+      <span class="ar">▾</span></div>
+    ${body}</div>`;
+}
 function renderLgSummary(){
   const host=document.getElementById('lg-summary'); if(!host) return;
   lgDashCss(); window._lgHsCache={};
@@ -23832,7 +24008,8 @@ function renderLgSummary(){
     ${dailyBody}</div>`;
 
   let scSec=''; try{ scSec=sellCloseSecHtml(ym); }catch(e){ console.warn('[매출 마감]', e); }
-  host.innerHTML = bar + cards + todayBody + monthSec + scSec + dailySec;
+  let hcSec=''; try{ hcSec=hsCloseSecHtml(ym); }catch(e){ console.warn('[한샘 마감 파일]', e); }
+  host.innerHTML = bar + cards + todayBody + monthSec + scSec + hcSec + dailySec;
   try{ lgRenderExtraHeads(); }catch(e){}
 }
 /* 업체별 표 — opt.scope(펼침 기억 열쇠) · opt.title. 업체 줄을 누르면 그 업체 거래 상세(lgVendorDetailHtml)가 바로 아래 펼쳐집니다. */
