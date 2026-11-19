@@ -16493,6 +16493,7 @@ function odTitleParts(o){
 }
 
 /* 엑셀 양식은 연도를 두 자리로 적습니다 — 26-09-15 (사장님 양식 2026-09-15 확인) */
+function odMD(d){ const m=String(d||'').match(/^\d{4}-(\d{2})-(\d{2})/); return m?(+m[1])+'/'+(+m[2]):String(d||''); }   // 11/20 꼴
 function odShortDate(d){
   const s=String(d||'');
   const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -18850,10 +18851,15 @@ function odGoAllList(){
   const el=document.getElementById('od-find');
   if(el){ el.style.scrollMarginTop='150px'; el.scrollIntoView({ behavior:'smooth', block:'start' }); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),1400); }
 }
+/* 입고 대기 — 3.2T 백사틴 / 5T 만 보기 (사장님 2026-11-19 「현장에서 보는 사람이 달라서」). 이 기기에 기억. 유리는 종류 체크와 같은 odKindKey 로 */
+const OD_OPEN_GLASS_KEY='ybn-od-open-glass-v1';
+var odOpenGlass=(function(){ try{ return localStorage.getItem(OD_OPEN_GLASS_KEY)||''; }catch(e){ return ''; } })();
+function odOpenGlassSet(g){ odOpenGlass=(odOpenGlass===g?'':g); try{ localStorage.setItem(OD_OPEN_GLASS_KEY, odOpenGlass); }catch(e){} renderOrderList(); }
+function odGlassOf(o){ let k=''; try{ k=odKindKey(o); }catch(e){} return /^3\.2T/.test(k)?'3.2':/(^|\s)5T/.test(k)?'5':''; }
 function odStateOrder(o){
   const ym=todayStr().slice(0,7), inMon=String(o.date||'').slice(0,7)===ym;
   switch(odFindState){
-    case 'open':  return (o.items||[]).some(it=>it.w&&it.h&&!it.received);
+    case 'open':  return (o.items||[]).some(it=>it.w&&it.h&&!it.received) && (!odOpenGlass || odGlassOf(o)===odOpenGlass);
     case 'late':  return !!(window._odLateIds && window._odLateIds.has(o.id));
     case 'month': return inMon;
     case 'auto':  return inMon && (o.items||[]).some(it=>it.received&&it.auto);
@@ -18892,7 +18898,12 @@ function odFindRenderBar(list, q){
       const on=(odFindVendor===v);
       return `<button onclick="odFindPickVendor('${String(v).replace(/'/g,"\\'")}')" style="padding:5px 11px;border-radius:14px;font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid ${on?'var(--acc)':'var(--b2)'};background:${on?'var(--acc)':'var(--s2)'};color:${on?'#fff':'var(--tx2)'};font-weight:${on?700:500}">${_odEsc(label)}</button>`;
     };
-    const st = odFindState ? `<button onclick="odStatPick('')" title="이 거르기 풀기" style="padding:5px 11px;border-radius:14px;font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid #d97706;background:#fff7ed;color:#b45309;font-weight:700">${OD_STATE_LABEL[odFindState]}만 ✕</button>` : '';
+    const st = odFindState ? `<button onclick="odStatPick('')" title="이 거르기 풀기" style="padding:5px 11px;border-radius:14px;font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid #d97706;background:#fff7ed;color:#b45309;font-weight:700">${OD_STATE_LABEL[odFindState]}만 ✕</button>`
+      + (odFindState==='open' ? (()=>{ const cnt={'3.2':0,'5':0};
+          (orderLog||[]).forEach(o=>{ if((o.items||[]).some(it=>it.w&&it.h&&!it.received)){ const g=odGlassOf(o); if(g in cnt) cnt[g]++; } });
+          const b=(g,label)=>{ const on=odOpenGlass===g;
+            return `<button onclick="odOpenGlassSet('${g}')" title="${on?'다시 누르면 전부':'이것만 보기 — 이 기기에 기억합니다'}" style="padding:5px 11px;border-radius:14px;font-size:11.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;border:1px solid ${on?'var(--acc)':'var(--b2)'};background:${on?'var(--acc)':'var(--s1)'};color:${on?'#fff':'var(--tx2)'};font-weight:${on?700:500}">${label} <span style="opacity:.75">${cnt[g]}</span></button>`; };
+          return b('3.2','3.2T 백사틴')+b('5','5T'); })() : '') : '';
     let kh='';
     if(odFindVendor){   // 고른 발주처의 종류 — 발주 많은 차례
       const cnt={}; (orderLog||[]).forEach(o=>{ if(odStmtVendor(o.vendor)!==odFindVendor) return; const k=odKindKey(o); cnt[k]=(cnt[k]||0)+1; });
@@ -19201,7 +19212,7 @@ function renderOrderList(){
       const itemsHtml=o.items.map((it,i)=>{
         const hasSize=it.w&&it.h;
         const titleLine=hasSize?`${it.w}×${it.h}`:(it.pname||'(품명)');
-        const subLine=hasSize?`${it.pname?it.pname+' · ':''}${it.bigo||''}`:(it.bigo||'');
+        const subLine=(hasSize?`${it.pname?it.pname+' · ':''}${it.bigo||''}`:(it.bigo||''))+(it.req?`${(hasSize?(it.pname||it.bigo):it.bigo)?' · ':''}작업요청 ${odMD(it.req)}`:'');   // 작업요청일 = 비규격에서 넘어온 납품요청일 (사장님 2026-11-19)
         const hit=odFindItemHit(it, o);   // 찾는 글자 · 고른 카드에 걸린 줄은 노랗게
         return `
         <div style="display:flex;align-items:center;gap:9px;padding:7px ${hit?'6px':'0'};border-bottom:1px solid var(--b1)${hit?';background:#fff3b0;border-radius:6px':''}">
@@ -19232,7 +19243,7 @@ function renderOrderList(){
              <input type="text" value="${q2(o.due||'')}" onclick="event.stopPropagation()" onchange="odEditDue('${o.id}',this.value)" placeholder="예: 8/28 또는 긴급" style="width:110px;padding:3px 7px;font-size:11px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif">
              ${o.client?`<span>· ${q2(o.client)}</span>`:''}
            </div>`
-        : `<div class="od-sum-2">발주 ${q2(o.date)}${o.due?` · 납기 ${odDueLogHtml(o,'pre')}<span style="${late?'color:var(--acc2);font-weight:700':''}">${q2(o.due)}${late?' 지남':''}</span>${odDueLogHtml(o,'post')}`:''}${o.client?' · '+q2(o.client):''}${o.mgr?' · 담당 '+q2(o.mgr):''}
+        : `<div class="od-sum-2">발주 ${q2(o.date)}${o.due?` · 납기 ${odDueLogHtml(o,'pre')}<span style="${late?'color:var(--acc2);font-weight:700':''}">${q2(o.due)}${late?' 지남':''}</span>${odDueLogHtml(o,'post')}`:''}${(()=>{ const rq=o.items.filter(it=>it.req&&!(it.w&&it.h&&it.received)).map(it=>it.req).sort()[0]||o.items.map(it=>it.req).filter(Boolean).sort()[0]; return rq?' · 작업요청 '+q2(odMD(rq)):''; })()}${o.client?' · 업체 <b style="color:var(--tx1)">'+q2(o.client)+'</b>':''}${o.mgr?' · 담당 '+q2(o.mgr):''}
              · ${o.items.length}줄 <b style="font-family:'JetBrains Mono',monospace;color:var(--tx2)">${qtyTot}</b>장${openQty&&openQty!==qtyTot?` · 미입고 <b style="font-family:'JetBrains Mono',monospace">${openQty}</b>장`:''}${(()=>{ const d=o.items.reduce((s,it)=>s+odRecvDiff(it),0); return d?` · 실입고 차이 <b style="font-family:'JetBrains Mono',monospace;color:${d<0?'var(--acc4)':'var(--acc)'}">${odDiffTxt(d)}</b>`:''; })()}</div>`;
       const locked=odClosedLock(o);
       const tags = (editing ? `<span class="status-tag" style="background:rgba(9,105,218,.12);color:var(--acc)">✏️ 위 칸에서 수정 중</span>` : '')
