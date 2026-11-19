@@ -19232,7 +19232,7 @@ function renderOrderList(){
              <input type="text" value="${q2(o.due||'')}" onclick="event.stopPropagation()" onchange="odEditDue('${o.id}',this.value)" placeholder="예: 8/28 또는 긴급" style="width:110px;padding:3px 7px;font-size:11px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif">
              ${o.client?`<span>· ${q2(o.client)}</span>`:''}
            </div>`
-        : `<div class="od-sum-2">발주 ${q2(o.date)}${o.due?` · 납기 <span style="${late?'color:var(--acc2);font-weight:700':''}">${q2(o.due)}${late?' 지남':''}</span>`:''}${o.client?' · '+q2(o.client):''}${o.mgr?' · 담당 '+q2(o.mgr):''}
+        : `<div class="od-sum-2">발주 ${q2(o.date)}${o.due?` · 납기 ${odDueLogHtml(o,'pre')}<span style="${late?'color:var(--acc2);font-weight:700':''}">${q2(o.due)}${late?' 지남':''}</span>${odDueLogHtml(o,'post')}`:''}${o.client?' · '+q2(o.client):''}${o.mgr?' · 담당 '+q2(o.mgr):''}
              · ${o.items.length}줄 <b style="font-family:'JetBrains Mono',monospace;color:var(--tx2)">${qtyTot}</b>장${openQty&&openQty!==qtyTot?` · 미입고 <b style="font-family:'JetBrains Mono',monospace">${openQty}</b>장`:''}${(()=>{ const d=o.items.reduce((s,it)=>s+odRecvDiff(it),0); return d?` · 실입고 차이 <b style="font-family:'JetBrains Mono',monospace;color:${d<0?'var(--acc4)':'var(--acc)'}">${odDiffTxt(d)}</b>`:''; })()}</div>`;
       const locked=odClosedLock(o);
       const tags = (editing ? `<span class="status-tag" style="background:rgba(9,105,218,.12);color:var(--acc)">✏️ 위 칸에서 수정 중</span>` : '')
@@ -22486,6 +22486,7 @@ function odSaveEdit(){
   const valid=odLines.filter(odLineValid);
   const rec=(o.items||[]).filter(it=>it.received);
   if(!c.items.length && !rec.length){ showToast('품목이 하나도 없습니다 — 발주를 지우시려면 ⋯ 더보기의 🗑 삭제'); return; }
+  const dueWhy=odDueAskWhy(o, c.due); if(dueWhy===null) return;
   try{ const {p}=curPreset(); const hits=c.items.filter(it=>odStdSizeHit(it.w, it.h, p));
     if(hits.length && !confirm(`⚠ 정규격 사이즈 ${hits.length}줄이 있습니다 — ${hits.slice(0,4).map(it=>it.w+'×'+it.h).join(', ')}\n그대로 저장할까요?`)) return; }catch(e){}
   const byIdx={}, fresh=[];
@@ -22510,6 +22511,7 @@ function odSaveEdit(){
   const keepType=keepVendor && tsel===odEditOrig.typeVal;
   if(!keepVendor) o.vendor=c.vendor;
   if(!keepType){ o.type=c.type; o.thick=c.thick||''; o.title=c.title; }
+  odDueLogPush(o, c.due, dueWhy);
   o.date=c.date; o.due=c.due; o.client=c.client; o.bigo=c.bigo||''; o.ref=c.ref||''; o.mgr=c.mgr||o.mgr||''; if(c.boxSpec!==undefined) o.boxSpec=c.boxSpec;
   o.items=items;
   o.updatedAt=new Date().toISOString();
@@ -22532,8 +22534,32 @@ function _odTouched(o){
   saveOrderLog(); renderOrderList();
   if(typeof autoSync==='function') autoSync();
 }
+/* 납기 바꾼 기록 (사장님 2026-11-19 「현성이 미뤄 달래서 19일 → 23일 — 미뤘다는 증거가 남았으면」)
+   o.dueLog = [{from, to, why, at, by}] — 발주 기록에 붙어 시트로 같이 갑니다(발주는 통째로 나중 것이 이김).
+   처음 정한 납기(빈 칸 → 날짜)는 안 묻고 안 남깁니다. */
+function odDueAskWhy(o, to){
+  const from=String(o.due||'').trim(); to=String(to||'').trim();
+  if(!from || from===to) return '';
+  const w=prompt(`납기를 ${from} → ${to||'(빈 칸)'} 로 바꿉니다.\n까닭을 적어 주십시오 (발주 목록에 남습니다)\n예: 현성 요청 — 급하지 않아 미룸`, '');
+  return w===null ? null : w.trim();
+}
+function odDueLogPush(o, to, why){
+  const from=String(o.due||'').trim(); to=String(to||'').trim();
+  if(!from || from===to) return;
+  let by=''; try{ by=(typeof odMgrGet==='function' && odMgrGet())||''; }catch(e){}
+  (o.dueLog=o.dueLog||[]).push({from, to, why:why||'', at:new Date().toISOString(), by});
+}
+function odDueLogHtml(o, part){   // part 'pre' = 처음 납기(줄 그음) · 'post' = 까닭
+  const L=o.dueLog||[]; if(!L.length) return '';
+  const tip='납기 바꾼 기록\n'+L.map(x=>`${x.from} → ${x.to||'(빈 칸)'}${x.why?' · '+x.why:''} (${String(x.at||'').slice(5,10).replace('-','/')}${x.by?' '+x.by:''})`).join('\n');
+  if(part==='pre') return `<span title="${_odEsc(tip)}"><s style="color:var(--tx3)">${_odEsc(L[0].from)}</s> → </span>`;
+  const last=L[L.length-1];
+  return `<span title="${_odEsc(tip)}" style="color:var(--tx2)"> (${last.why?_odEsc(last.why):'바뀜'}${L.length>1?' · '+L.length+'번 바뀜':''})</span>`;
+}
 function odEditDue(orderId, val){
   const o=_odFind(orderId); if(!o) return;
+  const why=odDueAskWhy(o, val); if(why===null){ renderOrderList(); return; }
+  odDueLogPush(o, val, why);
   o.due=String(val||'').trim();
   _odTouched(o);
   showToast(o.due?`납기 ${o.due}로 바꿨어요`:'납기를 비웠어요');
