@@ -2116,7 +2116,7 @@ function delivMatchHtml(mt){
   return h + `</div>`;
 }
 /* 쪽수순 — 라벨 뭉치를 위에서부터 한 장씩 넘기며 맞춰 볼 때. 쪽 안은 왼쪽 위 → 오른쪽 위 → 왼쪽 아래 → 오른쪽 아래.
-   한 쪽 안에 같은 품명이 여럿이면 한 줄로 묶습니다. 체크는 색별 보기와 따로(「쪽|품명」 열쇠) — 쪽마다 따로 넘기므로. */
+   같은 품명은 쪽이 달라도 한 줄(처음 나온 쪽 밑). 체크는 색별 보기와 따로(「P|m|품명」 열쇠). */
 function renderPageView(infos, done, mt){
   const badKeys = new Set();
   for(const p of mt.pos) for(const g of p.rows) if(!g.ok) badKeys.add(p.po + "#" + g.key);
@@ -2124,16 +2124,21 @@ function renderPageView(infos, done, mt){
   const useOrdOf = new Map(mt.pos.map(p=>[p.po, p.useOrd]));
   const byPage = new Map();
   for(const x of infos){ (byPage.get(x.page) || byPage.set(x.page, []).get(x.page)).push(x); }
+  /* 같은 모델은 쪽이 갈려도 한 줄 (사장님 2026-11-19 「총 8장인데 쪽마다 1·4·3장으로 갈림 — 모델로 묶어야」).
+     처음 나온 쪽 밑에 한 줄 · 장수는 전부 더함 · 몇 쪽에 걸쳤는지 옆에 적음. */
+  const pgs = [...byPage.keys()].sort((a,b)=>a-b);
+  const model = new Map();
+  for(const pg of pgs) for(const x of byPage.get(pg).sort((a,b)=>a.quad - b.quad)){
+    const k = "P|m|" + x.name;
+    const g = model.get(k) || (model.set(k, {key:k, x, n:0, pages:new Set(), first:pg}), model.get(k));
+    g.n++; g.pages.add(x.page);
+  }
   const rows = []; let h = "";
-  for(const pg of [...byPage.keys()].sort((a,b)=>a-b)){
-    const list = byPage.get(pg).sort((a,b)=>a.quad - b.quad);
-    const grp = new Map();
-    for(const x of list){
-      const k = "P|" + pg + "|" + x.name;
-      const g = grp.get(k) || (grp.set(k, {key:k, x, n:0}), grp.get(k)); g.n++;
-    }
+  for(const pg of pgs){
+    const list = byPage.get(pg);
+    const grp = new Map([...model.values()].filter(g => g.first === pg).map(g => [g.key, g]));
     const pos = [...new Set(list.map(x=>x.po).filter(Boolean))];
-    h += `<li class="grp">${pg}쪽${pos.length ? " · " + pos.join(" · ") : ""}</li>`;
+    h += `<li class="grp">${pg}쪽${pos.length ? " · " + pos.join(" · ") : ""}${grp.size ? "" : " · 앞 쪽과 같은 모델만"}</li>`;
     for(const g of grp.values()){
       rows.push(g);
       const it = checkItemOf(g.x.name), on = done.has(g.key);
@@ -2143,7 +2148,7 @@ function renderPageView(infos, done, mt){
       h += `<li class="${on ? "done" : ""}" data-key="${esc(g.key).replace(/"/g,"&quot;")}"${checkChipStyle(it.color, it.tok)}>` +
         `<input type="checkbox"${on ? " checked" : ""} tabindex="-1">` +
         `<span class="nm">${it.color ? "<b>" + esc(it.color) + "</b>" : ""}${esc([it.type, it.text].filter(Boolean).join(" "))}${it.side && LR_KEEP_RE.test(g.x.name) ? " " + it.side : ""}${tag}</span>` +
-        `<span class="q">${g.n}장</span></li>`;
+        `<span class="q">${g.n}장</span><span class="pg">${g.pages.size > 1 ? checkPages(g.pages) : ""}</span></li>`;
     }
   }
   return {rows, html: `<ul class="pv">${h}</ul>`};
