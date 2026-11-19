@@ -1689,12 +1689,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
 <div class="sec-pg" id="pg-jobsheet">
   <style>
     #pg-jobsheet.sec-pg{max-width:none;margin:0;padding:0 8px 8px}
-    .js-bar{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:4px 4px 6px;font-size:12px;color:var(--tx3)}
-    .js-bar a{color:var(--acc);text-decoration:none;font-weight:700}
+    /* 머리줄을 따로 두지 않고 오른쪽 아래에 떠 있는 작은 단추 둘 (사장님 2026-11-19 「거슬려 — 단추처럼 떠 있게」) */
+    .js-bar{position:fixed;right:14px;bottom:14px;z-index:450;display:flex;gap:6px;opacity:.55;transition:opacity .15s}
+    .js-bar:hover{opacity:1}
+    .js-bar span{display:none}
+    .js-bar a{color:var(--acc);text-decoration:none;font-weight:700;font-size:11.5px;background:#fff;border:1px solid var(--b1);border-radius:16px;padding:4px 10px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+    @media (max-width:560px){ .js-bar{bottom:calc(66px + env(safe-area-inset-bottom))} }
     #js-frame{display:block;width:100%;border:1px solid var(--b1);border-radius:8px;background:#fff;height:calc(100vh - 170px);min-height:480px}
     @media (max-width:560px){ #js-frame{height:calc(100vh - 190px)} }
   </style>
-  <div class="js-bar"><span id="js-msg">불러오는 중…</span><a href="#" onclick="jsReload();return false" title="비규격 화면만 새로 읽습니다">↻ 새로 읽기</a><a href="비규격작업지시서.html" target="_blank" rel="opener" title="예전처럼 따로 된 창으로 엽니다">↗ 새 창으로</a></div>
+  <div class="js-bar"><span id="js-msg">불러오는 중…</span><a href="#" onclick="jsReload();return false" title="비규격 화면만 새로 읽습니다">↻ 새로 읽기</a><a href="비규격작업지시서.html" target="_blank" rel="opener" title="예전처럼 따로 된 창으로 엽니다 · 인쇄는 화면 안 「인쇄」 단추로 — Ctrl+P 는 앱 화면이 찍힙니다">↗ 새 창</a></div>
   <div id="js-host"></div>
   <script>
   function jsOpen(){
@@ -1722,7 +1726,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx1)
      iframe 안은 제 문서라 인쇄 설정이 안 섞입니다. 앱 📦 납품서 탭에 올린 라벨은 「📥 앱에 올린 라벨」로 바로 열립니다. -->
 <div class="sec-pg" id="pg-labelmark">
   <style>#pg-labelmark.sec-pg{max-width:none;margin:0;padding:0 8px 8px} #lm-frame{display:block;width:100%;border:1px solid var(--b1);border-radius:8px;background:#fff;min-height:480px}</style>
-  <div class="js-bar"><span>라벨은 📦 납품서 탭에서 같이 올리시면 여기 「📥 앱에 올린 라벨」로 열립니다 · 인쇄는 화면 안 단추로</span><a href="#" onclick="lmReload();return false">↻ 새로 읽기</a><a href="라벨마킹.html" target="_blank" rel="noopener">↗ 새 창으로</a></div>
+  <div class="js-bar"><span>라벨은 📦 납품서 탭에서 같이 올리시면 여기 「📥 앱에 올린 라벨」로 열립니다 · 인쇄는 화면 안 단추로</span><a href="#" onclick="lmReload();return false" title="라벨마킹 화면만 새로 읽습니다">↻ 새로 읽기</a><a href="라벨마킹.html" target="_blank" rel="noopener" title="따로 된 창으로 엽니다 · 인쇄는 화면 안 단추로">↗ 새 창</a></div>
   <div id="lm-host"></div>
   <script>
   function lmOpen(){
