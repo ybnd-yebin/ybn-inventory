@@ -1033,7 +1033,8 @@ function cadDrawKey(r){
   /* 도면 안 숫자를 앱이 채우는 코드(X — BHBU·WTAP·WHBT·WTA·WT)는 **그 숫자가 다르면 그림이 다릅니다** (2026-11-05).
      안 가르면 덩어리 첫 줄의 값 하나로 그려져, WT 1345(320)와 1473(384)이 320 도면 하나에 같이 실렸습니다. */
   const xv = (typeof libDoorXValue==='function') ? libDoorXValue(r) : null;
-  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '') + (xv!=null ? '|X'+xv : '') + (isNoBore(r) ? '|NB' : '');
+  const wm = (r.code==='W2HBT' && typeof w2hbtMid==='function') ? w2hbtMid(r.h) : null;   // W2HBT 은 가운데 칸(432·512·640)이 달라도 X 가 같을 수 있어 같이 가름
+  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '') + (xv!=null ? '|X'+xv : '') + (wm ? '|M'+wm : '') + (isNoBore(r) ? '|NB' : '');
 }
 /* 색 차례 — COLOR_CHIP 에 적힌 순서를 그대로 씁니다 (사장님 2026-09-16
    "같은 계열끼리인데 색이 다르면 색순으로 나열").
@@ -1072,10 +1073,13 @@ function libDoorXValue(r, c){
    ※ 여기서 그린 칸은 **캐드 원본이 아니라 앱이 그린 것**이다.
    되돌리기: 3힌지용 캐드 도면을 받아 라이브러리에 넣고, 이 Set에서 코드를 빼면 끝. */
 const CAD_HINGE_REDRAW = new Set(['WHBT','W2HBT']);   // W2HBT: M 도면 몸통 + 힌지 칸만 위 변환 / 512 / 110 (사장님 2026-11-10 「도면도 바뀌어야함」)
+// W2HBT 힌지 가운데 칸 — 납품 세로(벽장 높이) 구간마다 (사장님 2026-11-20 · 한샘 W2HB6T/7T/8T 측단면도). 구간 밖은 null = 확인 필요
+const W2HBT_MID = [ {lo:656, hi:726, mid:432}, {lo:736, hi:806, mid:512}, {lo:864, hi:934, mid:640} ];
+function w2hbtMid(h){ h=+h||0; const b=W2HBT_MID.find(x=>h>=x.lo && h<=x.hi); return b ? b.mid : null; }
 // 코드별 힌지 체인 — 위→아래 구간값 + 그중 앱이 계산한 변환값의 자리(varIdx)
 function hingeChainOf(r, c){
   if(r.code==='WHBT' && c && c.whbt) return {segs:c.whbt.segs, varIdx:0};
-  if(r.code==='W2HBT' && c && c.w2hbt && c.w2hbt.conv>0) return {segs:[c.w2hbt.conv,512,110], varIdx:0};   // 위→아래
+  if(r.code==='W2HBT' && c && c.w2hbt && c.w2hbt.conv>0) return {segs:[c.w2hbt.conv,c.w2hbt.mid,110], varIdx:0};   // 위→아래 · 가운데 432·512·640 (w2hbtMid)
   return null;   // 체인을 모르면 다시 그리지 않는다(원본 유지)
 }
 // 요소 하나의 대략 범위 — M/L 좌표·원·글자만 본다(호(A)는 짧은 모깎기라 무시해도 무방)
@@ -2380,16 +2384,25 @@ function calc(r){
   let splitVary=null;   // 합적 세로 변환이 걸렸을 때의 내역 (SPLIT_VARY · 도면·표시에서 같이 본다)
   /* W2HBT: 장 가로를 반으로 갈라 도어 2장을 합적한다.
      도어 = (가로÷2 −5) × (세로 −4) · 유리 = 도어폭 × (도어세로 −3), 2장.
-     힌지는 하부부터 110 · 512 고정, 나머지(도어세로 −110 −512)가 상부 변환값. */
+     힌지는 하부부터 110 · 가운데(벽장 높이 구간마다) · 나머지(도어세로 −110 −가운데)가 상부 변환값.
+     가운데 = w2hbtMid(납품 세로) — 656~726 → 432 · 736~806 → 512 · 864~934 → 640
+     (사장님 2026-11-20 · 한샘 W2HB6T/7T/8T 측단면도 DXF). 구간 밖은 계산하지 않고 「확인 필요」. */
   let w2hbt=null;
   if(r.code==='W2HBT' && r.w && fh!==''){
     const half=r.w/2;
     fw = half-5;
     frameSegs=[{label:'도어', fw:fw, fh:fh, n:2, side:true}];
     glass=[{label:'유리', gw:fw, gh:fh-3, n:2, isSet:true}];
-    const conv=fh-110-512;
-    w2hbt={conv, base:fh, segs:[110,512,conv]};
-    note=(note?note+' / ':'')+`가로 ÷2 합적 2장 · 힌지 하부부터 110·512·상부변환 ${conv}`;
+    const mid=w2hbtMid(r.h);
+    if(mid){
+      const conv=fh-110-mid;
+      w2hbt={conv, mid, base:fh, segs:[110,mid,conv]};
+      note=(note?note+' / ':'')+`가로 ÷2 합적 2장 · 힌지 하부부터 110·${mid}·상부변환 ${conv}`;
+    } else {
+      w2hbt={conv:null, mid:null, base:fh};
+      note=(note?note+' / ':'')+'가로 ÷2 합적 2장';
+      hot=(hot?hot+' / ':'')+`W2HBT 납품 세로 ${r.h} — 힌지 규칙 없음(656~726 · 736~806 · 864~934 만) · 확인 필요`;
+    }
     if(half!==Math.round(half)) note='⚠ 가로가 홀수라 반이 딱 안 나눠집니다(확인 필요) / '+note;
   }
   else if(rule.split&&r.type&&SPLIT[rule.split]&&SPLIT[rule.split][r.type]){
