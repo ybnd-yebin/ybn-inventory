@@ -19255,7 +19255,10 @@ function renderOrderList(){
       <div class="day-card od-card" style="margin-bottom:8px${editing?';border:1px solid var(--acc)':''}">
         <div class="day-hdr od-hdr"${isOpen?'':' style="border-bottom:none"'}>
           <div class="od-sum" onclick="odListToggle('${o.id}')" title="${isOpen?'접기':'품목 보기'}">
-            <div class="od-sum-1"><span class="od-chev">${isOpen?'▾':'▸'}</span>${q2(o.vendor)} <span style="font-size:11px;color:var(--tx3);font-weight:400">${q2(o.thick||o.type||'')}</span>${tags}${(()=>{ /* [전체 입고] (사장님 2026-11-02) — 머리줄 상태 옆. 오늘 탭 발주중과 같은 길(tdyRecvAsk → 날짜 묻고 → _odRecvItem) */
+            <div class="od-sum-1"><span class="od-chev">${isOpen?'▾':'▸'}</span>${q2(o.vendor)} <span style="font-size:11px;color:var(--tx3);font-weight:400">${q2(o.thick||o.type||'')}${(()=>{ /* (정)·(비) — 사장님 2026-11-19. 판단은 종류 체크와 같은 odKindKey */
+              let k=''; try{ k=odKindKey(o); }catch(e){}
+              const s=/정·비규격$/.test(k)?'정·비':/비규격$/.test(k)?'비':/정규격$/.test(k)?'정':'';
+              return s?` <b style="color:var(--tx2);font-weight:700">(${s})</b>`:''; })()}</span>${tags}${(()=>{ /* [전체 입고] (사장님 2026-11-02) — 머리줄 상태 옆. 오늘 탭 발주중과 같은 길(tdyRecvAsk → 날짜 묻고 → _odRecvItem) */
               const w=o.items.filter(it=>it.w&&it.h&&!it.received); if(editing || !w.length) return '';
               const q=w.reduce((s,it)=>s+(Number(it.qty)||0),0);
               return `<button onclick="event.stopPropagation();tdyRecvAsk('${o.id}',-1)" title="남은 ${w.length}줄 ${q}장을 한꺼번에 입고합니다 — 날짜를 묻습니다(기본: 오늘, 납기가 지났으면 납기)" style="margin-left:6px;padding:2px 9px;background:var(--s1);border:1px solid var(--acc3);border-radius:6px;color:var(--acc3);font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;vertical-align:middle">전체 입고</button>`; })()}</div>
