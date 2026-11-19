@@ -19044,10 +19044,9 @@ function odDayGroupsHtml(orders, cardOf){
       const v=(typeof odFileVendorOf==='function'?odFileVendorOf(o.vendor):'')||String(o.vendor||'').trim();
       if(v && !vend.includes(v)) vend.push(v);
       let oq=0;
-      o.items.forEach(it=>{ const q=Number(it.qty)||0; qty+=q; if(it.w&&it.h){ sized=true; if(!it.received) oq+=q; } });
+      o.items.forEach(it=>{ const q=Number(it.qty)||0; if(!it.rw) qty+=q; if(it.w&&it.h){ sized=true; if(!it.received) oq+=q; } });   // 재작업 줄은 발주 장수에 안 셈
       openQty+=oq;
-      const dd=odDueToDate(o.due, o.date);
-      if(oq && dd && dd<today) late=true;
+      if(o.items.some(it=>odItemLate(o,it,today))) late=true;   // 재작업 줄은 재작업 예정일로
     });
     const dt=new Date(d+'T00:00:00');
     const lab=isNaN(dt) ? (d||'날짜 없음') : `${dt.getMonth()+1}/${dt.getDate()} (${WD[dt.getDay()]})`;
@@ -19219,7 +19218,7 @@ function renderOrderList(){
           ${hasSize?`<button onclick="odToggleRecv('${o.id}',${i})" class="todo-check ${it.received?'done':''}" style="width:22px;height:22px;flex-shrink:0">${it.received?'✓':''}</button>`:'<span style="width:22px;flex-shrink:0;text-align:center;color:var(--tx3)">·</span>'}
           <div style="flex:1;min-width:0;${it.received?'opacity:.6':''}">
             <div style="font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;${it.received?'text-decoration:line-through':''}">${titleLine}${it.auto?' <span style="font-size:9px;font-family:Noto Sans KR,sans-serif;background:rgba(46,160,67,.14);color:var(--acc3);padding:1px 6px;border-radius:6px;font-weight:700">자동</span>':''}${it.recvHeld&&!it.received?' <span style="font-size:9px;font-family:Noto Sans KR,sans-serif;background:rgba(248,81,73,.12);color:var(--acc4);padding:1px 6px;border-radius:6px;font-weight:700">되돌림</span>':''}</div>
-            <div style="font-size:10px;color:var(--tx3)">${subLine}</div>
+            <div style="font-size:10px;color:var(--tx3)">${subLine}${odBadTag(o,it)}</div>
             ${it.recvHeld&&!it.received?`<button onclick="odAutoUnhold('${o.id}',${i})" style="margin-top:4px;padding:3px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">자동에 다시</button>`:''}
             ${hasSize&&it.received?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px"><span style="font-size:10px;color:var(--acc3)">📦 입고일</span><input type="date" value="${it.recvDate||''}" onchange="odSetRecvDate('${o.id}',${i},this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'Noto Sans KR',sans-serif"><span style="font-size:10px;color:var(--acc3);margin-left:6px">실입고</span><input type="number" min="0" value="${odRecvQty(it)}" onchange="odSetRecvQty('${o.id}',${i},this.value)" title="실제로 들어온 장수 — 발주와 다르면 고치십시오" style="width:54px;font-size:11px;padding:3px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s2);color:var(--tx1);font-family:'JetBrains Mono',monospace;text-align:right"></div>`:''}
           </div>
@@ -19230,10 +19229,10 @@ function renderOrderList(){
         </div>`;
       }).join('');
       /* 1층 리디자인 (2026-10-23) — 접힌 줄에 요약, 누르면 품목. 수정 중·찾는 글자가 걸린 발주는 펼친 채로. */
-      const qtyTot=o.items.reduce((s,it)=>s+(Number(it.qty)||0),0);
+      const qtyTot=o.items.reduce((s,it)=>s+(it.rw?0:(Number(it.qty)||0)),0);   // 재작업 줄은 발주 장수에 안 셈
       const openQty=o.items.reduce((s,it)=>s+((it.w&&it.h&&!it.received)?(Number(it.qty)||0):0),0);
       const dueD=odDueToDate(o.due, o.date);
-      const late=!!(openQty && dueD && dueD<todayStr());
+      const _tdL=todayStr(), late=o.items.some(it=>!it.rw&&odItemLate(o,it,_tdL));   // 머리줄 「납기 지남」은 원 발주 줄만 — 재작업 줄은 제 꼬리표에 예정일 지남
       const autoN=o.items.filter(x=>x.received&&x.auto).length;
       const isOpen=editing || !!odListOpen[o.id] || o.items.some(it=>odFindItemHit(it, o));
       const q2=s=>_odEsc(s);
@@ -19244,7 +19243,7 @@ function renderOrderList(){
              ${o.client?`<span>· ${q2(o.client)}</span>`:''}
            </div>`
         : `<div class="od-sum-2">발주 ${q2(o.date)}${o.due?` · 납기 ${odDueLogHtml(o,'pre')}<span style="${late?'color:var(--acc2);font-weight:700':''}">${q2(o.due)}${late?' 지남':''}</span>${odDueLogHtml(o,'post')}`:''}${(()=>{ const rq=o.items.filter(it=>it.req&&!(it.w&&it.h&&it.received)).map(it=>it.req).sort()[0]||o.items.map(it=>it.req).filter(Boolean).sort()[0]; return rq?' · 작업요청 '+q2(odMD(rq)):''; })()}${o.client?' · 업체 <b style="color:var(--tx1)">'+q2(o.client)+'</b>':''}${o.mgr?' · 담당 '+q2(o.mgr):''}
-             · ${o.items.length}줄 <b style="font-family:'JetBrains Mono',monospace;color:var(--tx2)">${qtyTot}</b>장${openQty&&openQty!==qtyTot?` · 미입고 <b style="font-family:'JetBrains Mono',monospace">${openQty}</b>장`:''}${(()=>{ const d=o.items.reduce((s,it)=>s+odRecvDiff(it),0); return d?` · 실입고 차이 <b style="font-family:'JetBrains Mono',monospace;color:${d<0?'var(--acc4)':'var(--acc)'}">${odDiffTxt(d)}</b>`:''; })()}</div>`;
+             · ${o.items.filter(it=>!it.rw).length}줄 <b style="font-family:'JetBrains Mono',monospace;color:var(--tx2)">${qtyTot}</b>장${(()=>{ const b=o.items.reduce((s,it)=>s+odBadN(it),0), r=o.items.filter(it=>it.rw&&!it.received).reduce((s,it)=>s+(Number(it.qty)||0),0); return b?` · 불량 <b style="font-family:'JetBrains Mono',monospace;color:#dc2626">${b}</b>장${r?` (재작업 대기 ${r})`:''}`:''; })()}${openQty&&openQty!==qtyTot?` · 미입고 <b style="font-family:'JetBrains Mono',monospace">${openQty}</b>장`:''}${(()=>{ const d=o.items.reduce((s,it)=>s+odRecvDiff(it),0); return d?` · 실입고 차이 <b style="font-family:'JetBrains Mono',monospace;color:${d<0?'var(--acc4)':'var(--acc)'}">${odDiffTxt(d)}</b>`:''; })()}</div>`;
       const locked=odClosedLock(o);
       const tags = (editing ? `<span class="status-tag" style="background:rgba(9,105,218,.12);color:var(--acc)">✏️ 위 칸에서 수정 중</span>` : '')
         + (locked ? `<span class="status-tag" title="${_odEsc(locked)} — 고치거나 지우려면 📒 거래처 월 마감에서 확정을 먼저 푸십시오" style="background:var(--s3);color:var(--tx2)">🔒 마감</span>` : '')
@@ -19478,6 +19477,7 @@ function odStmtRows(vendor, ym, range){
   orderLog.forEach(o=>{
     if(odStmtVendor(o.vendor)!==vendor) return;
     (o.items||[]).forEach((it,i)=>{
+      if(it.rw) return;   // 재작업 줄은 매입에 안 셈 — 원 줄 하나로(업체도 불량 − · 재입고 + 로 같아짐)
       let qty=Number(it.qty)||0; if(!qty) return;
       let day, st;
       if(it.received){
@@ -19493,6 +19493,7 @@ function odStmtRows(vendor, ym, range){
       const nonstd = /비규격|\(비\)/.test([o.type,o.title,it.pname].join(' ')) || (!!kind && /비규격/.test(kind) && !OD_KIND_BY_QTY.has(vendor));
       const oq=qty, rq=(it.received && !nonstd) ? odRecvQty(it) : qty;
       if(rq!==qty){ qty=rq; if(!qty) return; }
+      if(it.bad && it.bad.act==='cut'){ qty=Math.max(0, qty-odBadN(it)); if(!qty) return; }   // 재작업 없이 마감 차감 — 업체가 불량을 빼 줌
       const ja = (w&&h) ? odPyeong(w,h,vendor,/브론즈/.test(kind||'')) : null;
       // 단가 = 그 날의 단가 — 📚 단가 이력(12-102), 없으면 OD_VENDOR_PRICE
       let unit = kind ? (buyPriceOf(vendor, kind, day)||null) : null;
@@ -20702,11 +20703,12 @@ const CL_ACT={
   A:[['carry','다음 달 이월'],['edge','기간 경계 (앞뒤 달 발주)'],['redo','불량 재발주분'],['acc','청구 인정'],['other','다른 업체 · 한샘 작업 외'],['ask','업체 문의'],['ok','확인함 · 문제없음']],
   B:[['std','정규격 · 재고분'],['other','다른 업체 · 한샘 작업 외'],['ours','우리 것 (확인함)'],['ask','업체 문의'],['ok','확인함']],
   D:[['ask','업체 문의 (공제 요청)'],['ok','확인함 · 맞는 금액']],
+  F:[['ask','업체 문의 (차감 요청)'],['next','다음 달 마감에서 빠짐'],['free','재작업분 무상 처리 (차감 없음)'],['ok','확인함']],
   O:[['carry','다음 달 마감에 들어옴'],['edge','지난달 마감에 들어감'],['void','발주 안 함 · 취소된 발주'],['ask','업체 문의 (청구 빠짐)'],['ok','확인함']]
 };
 const CL_ACT_LABEL={}; Object.values(CL_ACT).forEach(a=>a.forEach(([k,l])=>{ if(!CL_ACT_LABEL[k]) CL_ACT_LABEL[k]=l; }));
 CL_ACT_LABEL.ask='업체 문의';
-const CL_SEC_NAME={A:'① 수량 다름',B:'② 따로 보는 품목',D:'③ 금액 다름 — 우리가 손해 보는 줄',O:'④ 업체 마감에 없는 우리 발주'};
+const CL_SEC_NAME={A:'① 수량 다름',B:'② 따로 보는 품목',D:'③ 금액 다름 — 우리가 손해 보는 줄',O:'④ 업체 마감에 없는 우리 발주',F:'⑤ 차감이 안 온 불량'};
 var clSel=null;   // 지금 체크한 줄 (저장 안 함) — var: 화면을 막 그릴 때 먼저 불려도 되게
 function clSzKey(w,h){ w=+w||0; h=+h||0; return Math.min(w,h)+'x'+Math.max(w,h); }
 function clLineKeys(c){
@@ -20717,7 +20719,7 @@ function clLineKeys(c){
   });
 }
 function clReview(c){
-  const out={A:[],B:[],D:[],O:[],G:[]};
+  const out={A:[],B:[],D:[],O:[],G:[],F:[]};
   if(!c.lines) return out;
   const P=clPrice(c.vendor,c.id), keys=clLineKeys(c);
   const dup={}; c.lines.forEach(L=>{ if(L.w&&L.h){ const k=[L.date,clSzKey(L.w,L.h),L.qty,Math.round(Number(L.amtFile)||0)].join('|'); dup[k]=(dup[k]||0)+1; } });
@@ -20766,12 +20768,24 @@ function clReview(c){
     }));
     out.O.sort((a,b)=>a.date.localeCompare(b.date));
   }catch(e){ console.warn('[정리 ④]', e); }
+  /* ⑤ 발주탭 입고 때 적은 불량 — 업체 마감에 차감(−)이 와야 합니다(사장님 2026-11-19). 불량차감 줄·마이너스 줄과 규격으로 맞추고 남는 것만 */
+  try{
+    const rg=odStmtRange(c.ym,c.vendor), got={};
+    (c.defects||[]).forEach(d=>{ const k=clSzKey(d.w,d.h); got[k]=(got[k]||0)+Math.abs(Number(d.qty)||0); });
+    c.lines.forEach(L=>{ if(L.w&&L.h&&L.qty<0){ const k=clSzKey(L.w,L.h); got[k]=(got[k]||0)+Math.abs(L.qty); } });
+    (orderLog||[]).forEach(o=>{ if(!o||odStmtVendor(o.vendor)!==c.vendor) return;
+      (o.items||[]).forEach(it=>{ const b=it.bad; if(!b||!b.n) return; const day=b.day||it.recvDate||''; if(!day||day<rg.from||day>rg.to) return;
+        const k=clSzKey(it.w,it.h), m=Math.min(got[k]||0,b.n); got[k]=(got[k]||0)-m; const left=b.n-m; if(left<=0) return;
+        out.F.push({id:'F|'+(it.uid||o.id), date:day, w:+it.w, h:+it.h, qty:left, file:o.srcSheet||o.title||o.type||'',
+          pname:'불량 '+(OD_BAD_ACTS[b.act]||'')+(b.why?' · '+b.why:''), hint:{a:'ask',t:'업체 마감에 이 불량 차감(−)이 없습니다'+(b.act==='cut'?' — 재작업 없이 마감 차감으로 적은 것':'')}});
+      }); });
+  }catch(e){ console.warn('[정리 ⑤]', e); }
   return out;
 }
 function clReviewOpenN(c){
   if(!c || !c.lines) return null;
   const R=clReview(c), res=c.res||{};
-  return ['A','B','D','O'].reduce((s,k)=>s+R[k].filter(x=>!res[x.id]).length,0);
+  return ['A','B','D','O','F'].reduce((s,k)=>s+R[k].filter(x=>!res[x.id]).length,0);
 }
 function clSelToggle(id,on){ clSel=clSel||new Set(); if(on) clSel.add(id); else clSel.delete(id); }
 function clSelAll(sec,on){
@@ -20827,13 +20841,14 @@ function clResUndo(id){
 function clResMemo(id,v){ const c=clCur(); if(!c||!c.res||!c.res[id]) return; c.res[id].m=v; clTouch(c); }
 function clItemLabel(x){
   if(x.L) return `${clMd(x.L.date)} ${x.L.w&&x.L.h?x.L.w+'×'+x.L.h:clEsc(x.L.model||'')} ${x.L.qty}장 · ${clWon(x.L.amtFile)}원`;
-  return `${clMd(x.date)} 발주 ${x.w}×${x.h} ${x.qty}장${x.pname?' · '+clEsc(x.pname):''}`;
+  return `${clMd(x.date)} ${String(x.id||'').startsWith('F|')?'불량':'발주'} ${x.w}×${x.h} ${x.qty}장${x.pname?' · '+clEsc(x.pname):''}`;
 }
 function clAskText(c){
-  const R=clReview(c), res=c.res||{}, all=[...R.A,...R.B,...R.D,...R.O], by=new Map(all.map(x=>[x.id,x]));
+  const R=clReview(c), res=c.res||{}, all=[...R.A,...R.B,...R.D,...R.O,...R.F], by=new Map(all.map(x=>[x.id,x]));
   const lines=Object.entries(res).filter(([id,v])=>v.a==='ask' && by.has(id)).map(([id,v])=>{
     const x=by.get(id), sec=id[0];
-    const what = sec==='O' ? `${clMd(x.date)} 발주 ${x.w}×${x.h} ${x.qty}장 — 마감에 없음`
+    const what = sec==='F' ? `${clMd(x.date)} 입고 불량 ${x.w}×${x.h} ${x.qty}장 — 마감에 차감(−)이 없음`
+      : sec==='O' ? `${clMd(x.date)} 발주 ${x.w}×${x.h} ${x.qty}장 — 마감에 없음`
       : `${clMd(x.L.date)} ${x.L.w&&x.L.h?x.L.w+'×'+x.L.h:(x.L.model||'')} ${x.L.qty}장 · ${clWon(x.L.amtFile)}원 — ${sec==='D'?(x.loss!=null?'손해 '+clWon(x.loss)+'원 · ':'')+x.why:x.why}`;
     return `- ${what}${v.m?' ('+v.m+')':''}`;
   });
@@ -20856,7 +20871,7 @@ function clReviewHtml(c,lock){
   const nRes=Object.keys(res).length;
   const jump=(k,l,n)=>`<a href="#cl-sec-${k}" onclick="event.preventDefault();var e=document.getElementById('cl-sec-${k}');if(e)e.scrollIntoView({behavior:'smooth',block:'start'})" style="text-decoration:none;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid ${n?'#dc262655':'var(--b1)'};color:${n?'#dc2626':'var(--tx3)'};background:${n?'#dc26260a':'var(--s1)'}">${l} ${n}</a>`;
   const bar=`<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px">
-      ${jump('A','① 수량 다름',open('A').length)}${jump('B','② 따로 보는 품목',open('B').length)}${jump('D','③ 금액 다름',open('D').length)}${jump('O','④ 마감에 없는 발주',open('O').length)}
+      ${jump('A','① 수량 다름',open('A').length)}${jump('B','② 따로 보는 품목',open('B').length)}${jump('D','③ 금액 다름',open('D').length)}${jump('O','④ 마감에 없는 발주',open('O').length)}${R.F.length?jump('F','⑤ 차감 안 온 불량',open('F').length):''}
       <a href="#cl-sec-C" onclick="event.preventDefault();var e=document.getElementById('cl-sec-C');if(e)e.scrollIntoView({behavior:'smooth',block:'start'})" style="text-decoration:none;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid var(--b1);color:var(--tx2)">✓ 확인칸 ${nRes}</a></div>`;
   const actBar=(sec,list)=>{
     if(lock||!list.length) return '';
@@ -20879,7 +20894,7 @@ function clReviewHtml(c,lock){
       ${list.length?actBar(k,list)+`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:560px">${head(cols)}<tbody>${list.map(row).join('')}</tbody></table></div>`
         :`<div style="font-size:11px;color:#16a34a;padding:6px 0">✓ ${empty}</div>`}</div>`;
   const lineCells=x=>`<td style="${P2}white-space:nowrap">${clMd(x.L.date)}</td><td style="${P2}">${clEsc(x.L.model||'')}${x.L.note?`<div style="font-size:9.5px;color:var(--tx3)">${clEsc(x.L.note)}</div>`:''}</td><td style="${N}">${x.L.w&&x.L.h?x.L.w+'×'+x.L.h:'-'}</td><td style="${N}font-weight:700">${x.L.qty}</td>`;
-  const A=open('A'), B=open('B'), D=open('D'), O=open('O');
+  const A=open('A'), B=open('B'), D=open('D'), O=open('O'), F=open('F');
   const secA=sec('A',CL_SEC_NAME.A,A,[['',0],['일자',0],['품명',0],['규격',1],['마감',1],['발주',1],['차이',1],['상태',0],['이유 · 추천',0]],
     x=>`<tr style="border-top:1px solid var(--b1)"><td style="${P2}">${ck(x)}</td>${lineCells(x)}<td style="${N}">${x.L.poQty==null?'-':x.L.poQty}</td><td style="${N}color:#ea6c00;font-weight:700">${x.L.diff==null?'-':(x.L.diff>0?'+':'')+x.L.diff}</td><td style="${P2}">${clStatusChip(x.L.st)}</td><td style="${P2}font-size:10.5px">${clEsc(x.why)}${hintTd(x)}</td></tr>`,
     '발주 기록과 수량이 모두 맞습니다','마감 수량 − 연결된 발주 수량. 정규격은 입고 수량대로 정산하므로 많아도 재고분입니다.');
@@ -20895,12 +20910,15 @@ function clReviewHtml(c,lock){
   const secO=sec('O',CL_SEC_NAME.O,O,[['',0],['발주일',0],['발주서',0],['규격',1],['남은 수량',1],['추천',0]],
     x=>`<tr style="border-top:1px solid var(--b1)"><td style="${P2}">${ck(x)}</td><td style="${P2}white-space:nowrap">${clMd(x.date)}</td><td style="${P2}">${clEsc(x.file)}${x.pname?`<div style="font-size:9.5px;color:var(--tx3)">${clEsc(x.pname)}</div>`:''}</td><td style="${N}">${x.w}×${x.h}</td><td style="${N}font-weight:700">${x.qty}</td><td style="${P2}font-size:10.5px">${hintTd(x)}</td></tr>`,
     '마감 기간 안 발주가 모두 마감에 들어왔습니다', `마감 기간 ${clMd(odStmtRange(c.ym,c.vendor).from)}~${clMd(odStmtRange(c.ym,c.vendor).to)} 발주 중 어느 달 마감에도 안 잡힌 수량입니다.`);
+  const secF=R.F.length?sec('F',CL_SEC_NAME.F,F,[['',0],['불량 적은 날',0],['발주서 · 처리',0],['규격',1],['불량',1],['추천',0]],
+    x=>`<tr style="border-top:1px solid var(--b1)"><td style="${P2}">${ck(x)}</td><td style="${P2}white-space:nowrap">${clMd(x.date)}</td><td style="${P2}">${clEsc(x.file)}<div style="font-size:9.5px;color:#dc2626">${clEsc(x.pname)}</div></td><td style="${N}">${x.w}×${x.h}</td><td style="${N}font-weight:700;color:#dc2626">${x.qty}</td><td style="${P2}font-size:10.5px">${hintTd(x)}</td></tr>`,
+    '적은 불량이 모두 업체 마감에서 빠졌습니다', '발주탭 입고 때 적은 불량입니다. 업체 마감의 불량차감·마이너스 줄과 규격으로 맞춰 보고, 안 맞는 것만 보입니다.'):'';
   /* 확인칸 */
-  const all=new Map([...R.A,...R.B,...R.D,...R.O].map(x=>[x.id,x]));
+  const all=new Map([...R.A,...R.B,...R.D,...R.O,...R.F].map(x=>[x.id,x]));
   const ents=Object.entries(res);
   const stale=ents.filter(([id])=>!all.has(id)).length;
   const grp={}; ents.filter(([id])=>all.has(id)).forEach(([id,v])=>{ (grp[v.a]=grp[v.a]||[]).push([id,v]); });
-  const tag={A:'수량',B:'따로',D:'금액',O:'발주'};
+  const tag={A:'수량',B:'따로',D:'금액',O:'발주',F:'불량'};
   const secC=`<div id="cl-sec-C" style="border:1px solid var(--b1);border-radius:10px;padding:10px 12px;margin-bottom:10px;scroll-margin-top:120px;background:var(--s2)">
       <div style="font-size:13px;font-weight:800">✓ 확인칸 <span style="font-size:11px;color:var(--tx3);font-weight:500">${ents.length-stale}건 · ↩ 를 누르면 위로 되돌아갑니다</span></div>
       ${Object.entries(grp).map(([a,arr])=>`<div style="margin-top:8px"><div style="font-size:11px;font-weight:800;color:${a==='ask'?'#dc2626':'var(--tx2)'}">${clEsc(CL_ACT_LABEL[a]||a)} ${arr.length}</div>
@@ -20916,9 +20934,9 @@ function clReviewHtml(c,lock){
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div style="font-size:13px;font-weight:800">📣 업체 문의 ${ask.split('\n').length-1}건</div>
         <button class="icon-btn" onclick="clAskCopy()" style="font-size:11px;font-weight:700">복사 (카톡 · 메일)</button></div>
       <textarea id="cl-ask-txt" readonly rows="${Math.min(10,ask.split('\n').length+1)}" style="width:100%;margin-top:6px;font-size:11px;font-family:'Noto Sans KR',sans-serif;border:1px solid var(--b2);border-radius:6px;padding:6px;background:var(--s1);color:var(--tx1)">${clEsc(ask)}</textarea></div>`:'';
-  const left=A.length+B.length+D.length+O.length;
+  const left=A.length+B.length+D.length+O.length+F.length;
   const done=`<div style="font-size:12px;font-weight:700;margin-bottom:8px;color:${left?'#dc2626':'#16a34a'}">${left?`남은 일 ${left}건 — 줄을 체크하고 처리를 골라 확인칸으로 옮겨 주십시오`:'✅ 남은 일 없음'}${lock?' <span style="color:var(--tx3);font-weight:500">(확정된 달 — 보기만)</span>':''}</div>`;
-  return done+bar+secA+secB+secD+gainHtml+secO+askHtml+secC;
+  return done+bar+secA+secB+secD+gainHtml+secO+secF+askHtml+secC;
 }
 
 /* ── 엑셀 내보내기 — 요약 / 대조결과 / 불량차감 / 이월항목 ── */
@@ -20957,7 +20975,7 @@ function clExcel(){
   clIncoming(c).forEach(x=>push(x.it,x.src)); (c.carry||[]).forEach(it=>push(it,c));
   if(c.lines){   // ✅ 확인할 것 — 칸마다 남은 것 · 처리한 것
     const R=clReview(c), res=c.res||{}, a=[['칸','일자','규격','수량','업체 금액','이유 · 추천','처리','메모','처리한 사람']];
-    ['A','B','D','O'].forEach(k=>R[k].forEach(x=>{ const v=res[x.id]||{};
+    ['A','B','D','O','F'].forEach(k=>R[k].forEach(x=>{ const v=res[x.id]||{};
       a.push([CL_SEC_NAME[k], x.L?x.L.date:x.date, x.L?(x.L.w&&x.L.h?x.L.w+'×'+x.L.h:x.L.model||''):x.w+'×'+x.h, x.L?x.L.qty:x.qty, x.L?Math.round(x.L.amtFile||0):'',
         [x.why||'', x.hint?'추천 '+(CL_ACT_LABEL[x.hint.a]||'')+' — '+x.hint.t:''].filter(Boolean).join(' · ')+(k==='D'&&x.loss!=null?` (손해 ${Math.round(x.loss)})`:''),
         v.a?(CL_ACT_LABEL[v.a]||v.a):'남음', v.m||'', v.by||'']); }));
@@ -22089,6 +22107,100 @@ function odRecvQty(it){ return (it && it.rq!=null && it.rq!=='') ? (Number(it.rq
 function odRecvDiff(it){ return (it && it.received && it.rq!=null && it.rq!=='') ? (Number(it.rq)||0)-(Number(it.qty)||0) : 0; }
 function odDiffTxt(d){ return d>0 ? '+'+d : String(d); }
 
+/* 입고 불량 · 재작업 (사장님 2026-11-19 「불량이라 재발주 요청 · 여유 있게 발주해 재처리 안 받고 마감에서 빼는 경우도」)
+   입고 창에서 실입고 가운데 불량 장수를 적으면 그 줄에 it.bad = {n, act, due, type, why, day, at, by} 를 남깁니다.
+   · 재고에는 성한 것만 — 원유리는 이벤트 장수를 실입고 − 불량으로, 에토프는 입고 실입고 + 불량 출고 줄(🚫 불량 기록에 보임)로.
+   · act: rework 재작업(예정일) · hold 보류 · cut 재작업 없이 마감 차감.
+     rework·hold 는 같은 발주 맨 뒤에 그 장수만큼 「재작업 줄」(it.rw = {from:원 줄 uid, act, due})을 붙입니다 — 새 발주가 아니라 중복이 없습니다.
+     재작업 줄은 입고 대기에 남고, 납기 지남은 원 발주 납기가 아니라 재작업 예정일로 봅니다. 다시 들어오면 그 줄만 입고합니다.
+   · 매입 장수: 재작업 줄은 안 셉니다(원 줄 하나로 — 업체도 불량 − · 재입고 + 로 같아짐) · cut 은 원 줄에서 불량을 뺍니다.
+   · 📒 월 마감 「✅ 확인할 것」 ⑤ — 불량은 업체 마감에 차감(−)이 와야 합니다. 안 온 것을 보입니다. */
+const OD_BAD_ACTS={ rework:'🔁 재작업', hold:'⏸ 보류', cut:'✂ 재작업 없이 마감 차감' };
+function odBadN(it){ return (it && it.bad && Number(it.bad.n)) || 0; }
+function odIsRw(it){ return !!(it && it.rw); }
+// 이 줄이 기다리는 날 — 재작업 줄은 재작업 예정일(보류·미정이면 없음), 나머지는 발주 납기
+function odItemDue(o, it){ return odIsRw(it) ? ((it.rw.act==='rework' && it.rw.due) || null) : odDueToDate(o.due, o.date); }
+function odItemLate(o, it, td){ if(!(it.w&&it.h) || it.received) return false; const d=odItemDue(o, it); return !!(d && d < (td||todayStr())); }
+function odBadWho(){ try{ return (typeof odMgrGet==='function' && odMgrGet()) || (typeof getActor==='function' && getActor()) || ''; }catch(e){ return ''; } }
+function odIsEtpRecv(it){ return String(it.eventId||'').indexOf('etpr_')===0 || it.recvBy==='etp-tab' || it.recvBy==='order-etp'; }
+function odRwLines(o, it){ return (o.items||[]).filter(x=>x && x.rw && x.rw.from===it.uid); }
+function odRwPush(o, it){
+  const b=it.bad; if(!b || b.act==='cut') return;
+  const line=Object.assign({}, it, { uid:odNewUid(), qty:b.n, received:false, recvAt:null, recvDate:null, eventId:null, auto:false,
+    rw:{ from:it.uid, act:b.act, due:b.act==='rework'?(b.due||''):'', at:b.at, by:b.by } });
+  ['rq','bad','recvBy','recvHeld'].forEach(k=>delete line[k]);
+  o.items.push(line);   // 맨 뒤 — 📒 월 마감이 품목을 가리키는 번호가 안 밀리게(odSplitRecv 와 같은 까닭)
+}
+// 입고 뒤에 부릅니다 — 재고에서 불량을 빼고, 처리에 따라 재작업 줄을 붙입니다
+function odBadApply(o, it, n, act, due, type, why, day){
+  n=Math.min(Number(n)||0, odRecvQty(it)); if(n<=0) return;
+  it.bad={ n, act, due:act==='rework'?(due||''):'', type:type||'', why:why||'', day, at:new Date().toISOString(), by:odBadWho() };
+  if(odIsEtpRecv(it)){
+    const po=odEtpPoOf(o), base='etpd_'+o.id+'_'+(it.uid||odNewUid());
+    let rid=base, k=2; while(etpDeleted[rid]) rid=base+'_r'+(k++);
+    etpAddRow({ id:rid, d:day, t:'out', size:odEtpSize(it), qty:n, reason:ETP_DEF_REASON, defType:type||ETP_DEF_TYPES[0],
+                exch:act==='rework'?'교환요청':'미처리', src:'발주탭 입고 불량 '+etpMd(day), po:(po&&po.no)||'', poId:(po&&po.id)||'',
+                memo:[OD_BAD_ACTS[act].replace(/^\S+\s/,''), act==='rework'&&due?'예정 '+due:'', why].filter(Boolean).join(' · ') });
+    it.bad.rowId=rid; etpCommit();
+  } else if(it.eventId){
+    const ev=((stockEvents||{})[`${it.w}x${it.h}`]||[]).find(e=>e && e.id===it.eventId);
+    if(ev){ ev.qty=Math.max(0, odRecvQty(it)-n); ev.updatedAt=new Date().toISOString();
+      if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h); }
+  }
+  odRwPush(o, it);
+  o.updatedAt=new Date().toISOString();
+}
+// 입고를 풀 때 — 불량 줄을 지우고, 아직 안 들어온 재작업 줄을 걷습니다. 이미 들어온 재작업 줄은 남깁니다.
+function odBadUndo(o, it){
+  if(!it.bad) return 0;
+  if(it.bad.rowId){ etpDeleted[it.bad.rowId]=new Date().toISOString(); etpCommit(); }
+  const rw=odRwLines(o, it), keep=rw.filter(x=>x.received).length;
+  o.items=o.items.filter(x=>!(x.rw && x.rw.from===it.uid && !x.received));
+  delete it.bad;
+  return keep;
+}
+// 처리 바꾸기 — 원 줄의 uid 로 (재작업 줄에서도 원 줄로 찾아갑니다)
+function odBadSetAct(orderId, uid){
+  const o=_odFind(orderId); if(!o) return;
+  const it=(o.items||[]).find(x=>x.uid===uid && x.bad); if(!it){ showToast('불량 기록을 못 찾았습니다'); return; }
+  const b=it.bad, rw=odRwLines(o, it), got=rw.some(x=>x.received);
+  if(got){ showToast('재작업분이 이미 들어왔습니다 — 처리를 바꾸려면 그 줄 입고를 먼저 푸십시오'); return; }
+  const s=prompt(`${it.w}×${it.h} 불량 ${b.n}장 — 지금 「${OD_BAD_ACTS[b.act]}」${b.act==='rework'&&b.due?' 예정 '+b.due:''}\n\n1 = 재작업 (입고예정일 적기)\n2 = 보류 (업체 답 기다림)\n3 = 재작업 없이 마감 차감`, b.act==='rework'?'1':b.act==='hold'?'2':'3');
+  if(s==null) return;
+  const act={ '1':'rework', '2':'hold', '3':'cut' }[String(s).trim()];
+  if(!act){ showToast('1 · 2 · 3 가운데 하나를 넣어 주십시오'); return; }
+  let due='';
+  if(act==='rework'){
+    const d=prompt('재작업 입고예정일 (예: 2026-11-21 · 모르면 비워 두십시오)', b.due||'');
+    if(d==null) return;
+    due=String(d).trim();
+    if(due && !/^\d{4}-\d{2}-\d{2}$/.test(due)){ const dd=odDueToDate(due, o.date); if(!dd){ showToast('날짜를 2026-11-21 꼴로 넣어 주십시오'); return; } due=dd; }
+  }
+  const why=prompt('메모 (까닭 · 비워도 됩니다)', b.why||''); if(why==null) return;
+  b.act=act; b.due=due; b.why=why.trim(); b.at=new Date().toISOString(); b.by=odBadWho();
+  o.items=o.items.filter(x=>!(x.rw && x.rw.from===it.uid && !x.received));
+  odRwPush(o, it);
+  if(b.rowId){ const r=(etpLedger||[]).find(x=>x && x.id===b.rowId);
+    if(r){ r.exch=act==='rework'?'교환요청':'미처리'; r.memo=[OD_BAD_ACTS[act].replace(/^\S+\s/,''), due?'예정 '+due:'', b.why].filter(Boolean).join(' · '); r.ts=r.at=b.at; etpCommit(); } }
+  o.updatedAt=b.at;
+  saveOrderLog(); renderOrderList();
+  if(typeof renderDash==='function') renderDash();
+  if(typeof autoSync==='function') autoSync();
+  showToast(`${it.w}×${it.h} 불량 ${b.n}장 → ${OD_BAD_ACTS[act]}${due?' · 예정 '+odMD(due):''}`);
+}
+// 목록 줄에 붙이는 글 — 원 줄: 「불량 1 · 🔁 재작업 11/21」 · 재작업 줄: 「🔁 재작업분 · 예정 11/21」
+function odBadTag(o, it){
+  const B=(t,c)=>`<span style="font-size:9.5px;font-family:'Noto Sans KR',sans-serif;background:${c}1a;color:${c};padding:1px 6px;border-radius:6px;font-weight:700;white-space:nowrap">${t}</span>`;
+  const btn=uid=>`<button onclick="event.stopPropagation();odBadSetAct('${o.id}','${uid}')" title="재작업 · 보류 · 재작업 없이 마감 차감 바꾸기" style="margin-left:4px;padding:1px 7px;background:var(--s1);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:9.5px;cursor:pointer;font-family:'Noto Sans KR',sans-serif">처리</button>`;
+  if(it.rw){
+    const late=odItemLate(o, it), d=it.rw.act==='rework' ? (it.rw.due?'예정 '+odMD(it.rw.due):'예정일 미정') : '업체 답 기다림';
+    return ' '+B((it.rw.act==='rework'?'🔁 재작업분':'⏸ 보류분')+' · '+d+(late?' 지남':''), late?'#ea6c00':'#2563eb')+(it.rw.from?btn(it.rw.from):'');
+  }
+  if(!it.bad) return '';
+  const b=it.bad, t=`불량 ${b.n} · ${OD_BAD_ACTS[b.act]}${b.act==='rework'&&b.due?' '+odMD(b.due):''}`;
+  return ' '+`<span title="${_odEsc([b.type, b.why, (b.at||'').slice(5,10).replace('-','/')+' '+(b.by||'')].filter(Boolean).join(' · '))}">`+B(t, b.act==='cut'?'#6b7280':'#dc2626')+'</span>'+btn(it.uid);
+}
+
 /* 한 줄 입고 — 그 날짜로 원유리 입고 이벤트를 넣고 표시합니다. 발주 리스트(오늘)와 오늘 화면 「발주중」 탭(고른 날짜)이 같이 씁니다.
    현성 에토프 발주는 원유리가 아니라 에토프 장부로(C11 — _odRecvEtp). */
 function _odRecvItem(o, it, day){
@@ -22117,6 +22229,8 @@ function odToggleRecv(orderId, idx){
     const etpO=String(it.eventId||'').indexOf('etpr_')===0 || it.recvBy==='etp-tab' || it.recvBy==='order-etp';   // 어디로 들어갔는지로 봅니다(지금 분류가 아니라)
     { const lock=(typeof odClosedLock==='function')?odClosedLock(o):null;
       if(lock && !confirm(`🔒 ${lock}인 발주입니다.\n입고를 풀면 ${etpO?'에토프':'원유리'} 재고에서 ${odRecvQty(it)}장이 빠집니다(확정된 마감 금액은 그대로). 풀까요?`)) return; }
+    const rwKept=odBadUndo(o, it);   // 불량 줄·아직 안 들어온 재작업 줄도 걷습니다
+    if(rwKept) setTimeout(()=>showToast('이미 들어온 재작업 줄 '+rwKept+'개는 그대로 둡니다'), 1800);
     let etpUn='';
     if(etpO && (String(it.eventId||'').indexOf('etpr_')===0 || it.recvBy==='etp-tab')) etpUn=_odUnrecvEtp(it);   // C11 — 에토프 장부 쪽
     else if(it.eventId){ odEvDelMark([it.eventId]); removeStockEventsByIds([it.eventId]); }   // C9 — 지운 표시를 남겨 다른 기기에서 되살아나지 않게
@@ -22174,6 +22288,7 @@ function odSetRecvQty(orderId, idx, val){
   const n=parseInt(val);
   if(!(n>=0)){ showToast('0 이상 숫자로 넣어 주십시오'); renderOrderList(); return; }
   const prev=odRecvQty(it); if(n===prev) return;
+  if(n<odBadN(it)){ showToast(`불량 ${odBadN(it)}장보다 적게는 못 고칩니다 — 불량 처리를 먼저 바꾸십시오`); renderOrderList(); return; }
   { const lock=(typeof odClosedLock==='function')?odClosedLock(o):null;
     if(lock && !confirm(`🔒 ${lock}인 발주입니다. 실입고를 ${prev} → ${n}장으로 고칠까요? (확정된 마감 금액은 그대로)`)){ renderOrderList(); return; } }
   if(n===(Number(it.qty)||0)) delete it.rq; else it.rq=n;
@@ -22183,7 +22298,7 @@ function odSetRecvQty(orderId, idx, val){
     if(r){ r.qty=Math.max(0,(Number(r.qty)||0)+(n-prev)); r.ts=r.at=new Date().toISOString(); etpCommit(); what='에토프 장부도'; }
   } else if(it.eventId){
     const ev=((stockEvents||{})[`${it.w}x${it.h}`]||[]).find(e=>e && e.id===it.eventId);
-    if(ev){ ev.qty=n; ev.updatedAt=new Date().toISOString(); what='원유리 재고도';
+    if(ev){ ev.qty=Math.max(0,n-odBadN(it)); ev.updatedAt=new Date().toISOString(); what='원유리 재고도';
       if(typeof _syncOldStockFromEvents==='function') _syncOldStockFromEvents(it.w,it.h); }
   }
   o.updatedAt=new Date().toISOString();
@@ -31450,7 +31565,7 @@ function tdyPendingOrders(){
     }
     if(!pending) return;
     const dd = (typeof odDueToDate==='function') ? odDueToDate(o.due, o.date) : null;
-    out.push({ o, open: sized.length ? open : items, late: !!(dd && dd < td), dueDate: dd });
+    out.push({ o, open: sized.length ? open : items, late: sized.length ? open.some(it=>odItemLate(o,it,td)) : !!(dd && dd < td), dueDate: dd });
   });
   return out.sort((a,b)=> String(b.o.date||'').localeCompare(String(a.o.date||'')) || String(a.dueDate||'9').localeCompare(String(b.dueDate||'9')));
 }
@@ -31468,20 +31583,29 @@ function tdyRecvAsk(orderId, idx){
   let m=document.getElementById('tdy-recv-modal');
   if(!m){ m=document.createElement('div'); m.id='tdy-recv-modal'; m.className='modal-bg'; m.onclick=e=>{ if(e.target===m) m.classList.remove('on'); }; document.body.appendChild(m); }
   const pick=(d,lab)=>`<button onclick="document.getElementById('tdy-recv-date').value='${d}'" style="padding:7px 12px;border:1px solid var(--b2);border-radius:8px;background:var(--s2);font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">${lab} ${md(d)}</button>`;
-  m.innerHTML=`<div class="modal-sheet" style="max-width:420px;margin:0 auto">
+  m.innerHTML=`<div class="modal-sheet" style="max-width:480px;margin:0 auto">
     <div class="modal-ttl">📦 언제로 입고 잡을까요?</div>
     <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">${etpEsc(odStmtVendor(o.vendor)||o.vendor||'')} · 발주 ${md(o.date||td)} — ${wait.length===1?`${wait[0].it.w}×${wait[0].it.h} `:`${wait.length}줄 `}${q}장</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pick(td,'오늘')}${due && due<=td && due!==td ? pick(due,'납기') : ''}</div>
     <input type="date" id="tdy-recv-date" class="inp" value="${def}" max="${td}" style="margin:0 0 10px;padding:8px 10px;font-size:13px">
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) 44px 128px 40px;gap:6px;align-items:center;font-size:10.5px;color:var(--tx3);padding:0 2px 4px;border-bottom:1px solid var(--b1)">
-      <span>사이즈</span><span style="text-align:right">발주</span><span style="text-align:center">실입고</span><span style="text-align:right">차이</span></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 38px 118px 48px 36px;gap:6px;align-items:center;font-size:10.5px;color:var(--tx3);padding:0 2px 4px;border-bottom:1px solid var(--b1)">
+      <span>사이즈</span><span style="text-align:right">발주</span><span style="text-align:center">실입고</span><span style="text-align:center" title="실입고 가운데 불량 장수 — 적으면 재작업·보류·마감 차감을 고릅니다">불량</span><span style="text-align:right">차이</span></div>
     <div style="max-height:46vh;overflow:auto;margin-bottom:8px">${wait.map(x=>{ const q0=Number(x.it.qty)||0;
       const sb=(d,t)=>`<button type="button" onclick="tdyRqStep(${x.i},${d})" style="width:30px;height:30px;padding:0;border:1px solid var(--b2);border-radius:7px;background:var(--s2);font-size:12px;cursor:pointer">${t}</button>`;
-      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) 44px 128px 40px;gap:6px;align-items:center;padding:6px 2px;border-bottom:1px dashed var(--b1)">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.it.w}×${x.it.h}</span>
+      const fs="font-size:11.5px;padding:4px 6px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);color:var(--tx1);font-family:'Noto Sans KR',sans-serif";
+      const actB=(k,l)=>`<label style="display:inline-flex;align-items:center;gap:3px;font-size:11.5px;white-space:nowrap;cursor:pointer"><input type="radio" name="tdy-bact-${x.i}" value="${k}"${k==='rework'?' checked':''} onchange="tdyBadShow(${x.i})">${l}</label>`;
+      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) 38px 118px 48px 36px;gap:6px;align-items:center;padding:6px 2px;border-bottom:1px dashed var(--b1)">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.it.w}×${x.it.h}${x.it.rw?' <span style="font-size:9.5px;color:#2563eb;font-family:Noto Sans KR,sans-serif">재작업분</span>':''}</span>
         <span style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--tx2)">${q0}</span>
-        <span style="display:flex;gap:4px;justify-content:center">${sb(-1,'▼')}<input id="tdy-rq-${x.i}" data-q="${q0}" type="number" inputmode="numeric" min="0" value="${q0}" oninput="tdyRqShow(${x.i})" style="width:50px;padding:5px 2px;text-align:center;font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:var(--tx1)">${sb(1,'▲')}</span>
-        <span id="tdy-rqd-${x.i}" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:800;color:var(--tx3)">-</span></div>`; }).join('')}</div>
+        <span style="display:flex;gap:4px;justify-content:center">${sb(-1,'▼')}<input id="tdy-rq-${x.i}" data-q="${q0}" type="number" inputmode="numeric" min="0" value="${q0}" oninput="tdyRqShow(${x.i})" style="width:46px;padding:5px 2px;text-align:center;font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:var(--tx1)">${sb(1,'▲')}</span>
+        <input id="tdy-bad-${x.i}" type="number" inputmode="numeric" min="0" value="" placeholder="-" oninput="tdyBadShow(${x.i})" title="실입고 가운데 불량 장수" style="width:44px;padding:5px 2px;text-align:center;font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:#dc2626">
+        <span id="tdy-rqd-${x.i}" style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:800;color:var(--tx3)">-</span></div>
+        <div id="tdy-badbox-${x.i}" style="display:none;margin:0 0 4px;padding:7px 9px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2">
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:6px">${actB('rework','🔁 재작업')}${actB('hold','⏸ 보류')}${actB('cut','✂ 재작업 없이 마감 차감')}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            <span id="tdy-bduew-${x.i}" style="display:inline-flex;gap:4px;align-items:center;font-size:11px;color:var(--tx2)">입고예정 <input id="tdy-bdue-${x.i}" type="date" min="${td}" style="${fs}"></span>
+            <select id="tdy-btype-${x.i}" style="${fs}">${ETP_DEF_TYPES.map(t=>`<option>${t}</option>`).join('')}</select>
+            <input id="tdy-bwhy-${x.i}" type="text" placeholder="메모 (까닭 · 예: 여유분이라 재처리 안 받음)" style="${fs};flex:1;min-width:150px"></div></div>`; }).join('')}</div>
     <div style="font-size:10.5px;color:var(--tx3);margin-bottom:12px">실입고 장수가 재고에 이 날짜로 들어갑니다. 0 으로 두면 그 줄은 입고하지 않고 대기로 남깁니다. 잘못 잡으면 발주 리스트에서 날짜를 고치거나 입고를 취소할 수 있습니다.</div>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('tdy-recv-modal').classList.remove('on')" style="flex:1;padding:11px;border:1px solid var(--b2);border-radius:10px;background:var(--s1);font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif">취소</button>
@@ -31494,6 +31618,12 @@ function tdyRqShow(i){
   const n=parseInt(el.value,10), d=(n>=0?n:0)-(Number(el.dataset.q)||0);
   lab.textContent = d ? odDiffTxt(d) : '-';
   lab.style.color = d<0 ? 'var(--acc4)' : d>0 ? 'var(--acc)' : 'var(--tx3)';
+}
+function tdyBadShow(i){
+  const n=parseInt((document.getElementById('tdy-bad-'+i)||{}).value,10)||0, box=document.getElementById('tdy-badbox-'+i); if(!box) return;
+  box.style.display = n>0 ? 'block' : 'none';
+  const act=(document.querySelector(`input[name="tdy-bact-${i}"]:checked`)||{}).value;
+  const w=document.getElementById('tdy-bduew-'+i); if(w) w.style.display = act==='rework' ? 'inline-flex' : 'none';
 }
 function tdyRqStep(i, d){
   const el=document.getElementById('tdy-rq-'+i); if(!el) return;
@@ -31513,18 +31643,25 @@ function tdyRecvDo(orderId, idx){
     const n=el ? parseInt(el.value,10) : (Number(x.it.qty)||0);
     if(!(n>=0)){ showToast(`${x.it.w}×${x.it.h} 실입고 장수를 넣어 주십시오`); return; }
     if(n===0) continue;
-    got.push({x, n});
+    const bad=parseInt((document.getElementById('tdy-bad-'+x.i)||{}).value,10)||0;
+    if(bad<0 || bad>n){ showToast(`${x.it.w}×${x.it.h} 불량이 실입고 ${n}장보다 많습니다`); return; }
+    const act=(document.querySelector(`input[name="tdy-bact-${x.i}"]:checked`)||{}).value||'rework';
+    got.push({x, n, bad, act, due:(document.getElementById('tdy-bdue-'+x.i)||{}).value||'',
+      type:(document.getElementById('tdy-btype-'+x.i)||{}).value||'', why:((document.getElementById('tdy-bwhy-'+x.i)||{}).value||'').trim()});
   }
   if(!got.length){ showToast('실입고가 모두 0 입니다 — 입고하지 않았습니다'); return; }
-  got.forEach(({x,n})=>{ if(n!==(Number(x.it.qty)||0)) x.it.rq=n; else delete x.it.rq;
-    if(!_odRecvItem(o, x.it, day)) delete x.it.rq; });
+  const nBad=got.reduce((s,g)=>s+g.bad,0);
+  if(nBad && !confirm('불량 '+got.filter(g=>g.bad).map(g=>`${g.x.it.w}×${g.x.it.h} ${g.bad}장 → ${OD_BAD_ACTS[g.act]}${g.act==='rework'&&g.due?' (예정 '+odMD(g.due)+')':''}`).join('\n')+'\n\n이대로 입고할까요? 재고에는 성한 것만 들어갑니다.')) return;
+  got.forEach(({x,n,bad,act,due,type,why})=>{ if(n!==(Number(x.it.qty)||0)) x.it.rq=n; else delete x.it.rq;
+    if(!_odRecvItem(o, x.it, day)){ delete x.it.rq; return; }
+    if(bad) odBadApply(o, x.it, bad, act, due, type, why, day); });
   saveAll(); saveOrderLog();
   try{ renderOrderList(); }catch(e){}
   if(typeof renderDash==='function') try{ renderDash(); }catch(e){}
   if(typeof autoSync==='function') autoSync();
   document.getElementById('tdy-recv-modal').classList.remove('on');
   const q=got.reduce((s,g)=>s+g.n,0), dq=got.reduce((s,g)=>s+g.n-(Number(g.x.it.qty)||0),0);
-  showToast(`📦 ${got.length}줄 ${q}장 입고 (${+day.slice(5,7)}/${+day.slice(8,10)})${dq?' · 발주보다 '+odDiffTxt(dq):''}${got.length<wait.length?' · '+(wait.length-got.length)+'줄은 대기':''}`);
+  showToast(`📦 ${got.length}줄 ${q}장 입고 (${+day.slice(5,7)}/${+day.slice(8,10)})${dq?' · 발주보다 '+odDiffTxt(dq):''}${got.length<wait.length?' · '+(wait.length-got.length)+'줄은 대기':''}${nBad?' · 불량 '+nBad+'장':''}`);
   try{ renderToday(); }catch(e){ try{ bdRender(); }catch(e2){} }
 }
 function todayOrdersCard(){
@@ -31648,9 +31785,10 @@ function odLateOrders(){
   const td=todayStr(), out=[];
   (typeof orderLog!=='undefined'?orderLog:[]).forEach(o=>{
     const items=(o&&o.items)||[];
-    const openQ=items.reduce((s,it)=>s+((it.w&&it.h&&!it.received)?(Number(it.qty)||0):0),0);
-    const dd=odDueToDate(o.due, o.date);
-    if(openQ && dd && dd<td) out.push({ o, openQ, due:dd, gap:(typeof etpBizGap==='function')?etpBizGap(dd, td):0 });
+    // 재작업 줄은 재작업 예정일로 봅니다(원 발주 납기가 아니라) — odItemLate
+    const lateIt=items.filter(it=>odItemLate(o,it,td)), openQ=lateIt.reduce((s,it)=>s+(Number(it.qty)||0),0);
+    const dd=lateIt.map(it=>odItemDue(o,it)).sort()[0];
+    if(openQ && dd) out.push({ o, openQ, due:dd, gap:(typeof etpBizGap==='function')?etpBizGap(dd, td):0 });
   });
   return out.sort((a,b)=>a.due.localeCompare(b.due));
 }
