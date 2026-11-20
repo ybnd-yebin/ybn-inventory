@@ -1034,7 +1034,7 @@ function cadDrawKey(r){
      안 가르면 덩어리 첫 줄의 값 하나로 그려져, WT 1345(320)와 1473(384)이 320 도면 하나에 같이 실렸습니다. */
   const xv = (typeof libDoorXValue==='function') ? libDoorXValue(r) : null;
   const wm = (r.code==='W2HBT' && typeof w2hbtMid==='function') ? w2hbtMid(r.h) : null;   // W2HBT 은 가운데 칸(432·512·640)이 달라도 X 가 같을 수 있어 같이 가름
-  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '') + (xv!=null ? '|X'+xv : '') + (wm ? '|M'+wm : '') + (isNoBore(r) ? '|NB' : '');
+  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '') + (xv!=null ? '|X'+xv : '') + (wm ? '|M'+wm : '') + (isNoBore(r) ? '|NB' : '') + (r.stdLong ? '|STD' : '');
 }
 /* 색 차례 — COLOR_CHIP 에 적힌 순서를 그대로 씁니다 (사장님 2026-09-16
    "같은 계열끼리인데 색이 다르면 색순으로 나열").
@@ -2186,6 +2186,24 @@ function oldStdFromModel(model){
   const p=String(model||'').trim().split(/\s+/);
   return p.length>1 ? oldStdOf(p[0],p[1]) : oldStdOf('',p[0]);
 }
+/* 롱도어 정규격(TCP1D · TH)도 비규격처럼 이 화면으로 들입니다 (사장님 2026-11-20
+   「정규격이어도 그날그날 발주 · 작업지시서도 내려줘야 해 · 모델명 적어 주고」).
+   유리가 상·하 두 장인데 앱 발주탭 모델표에는 한 장만 있어 하부를 놓친 일이 있었습니다(11/18).
+   도어(프레임) 치수는 ybn-data.js 의 ASSEMBLY_MODELS(asm_w × asm_h) 한 곳에서 읽습니다 — 숫자를 여기 적지 않습니다.
+   못 찾으면 null → 들이지 않고 「사이즈표에 없음」으로 드러냅니다. */
+const LONG_STD_CODES = ['TCP1D','TH'];
+const TCP1D_LOWER = 764;   // TCP1D 하부 도어 세로(고정) — calc 한 곳에서 씀
+function longStdOf(code, nameAll){
+  if(LONG_STD_CODES.indexOf(code)<0) return null;
+  const m=String(nameAll||'').match(new RegExp('\\b'+code+'\\s+(\\d{5})'));
+  if(!m) return {miss:true, model:code};
+  const num=m[1];
+  const type=/\bOB\b/.test(nameAll)?'OB':'HD';
+  if(typeof ASSEMBLY_MODELS==='undefined') return {miss:true, model:code+' '+num};
+  const a=ASSEMBLY_MODELS.find(x=>x && x.asm_w && x.asm_h && lrStrip(x.short)===type+' '+code+' '+num);
+  if(!a) return {miss:true, model:code+' '+num};
+  return {model:num, fw:+a.asm_w, fh:+a.asm_h};
+}
 
 /* ════════════════════════════════════════════════
    2. 날짜 유틸 (옛 파일)
@@ -2442,6 +2460,13 @@ function calc(r){
       const sameSize=segs.every(p=>p.v===segs[0].v);
       note=(note?note+' / ':'')+(sameSize?`상·하 동일 → 유리 1SET(${setEA}EA)`:'비규격 세로는 합적 분할');
     }
+  }else if(rule.longdoor && r.code==='TCP1D'){
+    // TCP1D: 하부 764 고정 · 상부 = 도어세로 − 764 (원본 보링도 DXF 「B-764」, B = 도어 세로).
+    //   유리 상부 = 상부 −2 · 하부 = 764 −3 = 761 (사장님 확정 2026-11-20). 상부가 먼저.
+    const lo=TCP1D_LOWER;
+    glass.push({label:'상부유리', gw:fw, gh:(fh!==''?fh-lo-2:''), n:1});
+    glass.push({label:'하부유리', gw:fw, gh:lo-3, n:1});
+    note=(note?note+' / ':'')+`하부 ${lo} 고정 · 상부 = 세로−${lo} · 유리 상·하 2장`;
   }else if(rule.longdoor && r.code==='TH'){
     // TH: 중간 손잡이 롱도어. 프레임은 안 나뉨(fw×fh 한 장). 유리만 상·하 2장.
     //   손잡이 바닥에서 854 고정 → 하부유리 = 가로 × 851(854−3), 상부유리 = 가로 × (fh−854−2). (2026-08)
@@ -2862,8 +2887,13 @@ function ybnDocToRows(d){
        (CLAUDE.md 12-8-1). PDF 를 직접 올리는 길에는 이 처리가 있었는데
        **이 길에만 빠져 있어, 앱에서 가져오면 구형이 통째로 사라졌습니다**
        (사장님 지적 2026-09-16 — "15일 AS 포레스트가 리스트에 안 들어온다"). */
-    let oldStd = null;
-    if(!isNonStdName(nameAll)){
+    let oldStd = null, stdLong = null;
+    const lcode = codeFromShort(it.short) || codeFromShort(it.name);
+    if(!isNonStdName(nameAll) && LONG_STD_CODES.indexOf(lcode)>=0){
+      stdLong = longStdOf(lcode, nameAll);
+      if(!stdLong || stdLong.miss){ oldMissing.push((it.short || it.name || '') + ' (롱도어 정규격 사이즈표에 없음)'); return; }
+    }
+    else if(!isNonStdName(nameAll)){
       const oc = (typeof isOldText === 'function') && isOldText(nameAll + ' ' + (it.color || ''), isEuro);
       if(!oc) return;                                   // 신형 정규격은 이 화면 대상이 아닙니다
       const ab = codeFromShort(it.short) || codeFromShort(it.name);
@@ -2877,9 +2907,11 @@ function ybnDocToRows(d){
 
     const code = codeFromShort(it.short) || codeFromShort(it.name);
     const type = /\bHD\b/.test(nameAll) ? 'HD' : (/\bCH\b/.test(nameAll) ? 'CH' : 'OB');
-    const { w, h } = parseSizeWH(ybnItemSize(it));
+    let { w, h } = parseSizeWH(ybnItemSize(it));
+    // 롱도어 정규격: 도어 치수에서 납품 치수로 되돌려 둡니다(calc 가 −5 × −4 를 빼서 도어가 됩니다)
+    if(stdLong){ w = stdLong.fw + 5; h = stdLong.fh + 4; }
     // 구형 정규격은 사이즈표에서 치수를 얻으므로 규격이 비어도 알릴 일이 아닙니다
-    if((!w || !h) && !oldStd){ skipped.push((it.short || it.name || it.code)); }
+    if((!w || !h) && !oldStd && !stdLong){ skipped.push((it.short || it.name || it.code)); }
     const rule = (typeof RULES !== 'undefined' && RULES[code]) ? RULES[code] : {};
     const ser = (typeof seriesOf === 'function') ? seriesOf(nameAll) : { key:'', label:'' };
     const colr = colorKo(it.color) || (typeof colorFromName === 'function' ? colorFromName(nameAll) : '');
@@ -2902,7 +2934,7 @@ function ybnDocToRows(d){
       color: colr,
       series: ser.key, seriesLabel: ser.label,
       isAS, euro: isEuro, name: it.name || '',
-      qty: it.qty || 1, oldStd,
+      qty: it.qty || 1, oldStd, stdLong: stdLong ? { model: stdLong.model } : null,
       handle: rule.handle || 'both',
       short: it.short, prodCode: it.code,
       delivNo: d.delivNo, refNo: d.refNo || '',
@@ -3109,6 +3141,10 @@ function ybnWhy(){
         extra = asp.name;
       }
       else if(nonStd){ why = '✅ 비규격 — 들어옵니다'; }
+      else if(LONG_STD_CODES.indexOf(codeFromShort(it.short) || codeFromShort(it.name))>=0){
+        const ls = longStdOf(codeFromShort(it.short) || codeFromShort(it.name), nameAll);
+        why = (ls && !ls.miss) ? ('✅ 롱도어 정규격 — 들어옵니다 (' + ls.fw + '×' + ls.fh + ')') : '⛔ 롱도어 정규격인데 사이즈표에 없습니다';
+      }
       else if(!oc){ why = '⛔ 신형 정규격 — 이 화면 대상이 아닙니다'; }
       else {
         const ab = codeFromShort(it.short) || codeFromShort(it.name);
@@ -3562,7 +3598,7 @@ function nsImportMissAdd(kind, list){
 /* 가져온 줄의 열쇠 — 「가져오기」가 이미 있는 줄인지 볼 때와, 겹친 줄을 덜어낼 때 **같은 것**을 씁니다 */
 function ybnRowKey(r){
   return [r.delivNo||'', r.code||'', r.w||0, r.h||0, r.lr||'',
-          (r.oldStd && r.oldStd.model) || '', isNoBore(r) ? 'NB' : ''].join('|');
+          (r.oldStd && r.oldStd.model) || (r.stdLong && r.stdLong.model) || '', isNoBore(r) ? 'NB' : ''].join('|');
 }
 /* 앱에서 가져온 줄이 **원래 납품서보다 많으면** 넘치는 만큼 덜어냅니다 (사장님 2026-10-07 "4장인데 8장으로 풀리네").
    세로에 두께(18)가 들어간 옛 줄 4개가 남은 채 고친 뒤 다시 가져와 새 줄 4개가 붙었고,
@@ -3990,8 +4026,13 @@ async function handleFiles(files){
         // 비규격만 수집. 단 '구형(사하라·미드나잇) 정규격'은 사이즈표에 있으면 함께 태운다
         // — 구형은 프레임이 달라 정규격이라도 치수를 찍어줘야 하기 때문(2026-07-23).
         // it.euro 는 '어느 페이지로 보낼지' 표시일 뿐, 수집 여부와 무관.
-        let oldStd=null;
-        if(!it.isBig){
+        let oldStd=null, stdLong=null;
+        const lcode=codeFromShort(it.short)||codeFromShort(it.name);
+        if(!it.isBig && LONG_STD_CODES.indexOf(lcode)>=0){          // 롱도어 정규격(TCP1D·TH) — 비규격처럼 들입니다
+          stdLong=longStdOf(lcode, nameAll);
+          if(!stdLong || stdLong.miss){ oldStdMissing++; continue; }
+        }
+        else if(!it.isBig){
           const oc=isOldText(nameAll+' '+(it.color||''), it.euro);
           // 약어+번호로 찾는다 — 번호만으로는 6091 처럼 약어마다 사이즈가 갈린다.
           // 번호는 '약어 바로 뒤의 숫자'다: 'CH M 3073( 공용 ) M' → M + 3073
@@ -4006,7 +4047,8 @@ async function handleFiles(files){
         bigN+=it.qty;
         const code=codeFromShort(it.short)|| codeFromShort(it.name);
         const type=/\bHD\b/.test((it.short||'')+(it.name||''))?'HD':(/\bCH\b/.test((it.short||'')+(it.name||''))?'CH':'OB');
-        const {w,h}=parseSizeWH(ybnItemSize(it));
+        let {w,h}=parseSizeWH(ybnItemSize(it));
+        if(stdLong){ w=stdLong.fw+5; h=stdLong.fh+4; }
         const rule=RULES[code]||{};
         const ser=seriesOf(nameAll);
         // 색상: 카탈로그값 우선(한글화), 없으면 제품명에서 추출
@@ -4017,7 +4059,7 @@ async function handleFiles(files){
           color: colr,
           series: ser.key, seriesLabel: ser.label,
           isAS, euro: !!it.euro, name: it.name,
-          qty: it.qty||1, oldStd,
+          qty: it.qty||1, oldStd, stdLong: stdLong ? {model:stdLong.model} : null,
           handle: rule.handle||'both',
           short: it.short, prodCode: it.code,
           delivNo: parsed.delivNo, refNo: parsed.refNo||'',
@@ -4202,6 +4244,7 @@ function renderCheck(){
         <td style="text-align:center"><input type="checkbox" ${inc?'checked':''} onchange="chkSet(${i},'include',this.checked)"></td>
         <td style="font-weight:700">${r.oldStd
             ? `${isOldFrame(r)?'<b class="old-frame" style="font-size:12px">[구형프레임]</b> ':''}<span class="badge-std" style="font-size:11px">정규격 <b class="std-model" style="font-size:13px">${esc(r.code||'')} ${esc(r.oldStd.model)}</b></span>`
+            : r.stdLong ? `<span class="badge-std" style="font-size:11px">정규격 <b class="std-model" style="font-size:13px">${esc(r.code||'')} ${esc(r.stdLong.model)}</b></span>`
             : `${esc(r.code||'')}${isOldFrame(r)?' <b class="old-frame" style="font-size:12px">[구형프레임]</b>':''}`}${isNoBore(r)?' <b style="color:#e00000;font-size:12px">무보링</b>':''}</td>
         <td>${esc(r.type||'OB')}</td>
         <td class="ck-ro">${_frameTxt(c)}</td>
@@ -4566,8 +4609,9 @@ function cadBlockRows(list){
      구형은 모델명이 한 줄에 하나씩이라 옆에 적어도 읽히고, 줄을 아끼는 편이 낫습니다.
      비규격은 한 코드 밑에 사이즈가 여럿이라 머리줄로 묶어야 읽힙니다.
      ⚠ 12-8-2 대로 **한 덩어리에 구형과 비규격이 섞이지 않으므로** 덩어리마다 한 가지로 갈립니다. */
-  const isOldBlock = list.some(r=>r.oldStd);
+  const isOldBlock = list.some(r=>r.oldStd || r.stdLong);   // 롱도어 정규격도 모델명을 치수줄 옆에(12-8-2)
   const labOf = r => r.oldStd ? (String(r.oldStd.model||'') + ' /')
+                  : r.stdLong ? ('정규격 ' + String(r.code||'') + ' ' + String(r.stdLong.model||'') + ' /')
                               : (multiCode ? String(r.code||'') : '');
   const byColor={}; list.forEach(r=>{ const c=r.color||'미지정'; (byColor[c]=byColor[c]||[]).push(r); });
   cadColorOrder(Object.keys(byColor)).forEach(color=>{
