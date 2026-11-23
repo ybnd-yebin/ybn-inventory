@@ -1919,7 +1919,7 @@ const RULES={
      ⚠ 형제 코드 **BNDB2N 은 아직 못 받았습니다** — 지금도 −4 입니다. 확인대기 B17. */
   BNDC2N:{handle:'both',lr:true,doorHsub:178,note:'마이다 / 후면펀치·상하 확인 / 세로 −178'},
   WMLDT:{handle:'both'},WHMH:{handle:'both',note:'후드문'},WT:{handle:'both'},
-  WTA:{handle:'both',lr:true,note:'후면 사전보링 / 손잡이 민짜 / MDF / 좌우 확인'},
+  WTA:{handle:'both',lr:true,note:'후면 사전보링 / 손잡이 민짜 / MDF'},
   WTAP:{handle:'both',lr:true,note:'민자 손잡이 / 보링위치 확인 / 허니컴 / 사전보링 없음'},
   W2U:{handle:'both'},W2HBT:{handle:'both',lr:true},
   TH:{handle:'both',lr:true,longdoor:true,hinge:'110',note:'롱도어 / 유리 사이즈 도면 확인 / 110도 힌지'},
@@ -2492,6 +2492,12 @@ function calc(r){
   if(isWT && r.code!=='WTAP' && fh===1473){
     hingeSpecial={a:384, top:110, bot:110};
     note=(note?note+' / ':'')+'⚠ 힌지 위치 변경(1473): 아래서부터 110/384/중간/384/110 · 힌지도면 별도';
+  }
+  /* WT 도어세로 1473 초과는 힌지 간격 규칙을 아직 못 받았습니다(확인대기 B3). 도면은 320 원본 그대로라
+     조용히 넘어가면 틀린 간격이 나갈 수 있어 드러냅니다. (2026-11-23 11/23 발주 WT 600×1504 → 1500) */
+  if(/^WT$|^WTP$/.test(r.code) && fh!=='' && fh>1473){
+    hot=(hot?hot+' / ':'')+`세로 ${fh} 힌지규칙 없음`;
+    note=`⚠ 도어세로 ${fh}는 WT 힌지 규칙(1253~1473) 밖입니다. 힌지 간격(110/a/b/a/110)을 확인한 뒤 작업하세요 / `+note;
   }
   // WTAP: 힌지 4개 · 좌우구분. 위→아래 110 / 변환 / 485 / 320 / 110 (양끝 110).
   //   변환값은 납품세로가 아니라 −4 뺀 도어(프레임)세로 fh 에서 계산: conv = fh − 1025. (2026-08 수정)
@@ -4495,9 +4501,10 @@ function cadSheetSVG(header, banner){
      WHBT — 2026-09-04 · B — 2026-09-09(사용자: "B(HD)는 좌우 구분 있어")
      BHBU — 2026-09-30(사장님: "BHBU L/R 구분이 안되어있음")
      TH — 2026-11-05(사장님: "th 좌우 구분해줘야함") · RULES 에도 lr:true
-   ⚠ RULES 에 `lr:true` 인 코드가 더 있습니다(BC1A·BC1B·WTA·WTAP·BNDB2N·TCP1D·TAP1D 등).
+     WTA · WTAP — 2026-11-23(사장님: "WTA는 좌우구분해서 작업지시서에 넣어줘야" — 그날 발주는 WTAP 600×1504 L)
+   ⚠ RULES 에 `lr:true` 인 코드가 더 있습니다(BC1A·BC1B·BNDB2N·TCP1D·TAP1D 등).
      한꺼번에 켜면 표기가 크게 바뀌므로, 사장님이 짚어 주신 코드만 하나씩 넣습니다. */
-const LR_SPLIT_CODES = new Set(['WHBT','B','BHBU','TH']);
+const LR_SPLIT_CODES = new Set(['WHBT','B','BHBU','TH','WTA','WTAP']);
 // 완성치수(프레임) 글자 — 합적(마이다)이면 분할 세로를 붙여 적는다. 작업지시서·프레임탭이 같이 쓴다.
 function frameTextOf(c){
   if(c.frameSegs){
