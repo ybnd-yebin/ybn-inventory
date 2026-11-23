@@ -185,6 +185,16 @@
   table.board tr.fc-gray td.pname{background:#e3e4e6}
   table.board tr.oido td.pname{background:#fff6c9;font-weight:700}
   table.board tr.bas td.pname{background:#d9e8f5;font-weight:700}
+  /* 글래스도어 묶음 — 그레이박스·오이도를 한 줄로 (사장님 2026-11-23) */
+  table.board tr.glass td{background:#fffdf0}
+  table.board tr.glass td.pname{background:#fff6c9;font-weight:700}
+  table.board tr.glass-head td{background:#f3f1ea;font-weight:700;color:#6b6555}
+  table.board tr.glass-head td.pname{background:#f3f1ea}
+  .pn-sub{display:block;font-size:11px;font-weight:400;color:var(--soft);margin-top:1px}
+  .srcs{display:block;white-space:nowrap;margin-top:2px;line-height:1}
+  .src{display:inline-block;font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;margin:0 1px}
+  .src.g{background:#e6e8ec;color:#454b55}
+  .src.o{background:#ffe98a;color:#6e5f00}
   .board-day-count{display:flex;gap:0;margin-bottom:2px}
   .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--soft);margin:12px 0 4px}
   .legend span{display:inline-flex;align-items:center;gap:5px}
@@ -392,8 +402,8 @@
       <button class="chip active" data-cat="ALL">전체</button>
       <button class="chip" data-cat="E500">유로500</button>
       <button class="chip" data-cat="E700">유로700</button>
+      <button class="chip" data-cat="GLASS">글래스도어</button>
       <button class="chip" data-cat="ETC">그 외</button>
-      <button class="chip" data-cat="OIDO">오이도</button>
       <button class="chip" data-cat="BAS">바스</button>
       <button class="chip" id="shortBtn" style="margin-left:auto" title="제품 이름을 짧게 / 원래대로">이름 간략</button>
       <button class="btn" id="copyBtn" style="padding:7px 14px">📋 이미지로 복사</button>
@@ -797,7 +807,53 @@ function categoryByName(name, isOido){
   if(/Euro700|유로700/i.test(n)) return 'E700';
   return 'ETC';
 }
-function catLabel(c){return {ALL:'전체',OIDO:'오이도',BAS:'바스',E500:'유로500',E700:'유로700',ETC:'그 외'}[c]||c;}
+function catLabel(c){return {ALL:'전체',OIDO:'오이도',BAS:'바스',E500:'유로500',E700:'유로700',ETC:'그 외',GLASS:'글래스도어'}[c]||c;}
+/* ── 발주 예상 표 — 글래스도어 묶음 (사장님 2026-11-23 「물건은 같고 출고지만 다르니 현장에서는 같이 봐야」)
+     그레이박스 글래스도어(예전 「그 외」)와 오이도(예전 「오이도」)를 같은 품목코드끼리 한 줄로 합치고,
+     칸 아래에 창고별 몫을 「그레이 4 · 오이도 1」 로 적습니다. 발주 예상 표에서만 — 다른 탭의 분류(category)는 그대로. */
+const GLASS_RE = /글래스\s*(행잉\s*)?(채널\s*)?도어/;
+function boardCat(row, ybCodes){
+  const c = category(row, ybCodes);
+  if(c==='BAS') return c;
+  return (row.oido || GLASS_RE.test(row.name||'')) ? 'GLASS' : c;
+}
+function srcChips(g, o){
+  if(!g && !o) return '';
+  return `<span class="srcs">${g?`<span class="src g">그레이${g}</span>`:''}${o?`<span class="src o">오이도${o}</span>`:''}</span>`;
+}
+// items: {name, code, oido, qs[], tc} — 같은 코드(없으면 이름)끼리 합칩니다. 이름은 그레이박스 쪽 표기를 씁니다.
+function mergeGlass(arr, n){
+  const m = new Map(), byName = new Map();
+  for(const it of arr){
+    const nk = String(it.name||'').replace(/\s+/g,'');
+    const k = it.code ? 'c:'+it.code : (byName.get(nk) || 'n:'+nk);
+    if(!byName.has(nk)) byName.set(nk, k);
+    let g = m.get(k);
+    if(!g){ g = {name:it.name, code:it.code, glass:true, qsG:Array(n).fill(0), qsO:Array(n).fill(0), tc:null, eG:0, eO:0, hasG:false}; m.set(k, g); }
+    if(!it.oido && !g.hasG){ g.name = it.name; g.hasG = true; }
+    const t = it.oido ? g.qsO : g.qsG;
+    it.qs.forEach((q,i)=>{ t[i] += q||0; });
+    if(it.tc){
+      g.tc = g.tc || {e:0, a:0};
+      g.tc.e += it.tc.e||0; g.tc.a += it.tc.a||0;
+      if(it.oido) g.eO += it.tc.e||0; else g.eG += it.tc.e||0;
+    }
+  }
+  return [...m.values()].map(g=>{
+    g.qs = g.qsG.map((q,i)=>q+g.qsO[i]);
+    g.sum = g.qs.reduce((a,c)=>a+c,0);
+    g.gSum = g.qsG.reduce((a,c)=>a+c,0); g.oSum = g.qsO.reduce((a,c)=>a+c,0);
+    return g;
+  }).sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+}
+function glassSub(g){
+  const p = [];
+  if(g.gSum) p.push('그레이 '+g.gSum);
+  if(g.oSum) p.push('오이도 '+g.oSum);
+  return p.length ? `<span class="pn-sub">${p.join(' · ')}</span>` : '';
+}
+// 「오늘」 칸 뒤에 창고별 몫(예시)을 붙입니다.
+function withChips(td, g, o){ return td.replace(/<\/td>$/, srcChips(g, o)+'</td>'); }
 // 마감 색상별 색칠 (아보카도·쉐이드=연초록, 에토프=연살구, 브리즈=그레이, 그 외 없음)
 function finishColor(name){
   const n=name||'';
@@ -1623,24 +1679,28 @@ function renderBoard(){
   }
 
   // collect rows that have qty on any of the selected order-due days
-  const items=[];
+  let items=[];
   for(const row of allRows){
-    const cat = category(row, ybCodes);
+    const cat = boardCat(row, ybCodes);
     if(BOARD_CAT!=='ALL' && cat!==BOARD_CAT) continue;
     const qs=days.map(d=>(row.byOrder&&row.byOrder[d])||0);
     const tc = TD ? TD.cell.get(row) : null;
     if(qs.some(q=>q>0) || (tc && (tc.e>0||tc.a>0))){
       const fc = finishColor(row.name);
       const oido = !!row.oido;
-      items.push({name:row.name, qs, sum:qs.reduce((a,c)=>a+c,0), fc, oido, bas:cat==='BAS', lead:row.lead, tc});
+      items.push({name:row.name, code:row.code, qs, sum:qs.reduce((a,c)=>a+c,0), fc, oido, bas:cat==='BAS', glass:cat==='GLASS', lead:row.lead, tc});
     }
   }
   // 예시에 없는데 오늘 납품된 것 — 「+N」 줄
   if(TD) for(const x of TD.extra){
-    if(BOARD_CAT!=='ALL' && x.cat!==BOARD_CAT) continue;
-    items.push({name:x.name, qs:days.map(()=>0), sum:0, fc:finishColor(x.name), oido:x.oido, bas:x.cat==='BAS', tc:{e:0,a:x.a}});
+    const xc = (x.oido || GLASS_RE.test(x.name||'')) && x.cat!=='BAS' ? 'GLASS' : x.cat;
+    if(BOARD_CAT!=='ALL' && xc!==BOARD_CAT) continue;
+    items.push({name:x.name, qs:days.map(()=>0), sum:0, fc:finishColor(x.name), oido:x.oido, bas:xc==='BAS', glass:xc==='GLASS', tc:{e:0,a:x.a}});
   }
-  if(items.length===0){
+  // 글래스도어는 그레이박스·오이도를 한 줄로 합쳐 맨 위 묶음으로
+  const glassItems = mergeGlass(items.filter(it=>it.glass), days.length);
+  items = items.filter(it=>!it.glass);
+  if(items.length===0 && glassItems.length===0){
     body.innerHTML=mHtml+'<div class="bd-desk">'+emptyMsg(`고른 오더예상일에 ${catLabel(BOARD_CAT)} 물량이 없어요`,
       `선택한 날(${days.map(fmtShort).join(', ')})에 오더가 떠야 하는 ${catLabel(BOARD_CAT)} 물량이 없어요. 다른 날이나 필터를 골라보세요.`)+'</div>';
     mWire();
@@ -1654,7 +1714,8 @@ function renderBoard(){
     if((colorOrder[ca]||9)!==(colorOrder[cb]||9)) return (colorOrder[ca]||9)-(colorOrder[cb]||9);
     return a.name.localeCompare(b.name,'ko');
   });
-  const dayTotals=days.map((_,i)=>items.reduce((a,it)=>a+it.qs[i],0));
+  const allItems = glassItems.concat(items);
+  const dayTotals=days.map((_,i)=>allItems.reduce((a,it)=>a+it.qs[i],0));
   const grand=dayTotals.reduce((a,c)=>a+c,0);
 
   const srcTxt = picked.map(s=>`${s.oido?'오이도':(isDreamSnap(s)?'바스':'그레이박스')} ${s.asof}`).join(' + ');
@@ -1664,16 +1725,30 @@ function renderBoard(){
     ${TD?`<th class="dcol td-col">${fmtShort(TD.day)} · 오늘</th>`:''}
     ${days.map(d=>`<th class="dcol">${fmtShort(d)}</th>`).join('')}
     <th class="sumh" rowspan="2">합계</th></tr>
-    <tr>${TD?`<th class="dow td-col">${BOARD_CAT==='BAS'?'대조 안 함':!TD.aTot?'납품 아직':'납품 '+items.reduce((s,it)=>s+(it.tc?it.tc.a:0),0)}</th>`:''}${days.map(d=>`<th class="dow">${dowOf(d)}</th>`).join('')}</tr>
+    <tr>${TD?`<th class="dow td-col">${BOARD_CAT==='BAS'?'대조 안 함':!TD.aTot?'납품 아직':'납품 '+allItems.reduce((s,it)=>s+(it.tc?it.tc.a:0),0)}</th>`:''}${days.map(d=>`<th class="dow">${dowOf(d)}</th>`).join('')}</tr>
     </thead><tbody>`;
   // 합계는 맨 위 (사장님 2026-11-02 「합계는 아래보다 위쪽이 낫다」)
   html+=`<tr class="tot-row"><td class="pname" style="font-weight:700;text-align:right">일자 합계</td>
-    ${TD?boardTodayCell(boardTodayTotal(items), TD.aTot>0, true):''}
+    ${TD?boardTodayCell(boardTodayTotal(allItems), TD.aTot>0, true):''}
     ${dayTotals.map(t=>`<td class="q" style="font-weight:700">${t}</td>`).join('')}
     <td class="sum">${grand}</td></tr>`;
+  if(glassItems.length){
+    const gTot = days.map((_,i)=>glassItems.reduce((a,it)=>a+it.qs[i],0));
+    const gOnlyToday = !gTot.some(t=>t>0);
+    html+=`<tr class="glass-head"${gOnlyToday?' data-tdonly="1"':''}><td class="pname">글래스도어 <span style="font-weight:400;font-size:11px">${glassItems.length}품목 · 그레이+오이도</span></td>
+      ${TD?boardTodayCell(boardTodayTotal(glassItems), TD.aTot>0, true):''}
+      ${gTot.map(t=>`<td class="q${t?'':' z'}">${t||'·'}</td>`).join('')}
+      <td class="sum">${gTot.reduce((a,c)=>a+c,0)||'-'}</td></tr>`;
+    for(const g of glassItems){
+      html+=`<tr class="glass"${g.sum?'':' data-tdonly="1"'}><td class="pname" title="${esc(g.name)}">${esc(shortName(g.name))}${glassSub(g)}</td>`;
+      if(TD) html+=withChips(boardTodayCell(g.tc, TD.aTot>0), g.eG, g.eO);
+      g.qs.forEach((q,i)=>{ html+=`<td class="q${q===0?' z':''}">${q===0?'·':q}${q?srcChips(g.qsG[i], g.qsO[i]):''}</td>`; });
+      html+=`<td class="sum">${g.sum||'-'}${g.sum?srcChips(g.gSum, g.oSum):''}</td></tr>`;
+    }
+  }
   let prevOido=true;
   for(const it of items){
-    const sep = (prevOido && !it.oido)?' sep':''; prevOido=it.oido;
+    const sep = (prevOido && !it.oido && glassItems.length)?' sep':''; prevOido=it.oido;
     const cls = [it.oido?'oido':'', it.bas?'bas':'', it.fc?it.fc.cls:'', sep.trim()].filter(Boolean).join(' ');
     const badge = (it.oido ? ' <span class="oido-tag">오이도</span>' : '')
                 + (it.bas  ? ' <span class="badge-bas">바스</span>' : '');
@@ -1688,7 +1763,7 @@ function renderBoard(){
     <span><i style="background:#dff0d8"></i>아보카도·쉐이드</span>
     <span><i style="background:#fbe4d8"></i>에토프·로즈그레이</span>
     <span><i style="background:#e3e4e6"></i>브리즈</span>
-    <span><i style="background:#fff6c9"></i>오이도 창고물</span>
+    <span><i style="background:#fff6c9"></i>글래스도어 <span class="src g">그레이3</span><span class="src o">오이도2</span> = 창고별 몫</span>
     <span><i style="background:#d9e8f5"></i>바스(드림하이텍)</span>
     ${TD&&TD.aTot?`<span class="lg-td"><i style="background:#fff3d6"></i>오늘 6→5 = 예시→납품</span><span class="lg-td"><i style="background:#ddeaf7"></i>오늘 +N = 예시에 없던 납품</span>`:''}
   </div>`;
@@ -1708,18 +1783,22 @@ function boardMobileHtml(allRows, ybCodes, TD, futureDays){
   if(!mdays.length) return '';
   if(!mdays.includes(BOARD_MDAY)) BOARD_MDAY = futureDays[0] || mdays[0];   // 기본은 다음 날 — 오늘은 보기만(보내는 이미지엔 필요 없음)
   const d = BOARD_MDAY, i = mdays.indexOf(d), isT = !!TD && d===TD.day;
-  const its = [];
+  let its = [];
   for(const row of allRows){
-    const cat = category(row, ybCodes);
+    const cat = boardCat(row, ybCodes);
     if(BOARD_CAT!=='ALL' && cat!==BOARD_CAT) continue;
-    const base = {name:row.name, fc:finishColor(row.name), oido:!!row.oido, bas:cat==='BAS'};
-    if(isT){ const tc = TD.cell.get(row); if(tc && (tc.e||tc.a)) its.push({...base, tc}); }
-    else { const q = (row.byOrder&&row.byOrder[d])||0; if(q) its.push({...base, q}); }
+    const base = {name:row.name, code:row.code, fc:finishColor(row.name), oido:!!row.oido, bas:cat==='BAS', glass:cat==='GLASS'};
+    if(isT){ const tc = TD.cell.get(row); if(tc && (tc.e||tc.a)) its.push({...base, tc, qs:[0]}); }
+    else { const q = (row.byOrder&&row.byOrder[d])||0; if(q) its.push({...base, q, qs:[q]}); }
   }
   if(isT) for(const x of TD.extra){
-    if(BOARD_CAT!=='ALL' && x.cat!==BOARD_CAT) continue;
-    its.push({name:x.name, fc:finishColor(x.name), oido:x.oido, bas:x.cat==='BAS', tc:{e:0,a:x.a}});
+    const xc = (x.oido || GLASS_RE.test(x.name||'')) && x.cat!=='BAS' ? 'GLASS' : x.cat;
+    if(BOARD_CAT!=='ALL' && xc!==BOARD_CAT) continue;
+    its.push({name:x.name, fc:finishColor(x.name), oido:x.oido, bas:xc==='BAS', glass:xc==='GLASS', tc:{e:0,a:x.a}, qs:[0]});
   }
+  const mGlass = mergeGlass(its.filter(x=>x.glass), 1);
+  mGlass.forEach(g=>{ g.q = g.qs[0]; });
+  its = its.filter(x=>!x.glass);
   const colorOrder={'fc-green':1,'fc-apricot':2,'fc-gray':3,'':9};
   its.sort((a,b)=>{
     if(a.oido!==b.oido) return b.oido-a.oido;
@@ -1733,15 +1812,26 @@ function boardMobileHtml(allRows, ybCodes, TD, futureDays){
       <b>${lab(d)}</b>
       <button ${i<mdays.length-1?`data-md="${mdays[i+1]}"`:'disabled'}>▶</button></div>
     <div class="bm-days">${mdays.map(x=>`<button class="dchip${x===d?' on':''}${isWeekend(x)?' weekend':''}" data-md="${x}">${fmtShort(x)}${TD&&x===TD.day?' 오늘':''}</button>`).join('')}</div>`;
-  if(!its.length) return h + `<div class="bm-empty">이 날 ${catLabel(BOARD_CAT)} 물량이 없어요.</div></div>`;
+  const allIts = mGlass.concat(its);
+  if(!allIts.length) return h + `<div class="bm-empty">이 날 ${catLabel(BOARD_CAT)} 물량이 없어요.</div></div>`;
   const head = isT ? (BOARD_CAT==='BAS'?'대조 안 함':!TD.aTot?'예시 · 납품 아직':'예시→납품') : '수량';
-  const tot = isT ? boardTodayCell(boardTodayTotal(its), TD.aTot>0, true)
-                  : `<td class="q" style="font-weight:700">${its.reduce((s,x)=>s+x.q,0)}</td>`;
-  h += `<table class="board bm-t"><thead><tr><th class="pname">제품 ${its.length}줄</th><th class="dcol">${head}</th></tr></thead><tbody>
+  const tot = isT ? boardTodayCell(boardTodayTotal(allIts), TD.aTot>0, true)
+                  : `<td class="q" style="font-weight:700">${allIts.reduce((s,x)=>s+x.q,0)}</td>`;
+  h += `<table class="board bm-t"><thead><tr><th class="pname">제품 ${allIts.length}줄</th><th class="dcol">${head}</th></tr></thead><tbody>
     <tr class="tot-row"><td class="pname" style="font-weight:700">합계</td>${tot}</tr>`;
+  if(mGlass.length){
+    const gt = isT ? boardTodayCell(boardTodayTotal(mGlass), TD.aTot>0, true)
+                   : `<td class="q">${mGlass.reduce((s,x)=>s+x.q,0)}</td>`;
+    h += `<tr class="glass-head"><td class="pname">글래스도어 <span style="font-weight:400;font-size:11px">${mGlass.length}품목</span></td>${gt}</tr>`;
+    for(const g of mGlass){
+      const sub = isT ? (g.eG||g.eO ? `<span class="pn-sub">${[g.eG?'그레이 '+g.eG:'', g.eO?'오이도 '+g.eO:''].filter(Boolean).join(' · ')}</span>` : '') : '';
+      h += `<tr class="glass"><td class="pname" title="${esc(g.name)}">${esc(shortName(g.name))}${sub}</td>`
+         + (isT ? withChips(boardTodayCell(g.tc, TD.aTot>0), g.eG, g.eO) : `<td class="q">${g.q}${srcChips(g.qsG[0], g.qsO[0])}</td>`) + `</tr>`;
+    }
+  }
   let prevOido = true;
   for(const it of its){
-    const sep = (prevOido && !it.oido)?' sep':''; prevOido = it.oido;
+    const sep = (prevOido && !it.oido && mGlass.length)?' sep':''; prevOido = it.oido;
     const cls = [it.oido?'oido':'', it.bas?'bas':'', it.fc?it.fc.cls:'', sep.trim()].filter(Boolean).join(' ');
     const badge = (it.oido ? ' <span class="oido-tag">오이도</span>' : '') + (it.bas ? ' <span class="badge-bas">바스</span>' : '');
     h += `<tr class="${cls}"><td class="pname" title="${esc(it.name)}">${esc(shortName(it.name))}${badge}</td>`
