@@ -33290,13 +33290,26 @@ function renderYesiCmp(){
   if(ll){ ll.textContent=last?`마지막 예시 ${last.date} · ${age}일 전`:'아직 넣은 예시 없음'; ll.style.color=(last&&age>YESI_STALE_DAYS)?'var(--warn)':''; }
   const stale=$b('yesiStale');
   if(stale) stale.innerHTML=(last&&age>YESI_STALE_DAYS)?`<div class="alert warn" style="margin:8px 0 0">이 기기에 저장된 마지막 예시가 <b>${last.date}</b>(${age}일 전)입니다. 그 뒤로 예시를 안 넣어서 아래 비교도 그 무렵 날짜뿐이고, 재고 표 「예시 2주」도 안 나옵니다. 오늘 예시를 넣어 주시면 내일부터 비교가 쌓입니다.</div>`:'';
-  const days=yesiCmpDays();
+  let days=yesiCmpDays();
+  /* 마지막 예시로 견줄 날이 아직 없으면 그렇게 적습니다 (사장님 2026-11-24 「새 예시 넣었는데 8월에 멈춰 있어」).
+     비교 줄은 「예시를 뽑은 다음 날 이후 + 판매오더 확정」인 날만 생겨, 넣은 날에는 옛 줄만 보였습니다 */
+  if(stale && last && age<=YESI_STALE_DAYS && !days.some(x=>x.snap===last.date)){
+    const nx=srmDays().filter(dd=>dd>last.date);
+    const why=nx.length?`그 뒤 판매오더(${nx.map(dd=>dd.slice(5)+' '+(SRM_LABEL[srmState(dd)]||'')).slice(0,3).join(', ')})가 아직 확정 전입니다`
+                       :`${addDays(last.date,1).slice(5)} 이후 판매오더를 아직 안 넣으셨습니다`;
+    stale.innerHTML=`<div class="alert" style="margin:8px 0 0">마지막 예시 <b>${last.date}</b> 는 저장돼 있습니다. 이 예시는 <b>다음 날부터의 출고</b>와 견주는데, ${why}. 그 날 판매오더 엑셀을 넣으면 여기 맨 위에 나옵니다.</div>`;
+  }
+  /* 마지막 예시보다 30일 넘게 앞선 옛 비교는 접어 둡니다 */
+  const OLD_CUT=last?addDays(last.date,-30):'';
+  const oldN=days.filter(x=>x.day<OLD_CUT).length;
+  if(oldN && !cmpOpen.__old) days=days.filter(x=>x.day>=OLD_CUT);
+  const oldBtn=oldN?`<div style="margin-top:6px;text-align:right"><button class="quiet" style="font-size:12px;padding:3px 10px;border-style:dashed" onclick="BAS.cmpToggle('__old')">${cmpOpen.__old?'옛 비교 접기 ▴':`옛 비교 ${oldN}일 보기 ▾`}</button></div>`:'';
   const cnt=$b('cmpCnt'), sum=$b('cmpSum'), tools=$b('cmpTools');
   if(tools) tools.innerHTML=[['day','날짜별'],['code','품목별']].map(([k,t])=>
     `<button class="${cmpView===k?'primary':'quiet'}" style="font-size:12px;padding:4px 10px" onclick="BAS.cmpSetView('${k}')">${t}</button>`).join('');
   if(!days.length){
     if(cnt) cnt.textContent=''; if(sum) sum.innerHTML='';
-    host.innerHTML=`<div class="empty">견줄 날이 아직 없습니다.<br><span class="mini">출고일 <b>전날까지</b> 뽑은 예시와, 그 출고일의 <b>확정</b> 판매오더가 둘 다 있어야 합니다. 예시를 매일 넣으시면 다음 날부터 쌓입니다.</span></div>`;
+    host.innerHTML=`<div class="empty">견줄 날이 아직 없습니다.<br><span class="mini">출고일 <b>전날까지</b> 뽑은 예시와, 그 출고일의 <b>확정</b> 판매오더가 둘 다 있어야 합니다. 예시를 매일 넣으시면 다음 날부터 쌓입니다.</span></div>`+oldBtn;
     return;
   }
   const P=days.reduce((a,x)=>a+x.P,0), A=days.reduce((a,x)=>a+x.A,0), H=days.reduce((a,x)=>a+x.hit,0);
@@ -33316,7 +33329,7 @@ function renderYesiCmp(){
     host.innerHTML=`<table><thead><tr><th>제품</th><th class="num">예시</th><th class="num">판매오더</th><th class="num">차이</th><th class="num">어긋난 날</th></tr></thead><tbody>`
       +rows.map(([c,o])=>`<tr class="${o.pre!==o.act?'mismatch':''}"><td>${nameOf(c)}<div class="mini">${c}</div></td>
         <td class="num">${o.pre||'-'}</td><td class="num"><b>${o.act||'-'}</b></td>${dcell(o.act-o.pre)}<td class="num mini">${o.n||'-'}</td></tr>`).join('')
-      +`</tbody></table>`;
+      +`</tbody></table>`+oldBtn;
     return;
   }
   const DW=['일','월','화','수','목','금','토'];
@@ -33332,7 +33345,7 @@ function renderYesiCmp(){
         <td colspan="2" style="padding-left:24px">${nameOf(it.code)} <span class="mini">${it.code}</span></td>
         <td class="num">${it.pre||'-'}</td><td class="num">${it.act||'-'}</td>${dcell(it.act-it.pre)}<td></td></tr>`).join(''):'';
       return head+more;
-    }).join('')+`</tbody></table>`;
+    }).join('')+`</tbody></table>`+oldBtn;
 }
 function allCodes(){
   const s=new Set();
