@@ -222,6 +222,8 @@
   .hpm-lines .size-line{border-bottom:1px dashed #e0d0f0}
   /* 확인·수정 미리보기 (날짜 필터 + 접기) */
   .ck-toggle{margin-left:10px;font-size:12px;padding:4px 12px;border:1px solid #cbd0d8;border-radius:14px;background:#fff;color:#374151;cursor:pointer;font-weight:700}
+  .ck-as{font-size:11px;padding:2px 9px;border:1px solid #e3a9a2;border-radius:12px;background:#fff5f4;color:#a3271b;cursor:pointer;font-weight:700}
+  .ck-as.off{border-style:dashed;background:#fff;color:#9ca3af}
   .ckf-row{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
   .ckf-chip{font-size:12px;padding:5px 12px;border:1px solid #cbd0d8;border-radius:16px;background:#fff;color:#4b5563;cursor:pointer;font-family:inherit}
   .ckf-chip.on{background:#1560c0;border-color:#1560c0;color:#fff;font-weight:700}
@@ -1034,7 +1036,8 @@ function cadDrawKey(r){
      안 가르면 덩어리 첫 줄의 값 하나로 그려져, WT 1345(320)와 1473(384)이 320 도면 하나에 같이 실렸습니다. */
   const xv = (typeof libDoorXValue==='function') ? libDoorXValue(r) : null;
   const wm = (r.code==='W2HBT' && typeof w2hbtMid==='function') ? w2hbtMid(r.h) : null;   // W2HBT 은 가운데 칸(432·512·640)이 달라도 X 가 같을 수 있어 같이 가름
-  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '') + (xv!=null ? '|X'+xv : '') + (wm ? '|M'+wm : '') + (isNoBore(r) ? '|NB' : '') + (r.stdLong ? '|STD' : '');
+  return base + ((vr && r.h && +r.h!==vr.base) ? '|H'+r.h : '') + (xv!=null ? '|X'+xv : '') + (wm ? '|M'+wm : '') + (isNoBore(r) ? '|NB' : '') + (r.stdLong ? '|STD' : '')
+       + (r.asPiece ? '|P'+r.asPiece : '') + (r.asCut ? '|C'+r.asCut.piece+r.asCut.fh : '');   // AS 조각은 그 조각만 그립니다(2026-11-26)
 }
 /* 색 차례 — COLOR_CHIP 에 적힌 순서를 그대로 씁니다 (사장님 2026-09-16
    "같은 계열끼리인데 색이 다르면 색순으로 나열").
@@ -1806,10 +1809,10 @@ function libDoorFilledBase(r){
   /* 세로 변환이 걸린 합적(BD2R 880 등)은 캐드 라이브러리 도면이 **틀린 그림**입니다
      (도면은 910 기준 한 가지뿐). 앱이 같은 모양으로 다시 그립니다. 못 그리면(표에 없는 코드)
      null 이 돌아오니 예전처럼 라이브러리 도면으로 떨어집니다. */
-  if(c && c.splitVary){
-    const gen = splitVaryDoorSVG(r, c);
+  if(c && (c.splitVary || c.asPiece)){
+    const gen = splitVaryDoorSVG(r, c);   // AS 조각 하나(c.asPiece)도 이 길로 — 그 조각만 그립니다 (2026-11-26)
     if(gen) return {svg:gen, replaced:0, xVal:null, generated:true,
-                    sig:`vary-${c.splitVary.code}-${c.splitVary.h}-${type}-${c.fw}`};
+                    sig:`vary-${(c.rule&&c.rule.split)||r.code}-${c.splitVary?c.splitVary.h:''}-${c.asPiece||''}-${(c.frameSegs||[]).map(s=>s.fh).join('.')}-${type}-${c.fw}`};
   }
   // 힌지 칸을 다시 그리는 코드(WHBT) — 도어 몸통은 캐드 원본, 힌지·치수칸만 체인대로 앱이 그린다.
   if(CAD_HINGE_REDRAW.has(r.code)){
@@ -2170,17 +2173,108 @@ function asPieceOf(it){
   const nm=String(it.name||'').replace(/\s*-\s*내용참조[\s\S]*$/,'').replace(/\s+/g,' ').trim();
   const bad=why=>({bad:true, why, name:nm||String(it.code||'')});
   if(/\(멍\)|목대/.test(nm)) return bad('목대 조각 — 유리 없음, 확인 필요');
+  const isEuro=/Euro\s*500|유로\s*500/i.test(nm);
+  /* ① 치수가 박혀 온 꼴 — `MBD2R 하마이다 _1195*380(Euro700 Grace W/Cotto` */
   const m=nm.match(/^([A-Z][A-Z0-9]+)\s*(상마이다|하마이다|소마이다|대마이다)?\s*_?\s*(\d{2,4})\s*\*\s*(\d{2,4})/);
-  if(!m) return bad('AS 품명을 못 읽음 — 확인 필요');
-  const raw=m[1];
-  const code=(typeof RULES!=='undefined' && !RULES[raw] && raw[0]==='M' && RULES[raw.slice(1)]) ? raw.slice(1) : raw;
-  let color='';
-  for(const [re,ko] of AS_OLD_COLOR_CUT){ if(re.test(nm)){ color=ko; break; } }
-  if(!color) return bad('구형 색이 아님 — 확인 필요');
-  const fw=+m[3], fh=+m[4], piece=m[2]||'';
-  return { code, piece, color, name:nm,
-           oldStd:{ model:(piece||'조각'), as:true, fw, fh, gw:fw-4, gh:fh-4 } };
+  if(m){
+    const raw=m[1];
+    const code=(typeof RULES!=='undefined' && !RULES[raw] && raw[0]==='M' && RULES[raw.slice(1)]) ? raw.slice(1) : raw;
+    const fw=+m[3], fh=+m[4], piece=m[2]||'';
+    let color='';
+    for(const [re,ko] of AS_OLD_COLOR_CUT){ if(re.test(nm)){ color=ko; break; } }
+    if(color) return { code, piece, color, name:nm,
+                       oldStd:{ model:(piece||'조각'), as:true, fw, fh, gw:fw-4, gh:fh-4 } };
+    /* 신형 색 — 프레임은 적힌 그대로, 유리는 신형 0 × −3 (2026-11-26) */
+    const rule=(typeof RULES!=='undefined' && RULES[code]) || null;
+    if(!rule || !rule.split || !piece) return bad('신형 AS 조각인데 합적 도어 조각이 아님 — 확인 필요');
+    let type=(nm.match(/\b(HD|OB)\b/)||[])[1]||'', typeGuess=false;
+    if(!type){
+      const hits=['HD','OB'].filter(t=>((SPLIT[rule.split]||{})[t]||[]).some(p=>p.label===piece && +p.v===fh));
+      type = hits.length===1 ? hits[0] : 'OB'; typeGuess = hits.length!==1;
+    }
+    return { code, piece, type, euro:isEuro, name:nm, color:asColorOf(nm),
+             asCut:{ piece, fw, fh, typeGuess } };
+  }
+  /* ② 모델번호로 온 꼴 — `Euro700 Grace W/Cotton OB BD2R 6091 M_ 하부` (2026-11-26) */
+  const m2=nm.match(/\b(OB|HD|CH)\s+([A-Z][A-Z0-9]*)\s+(\d{4,5})\b/);
+  if(m2){
+    const type=m2[1], code=m2[2], num=m2[3];
+    const tail=nm.slice(m2.index+m2[0].length).replace(/^\s*[LRM]?\s*_?\s*/,'').trim();
+    const piece=asPieceWord(tail);
+    if(tail && !piece) return bad(`조각 「${tail}」 을 모름 — 확인 필요`);
+    for(const [re] of AS_OLD_COLOR_CUT){ if(re.test(nm)) return bad('구형 모델번호 AS — 확인 필요'); }
+    const rule=(typeof RULES!=='undefined' && RULES[code]) || null;
+    if(!rule) return bad(`약어 ${code} 계산 규칙 없음 — 확인 필요`);
+    if(piece && !rule.split) return bad(`${code} 는 합적 도어가 아닌데 조각(${tail})으로 옴 — 확인 필요`);
+    const sz=stdSizeOf(code, type, num, isEuro);
+    if(!sz) return bad(`${type} ${code} ${num} 사이즈표에 없음 — 확인 필요`);
+    return { code, type, euro:isEuro, name:nm, color:asColorOf(nm),
+             w:sz.w, h:sz.h, model:num, piece };
+  }
+  /* ③ 부속(힌지·피스 등) — 도어·유리가 없어 작업지시서 대상이 아닙니다. 띠에도 안 올립니다. */
+  if(/힌지|피스|대표/.test(nm)) return {skip:true, why:'부속 — 도어·유리 없음', name:nm};
+  return bad('AS 품명을 못 읽음 — 확인 필요');
 }
+/* 품명이 칸 너비에 잘려 `W/Cotto` 처럼 오면 colorFromName 이 못 읽습니다 — 앞 글자로 한 번 더 봅니다 */
+function asColorOf(nm){ return colorFromName(nm) || (/W\/?\s*Cot/i.test(nm) ? '웜코튼' : (/\bETP\b/.test(nm) ? '에토프' : '')); }
+const AS_PIECE_WORD=[[/하부|하마/,'하마이다'],[/상부|상마/,'상마이다'],[/소마/,'소마이다'],[/대마/,'대마이다']];
+function asPieceWord(s){ for(const [re,p] of AS_PIECE_WORD){ if(re.test(s)) return p; } return ''; }
+/* AS 조각을 줄로 — 세 길(앱 가져오기 · PDF 직접 · 왜 안 들어왔나)이 같이 씁니다 */
+function asRowFields(asp){
+  if(asp.oldStd) return { code:asp.code, type:'OB', w:0, h:0, euro:false, color:asp.color, oldStd:asp.oldStd };
+  if(asp.asCut)  return { code:asp.code, type:asp.type, w:0, h:0, euro:!!asp.euro, color:asp.color, asCut:asp.asCut };
+  return { code:asp.code, type:asp.type, w:asp.w, h:asp.h, euro:!!asp.euro, color:asp.color,
+           asPiece:asp.piece||'', stdLong:{ model:asp.model + (asp.piece ? ' ' + asp.piece.replace(/^(상|하)마이다$/,'$1부') : ''), as:true } };
+}
+function asPieceTxt(asp){
+  if(asp.oldStd) return asp.code + ' ' + asp.oldStd.fw + '×' + asp.oldStd.fh;
+  if(asp.asCut)  return asp.code + ' ' + asp.asCut.piece + ' ' + asp.asCut.fw + '×' + asp.asCut.fh;
+  return asp.type + ' ' + asp.code + ' ' + asp.model + (asp.piece ? ' ' + asp.piece : '');
+}
+/* AS 정규격 한 품목(공용 코드 아님) — `Euro700 Grace W/Cotton OB BD2R 6091 M` 처럼 모델번호로 옵니다.
+   유로 도어가 아니면(글래스도어·부속 등) null → 예전처럼 이 화면 대상이 아닙니다. */
+function asStdOf(it, nameAll, isEuro){
+  const code=codeFromShort(it.short)||codeFromShort(it.name);
+  if(!code) return null;                                   // 유로 도어가 아님(글래스도어·부속 등)
+  if(typeof RULES==='undefined' || !RULES[code]) return {bad:`약어 ${code} 계산 규칙 없음 — 확인 필요`};
+  const type=/\bHD\b/.test(nameAll)?'HD':(/\bCH\b/.test(nameAll)?'CH':'OB');
+  const m=nameAll.match(new RegExp('\\b'+code+'\\s+(\\d{4,5})'));
+  if(!m) return {bad:`${code} 모델번호를 못 읽음 — 확인 필요`};
+  const sz=stdSizeOf(code, type, m[1], isEuro);
+  if(!sz) return {bad:`정규격 AS ${type} ${code} ${m[1]} — 사이즈표에 없음, 확인 필요`};
+  return {w:sz.w, h:sz.h, stdLong:{model:m[1], as:true}};
+}
+/* 정규격 모델번호 → 납품 치수 (2026-11-26 「AS 는 정규격이어도 한 번 더 언지」).
+   도어(프레임) 치수는 ybn-data.js 의 ASSEMBLY_MODELS 한 곳에서 읽습니다 — 숫자를 여기 적지 않습니다.
+   납품 치수로 되돌린 뒤 **calc 로 다시 풀어 표의 프레임과 같은지** 봅니다. 다르면 null(→ 확인 필요).
+   합적(BD2R·BD3U)은 표에 조각 치수만 있어, 번호 끝이 91 이면 세로 910 으로 놓고 조각이 맞는지 봅니다. */
+function stdSizeOf(code, type, num, isEuro){
+  if(!code || !num || typeof RULES==='undefined' || !RULES[code] || typeof ASSEMBLY_MODELS==='undefined') return null;
+  const T=(type==='HD' && !isEuro) ? 'HD' : 'OB';
+  const re=new RegExp('^'+T+'\\s+'+code+'\\s+'+num+'(\\(공용\\))?(\\s+[LRM])?\\s*$');
+  const list=ASSEMBLY_MODELS.filter(x=>x && x.asm_w && x.asm_h && re.test(String(x.short||'').trim()));
+  if(!list.length) return null;
+  const rule=RULES[code], a=list[0], w=+a.asm_w+5;
+  const hs=[];
+  if(rule.split){ if(/91$/.test(num)) hs.push(910); }
+  else{
+    if(rule.hSpecial){ const t=rule.hSpecial[T]||rule.hSpecial; Object.keys(t).forEach(k=>{ if(+t[k]===+a.asm_h) hs.push(+k); }); }
+    hs.push(+a.asm_h+(rule.doorHsub||4));
+  }
+  for(const h of hs){
+    const c=calcBase({code, type:isEuro?'CH':T, w, h, euro:!!isEuro, name:isEuro?'Euro500':'', handle:rule.handle||'both'});
+    if(!c) continue;
+    if(!isEuro && +c.fw!==+a.asm_w) continue;
+    const fhs=c.frameSegs ? c.frameSegs.map(s=>+s.fh) : [+c.fh];
+    if(!list.every(x=>fhs.includes(+x.asm_h))) continue;
+    // 유리도 표와 같은지 봅니다(EURO500 은 유리 없음 · 롱도어 하부처럼 표에 없는 유리는 안 봄)
+    const ghs=(c.glass||[]).map(g=>+g.gh);
+    if(!isEuro && ghs.length && !list.every(x=>!x.glass_h || ghs.includes(+x.glass_h))) continue;
+    return {w, h};
+  }
+  return null;
+}
+
 /* 'M 3073' 처럼 붙여 둔 이름으로 다시 찾는다. 옛 기록의 '6062'(번호만)도 받는다. */
 function oldStdFromModel(model){
   const p=String(model||'').trim().split(/\s+/);
@@ -2330,7 +2424,41 @@ function euro500H(r){
 function isEuro500(r){
   return !!(r && (r.euro || /Euro\s*500|EURO5\b|유로500/i.test(r.name||r.short||'')));
 }
+/* ── AS 조각 하나만 (사장님 2026-11-26 「이런 경우 하부만 입고해 주면 되고 … 하부 도면 해서 작업지시서로」) ──
+   AS 는 합적 도어(BD2R·BD3U)의 **한 조각**만 오기도 합니다 — `Euro700 Grace W/Cotton OB BD2R 6091 M_ 하부`.
+   ■ r.asPiece  : 모델번호로 온 조각. 도어 전체를 늘 하던 대로 풀고(calcBase) **그 조각만** 남깁니다.
+                  숫자를 새로 적지 않습니다 — 910 → 하마이다 350 은 SPLIT 표 그대로.
+   ■ r.asCut    : 품명에 프레임 치수가 박혀 온 신형 조각(`MBD2R 하마이다 _1195*380(… W/Cotto`).
+                  그 치수가 곧 프레임이고, 유리는 신형 규칙 0 × −3.
+   둘 다 c.asPiece 를 달아, 도면은 그 조각 하나만 그립니다(libDoorFilledBase → splitVaryDoorSVG). */
 function calc(r){
+  if(r && r.asCut) return calcAsCut(r);
+  const c = calcBase(r);
+  if(!r || !r.asPiece || !c) return c;
+  const keep = s => s && s.label === r.asPiece;
+  const segs = (c.frameSegs || []).filter(keep), gl = (c.glass || []).filter(keep);
+  if(!segs.length){
+    return Object.assign({}, c, {hot:(c.hot ? c.hot + ' / ' : '') + `AS 조각 「${r.asPiece}」 을 이 도어에서 못 찾음 — 확인 필요`});
+  }
+  return Object.assign({}, c, {
+    frameSegs: segs.map(s => Object.assign({}, s, {n:1})),
+    glass: gl.map(g => Object.assign({}, g, {n:1, isSet:false})),
+    asPiece: r.asPiece,
+    // 「상·하 동일 → 1SET(2EA)」·「합적」 같은 도어 전체 안내는 조각 하나에는 틀린 말이라 뺍니다
+    note: [`AS 조각 — ${r.asPiece}만`].concat(String(c.note||'').split(' / ').filter(t=>t && !/SET|합적/.test(t))).join(' / ')
+  });
+}
+function calcAsCut(r){
+  const rule = RULES[r.code] || {}, k = r.asCut;
+  const glass = isEuro500(r) ? [] : [{label:k.piece, gw:k.fw, gh:k.fh - 3, n:1}];
+  return {fw:k.fw, fh:'', rule, asPiece:k.piece,
+    frameSegs:[{label:k.piece, fw:k.fw, fh:k.fh, n:1}], glass,
+    hot: k.typeGuess ? `타입(HD/OB)이 품명에 없음 — ${r.type} 로 봄, 확인 필요` : '',
+    note: `AS 조각 — ${k.piece}만 · 납품서 품명의 프레임 치수` + (glass.length ? ' · 유리 0×−3' : ' · EURO500 프레임만'),
+    hingePos:'', hingeSpecial:null, bhbu:null, wtap:null};
+}
+function calcBase(r){
+
   const rule=RULES[r.code]||{};
   /* ── EURO500 — 프레임만 만든다(유리 없음) ──────────────────────────
      · 폭 = 장가로 −6  (EURO700의 −5가 아니다)   · 세로 = 장세로 −4
@@ -2868,18 +2996,19 @@ function ybnDocToRows(d){
        예전에는 아래 갈래에서 `Saha` 가 구형으로 안 잡혀 **말없이 버려졌습니다**. */
     const asp = asPieceOf(it);
     if(asp){
+      if(asp.skip) return;
       if(asp.bad){ asMissing.push(asp.name + ' — ' + asp.why); return; }
-      rows.push({
-        code: asp.code, type: 'OB', w: 0, h: 0, lr: it.lr || '',
-        color: asp.color, series: seriesOf(asp.name).key, seriesLabel: seriesOf(asp.name).label,
-        isAS: true, euro: false, name: asp.name,
-        qty: it.qty || 1, oldStd: asp.oldStd,
+      rows.push(Object.assign({
+        lr: it.lr || '',
+        series: seriesOf(asp.name).key, seriesLabel: seriesOf(asp.name).label,
+        isAS: true, name: asp.name,
+        qty: it.qty || 1,
         handle: ((typeof RULES !== 'undefined' && RULES[asp.code]) || {}).handle || 'both',
         short: asp.name, prodCode: it.code,
         delivNo: d.delivNo, refNo: d.refNo || '',
         req: reqD, ship: reqD, po: d.orderDate || '',
         fromApp: true
-      });
+      }, asRowFields(asp)));
       return;
     }
     const nameAll = (it.name || '') + ' ' + (it.short || '');
@@ -2893,7 +3022,7 @@ function ybnDocToRows(d){
        (CLAUDE.md 12-8-1). PDF 를 직접 올리는 길에는 이 처리가 있었는데
        **이 길에만 빠져 있어, 앱에서 가져오면 구형이 통째로 사라졌습니다**
        (사장님 지적 2026-09-16 — "15일 AS 포레스트가 리스트에 안 들어온다"). */
-    let oldStd = null, stdLong = null;
+    let oldStd = null, stdLong = null, stdAS = null;
     const lcode = codeFromShort(it.short) || codeFromShort(it.name);
     if(!isNonStdName(nameAll) && LONG_STD_CODES.indexOf(lcode)>=0){
       stdLong = longStdOf(lcode, nameAll);
@@ -2901,7 +3030,14 @@ function ybnDocToRows(d){
     }
     else if(!isNonStdName(nameAll)){
       const oc = (typeof isOldText === 'function') && isOldText(nameAll + ' ' + (it.color || ''), isEuro);
-      if(!oc) return;                                   // 신형 정규격은 이 화면 대상이 아닙니다
+      if(!oc && isAS){                                  // AS 는 정규격이어도 한 번 더 봅니다 (2026-11-26)
+        const st = asStdOf(it, nameAll, isEuro);
+        if(!st) return;                                 // 유로 도어가 아님(글래스도어·부속 등)
+        if(st.bad){ asMissing.push((it.short || it.name || '') + ' — ' + st.bad); return; }
+        stdLong = st.stdLong; stdAS = st;
+      }
+      else if(!oc) return;                              // 신형 정규격은 이 화면 대상이 아닙니다
+      else {
       const ab = codeFromShort(it.short) || codeFromShort(it.name);
       let num = '';
       if(ab){ const m2 = nameAll.match(new RegExp('\\b' + ab + '\\s+(\\d{3,5})')); if(m2) num = m2[1]; }
@@ -2909,18 +3045,21 @@ function ybnDocToRows(d){
       const s = (typeof oldStdOf === 'function') ? oldStdOf(ab, num) : null;
       if(!s){ oldMissing.push((it.short || it.name || '') + (num ? ' (' + (ab ? ab + ' ' : '') + num + ')' : '')); return; }
       oldStd = Object.assign({ model:(ab ? ab + ' ' : '') + num }, s);
+      }
     }
 
     const code = codeFromShort(it.short) || codeFromShort(it.name);
     const type = /\bHD\b/.test(nameAll) ? 'HD' : (/\bCH\b/.test(nameAll) ? 'CH' : 'OB');
     let { w, h } = parseSizeWH(ybnItemSize(it));
     // 롱도어 정규격: 도어 치수에서 납품 치수로 되돌려 둡니다(calc 가 −5 × −4 를 빼서 도어가 됩니다)
-    if(stdLong){ w = stdLong.fw + 5; h = stdLong.fh + 4; }
+    if(stdAS){ w = stdAS.w; h = stdAS.h; }
+    else if(stdLong){ w = stdLong.fw + 5; h = stdLong.fh + 4; }
     // 구형 정규격은 사이즈표에서 치수를 얻으므로 규격이 비어도 알릴 일이 아닙니다
     if((!w || !h) && !oldStd && !stdLong){ skipped.push((it.short || it.name || it.code)); }
     const rule = (typeof RULES !== 'undefined' && RULES[code]) ? RULES[code] : {};
     const ser = (typeof seriesOf === 'function') ? seriesOf(nameAll) : { key:'', label:'' };
-    const colr = colorKo(it.color) || (typeof colorFromName === 'function' ? colorFromName(nameAll) : '');
+    // AS 정규격은 품명의 색이 먼저 — 「(공용)」 코드는 품목표 색이 다른 색일 수 있습니다(베일 쉐이드가 웜코튼으로 찍힘, 2026-11-26)
+    const colr = (stdAS && colorFromName(nameAll)) || colorKo(it.color) || (typeof colorFromName === 'function' ? colorFromName(nameAll) : '');
     /* 좌우(L/R) — 앱이 담아 준 값이 없으면 **품명에서 직접 읽습니다** (2026-09-22).
        이 길(앱에서 가져오기)만 `delivSizeLR` 을 안 불러, 앱이 좌우를 안 담아 준 품목은
        그대로 비어 나갔습니다. 그래서 수납도어 키큰장이 `R1` 이 아니라 `1 EA` 로 찍혔습니다.
@@ -2940,7 +3079,7 @@ function ybnDocToRows(d){
       color: colr,
       series: ser.key, seriesLabel: ser.label,
       isAS, euro: isEuro, name: it.name || '',
-      qty: it.qty || 1, oldStd, stdLong: stdLong ? { model: stdLong.model } : null,
+      qty: it.qty || 1, oldStd, stdLong: stdLong ? { model: stdLong.model, as: !!stdLong.as } : null,
       handle: rule.handle || 'both',
       short: it.short, prodCode: it.code,
       delivNo: d.delivNo, refNo: d.refNo || '',
@@ -3142,14 +3281,19 @@ function ybnWhy(){
       let why = '', extra = '';
       const asp = asPieceOf(it);
       if(asp){
-        why = asp.bad ? ('⛔ AS — ' + asp.why)
-                      : ('✅ AS 조각 — 들어옵니다 (' + asp.code + ' ' + asp.oldStd.fw + '×' + asp.oldStd.fh + ')');
+        why = asp.skip ? ('⏭ AS — ' + asp.why)
+            : asp.bad ? ('⛔ AS — ' + asp.why)
+                      : ('✅ AS 조각 — 들어옵니다 (' + asPieceTxt(asp) + ')');
         extra = asp.name;
       }
       else if(nonStd){ why = '✅ 비규격 — 들어옵니다'; }
       else if(LONG_STD_CODES.indexOf(codeFromShort(it.short) || codeFromShort(it.name))>=0){
         const ls = longStdOf(codeFromShort(it.short) || codeFromShort(it.name), nameAll);
         why = (ls && !ls.miss) ? ('✅ 롱도어 정규격 — 들어옵니다 (' + ls.fw + '×' + ls.fh + ')') : '⛔ 롱도어 정규격인데 사이즈표에 없습니다';
+      }
+      else if(!oc && (/^54/.test(String(d.refNo||'')) || isASDeliv(d.delivNo)) && asStdOf(it, nameAll, isEuro)){
+        const st = asStdOf(it, nameAll, isEuro);
+        why = st.bad ? ('⛔ AS — ' + st.bad) : ('✅ 정규격 AS — 들어옵니다 (' + st.stdLong.model + ' → ' + st.w + '×' + st.h + ')');
       }
       else if(!oc){ why = '⛔ 신형 정규격 — 이 화면 대상이 아닙니다'; }
       else {
@@ -3583,7 +3727,10 @@ function nsAlertsWrite(){
     .forEach(x => out.push({id:'ns-std|'+x.key, t:'정규격 '+x.model+' 사이즈 — 재고 사용/발주 미정', d:x.d.fw+'×'+x.d.fh, po:x.day, q:x.qty, tab:'subdoor'}));
   // ④ 가져올 때 빠진 줄
   let miss = []; try{ miss = (JSON.parse(localStorage.getItem(LS_NS_IMPMISS)||'{}').items)||[]; }catch(e){}
-  miss.filter(m => (m.at||'').slice(0,10) >= since).forEach(m => out.push({id:'ns-miss|'+m.t, t:m.kind, d:m.t, q:1}));
+  /* 예전 판이 못 읽었던 AS 조각을 이제 읽을 수 있으면 띠에서 내립니다 (2026-11-26 — 신형 AS 조각 읽기) */
+  const asNowOk = m => m.kind === 'AS 품목을 못 읽음' && (() => {
+    try{ const a = asPieceOf({code:'KITAS', name:String(m.t||'').split(' — ')[0]}); return !!(a && !a.bad); }catch(e){ return false; } })();
+  miss.filter(m => (m.at||'').slice(0,10) >= since && !asNowOk(m)).forEach(m => out.push({id:'ns-miss|'+m.t, t:m.kind, d:m.t, q:1}));
   localStorage.setItem(LS_NS_ALERTS, JSON.stringify({at:new Date().toISOString(), items:out}));
 }
 function nsImportMissAdd(kind, list){
@@ -3604,7 +3751,8 @@ function nsImportMissAdd(kind, list){
 /* 가져온 줄의 열쇠 — 「가져오기」가 이미 있는 줄인지 볼 때와, 겹친 줄을 덜어낼 때 **같은 것**을 씁니다 */
 function ybnRowKey(r){
   return [r.delivNo||'', r.code||'', r.w||0, r.h||0, r.lr||'',
-          (r.oldStd && r.oldStd.model) || (r.stdLong && r.stdLong.model) || '', isNoBore(r) ? 'NB' : ''].join('|');
+          (r.oldStd && r.oldStd.model) || (r.stdLong && r.stdLong.model) || '', isNoBore(r) ? 'NB' : '',
+          r.asCut ? r.asCut.piece+r.asCut.fw+'x'+r.asCut.fh : ''].join('|');
 }
 /* 앱에서 가져온 줄이 **원래 납품서보다 많으면** 넘치는 만큼 덜어냅니다 (사장님 2026-10-07 "4장인데 8장으로 풀리네").
    세로에 두께(18)가 들어간 옛 줄 4개가 남은 채 고친 뒤 다시 가져와 새 줄 4개가 붙었고,
@@ -4014,25 +4162,26 @@ async function handleFiles(files){
         // AS 공용 코드(KITAS…)는 납품서 품명으로 읽습니다 — asPieceOf 참고 (2026-09-30)
         const asp=asPieceOf(it);
         if(asp){
+          if(asp.skip) continue;
           if(asp.bad){ asMissing.push(asp.name+' — '+asp.why); continue; }
           bigN+=it.qty;
-          noteRows.push({
-            code:asp.code, type:'OB', w:0, h:0, lr:it.lr||'',
-            color:asp.color, series:seriesOf(asp.name).key, seriesLabel:seriesOf(asp.name).label,
-            isAS:true, euro:false, name:asp.name,
-            qty:it.qty||1, oldStd:asp.oldStd,
+          noteRows.push(Object.assign({
+            lr:it.lr||'',
+            series:seriesOf(asp.name).key, seriesLabel:seriesOf(asp.name).label,
+            isAS:true, name:asp.name,
+            qty:it.qty||1,
             handle:(RULES[asp.code]||{}).handle||'both',
             short:asp.name, prodCode:it.code,
             delivNo:parsed.delivNo, refNo:parsed.refNo||'',
             req:reqD, ship, po:parsed.orderDate? _ymd8(parsed.orderDate):''
-          });
+          }, asRowFields(asp)));
           continue;
         }
         const nameAll=(it.name||'')+' '+(it.short||'');
         // 비규격만 수집. 단 '구형(사하라·미드나잇) 정규격'은 사이즈표에 있으면 함께 태운다
         // — 구형은 프레임이 달라 정규격이라도 치수를 찍어줘야 하기 때문(2026-07-23).
         // it.euro 는 '어느 페이지로 보낼지' 표시일 뿐, 수집 여부와 무관.
-        let oldStd=null, stdLong=null;
+        let oldStd=null, stdLong=null, stdAS=null;
         const lcode=codeFromShort(it.short)||codeFromShort(it.name);
         if(!it.isBig && LONG_STD_CODES.indexOf(lcode)>=0){          // 롱도어 정규격(TCP1D·TH) — 비규격처럼 들입니다
           stdLong=longStdOf(lcode, nameAll);
@@ -4048,24 +4197,31 @@ async function handleFiles(files){
           if(!num){ const m3=nameAll.match(/(\d{3,5})\s*\(?\s*공용/) || nameAll.match(/(\d{3,4})\s*M\b/); if(m3) num=m3[1]; }
           const s=oc ? oldStdOf(ab, num) : null;
           if(s) oldStd={model:(ab?ab+' ':'')+num, ...s};
+          else if(!oc && isAS){                         // AS 는 정규격이어도 한 번 더 봅니다 (2026-11-26)
+            const st=asStdOf(it, nameAll, /Euro\s*500|유로\s*500/i.test(nameAll));
+            if(!st) continue;
+            if(st.bad){ asMissing.push((it.short||it.name||'')+' — '+st.bad); continue; }
+            stdLong=st.stdLong; stdAS=st;
+          }
           else { if(oc) oldStdMissing++; continue; }   // 구형인데 사이즈 미등록이면 세어만 둔다
         }
         bigN+=it.qty;
         const code=codeFromShort(it.short)|| codeFromShort(it.name);
         const type=/\bHD\b/.test((it.short||'')+(it.name||''))?'HD':(/\bCH\b/.test((it.short||'')+(it.name||''))?'CH':'OB');
         let {w,h}=parseSizeWH(ybnItemSize(it));
-        if(stdLong){ w=stdLong.fw+5; h=stdLong.fh+4; }
+        if(stdAS){ w=stdAS.w; h=stdAS.h; }
+        else if(stdLong){ w=stdLong.fw+5; h=stdLong.fh+4; }
         const rule=RULES[code]||{};
         const ser=seriesOf(nameAll);
         // 색상: 카탈로그값 우선(한글화), 없으면 제품명에서 추출
-        let colr=colorKo(it.color)||colorFromName(nameAll);
+        let colr=(stdAS&&colorFromName(nameAll))||colorKo(it.color)||colorFromName(nameAll);   // AS 정규격은 품명 색 먼저(2026-11-26)
         noteRows.push({
           code, type, w, h,
           lr: it.lr||'',
           color: colr,
           series: ser.key, seriesLabel: ser.label,
           isAS, euro: !!it.euro, name: it.name,
-          qty: it.qty||1, oldStd, stdLong: stdLong ? {model:stdLong.model} : null,
+          qty: it.qty||1, oldStd, stdLong: stdLong ? {model:stdLong.model, as:!!stdLong.as} : null,
           handle: rule.handle||'both',
           short: it.short, prodCode: it.code,
           delivNo: parsed.delivNo, refNo: parsed.refNo||'',
@@ -4138,6 +4294,7 @@ function _frameTxt(c){
     // 좌우로 갈린 것(W2HBT)은 '상하2'가 아니라 '×2'로 적는다 — 위아래 합적과 헷갈리지 않게
     if(c.frameSegs.length===1 && c.frameSegs[0].side)
       return `${c.frameSegs[0].fw}×${c.frameSegs[0].fh}×${c.frameSegs[0].n}`;
+    if(c.asPiece) return `${c.frameSegs[0].fw}×${c.frameSegs[0].fh} (${c.asPiece})`;   // AS 조각 하나 (2026-11-26)
     const same=c.frameSegs.every(s=>s.fh===c.frameSegs[0].fh);
     return same ? `${c.fw}×${c.frameSegs[0].fh}(상하2)` : c.frameSegs.map(s=>`${s.fw}×${s.fh}`).join(' / ');
   }
@@ -4174,7 +4331,16 @@ let chkOpenDates=new Set();   // 손으로 펼쳐 둔 날짜 — 기본은 전�
 function setCheckDate(d){
   checkDateFilter=d;
   const all = (d==='all');
-  ROWS.forEach(r=>{ if(r.code) r.include = all || (chkOrderDate(r)===d); });
+  ROWS.forEach(r=>{ if(r.code) r.include = (all || (chkOrderDate(r)===d)) && !r.asOff; });
+  renderCheck();
+}
+/* AS 넣기/빼기 (사장님 2026-11-26 「AS 작업지시서는 넣을 수도 있고 뺄 수도 있게 · 정규격이어도 한 번 더 언지」).
+   AS 는 정규격이어도 모두 들어오고(처음엔 넣음 — 사장님 확정), 날짜 제목 옆 단추로 그 날짜 AS 를 한꺼번에 뺍니다.
+   뺀 것은 r.asOff 로 기억해, 날짜 칩을 다시 눌러도 안 돌아옵니다. 줄 체크로 한 줄만 빼는 것은 예전 그대로. */
+function chkAsToggle(d){
+  const list=ROWS.filter(r=>r.code && r.isAS && chkOrderDate(r)===d);
+  const off=!list.every(r=>r.asOff);
+  list.forEach(r=>{ r.asOff=off; if(off) r.include=false; else if(checkDateFilter==='all' || checkDateFilter===d) r.include=true; });
   renderCheck();
 }
 function toggleCheckOpen(){ checkOpen=!checkOpen; renderCheck(); }
@@ -4233,12 +4399,18 @@ function renderCheck(){
     const mark = onCnt
       ? ` <span style="font-size:11px;color:#1560c0;font-weight:800">대상 ${onCnt}건</span>`
       : '';
+    const asRows=rows.filter(x=>x.r.isAS), asOffAll=asRows.length && asRows.every(x=>x.r.asOff);
+    const asStdN=asRows.filter(x=>!isNonStdName((x.r.name||'')+' '+(x.r.short||''))).length;
+    const asBtn = asRows.length
+      ? ` <button class="ck-as${asOffAll?' off':''}" onclick="event.stopPropagation();chkAsToggle('${d}')"
+           title="AS 는 정규격이어도 들어옵니다 — 한 번 더 보시고, 이번 작업지시서에 안 낼 것이면 빼 주세요">🔧 AS ${asRows.length}건${asStdN?` (정규격 ${asStdN})`:''} · ${asOffAll?'뺌 — 넣기':'넣음 — 빼기'}</button>`
+      : '';
     return `<div class="ckd-hd" style="display:flex;align-items:center;gap:8px${onCnt?'':';opacity:.62'}">
         <span style="cursor:pointer;display:flex;align-items:center;gap:8px" onclick="chkToggleDate('${d}')" title="${open?'접기':'펼치기'}">
           <span style="font-size:12px;color:#6b7280">${open?'▼':'▶'}</span>
           📅 발주 ${d==='(미지정)'?'미지정':fmtDate(d)}
           <span style="color:#9ca3af;font-weight:400">· ${rows.length}품목 / ${dcnt}장${esc(reqTxt)}</span>${mark}
-        </span>
+        </span>${asBtn}
       </div>` + (open ? sectionBody(rows) : '');
   };
 
@@ -4251,7 +4423,8 @@ function renderCheck(){
         <td style="font-weight:700">${r.oldStd
             ? `${isOldFrame(r)?'<b class="old-frame" style="font-size:12px">[구형프레임]</b> ':''}<span class="badge-std" style="font-size:11px">정규격 <b class="std-model" style="font-size:13px">${esc(r.code||'')} ${esc(r.oldStd.model)}</b></span>`
             : r.stdLong ? `<span class="badge-std" style="font-size:11px">정규격 <b class="std-model" style="font-size:13px">${esc(r.code||'')} ${esc(r.stdLong.model)}</b></span>`
-            : `${esc(r.code||'')}${isOldFrame(r)?' <b class="old-frame" style="font-size:12px">[구형프레임]</b>':''}`}${isNoBore(r)?' <b style="color:#e00000;font-size:12px">무보링</b>':''}</td>
+            : r.asCut ? `${esc(r.code||'')} <b style="font-size:12px">${esc(r.asCut.piece)}</b>`
+            : `${esc(r.code||'')}${isOldFrame(r)?' <b class="old-frame" style="font-size:12px">[구형프레임]</b>':''}`}${isNoBore(r)?' <b style="color:#e00000;font-size:12px">무보링</b>':''}${r.isAS?' <span class="badge-as">AS</span>':''}</td>
         <td>${esc(r.type||'OB')}</td>
         <td class="ck-ro">${_frameTxt(c)}</td>
         <td class="ck-ro ck-glass">${_glassTxt(c)}</td>
@@ -4616,9 +4789,11 @@ function cadBlockRows(list){
      구형은 모델명이 한 줄에 하나씩이라 옆에 적어도 읽히고, 줄을 아끼는 편이 낫습니다.
      비규격은 한 코드 밑에 사이즈가 여럿이라 머리줄로 묶어야 읽힙니다.
      ⚠ 12-8-2 대로 **한 덩어리에 구형과 비규격이 섞이지 않으므로** 덩어리마다 한 가지로 갈립니다. */
-  const isOldBlock = list.some(r=>r.oldStd || r.stdLong);   // 롱도어 정규격도 모델명을 치수줄 옆에(12-8-2)
+  const isOldBlock = list.some(r=>r.oldStd || r.stdLong || r.asCut);   // AS 조각(asCut)도 조각 이름을 옆에 (2026-11-26)   // 롱도어 정규격도 모델명을 치수줄 옆에(12-8-2)
   const labOf = r => r.oldStd ? (String(r.oldStd.model||'') + ' /')
+                  : (r.stdLong && r.stdLong.as) ? (String(r.stdLong.model||'') + ' /')   // AS 정규격 — 모델번호만(구형 「M 3073 /」 처럼). 약어는 제목줄, AS 는 머리글 「AS건.」 — 길면 색 칩과 겹칩니다(2026-11-26)
                   : r.stdLong ? ('정규격 ' + String(r.code||'') + ' ' + String(r.stdLong.model||'') + ' /')
+                  : r.asCut ? (String(r.asCut.piece||'') + ' /')
                               : (multiCode ? String(r.code||'') : '');
   const byColor={}; list.forEach(r=>{ const c=r.color||'미지정'; (byColor[c]=byColor[c]||[]).push(r); });
   cadColorOrder(Object.keys(byColor)).forEach(color=>{
@@ -4630,7 +4805,7 @@ function cadBlockRows(list){
       // 완성치수·재단치수를 **줄 목록**으로 받습니다(슬래시로 잇지 않습니다 — 2026-09-09).
       const frameLines=frameLinesOf(c), glassLines=glassLinesOf(c);
       const frameTxt=frameLines.join('¶'), glassTxt=glassLines.join('¶');   // 묶는 열쇠로만 씀
-      const isSet=!!c.frameSegs;
+      const isSet=!!c.frameSegs && !c.asPiece;          // AS 조각 하나는 한 벌(SET)이 아닙니다 (2026-11-26)
       const setSheets=setSheetsOf(c);                   // 한 SET 장수 (BD3U 3장 · BD2R 2장)
       const segLines=setSegLinesOf(c);                  // 합적이면 조각별 완성·재단 짝
       // 좌우 짝 합적(W2HBT) — 한 장을 반으로 갈라 L 1장 + R 1장을 만든다. calc가 side:true로 표시한다.
@@ -5530,7 +5705,7 @@ function frmBuild(){
       const c=calc(r);
       const type=isEuro500(r)?'E500':((r.type==='HD')?'HD':'OB');
       const frameTxt=frameTextOf(c);
-      const isSet=!!c.frameSegs;
+      const isSet=!!c.frameSegs && !c.asPiece;          // AS 조각 하나는 한 벌(SET)이 아닙니다 (2026-11-26)
       const isSide=!!(c.frameSegs && c.frameSegs[0] && c.frameSegs[0].side);
       const key=`${type}│${r.code}│${frameTxt}`;
       if(!agg[key]) agg[key]={type, code:r.code, frameTxt, isSet, isSide, setSheets:setSheetsOf(c), qty:0, L:0, R:0, N:0, colors:new Set(), glassTxt:null};
@@ -5768,8 +5943,8 @@ function buildGlassOrderHTML(glassAll, odByShip, lead){
   Object.keys(byShipG).sort().forEach(ship=>{
     const agg={};
     byShipG[ship].forEach(g=>{
-      const key=`${g.gw}×${g.gh}|${g.color||''}`;
-      if(!agg[key]) agg[key]={gw:g.gw,gh:g.gh,color:g.color||'미지정',qty:0,set:false,perSet:g.perSet||1};
+      const key=`${g.gw}×${g.gh}|${g.color||''}|${g.asStd?'AS':''}`;
+      if(!agg[key]) agg[key]={gw:g.gw,gh:g.gh,color:g.color||'미지정',qty:0,set:false,perSet:g.perSet||1,asStd:!!g.asStd};
       agg[key].qty+=g.qty;
       if(g.isSet) agg[key].set=true;
     });
@@ -5885,6 +6060,7 @@ function glassCollect(){
       const per=glassPerSet(c);   // 한 SET에 그 사이즈가 몇 장 들어가는지
       (c.glass||[]).forEach(gl=>glassAll.push({ship, code:r.code, type:r.type, label:gl.label,
         gw:gl.gw, gh:gl.gh, color:r.color, qty:(gl.n||1)*(r.qty||1), isAS:r.isAS, isSet:gl.isSet,
+        asStd:!!(r.stdLong && r.stdLong.as),        // AS 정규격 — 재고 유리, 발주로 안 보냄 (2026-11-26)
         perSet:per[gl.gw+'×'+gl.gh]||1}));
     });
   });
@@ -6033,14 +6209,14 @@ function generate(){
               frameTxt = allSame ? `${c.fw}×${c.frameSegs[0].fh}`
                                  : c.frameSegs.map(s=>`${s.fw}×${s.fh}`).join(' / ');
             } else frameTxt=`${c.fw}×${c.fh}`;
-            const isSet=!!c.frameSegs;
+            const isSet=!!c.frameSegs && !c.asPiece;   // AS 조각 하나는 SET 아님 (2026-11-26)
             const old=isOldFrame(r);
             const key=`${frameTxt}|${gt}|${c.note||''}|${r.isAS?'AS':''}|${old?'O':''}`;
             if(!agg[key]) agg[key]={frameTxt,gt,isSet,note:c.note||'',isAS:r.isAS,old,glass:c.glass,L:0,R:0,none:0};
             const a=agg[key];
             if(r.lr==='L') a.L+=r.qty; else if(r.lr==='R') a.R+=r.qty; else a.none+=r.qty;
             if(!colorIsHPM){ const per=glassPerSet(c);
-              c.glass.forEach(gl=>glassAll.push({ship,code:r.code,type:r.type,label:gl.label,gw:gl.gw,gh:gl.gh,color:r.color,qty:(gl.n||1)*r.qty,isAS:r.isAS,isSet:gl.isSet,perSet:per[gl.gw+'×'+gl.gh]||1})); }
+              c.glass.forEach(gl=>glassAll.push({ship,code:r.code,type:r.type,label:gl.label,gw:gl.gw,gh:gl.gh,color:r.color,qty:(gl.n||1)*r.qty,isAS:r.isAS,isSet:gl.isSet,asStd:!!(r.stdLong&&r.stdLong.as),perSet:per[gl.gw+'×'+gl.gh]||1})); }
           });
           colorAggs.push({color, colorIsHPM, aggList:Object.values(agg)});
         });
@@ -6515,9 +6691,11 @@ function odHandoffSend(){
   if(!ships.length){ say('먼저 작업지시서를 생성하십시오 — 보낼 유리가 없습니다.', true); return; }
   // 베일(HPM)은 유리 리스트를 만들 때 이미 빠져 있습니다. 여기 거르개는 겹겹이 두는 것입니다.
   const groups=[];
+  let asStdN=0;
   ships.sort().forEach(ship=>{
     const byColor={};
     (src[ship]||[]).forEach(g=>{
+      if(g.asStd){ asStdN+=g.qty; return; }   // AS 정규격은 재고 유리로 — 예전에도 작업지시서·발주에 안 들어왔습니다 (2026-11-26)
       const ko = colorKo(g.color) || g.color || '미지정';
       if(typeof isHPMColor==='function' && isHPMColor(ko)) return;   // 베일은 유리가 아님
       (byColor[ko]=byColor[ko]||[]).push(g);
@@ -6527,14 +6705,15 @@ function odHandoffSend(){
       groups.push({color:ko, ship, items, qty:items.reduce((s,i)=>s+i.qty,0)});
     });
   });
-  if(!groups.length){ say('보낼 유리가 없습니다.', true); return; }
+  const asStdTxt = asStdN ? ` · AS 정규격 ${asStdN}장은 재고 유리라 안 보냈습니다` : '';
+  if(!groups.length){ say('보낼 유리가 없습니다.' + asStdTxt, true); return; }
   // 수납도어 탭에서 보낸 몫(kind:'subdoor')은 남겨 둡니다 — 덮으면 그쪽 유리가 말없이 사라집니다 (2026-10-08)
   const keep = odHandoffKeep('subdoor', true);
   const pack={ at:new Date().toISOString(), from:'비규격작업지시서', groups: keep.concat(groups) };
   try{ localStorage.setItem(LS_OD_HANDOFF, JSON.stringify(pack)); }
   catch(e){ say('저장 공간이 부족해 보내지 못했습니다.', true); return; }
   const sum=groups.map(g=>`${g.color} ${g.qty}장`).join(' · ');
-  say(`✓ 앱 발주탭으로 보냈습니다 — ${sum}.` + ' <button type="button" onclick="odOpenAppOrder()" style="margin-left:6px;padding:4px 10px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">앱 발주탭 열기 →</button>');
+  say(`✓ 앱 발주탭으로 보냈습니다 — ${sum}${asStdTxt}.` + ' <button type="button" onclick="odOpenAppOrder()" style="margin-left:6px;padding:4px 10px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">앱 발주탭 열기 →</button>');
 }
 
 /* ════════════════════════════════════════════════
