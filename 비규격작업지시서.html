@@ -343,6 +343,8 @@
     /* 부서별 인쇄(pcOpen) — 인쇄하는 동안만 #printCopies 를 찍고 나머지는 감춥니다 */
     body.pc-on > *:not(#printCopies){display:none!important}
     body.pc-on #printCopies{display:block!important}
+    #printCopies .pc-opage{position:relative;width:210mm;height:296mm;overflow:hidden}
+    #printCopies .pc-ostamp{position:absolute;left:0;right:0;bottom:3mm;text-align:center;font-size:9pt;color:#6b7280}
     #printCopies > * + *{break-before:page;page-break-before:always}
     #pcModal{display:none!important}
     /* 유리 리스트 — 화면 위 [인쇄할 표]에서 고른 쪽만 종이에 나갑니다(기본 인쇄실용만).
@@ -8001,6 +8003,55 @@ function pcDistOf(kind, p){
   return PRINT_DEPTS[kind].filter(d => d.glass ? (has700 && pcGlassBlocks().length) : pcDeptHas(d, p))
     .map(d => d.glass ? '인쇄실(유리)' : d.only === 'e500' ? '조립3(유로500)' : d.id).join(' · ');
 }
+/* ── 사틴 유리 발주서 같이 뽑기 (사장님 2026-11-26 「작업지시서 전달하면서 사틴 유리 발주서도 같이 출력해 가져다줘야 되는데 맨날 깜박」)
+   유로 「부서별 인쇄」 창 아래에 그 발주일(작업지시서 머리의 발주일부터 PC_SATIN_DAYS 일 뒤까지)에 **앱 발주탭에 기록된** 3.2T 백사틴 발주를 늘어놓고,
+   체크한 것은 같은 인쇄 묶음 맨 뒤에 발주서 양식 그대로 붙입니다(앱 odOrderPageImages — PDF·🖨 인쇄와 같은 그림).
+   · 발주를 아직 기록 안 했는데 유리 리스트가 있으면 빨갛게 알리고, 그대로 인쇄하면 한 번 여쭙니다.
+   · 그림은 앱이 그리므로 **앱 안 「비규격 작업지시서」 탭으로 열었을 때만** 같이 뽑힙니다(따로 연 창은 안내만).
+   · 발주 기록은 읽기만 합니다. */
+const PC_SATIN_DAYS = 2;
+const PC_SATIN_RE = /사틴|샤틴|satin/i;
+function pcApp(){ try{ const p = window.parent; return (p && p !== window && typeof p.odOrderPageImages === 'function') ? p : null; }catch(e){ return null; } }
+function pcOrderLog(){
+  const p = pcApp();
+  try{ if(p && Array.isArray(p.orderLog)) return p.orderLog; }catch(e){}
+  try{ return JSON.parse(ybnUnz(localStorage.getItem('ybn-order-v1')) || '[]') || []; }catch(e){ return []; }
+}
+function pcAddDays(d, n){ const t = new Date(d + 'T00:00:00'); t.setDate(t.getDate() + n);
+  return t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0'); }
+function pcSatinOrders(pages){
+  const ods = [...new Set(pages.map(p => p.dataset.od || '').filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)))];
+  if(!ods.length) return [];
+  return pcOrderLog().filter(o => {
+    if(!o || !o.id || !o.date || !(o.items || []).length) return false;
+    const txt = [o.type, o.title, o.glass, o.thick, ...(o.items || []).map(i => i.pname || '')].join(' ');
+    if(!PC_SATIN_RE.test(txt)) return false;
+    return ods.some(d => o.date >= d && o.date <= pcAddDays(d, PC_SATIN_DAYS));
+  }).sort((a, b) => (a.date || '').localeCompare(b.date || '') || String(a.vendor || '').localeCompare(String(b.vendor || ''), 'ko'));
+}
+function pcSatinHtml(pages, done){
+  const list = pcSatinOrders(pages), app = pcApp(), needGlass = pcGlassBlocks().length > 0;
+  let h = `<div class="pc-satin"><div style="font-weight:700;margin:10px 0 4px">📄 사틴 유리 발주서 — 같이 뽑기</div>`;
+  if(!list.length){
+    h += needGlass
+      ? `<div style="color:#e00000;font-size:12px;font-weight:700">이 날 사틴 유리 발주가 앱 발주탭에 아직 기록되지 않았습니다.<br><span style="font-weight:400">유리 발주를 기록한 뒤 이 창을 다시 여시면 같이 뽑힙니다. 작업지시서만 먼저 뽑고, 나중에 이 창에서 발주서만 체크해 따로 뽑으셔도 됩니다.</span></div>`
+      : `<div style="color:#6b7280;font-size:12px">이 날 사틴 유리 발주 기록이 없습니다.</div>`;
+    return h + `</div>`;
+  }
+  if(!app) h += `<div style="color:#b8590b;font-size:12px;margin-bottom:4px">앱 안 「🔲 비규격 작업지시서」 탭으로 열었을 때만 같이 뽑힙니다 — 지금은 따로 연 창입니다.</div>`;
+  h += list.map(o => {
+    const n = (o.items || []).reduce((s, i) => s + (+i.qty || 0), 0);
+    const ttl = [String(o.vendor || '').replace(/\s*귀하$/, ''), o.type || o.title || '', o.date.slice(5).replace('-', '/') + ' 발주', n + '장'].filter(Boolean).join(' · ');
+    const re = done['발주서|' + o.id] ? ' <span style="color:#e00000;font-size:11px">이미 뽑음 → 재출력</span>' : '';
+    return `<label class="pc-row${app ? '' : ' off'}"><input type="checkbox" class="pc-so" data-id="${esc(o.id)}" ${app ? 'checked' : 'disabled'} onchange="pcCount()">`
+         + `<span>${esc(ttl)}${re}</span><span class="pc-what">발주서</span></label>`;
+  }).join('');
+  return h + `</div>`;
+}
+function pcSatinChosen(){
+  const m = document.getElementById('pcModal'); if(!m) return [];
+  return [...m.querySelectorAll('input.pc-so:checked')].map(c => c.dataset.id);
+}
 function pcOpen(kind){
   const pages = pcPagesOf(kind);
   if(!pages.length){
@@ -8025,6 +8076,7 @@ function pcOpen(kind){
   m.innerHTML = `<div class="pc-box"><div style="font-weight:700;margin-bottom:6px">🖨️ 부서별 인쇄 · ${PC_KIND_LABEL[kind]} ${pages.length}장</div>`
     + `<div style="font-size:12px;color:#6b7280;margin-bottom:6px">받는 부서를 고르십시오. 장마다 바닥에 받는 부서와 쪽수가 찍힙니다.</div>`
     + rows
+    + (kind === 'euro' ? pcSatinHtml(pages, done) : '')
     + `<div class="pc-foot"><button class="pc-plain" onclick="pcClose();window.print()">부서 표시 없이 인쇄·PDF</button>`
     + `<button onclick="pcClose()">닫기</button><button class="primary" id="pcGo" onclick="pcPrint()">인쇄</button></div></div>`;
   m.onclick = e => { if(e.target === m) pcClose(); };
@@ -8035,19 +8087,42 @@ function pcClose(){ const m = document.getElementById('pcModal'); if(m) m.style.
 function pcChosen(){
   const m = document.getElementById('pcModal'); if(!m) return [];
   const kind = m.dataset.kind;
-  return [...m.querySelectorAll('input[type=checkbox]:checked')].map(c => PRINT_DEPTS[kind][+c.dataset.i]);
+  return [...m.querySelectorAll('input[type=checkbox][data-i]:checked')].map(c => PRINT_DEPTS[kind][+c.dataset.i]);
 }
 function pcCount(){
   const m = document.getElementById('pcModal'); if(!m) return;
   const kind = m.dataset.kind, ch = pcChosen();
   const sheets = ch.reduce((s, d) => s + pcDeptPages(kind, d).length, 0);
+  const so = pcSatinChosen().length;
   const b = document.getElementById('pcGo');
-  if(b){ b.textContent = ch.length ? `🖨️ ${ch.length}부 인쇄 (총 ${sheets}장)` : '부서를 고르십시오'; b.disabled = !ch.length; }
+  if(b){ b.textContent = (ch.length || so) ? `🖨️ ${ch.length ? ch.length + '부 인쇄 (총 ' + sheets + '장)' : ''}${ch.length && so ? ' + ' : ''}${so ? '발주서 ' + so + '건' : ''}` : '부서를 고르십시오'; b.disabled = !(ch.length || so); }
 }
-function pcPrint(){
+async function pcPrint(){
   const m = document.getElementById('pcModal'); if(!m) return;
-  const kind = m.dataset.kind, chosen = pcChosen();
-  if(!chosen.length) return;
+  const kind = m.dataset.kind, chosen = pcChosen(), soIds = pcSatinChosen();
+  if(!chosen.length && !soIds.length) return;
+  // 사틴 발주 기록이 없는데 유리 리스트가 있으면 한 번 여쭙니다(깜박 막이)
+  if(kind === 'euro' && !m.querySelector('input.pc-so') && pcGlassBlocks().length
+     && !confirm('이 날 사틴 유리 발주서가 없습니다 (앱 발주탭에 기록 전).\n\n작업지시서만 먼저 인쇄할까요?\n— 발주를 기록한 뒤 이 창에서 발주서만 체크해 따로 뽑으실 수 있습니다.')) return;
+  // 발주서 그림은 앱이 그립니다 — 인쇄 창보다 먼저 다 받아 둡니다
+  const soPages = [];
+  if(soIds.length){
+    const app = pcApp(), go = document.getElementById('pcGo');
+    if(!app){ alert('사틴 발주서는 앱 안 「비규격 작업지시서」 탭에서만 같이 뽑힙니다.'); return; }
+    if(go){ go.disabled = true; go.textContent = '발주서 그리는 중…'; }
+    try{
+      for(const id of soIds){
+        const o = pcOrderLog().find(x => x && x.id === id);
+        if(!o) continue;
+        const imgs = await app.odOrderPageImages(o, 'jpeg');
+        imgs.forEach((g, i) => soPages.push({o, g, i, n: imgs.length}));
+      }
+    }catch(e){
+      console.warn('[부서별 인쇄] 발주서 그림 실패', e);
+      alert('사틴 발주서를 그리지 못했습니다 — ' + (e && e.message || e) + '\n작업지시서만 인쇄하시려면 발주서 체크를 빼고 다시 누르십시오.');
+      pcCount(); return;
+    }
+  }
   const pages = pcPagesOf(kind), sig = pcSig(kind, pages);
   const log = pcLogRead(), ent = log[sig] || { d:{} };
   // 배부 목록은 **늘 원래 받는 곳 전부**를 적습니다 — 한 부만 다시 뽑아도 몇 곳에 갔는지 보이게.
@@ -8085,8 +8160,17 @@ function pcPrint(){
       host.appendChild(c);
     });
   });
+  // 사틴 발주서 — 묶음 맨 뒤, 발주서 PDF 와 같은 자리(종이 왼쪽 위에서 여백 M)
+  soPages.forEach(({o, g, i, n}) => {
+    const re = !!ent.d['발주서|' + o.id];
+    const pg = document.createElement('div'); pg.className = 'pc-opage';
+    pg.innerHTML = `<img src="${g.url}" style="position:absolute;left:${g.M}mm;top:${g.M}mm;width:${g.wMm}mm;height:${g.hMm}mm">`
+      + `<div class="pc-ostamp">사틴 유리 발주서 · 작업지시서와 함께${n > 1 ? ' · ' + (i+1) + ' / ' + n : ''}${re ? ' <span class="pc-re">재출력</span>' : ''}</div>`;
+    host.appendChild(pg);
+  });
   // 인쇄 창을 열기 전에 적습니다 — 취소해도 「뽑음」으로 남지만, 재출력 표시는 남는 쪽이 안전합니다.
   chosen.forEach(d => { ent.d[d.id] = (ent.d[d.id] || 0) + 1; });
+  soIds.forEach(id => { ent.d['발주서|' + id] = (ent.d['발주서|' + id] || 0) + 1; });
   ent.at = Date.now(); log[sig] = ent; pcLogWrite(log);
   pcClose();
   const off = () => { document.body.classList.remove('pc-on'); host.innerHTML = ''; window.removeEventListener('afterprint', off); };

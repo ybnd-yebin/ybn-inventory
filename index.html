@@ -17732,6 +17732,37 @@ function odRowCuts(node){
   return cuts.sort((a,b) => a-b);
 }
 
+/* 발주서 한 장 한 장을 그림으로 — PDF·인쇄와 비규격 작업지시서 「부서별 인쇄」(사틴 발주서 같이 뽑기)가 같이 씁니다.
+   돌려주는 것: [{url, wMm, hMm}] — 종이 왼쪽 위에서 OD_PDF_MARGIN 만큼 띄워 놓을 그림. */
+async function odOrderPageImages(o, fmt){
+  const node = await odMakeCaptureNode(o);
+  if(document.fonts && document.fonts.load){
+    await Promise.all([document.fonts.load("17px 'Hi Melody'"), document.fonts.ready]).catch(()=>{});
+  }
+  const cssH   = node.getBoundingClientRect().height;
+  const cuts   = odRowCuts(node);
+  const canvas = await html2canvas(node, { scale:2, backgroundColor:'#fff' });
+  const host = document.getElementById('od-capture-host'); if(host) host.innerHTML = '';
+  const M = OD_PDF_MARGIN, pw = 210 - M*2, ph = 297 - M*2;
+  const mmPerPx = pw / canvas.width, pagePx = Math.floor(ph / mmPerPx);
+  const k = canvas.height / (cssH || canvas.height);
+  const out = []; let y = 0;
+  while(y < canvas.height - 1 && out.length < 40){
+    let end = Math.min(y + pagePx, canvas.height);
+    if(end < canvas.height){
+      const fit = cuts.map(c => Math.round(c*k)).filter(c => c > y + 20 && c <= end);
+      if(fit.length) end = fit[fit.length - 1];
+    }
+    const slice = document.createElement('canvas');
+    slice.width = canvas.width; slice.height = end - y;
+    slice.getContext('2d').drawImage(canvas, 0, y, canvas.width, end-y, 0, 0, canvas.width, end-y);
+    out.push({ url: fmt === 'png' ? slice.toDataURL('image/png') : slice.toDataURL('image/jpeg', 0.92),
+               wMm: pw, hMm: (end-y)*mmPerPx, M });
+    y = end;
+  }
+  return out;
+}
+window.odOrderPageImages = odOrderPageImages;
 async function odWritePdf(o, print){
   await odLoadJsPdf();
   const node = await odMakeCaptureNode(o);
