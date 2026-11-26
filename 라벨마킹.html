@@ -103,6 +103,7 @@ code,.mono{font-family:"SFMono-Regular",Consolas,"D2Coding",monospace}
 .checklist .dv-t th{color:var(--ink-3);font-weight:400}
 .checklist .dv-tag{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;color:#c92a2a;border:1px solid #f0b4a8;border-radius:4px;padding:0 4px}
 .checklist .dv-tag.nd{color:#b8590b;border-color:#f3cf9f}
+.checklist .as-r{margin-left:6px;font-weight:700;color:#e00000}   /* AS — 모델명 옆 빨간 글씨 (사장님 2026-11-26) */
 .checklist ul.pv{max-width:760px}
 @media (max-width:600px){ .checklist .dv-t td:nth-child(6),.checklist .dv-t th:nth-child(6){display:none} }
 .checklist .clear{margin-top:14px}
@@ -2118,6 +2119,7 @@ function delivMatchHtml(mt){
 /* 쪽수순 — 라벨 뭉치를 위에서부터 한 장씩 넘기며 맞춰 볼 때. 쪽 안은 왼쪽 위 → 오른쪽 위 → 왼쪽 아래 → 오른쪽 아래.
    같은 품명은 쪽이 달라도 한 줄(처음 나온 쪽 밑). 체크는 색별 보기와 따로(「P|m|품명」 열쇠). */
 function renderPageView(infos, done, mt){
+  const asQ = checkAsQuads();
   const badKeys = new Set();
   for(const p of mt.pos) for(const g of p.rows) if(!g.ok) badKeys.add(p.po + "#" + g.key);
   const nodocPo = new Set(mt.pos.filter(p=>p.nodoc).map(p=>p.po));
@@ -2129,9 +2131,9 @@ function renderPageView(infos, done, mt){
   const pgs = [...byPage.keys()].sort((a,b)=>a-b);
   const model = new Map();
   for(const pg of pgs) for(const x of byPage.get(pg).sort((a,b)=>a.quad - b.quad)){
-    const k = "P|m|" + x.name;
+    const k = "P|m|" + x.name, isAs = asQ.has(x.page + "|" + (x.line.x<0.5?0:1) + "-" + (x.line.y<0.5?0:1));
     const g = model.get(k) || (model.set(k, {key:k, x, n:0, pages:new Set(), first:pg}), model.get(k));
-    g.n++; g.pages.add(x.page);
+    g.n++; g.pages.add(x.page); if(isAs) g.as = (g.as||0) + 1;
   }
   const rows = []; let h = "";
   for(const pg of pgs){
@@ -2147,7 +2149,7 @@ function renderPageView(infos, done, mt){
                 : badKeys.has(mk) ? `<span class="dv-tag">납품서와 다름</span>` : "";
       h += `<li class="${on ? "done" : ""}" data-key="${esc(g.key).replace(/"/g,"&quot;")}"${checkChipStyle(it.color, it.tok)}>` +
         `<input type="checkbox"${on ? " checked" : ""} tabindex="-1">` +
-        `<span class="nm">${it.color ? "<b>" + esc(it.color) + "</b>" : ""}${esc([it.type, it.text].filter(Boolean).join(" "))}${it.side && LR_KEEP_RE.test(g.x.name) ? " " + it.side : ""}${tag}</span>` +
+        `<span class="nm">${it.color ? "<b>" + esc(it.color) + "</b>" : ""}${esc([it.type, it.text].filter(Boolean).join(" "))}${it.side && LR_KEEP_RE.test(g.x.name) ? " " + it.side : ""}${g.as ? `<b class="as-r">AS${g.as < g.n ? " " + g.as : ""}</b>` : ""}${tag}</span>` +
         `<span class="q">${g.n}장</span><span class="pg">${g.pages.size > 1 ? checkPages(g.pages) : ""}</span></li>`;
     }
   }
@@ -2187,7 +2189,7 @@ function renderCheckList(){
       const on = done.has(g.key);
       h += `<li class="${on ? "done" : ""}" data-key="${esc(g.key).replace(/"/g,"&quot;")}">` +
         `<input type="checkbox"${on ? " checked" : ""} tabindex="-1">` +
-        `<span class="nm">${esc(g.text)}</span>` +
+        `<span class="nm">${esc(g.text)}${g.as ? `<b class="as-r">AS</b>` : ""}</span>` +
         `<span class="q">${checkQty(g)}</span><span class="pg">${checkPages(g.pages)}</span></li>`;
     }
     return h + '</ul>';
