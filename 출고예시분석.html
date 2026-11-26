@@ -431,7 +431,7 @@
       <button class="chip" data-cat="E500">유로500</button>
       <button class="chip" data-cat="E700">유로700</button>
       <button class="chip" data-cat="ETC">그 외</button>
-      <button class="chip" data-cat="OIDO">오이도</button>
+      <button class="chip" data-cat="GLASS">글래스도어</button>
       <button class="chip" data-cat="BAS">바스</button>
       <button class="btn" id="copyMonthBtn" style="margin-left:auto;padding:7px 14px">📋 이미지로 복사</button>
     </div>
@@ -1320,7 +1320,7 @@ function reconcile(bounds, cat){
     let qty=0, rows=0;
     for(const row of a.snap.rows){
       // 화면이 한 분류만 보고 있으면 원본도 같은 분류만 센다 (같은 것끼리 견줘야 뜻이 있다)
-      if(cat && cat!=='ALL' && category(row, ybCodes)!==cat) continue;
+      if(cat && cat!=='ALL' && boardCat(row, ybCodes)!==cat) continue;   // 2주 물량 분류와 같은 잣대(글래스도어 묶음)
       let q=0;
       for(const [d,n] of Object.entries(row.byDate||{})) if(inRange(d)) q+=n;
       if(q>0) rows++;
@@ -1465,11 +1465,11 @@ function renderMonth(){
   const shipSet = new Set();
   const ybCodes = ybndCodeSet();
   for(const v of latest.values()){
-    const cat = category(v, ybCodes);
+    const cat = boardCat(v, ybCodes);   // 글래스도어 = 그레이박스+오이도 (발주 예상 표와 같음, 2026-11-26)
     if(MONTH_CAT!=='ALL' && cat!==MONTH_CAT) continue;
     if(bounds && (v.shipDate<bounds[0] || v.shipDate>bounds[1])) continue;
     const pkey = prodKey(v);   // 코드+제품명+창고 — 같은 코드 다른 사이즈를 뭉개지 않는다
-    if(!prodMap.has(pkey)) prodMap.set(pkey,{name:v.name,oido:v.oido,bas:cat==='BAS',lead:v.lead,byShip:{}});
+    if(!prodMap.has(pkey)) prodMap.set(pkey,{name:v.name,code:v.code,oido:v.oido,bas:cat==='BAS',glass:cat==='GLASS',lead:v.lead,byShip:{}});
     prodMap.get(pkey).byShip[v.shipDate]=v.qty;
     shipSet.add(v.shipDate);
   }
@@ -1479,10 +1479,13 @@ function renderMonth(){
     return;
   }
 
-  const items=[...prodMap.values()].map(p=>{
+  let items=[...prodMap.values()].map(p=>{
     const qs=ships.map(s=>p.byShip[s]||0);
-    return {name:p.name, oido:p.oido, bas:p.bas, fc:finishColor(p.name), qs, sum:qs.reduce((a,c)=>a+c,0)};
+    return {name:p.name, code:p.code, oido:p.oido, bas:p.bas, glass:p.glass, fc:finishColor(p.name), qs, sum:qs.reduce((a,c)=>a+c,0)};
   }).filter(it=>it.sum>0);
+  // 글래스도어는 그레이박스·오이도를 같은 코드끼리 한 줄로 합쳐 맨 위 묶음으로 (발주 예상 표와 같음)
+  const glassItems = mergeGlass(items.filter(it=>it.glass), ships.length);
+  items = items.filter(it=>!it.glass);
 
   // 정렬: 오이도 → 색상끼리 → 이름순
   const colorOrder={'fc-green':1,'fc-apricot':2,'fc-gray':3,'':9};
@@ -1492,7 +1495,7 @@ function renderMonth(){
     if((colorOrder[ca]||9)!==(colorOrder[cb]||9)) return (colorOrder[ca]||9)-(colorOrder[cb]||9);
     return a.name.localeCompare(b.name,'ko');
   });
-  const shipTotals=ships.map((_,i)=>items.reduce((a,it)=>a+it.qs[i],0));
+  const shipTotals=ships.map((_,i)=>glassItems.concat(items).reduce((a,it)=>a+it.qs[i],0));
   const grand=shipTotals.reduce((a,c)=>a+c,0);
 
   let html=`<div class="board-asof">출고일 기준 · 분류: <strong>${catLabel(MONTH_CAT)}</strong> · 각 칸은 최신 조회값 · 총 ${grand}장</div>`;
@@ -1501,9 +1504,20 @@ function renderMonth(){
     <tr><th class="pname" style="text-align:center">제품</th>
     ${ships.map(s=>`<th class="dcol">${fmtShort(s)}<br><span style="font-weight:400;color:var(--soft)">${dowOf(s)}</span></th>`).join('')}
     <th class="sumh">합계</th></tr></thead><tbody>`;
+  if(glassItems.length){
+    const gTot = ships.map((_,i)=>glassItems.reduce((a,it)=>a+it.qs[i],0));
+    html+=`<tr class="glass-head"><td class="pname">글래스도어 <span style="font-weight:400;font-size:11px">${glassItems.length}품목 · 그레이+오이도</span></td>
+      ${gTot.map(t=>`<td class="q${t?'':' z'}">${t||'·'}</td>`).join('')}
+      <td class="sum">${gTot.reduce((a,c)=>a+c,0)||'-'}</td></tr>`;
+    for(const g of glassItems){
+      html+=`<tr class="glass"><td class="pname" title="${esc(g.name)}">${esc(g.name)}${glassSub(g)}</td>`;
+      g.qs.forEach((q,i)=>{ html+=`<td class="q${q===0?' z':''}">${q===0?'·':q}${q?srcChips(g.qsG[i], g.qsO[i]):''}</td>`; });
+      html+=`<td class="sum">${g.sum||'-'}${g.sum?srcChips(g.gSum, g.oSum):''}</td></tr>`;
+    }
+  }
   let prevOido=true;
   for(const it of items){
-    const sep=(prevOido&&!it.oido)?' sep':''; prevOido=it.oido;
+    const sep=(prevOido&&!it.oido&&glassItems.length)?' sep':''; prevOido=it.oido;
     const cls=[it.oido?'oido':'', it.bas?'bas':'', it.fc?it.fc.cls:'', sep.trim()].filter(Boolean).join(' ');
     const badge=(it.oido?' <span class="oido-tag">오이도</span>':'')
               + (it.bas ?' <span class="badge-bas">바스</span>':'');
