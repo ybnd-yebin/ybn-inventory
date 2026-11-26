@@ -7256,6 +7256,44 @@ function subdoorGroup(name){
   return '';
 }
 
+/* ── KB 벽장 빗면 — 도어세로로 힌지 3개 / 4개 (사장님 2026-11-26, 한샘 「KB 벽장 빗면 45XX_50」 DXF 실측)
+   738~955 : 힌지 3개 110 / (H−220)/2 ×2 / 110   → KB_BYEOK (예전 도면 그대로, 범위 글자만 738~955)
+   956~1218: 힌지 4개 110 / (H−220)/3 ×3 / 110   → KB_BYEOK4
+   KB_BYEOK4 는 **그릴 때 예전 도면에서 만듭니다** — 가운데 힌지 하나를 둘로, X 치수 둘을 셋으로, 빨간 원 둘을 셋으로.
+   도면 데이터(SUBDOOR_SHEETS.KB_BYEOK)는 손대지 않습니다(12-8). 되돌리려면 subdoorSheetId 의 KB 갈래만 예전대로. */
+const KB_BYEOK_4H_FROM = 956;   // 프레임(도어) 세로가 이 값 이상이면 힌지 4개
+function subdoorKb4Svg(svg){
+  let s = String(svg);
+  const T = 122.958, B = 246.728, step = (B - T) / 3, f = v => v.toFixed(3);
+  const ys = [T, T + step, T + 2*step, B];
+  const hinge = y => `<line x1="71.977" y1="${f(y-3.765)}" x2="71.977" y2="${f(y+3.764)}" stroke="#000"/>`
+    + `<circle cx="71.977" cy="${f(y)}" r="2.510" stroke="#000"/>`
+    + `<path d="M 75.741 ${f(y)} L 68.212 ${f(y)} Z" stroke="#000"/>`;
+  const dim = (a, b) => `<line x1="72.856" y1="${f(a)}" x2="97.464" y2="${f(a)}" stroke="#000"/>`
+    + `<line x1="72.856" y1="${f(b)}" x2="97.464" y2="${f(b)}" stroke="#000"/>`
+    + `<line x1="95.704" y1="${f(a)}" x2="95.704" y2="${f(b)}" stroke="#000"/>`
+    + `<circle cx="95.704" cy="${f(a)}" r="1.100" fill="#000" stroke="none"/>`
+    + `<circle cx="95.704" cy="${f(b)}" r="1.100" fill="#000" stroke="none"/>`
+    + `<g transform="translate(91.998,${f((a+b)/2)}) rotate(-90.00)" text-anchor="middle"><text x="0" y="1.759" font-size="6.22" fill="#000">X</text></g>`;
+  const rep = (re, to) => { const n = s; s = s.replace(re, to); return n !== s; };
+  const ok = [
+    // 가운데 힌지(184.843) → 둘
+    rep(/<line x1="71\.977" y1="181\.078"[^>]*\/><circle cx="71\.977" cy="184\.843"[^>]*\/><path d="M 75\.741 184\.843 L 68\.212 184\.843 Z"[^>]*\/>/, hinge(ys[1]) + hinge(ys[2])),
+    // X 치수 둘 → 셋
+    rep(/<line x1="72\.856" y1="122\.958"[\s\S]*?>X<\/text><\/g><line x1="72\.856" y1="184\.843"[\s\S]*?>X<\/text><\/g>/, dim(ys[0], ys[1]) + dim(ys[1], ys[2]) + dim(ys[2], ys[3])),
+    // 빨간(변환값) 원 둘 → 셋
+    rep(/<circle cx="94\.214" cy="153\.900" r="7\.082"[^>]*\/><circle cx="94\.214" cy="215\.427" r="7\.082"[^>]*\/>/,
+        [0,1,2].map(k => `<circle cx="94.214" cy="${f((ys[k]+ys[k+1])/2)}" r="7.082" stroke="#000"/>`).join('')),
+    rep('>738~1214<', '>956~1218<'),
+  ];
+  if(ok.includes(false)){ console.warn('[수납도어] KB 벽장 힌지 4개 도면을 못 만듦', ok); return ''; }
+  return s;
+}
+if(SUBDOOR_SHEETS.KB_BYEOK){
+  const k4 = subdoorKb4Svg(SUBDOOR_SHEETS.KB_BYEOK.svg);
+  if(k4) SUBDOOR_SHEETS.KB_BYEOK4 = Object.assign({}, SUBDOOR_SHEETS.KB_BYEOK, { svg: k4 });
+}
+
 /* 도면 고르기. fh = 프레임 세로.
    맞는 도면이 없으면 빈 문자열 — 조용히 엉뚱한 도면으로 흘려보내지 않는다. */
 function subdoorSheetId(grp, name, fh){
@@ -7267,7 +7305,8 @@ function subdoorSheetId(grp, name, fh){
     return '';
   }
   if(grp==='KB'){
-    if(/벽장/.test(n))   return 'KB_BYEOK';
+    // 도어세로 956 이상은 힌지 4개 도면 (2026-11-26 한샘 DXF) — 도면을 못 만들었으면 예전 도면 그대로
+    if(/벽장/.test(n))   return (fh >= KB_BYEOK_4H_FROM && SUBDOOR_SHEETS.KB_BYEOK4) ? 'KB_BYEOK4' : 'KB_BYEOK';
     if(/키큰장/.test(n)) return 'KB_KEUN';
     return '';
   }
@@ -7465,6 +7504,7 @@ function subdoorDropPageFrame(svg){
    **도면 데이터(SUBDOOR_SHEETS)는 손대지 않습니다 — 그릴 때만 바꿉니다**(12-8).
    되돌리려면 아래에서 SIGHANG 줄을 지우면 됩니다. */
 const SUBDOOR_TEXT_FIX = {
+  KB_BYEOK: [ ['>738~1214<', '>738~955<'] ],   // 힌지 3개는 955 까지 — 956 부터 KB_BYEOK4 (2026-11-26)
   SIGHANG: [
     ['>1894~1993<', '>1896~1995<'],
     ['>1994~2093<', '>1996~2095<'],
@@ -7883,7 +7923,7 @@ function subdoorGenerate(){
     return;
   }
   const order = ['SIG','SIG18','SIGHANG','YU_KEUN_A','YU_KEUN_B','YU_BYEOK',
-                 'AIR_KEUN','AIR_BUNRI','AIR_BYEOK','KB_KEUN','KB_BYEOK'];
+                 'AIR_KEUN','AIR_BUNRI','AIR_BYEOK','KB_KEUN','KB_BYEOK','KB_BYEOK4'];
   pages.sort((a,b)=>
       String(a.ship).localeCompare(String(b.ship))
    || order.indexOf(a.id) - order.indexOf(b.id)
